@@ -176,7 +176,12 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
         <linearGradient id={`${uid}-sr`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: "var(--sun-rise-1)" }} /><stop offset="1" style={{ stopColor: "var(--sun-rise-2)" }} />
         </linearGradient>
-        <linearGradient id={`${uid}-gs`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="gsGrad" x2="1" y2="0">{stops("gs", "var(--face-lit)")}</linearGradient>
+        {/* The lit sky: a vertical pair of golds, masked by the edge's horizontal ramp, like the dawn beyond it. */}
+        <linearGradient id={`${uid}-lit`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" data-p="litGrad" y2="1">
+          <stop offset="0" style={{ stopColor: "var(--face-lit-top)" }} /><stop offset="1" style={{ stopColor: "var(--face-lit-bottom)" }} />
+        </linearGradient>
+        <linearGradient id={`${uid}-gs`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="gsGrad" x2="1" y2="0">{stops("gs", "#fff")}</linearGradient>
+        <mask id={`${uid}-gsm`} maskUnits="userSpaceOnUse" x="0" y="0" width={w} height={h}><rect width={w} height={h} fill={ref("gs")} /></mask>
         {/* The dawn beyond the lit edge: a vertical pair of hues, masked by the edge's horizontal ramp. */}
         <linearGradient id={`${uid}-dawn`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" data-p="dawnGrad" y2="1">
           <stop offset="0" style={{ stopColor: "var(--face-dawn-top)" }} /><stop offset="1" style={{ stopColor: "var(--face-dawn-bottom)" }} />
@@ -209,7 +214,7 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
         <path data-p="trail0" d="" /><path data-p="trail1" d="" />
       </g>
       <g clipPath={ref("sky")}>
-        <rect data-p="goldSky" className="rw-gold" width={w} height={h} fill={ref("gs")} />
+        <rect data-p="goldSky" className="rw-gold" width={w} height={h} fill={ref("lit")} mask={`url(#${uid}-gsm)`} />
         <rect data-p="bloom" className="rw-bloom" width={w} height={h} />
         <rect data-p="pour" className="rw-pour" width={w} height={h} fill={ref("pour")} />
         <rect data-p="vSky" className="rw-veil-sky" width={w} height={h} fill={ref("dawn")} mask={`url(#${uid}-vsm)`} />
@@ -297,7 +302,7 @@ function paint(e: Record<string, SVGElement>, svg: SVGSVGElement, s: Scene, uid:
   const past = g.whole ? 1 : g.beyond;
   setStops(e, "gs", goldOffsets, [g.sky, g.sky, g.sky * past, g.sky * past]);
   for (const name of ["gsGrad", "vsGrad", "vdGrad", "vgGrad", "vmGrad"]) set(name, "x2", n(s.w));
-  set("dawnGrad", "y2", n(s.skyBottom));
+  for (const name of ["litGrad", "dawnGrad"]) set(name, "y2", n(s.skyBottom));
   const v = s.veil;
   const veilOffsets = [0, v.from, v.to, 1];
   const ramp = (v.whole ? [1, 1, 1, 1] : [0, 0, 1, 1]).map((k) => k * v.strength);

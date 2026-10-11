@@ -89,7 +89,8 @@
   --face-scrim: transparent;
   /* Gold laid over the blue to the marker, the cool dim beyond it, and the contrail (miles). */
   /* Gold laid over the blue to the marker and the cool dim beyond it; each side carries a share of the other (the scene). */
-  --face-lit: #ffd98c; --face-contrail: #ffffff73; --face-veil-dim: #3d567426;
+  --face-lit-top: #ffd98c; --face-lit-bottom: #e0a24a; /* the lit sky: gold at the top down to a deeper amber at the horizon */
+  --face-contrail: #ffffff73; --face-veil-dim: #3d567426;
   --face-veil-cashback: #ffffff; --face-veil-miles: #ffffff; --face-veil-grey: transparent; --face-bloom: transparent;
   --face-dawn-top: #8f7ea6; --face-dawn-bottom: #cf8d78; /* the unlit sky: early morning, lavender down to rose-peach */
   --face-cashback-blend: screen; --face-pour-cashback: 0.65; --face-pour-miles: 0.65;
@@ -160,7 +161,7 @@
   --face-foot-soft: #d4e2d9; --face-urgent-ink: #ffd98c; --face-failed-ink: #ffabae;
   --ridge-back: #2a6648; --ridge-front: #1e4433;
   --face-scrim: #1e44338c;
-  --face-lit: transparent; --face-contrail: transparent; --face-veil-dim: transparent;
+  --face-lit-top: transparent; --face-lit-bottom: transparent; --face-contrail: transparent; --face-veil-dim: transparent;
   --face-veil-cashback: #d4cbd4; --face-veil-miles: #8a8496; --face-veil-grey: #808080; --face-bloom: #ffe3ac;
   --face-dawn-top: transparent; --face-dawn-bottom: transparent;
   --face-cashback-blend: screen; --face-pour-cashback: 0.45; --face-pour-miles: 0.65;

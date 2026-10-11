@@ -17,6 +17,7 @@ extension Theme {
     static let skyMiles = [named("SkyMiles1"), named("SkyMiles2"), named("SkyMiles3")]
     static let skyOvercast = [named("SkyOvercast1"), named("SkyOvercast2"), named("SkyOvercast3")]
     static let skyLit = named("SkyLit")
+    static let skyLitBottom = named("SkyLitBottom")
     static let contrail = named("Contrail")
 
     static let inkCashback = named("InkCashback")
@@ -218,7 +219,19 @@ private struct ExposurePainter {
       // The contrail first, so the gold is laid over it and it shows only on the blue.
       if exposure.miles, exposure.stage != .failed { drawContrail(in: &context) }
       if let alpha = scene.litAlpha {
-        context.fill(Path(frame), with: wash(Theme.Face.skyLit, alpha: alpha))
+        // Gold at the top of the sky down to a deeper amber at the horizon's lowest point (the owner's
+        // ask, so the lit side has a darker base like the dawn beyond it), masked by the edge's ramp.
+        // The ridges are drawn over it, so the amber shows only on the sky, under the name's dark ink.
+        let bottom = max(scene.horizonY(at: 0), scene.horizonY(at: 1))
+        context.drawLayer { layer in
+          layer.fill(
+            Path(frame),
+            with: .linearGradient(
+              Gradient(colors: [Theme.Face.skyLit, Theme.Face.skyLitBottom]),
+              startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: bottom)))
+          layer.blendMode = .destinationIn
+          layer.fill(Path(frame), with: wash(.white, alpha: alpha))
+        }
       }
     } else if scene.bloomAlpha > 0 {
       var bloom = context
