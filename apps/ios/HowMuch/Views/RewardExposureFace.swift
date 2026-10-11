@@ -42,8 +42,6 @@ extension Theme {
     static let horizon = named("Horizon")
 
     static let veilDim = named("VeilDim")
-    static let dawnTop = named("DawnTop")
-    static let dawnBottom = named("DawnBottom")
     static let veilGrey = named("VeilGrey")
     static let veilCashback = named("VeilCashback")
     static let veilMiles = named("VeilMiles")
@@ -93,8 +91,8 @@ struct RewardExposureFace: View, Animatable, Equatable {
 }
 
 /// Draws one frame of the scene, back to front: sky and horizon warmth, the
-/// contrail and the light (gold by day, bloom by night), the pour from the top
-/// edge, the glow, the two ridges, the ground's gold, the veil and the sun. The
+/// contrail and the light (a lighter blue by day, bloom by night), the pour from the top
+/// edge, the glow, the two ridges, the veil and the sun. The
 /// phone draws no hairline marker: the sun rides at the fill and is the marker.
 /// Text is never inside the scene.
 private struct ExposurePainter {
@@ -115,7 +113,6 @@ private struct ExposurePainter {
     drawSky(in: &context)
     drawLight(in: &context)
     drawPour(in: &context)
-    drawSkyVeil(in: &context)
     drawHalo(in: &context)
     drawRidges(in: &context)
     drawGround(in: &context)
@@ -202,7 +199,7 @@ private struct ExposurePainter {
     // The wash falls to the same colour at a lower alpha, never to clear, so the falloff does not pass through grey.
     let lo = min(1, max(0, pose.h - 0.04))
     let hi = min(1, max(0, pose.h + 0.04))
-    let beyond = alpha * max(ExposureScene.meet, scene.lifted)
+    let beyond = alpha * scene.lifted
     // Smoothstep between lo and hi: quarter points sit at 15.6% and 84.4% of the way.
     let quarter = lo + 0.25 * (hi - lo), threeQuarter = lo + 0.75 * (hi - lo)
     let gradient = Gradient(stops: [
@@ -216,12 +213,11 @@ private struct ExposurePainter {
 
   private func drawLight(in context: inout GraphicsContext) {
     if daytime {
-      // The contrail first, so the gold is laid over it and it shows only on the blue.
+      // The contrail first, so the lit wash is laid over it and it shows only on the unlit blue.
       if exposure.miles, exposure.stage != .failed { drawContrail(in: &context) }
       if let alpha = scene.litAlpha {
-        // Gold at the top of the sky down to a deeper amber at the horizon's lowest point (the owner's
-        // ask, so the lit side has a darker base like the dawn beyond it), masked by the edge's ramp.
-        // The ridges are drawn over it, so the amber shows only on the sky, under the name's dark ink.
+        // A lighter blue at the top of the sky down to a shade deeper at the horizon's lowest point,
+        // masked by the edge's ramp. The ridges are drawn over it, so it shows only on the sky.
         let bottom = max(scene.horizonY(at: 0), scene.horizonY(at: 1))
         context.drawLayer { layer in
           layer.fill(
@@ -341,33 +337,6 @@ private struct ExposurePainter {
 
   // MARK: Veil
 
-  /// Light mode's unlit sky goes to early morning rather than a dimmed blue: lavender down to
-  /// rose-peach, clipped to the sky and masked by the lit edge's ramp (a tenth on the lit side, nine
-  /// tenths beyond), under the halo, the ridges and the sun. The failed sky stays overcast.
-  private func drawSkyVeil(in context: inout GraphicsContext) {
-    guard daytime, exposure.stage != .failed, let edge = scene.veilEdge else { return }
-    let strength = scene.veilStrength
-    guard strength > 0 else { return }
-    let meet = ExposureScene.meet
-    var sky = context
-    sky.clip(to: above { scene.horizonY(at: $0) })
-    let bottom = max(scene.horizonY(at: 0), scene.horizonY(at: 1))
-    sky.drawLayer { layer in
-      layer.fill(
-        Path(frame),
-        with: .linearGradient(
-          Gradient(colors: [Theme.Face.dawnTop, Theme.Face.dawnBottom]),
-          startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: bottom)))
-      // The edge's ramp as the layer's alpha.
-      layer.blendMode = .destinationIn
-      layer.fill(
-        Path(frame),
-        with: .linearGradient(
-          Gradient.smoothRamp(.white, base: strength * meet, peak: strength * (1 - meet)),
-          startPoint: CGPoint(x: edge.from, y: 0), endPoint: CGPoint(x: edge.to, y: 0)))
-    }
-  }
-
   /// Underexposes the art right of the marker in the minimum journey, and everything when failed.
   private func drawVeil(in context: inout GraphicsContext) {
     guard let edge = scene.veilEdge else { return }
@@ -391,7 +360,7 @@ private struct ExposurePainter {
         with: .linearGradient(Gradient.smoothRamp(cast, peak: strength), startPoint: from, endPoint: to))
     case .daytime:
       // The failed face only: a cool 14% dim over the whole frame, which never darkens enough to break
-      // a floor. The minimum journey's unlit sky goes to early morning instead (drawSkyVeil) and the ground
+      // a floor. The minimum journey's unlit sky is the daytime blue itself and the ground
       // is one pair of greens throughout, so nothing else is dimmed.
       guard exposure.stage == .failed else { return }
       veil.fill(Path(frame), with: .color(Theme.Face.veilDim.opacity(0.14 * strength)))

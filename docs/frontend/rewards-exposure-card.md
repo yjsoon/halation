@@ -133,7 +133,7 @@ let reachedTierThreshold: Double
 
 | Channel | Source | Rule |
 | --- | --- | --- |
-| Lit extent | `h` | Gate: lit from the left edge to `x = h × W`, with a falloff of 4% of the width either side of it. Every later stage: the whole band. Dark mode: underexposed to the right. Light mode: gold laid over the blue sky to the left, the ground sunlit to the left and cooled to the right. Calm: an even, softer light. Failed: underexposed everywhere (light mode: an overcast sky). |
+| Lit extent | `h` | Gate: lit from the left edge to `x = h × W`, with a falloff of 4% of the width either side of it. Every later stage: the whole band. Dark mode: underexposed to the right. Light mode: a lighter blue laid over the blue sky to the left, the ground one pair of greens throughout. Calm: an even, softer light. Failed: underexposed everywhere (light mode: an overcast sky). |
 | Marker | `h`, gate only | Hairline at `x = h × W` |
 | Sun position | `h`, `v` | Gate: on the horizon at `clamp(h, 0.07, 0.85)`, lifting clear over `h` 0.85 to 1. From the minimum on: in the column, from just above the ground (`v` 0) to off the top (`v` 1). None when failed. |
 | Brightness | `v` | Light mode: the gold over the sky deepens from 76% to 92%. Dark mode: the bloom grows to 30%. Both: the crest strokes, the horizon warmth and the halo. The pour from the top edge fades in from `v` 0.4 to full at 1. |
@@ -174,15 +174,15 @@ The table holds in both appearances. The geometry, the sun's path, the rings, th
 
 ### State table: light-mode faces
 
-Values are in Colour assets. "Gold" is `SkyLit` at the top of the sky down to `SkyLitBottom` at the horizon's lowest point, laid over the blue at `0.76 + 0.16 × v` to the left of the marker, falling to a tenth over the falloff while the minimum journey runs.
+Values are in Colour assets. "Lit" is `SkyLit` at the top of the sky down to `SkyLitBottom` at the horizon's lowest point, a lighter blue laid over the daytime blue at `0.76 + 0.16 × v` to the left of the marker, falling to nothing over the falloff while the minimum journey runs.
 
 | # | State | Sky and light | Sun and rings | Ground and marker | Text |
 | --- | --- | --- | --- | --- | --- |
-| 1, 2 | Gate (hero and desktop face; the phone strip and band drop the hairline and draw one soft glow in place of the rings, see The phone cut) | Blue sky, gold from the left edge to the marker, then orange. At `h` 0 only a sliver at the left is gold; at 0.2 a fifth of the width is. | A half disc on the horizon at the marker, with the amber `SunRise` disc, which reads as a sunrise against the blue; small rings | Apart. One pair of greens throughout, never dark. The warm white marker with its faint dark edge, on the sky and the ground alike. | Name in dark ink on the gold and the blue alike. Foot in dark ink; `UrgentInk` dark umber when urgent. |
-| 3, 4, 5 | Climb | The whole band gold at `0.76 + 0.16 × v`, deepening as the sun climbs; the pour fades in from `v` 0.4 | In the column, climbing; the rings grow and, with the core glow, are screened over the sky, so they read as glare, never as mud on the gold | Merged, the same greens; no marker | As 1 |
-| 6, 7 | Rest | The whole band gold: 0.76 at rest (6), 0.84 at halfway (7) | Resting (6) or halfway (7) in the column | Merged | As 1 |
+| 1, 2 | Gate (hero and desktop face; the phone strip and band drop the hairline and draw one soft glow in place of the rings, see The phone cut) | Blue sky, a lighter blue from the left edge to the marker, then the blue itself. At `h` 0 only a sliver at the left is lit; at 0.2 a fifth of the width is. | A half disc on the horizon at the marker, with the amber `SunRise` disc, which reads as a sunrise against the blue; small rings | Apart. One pair of greens throughout, never dark. The warm white marker with its faint dark edge, on the sky and the ground alike. | Name in dark ink on the lit and the unlit blue alike. Foot in dark ink; `UrgentInk` dark umber when urgent. |
+| 3, 4, 5 | Climb | The whole band lit at `0.76 + 0.16 × v`, lightening as the sun climbs; the pour fades in from `v` 0.4 | In the column, climbing; the rings grow and, with the core glow, are screened over the sky, so they read as glare | Merged, the same greens; no marker | As 1 |
+| 6, 7 | Rest | The whole band lit: 0.76 at rest (6), 0.84 at halfway (7) | Resting (6) or halfway (7) in the column | Merged | As 1 |
 | 8, 9, 10 | Capped | Gold at 0.92 with the pour at full strength from the top edge over the sun's column: a warm, bright noon | Off the top edge; the rings' lower arcs show at the top | Merged; crest bright end to end | Headline in foot ink |
-| 12, 13 | Calm: no target, locked or withheld | Even, no split: gold at a steady 42% across the whole sky, softer than any lit band. Miles keeps its contrail. | Resting in the column; small rings | The brand pair, apart; the same greens | As 1 |
+| 12, 13 | Calm: no target, locked or withheld | Even, no split: the lit blue at a steady 42% across the whole sky, softer than any lit band. Miles keeps its contrail. | Resting in the column; small rings | The brand pair, apart; the same greens | As 1 |
 | 11 | Failed | `SkyOvercast`, a pale flat grey, instead of the blue; no gold, no contrail | No sun, no rings | The brand pair, apart and cooled end to end; then the whole face at saturation 0.15; no marker | `FailedInk`, a dark red, on the headline only, where it is today |
 | 14 | Neutral with a target | By its action | By its action | By its action | Only the ink changes |
 | 15 | Range | No picture | | | Paper row without a print |
@@ -252,7 +252,7 @@ The "✦" after "DBS · MILES" on the web face and in the lab is the Featured fl
 
 Every layout draws the same scene, back to front:
 
-1. sky, horizon warmth; in light mode the contrail (miles) and then the sky's gold wash; in dark mode the bloom; then, from `v` 0.4, the pour from the top edge;
+1. sky, horizon warmth; in light mode the contrail (miles) and then the sky's lit wash; in dark mode the bloom; then, from `v` 0.4, the pour from the top edge;
 2. halo: the four rings and the core glow;
 3. upper ridge (target horizon) with its crest stroke;
 4. lower ridge (spend horizon) with its crest stroke, or one merged crest;
@@ -280,10 +280,10 @@ Text is never inside the scene. Each layout sets:
 - **A half-sun on the horizon.** The disc is 10pt (7pt on the band) and its centre sits exactly on the target horizon while it rides, so the sky clip leaves a clean semicircle. It lifts clear from there, as before. Under the name the horizon is at least 12pt below it, so the half-sun's top stays clear of the name's line box.
 - **The icon's two slopes.** The owner asked for the app icon's pair of rising ridges. The strip's horizons are no longer level: the target horizon takes the brand back ridge's rise (`BACK_RISE`, the shipped path normalised to 0 at its highest, right, and 1 at its lowest, left), 12pt deep, from 14pt under the name at the left to 2pt under it at the right, where the sun's column is. The spend floor is the same shape, as far down as the words allow: 3pt above the foot at its lowest point, the left edge. The lower slope is anchored there and only its far end rises (later on 10 Oct 2026, after the owner's pins): in the minimum journey it is `Fl − (Fl − U) × h × x/W`, so at `h` 0 the pair is equidistant and at the right edge the gap is `(1 − h)` of the floor's; once the minimum is met it is `Fl − (Fl − U) × min(1, x/(m W))`, where `m` is the day of the period the minimum was met as a share of its days (`minimum_met_on` from the API, 1 when unknown), so the two slopes meet at that day and run as one from there. Where they meet is when the minimum was reached. A card with no minimum keeps the pair apart: the convergence is the minimum's own read, and the climb is the sun's. The sky band is 34pt; the row is about 114pt.
 - **An amber dusk print.** In dark mode the cashback sky is a deep amber (`SkyCashback1` #7A4420 to #5A3016 to #3F2211), not the former pale cream that sat like a lit window in the dark chrome; its name ink goes light (`InkCashback` #F7F5EF in dark), its marker takes the night print's gold (`MarkerCashback` #FFD98C at 35%), its veil cast stays #D4CBD4, the pour peaks at 0.45 and the halo adds light with the screen blend like every other face. The prints' sun is a gold going to orange (`SunDiscTop` #FFD27A to `SunDiscBottom` #E8923A, the rise disc #F7B35C to #C4651C, rim #8A4A18, core #F0B35A): lighter than its sky, never glaring on it. The daytime faces keep the near-white disc.
-- **The lit edge: gold to early morning, each side moved towards the other.** The daytime skies are version 3's blues again (cashback #8DB6D8 to #EBE6DD, miles #6EA6DA to #DCEBF6) and the gold its version 3 peak, after two tries at softening them (a grey-blue sky, then the prints' shade) that the owner found either still too contrasty or too drastic a changeover, a try at a white unlit sky and two at an orange one (too bright, then too dark). Beyond the lit edge the sky goes to early morning: a lavender (`DawnTop` #8F7EA6, `--face-dawn-top`) at the top of the sky down to a rose-peach (`DawnBottom` #CF8D78, `--face-dawn-bottom`) at the lowest point of the horizon, darker than the gold without going heavy. Each side of the edge is moved towards the other as a colour, by a tenth (`MEET` in the scene, `ExposureScene.meet` on iOS): the lit sky keeps 0.9 of its gold and takes 0.1 of the dawn, the unlit sky keeps 0.9 of the dawn and takes 0.1 of the gold. The edge stays a clean vertical step. The gold has the same shape: `SkyLit` #FFD98C (`--face-lit-top`) at the top of the sky down to a deeper amber (`SkyLitBottom` #E0A24A, `--face-lit-bottom`) at the horizon's lowest point, so the lit side has a darker base too (the owner's ask) while the name's dark ink keeps at least 8:1 against it.
-- **One floor.** The light-mode ground is no longer lit to the edge and dimmed beyond it: the owner preferred the unlit side's two bands and asked for them throughout, so `RidgeBack` and `RidgeFront` take those values in light mode (#9DC5A8 and #80B591, the sunlit greens under the former 15% dim) across the whole floor, and the ground gets no gold and no dim. The lit edge is the sky's alone, as on the prints.
+- **The lit edge: a lighter blue over the blue.** The daytime skies are version 3's blues (cashback #8DB6D8 to #EBE6DD, miles #6EA6DA to #DCEBF6) and beyond the lit edge the sky is that blue itself. The lit side is no longer gold: after tries at a grey-blue unlit sky, the prints' shade, a white one, two oranges and an early-morning gradient, the owner asked (11 Oct 2026) for the original blue on the unlit side and a lighter blue in place of the gold. So the lit wash is `SkyLit` #E3F1FA (`--face-lit-top`) at the top of the sky down to a shade deeper (`SkyLitBottom` #DCEBF7, `--face-lit-bottom`) at the horizon's lowest point, at version 3's peak alpha, and the edge is a clean vertical step from lighter blue to blue. The version 3 greens are back too.
+- **One floor.** The light-mode ground is no longer lit to the edge and dimmed beyond it: `RidgeBack` and `RidgeFront` keep version 3's sunlit greens (#A9D6B1 and #86C396) across the whole floor, and the ground gets no wash and no dim. The lit edge is the sky's alone, as on the prints.
 - **One soft glow, no rings.** The halo is one radial falloff in the rings' palette (Ring1 at the centre, Ring2 at 30%, Ring3 at 60%, Ring4 at 82%, clear at the edge) over the core glow, with the rings' radius `R` and opacity. Posterised rings clipped by a short frame's top edge and by the ridges read as concentric arcs; a falloff clipped the same way still reads as light.
-- **No unlit sliver.** As the sun lifts (`h` 0.85 to 1) the veil's peak falls by `lift` and the gold beyond the lit edge rises by `lift`, so the last of the band lights with the lift instead of leaving a 4% strip of dusk at the card's edge.
+- **No unlit sliver.** As the sun lifts (`h` 0.85 to 1) the veil's peak falls by `lift` and the lit wash beyond the lit edge rises by `lift`, so the last of the band lights with the lift instead of leaving a 4% strip of dusk at the card's edge.
 
 The lab's 12pt disc was the right instinct; 10pt fits the 28pt band without growing the row more than 4pt.
 
@@ -317,16 +317,16 @@ The art is lit from the left edge to the marker and underexposed to its right wh
 - **Dark mode: dim and desaturate.** A dusk cast taken from the brand's rose-mauve:
   - one full-frame fill with blend mode `.saturation`, colour `VeilGrey` #808080 at alpha 0.5 × `veil` (half way to grey);
   - one full-frame fill with blend mode `.multiply`, from white to `VeilCashback` #D4CBD4 on the dusk print or `VeilMiles` #8A8496 on the night print, by `veil`.
-- **Light mode: gold over blue, early morning beyond the edge, on one floor.** The same `veil(x)` lays gold on the lit side of the sky and the dawn on the other, so progress reads as a change of hue (gold to lavender and rose) as well as of brightness. Since 10 Oct 2026 each side carries a share of the other (a tenth), so with `m` that share:
-  - the sky is the daytime blue; beyond the lit edge it goes to early morning (the owner's ask, 11 Oct 2026): a vertical gradient from `DawnTop` #8F7EA6 at the top to `DawnBottom` #CF8D78 at the horizon's lowest point, clipped to the sky and masked by the edge's ramp at alpha `m + (1 − 2m) × veil`, `m` 0.1 (web: an SVG mask; iOS: a layer with the ramp drawn in `destinationIn`), drawn after the gold and the pour and before the halo and the ridges, so the unlit sky is dawn with a tenth of the blue left in it, and the lit sky takes a tenth of dawn. The failed sky stays overcast and gets none of it;
-  - straight after the sky, one full-frame fill of the gold, a vertical gradient from `SkyLit` #FFD98C at the top to `SkyLitBottom` #E0A24A at the horizon's lowest point (the owner's ask, 11 Oct 2026: a darker base like the dawn's, mindful of the name ink), at alpha `(0.76 + 0.16 × v) × 0.9 × (1 − (1 − m) × veil)`, `m` 0.1: full on the lit side, a tenth of that beyond (more as the strip's sun lifts). Web masks the gradient with the ramp; iOS draws it in a layer and the ramp in `destinationIn`. The ridges are drawn over it, so it only shows on the sky;
-  - the ground gets no gold and no dim: it is one pair of greens throughout;
+- **Light mode: a lighter blue over the blue, on one floor.** The same `veil(x)` lays a lighter blue on the lit side of the sky and leaves the daytime blue on the other, so progress reads as a step in brightness:
+  - the sky is the daytime blue, and beyond the lit edge it stays so (the owner's ask, 11 Oct 2026). The failed sky is overcast;
+  - straight after the sky, one full-frame fill of the lit wash, a vertical gradient from `SkyLit` #E3F1FA at the top to `SkyLitBottom` #DCEBF7 at the horizon's lowest point, at alpha `(0.76 + 0.16 × v) × (1 − veil)`: full on the lit side, nothing beyond (more as the strip's sun lifts). Web masks the gradient with the ramp; iOS draws it in a layer and the ramp in `destinationIn`. The ridges are drawn over it, so it only shows on the sky;
+  - the ground gets no wash and no dim: it is one pair of greens throughout;
   - when failed only, one full-frame fill of `VeilDim` #3D5674 at 14%, which never darkens enough to break a floor.
 - **Veil limits.** The dusk veil is deliberately gentle: it is capped so `InkCashback` keeps 6.6:1 on the darkest veiled dusk stop, because a long name can sit on the dim side. The night veil can be darker: it only raises contrast for light inks. In light mode the dim is the failed face's 14%, which leaves `UrgentInk` at 4.7:1 on the dimmed ground; the dawn unlit sky keeps the dark name ink at 5.5:1 or more; the shares moved across the edge only lower contrast between the two sides, never against the ink.
 - **Brightness grows with the climb.** Light mode: the gold deepens from 76% to 92% over the sky. Dark mode: `Bloom` #FFE3AC at 30% × `v` over the sky (screen blend on the night print), and the horizon warmth × `(1 + 0.5 × v)`. Both: the crest strokes from 90% to 100% and the halo from 40% to 100%. At rest the band is lit but plain; at the cap it is at its brightest.
 - **The pour.** From `v` 0.4 a radial gradient centred on the sun's column at the top edge, from `SunDiscTop` at the centre through `SunCore` at 30% of the radius to nothing at the radius: the glow pouring down from a sun that has left the frame. Its alpha is `peak × clamp((v − 0.4) / 0.6)`, drawn over the sky only. Peak is 0.65 in light mode, 0.45 on the dusk print and 0.65 on the night print. Radius is 0.62 W on the strip, print and band and 0.78 W on the hero, except on the night print, where it is 0.35 W on every layout: the lab's wider pour takes `InkMiles` to 2.6:1 at the end of the name over the bloom, and 0.35 W keeps it at 5.0:1 or more. Light ink on the night print is the only pair that a pour can break; dark ink only gains.
-- **Calm:** no veil, no bloom and no pour, an even, softer light. In light mode, the gold (`SkyLit` to `SkyLitBottom`) at a steady 42% × 0.9 across the sky and none on the ground. **Failed:** `veil` 1 everywhere, plus the face's saturation 0.15. In light mode the sky is `SkyOvercast`, gets no gold, and the dim is 14% everywhere.
-- **Cost.** Two gradient fills for the veil, one bloom fill or one gold layer and one pour fill in the same Canvas pass; light mode adds the dawn layer and a clip to the ridge path. No offscreen layer, no blur, no second draw of the scene. Blend modes act on what the context has already drawn. The lit washes fade to `SkyLit` at zero alpha, never to `.clear`, so the falloff does not pass through grey.
+- **Calm:** no veil, no bloom and no pour, an even, softer light. In light mode, the lit wash (`SkyLit` to `SkyLitBottom`) at a steady 42% across the sky and none on the ground. **Failed:** `veil` 1 everywhere, plus the face's saturation 0.15. In light mode the sky is `SkyOvercast`, gets no gold, and the dim is 14% everywhere.
+- **Cost.** Two gradient fills for the veil, one bloom fill or one lit layer and one pour fill in the same Canvas pass; light mode adds a clip to the ridge path. No offscreen layer, no blur, no second draw of the scene. Blend modes act on what the context has already drawn. The lit washes fade to `SkyLit` at zero alpha, never to `.clear`, so the falloff does not pass through grey.
 - **Differentiate Without Colour.** In dark mode the veil darkens as well as desaturates, so the lit edge reads in luminance alone. In light mode the edge is first a hue step; on the sky it is also a luminance step of 1.3 to 2.1:1, on the ground a smaller one (1.3:1), and the marker carries the exact point. In the climb the read is the sun's position, which needs no colour.
 
 ### The progress marker
@@ -647,7 +647,7 @@ struct RewardExposureFace: View, Animatable {
     Canvas { context, size in
       let scene = ExposureScene(size: size, layout: layout, exposure: exposure, pose: pose, scale: scale, appearance: appearance)
       if exposure.stage == .failed { context.addFilter(.saturation(0.15)) }
-      scene.drawSky(in: &context)       // sky, horizon warmth, contrail and gold (light) or bloom (dark), the pour
+      scene.drawSky(in: &context)       // sky, horizon warmth, contrail and the lit wash (light) or bloom (dark), the pour
       scene.drawHalo(in: &context)      // rings and core glow; nothing when failed
       scene.drawRidges(in: &context)    // target horizon, spend horizon, crests
       scene.drawGround(in: &context)    // dark mode, strip only: the scrim; light mode draws nothing
@@ -677,7 +677,7 @@ extension ExposureScene {
       veil.fill(rect, with: .linearGradient(
         Gradient(colors: [.white, veilColour]), startPoint: from, endPoint: to))
     case .daytime:
-      // The minimum journey's unlit sky is the orange sky veil (drawSkyVeil); the dim is for the failed face only.
+      // The minimum journey's unlit sky is the daytime blue itself; the dim is for the failed face only.
       guard failed else { return }
       veil.fill(rect, with: .color(Theme.Face.veilDim.opacity(0.14)))
     }
@@ -748,7 +748,7 @@ Add a `Face` folder to `Assets.xcassets` with **Provides Namespace** checked, an
 
 **Faces follow the appearance.** Version 2 first made the faces prints, constant across looks and modes. Light mode has daytime faces of its own, on both platforms:
 
-- **Light mode: daytime.** The part still to go is a clear, slightly hazy blue sky. Progress is golden light in the halation amber (`SkyLit`, the `--glow` #FFD98C) laid over it from the left, with the same soft falloff. At `h` 0 the sky is blue with a sliver of gold at the left; from the minimum on, the whole band is a warm golden sky with no blue left, deepening as the sun climbs. The ground is a lighter green (#9DC5A8 far, #80B591 near), the same across the whole floor and never dark, so the foot text sits in dark ink.
+- **Light mode: daytime.** The part still to go is a clear, slightly hazy blue sky. Progress is a lighter blue (`SkyLit` #E3F1FA down to `SkyLitBottom` #DCEBF7) laid over it from the left, with the same soft falloff. At `h` 0 the sky is blue with a sliver of lighter blue at the left; from the minimum on, the whole band is the lighter sky, lightening as the sun climbs. The ground is a lighter green (#A9D6B1 far, #86C396 near), the same across the whole floor and never dark, so the foot text sits in dark ink.
 - **Dark mode: today's prints, unchanged.** Miles is the night sky. Cashback is the warm sky version 2 called "day", now called dusk, because light mode owns the day. The ground stays the deep green with light foot ink.
 - **Miles against cashback** in light mode: altitude. Miles is a higher, cooler, clearer blue with a faint contrail; cashback a warmer, softer haze with none.
 - **Within a mode, faces are identical in every look** (Dusk Ridge, Ridge Charcoal, Overexposed) and on both platforms. Only the chrome differs between looks.
@@ -760,8 +760,8 @@ Each colour set is named for its role and, where it matters, the reward type, so
 | `SkyCashback1`, `2`, `3` | #8DB6D8, #BAD2E3, #EBE6DD: a warm, soft haze (stops 0, 0.48, 1 at 165°) | #7A4420, #5A3016, #3F2211: the amber dusk print | same | `--face-cashback-sky` (renames `--face-day`) |
 | `SkyMiles1`, `2`, `3` | #6EA6DA, #A6C9E9, #DCEBF6: higher, cooler and clearer | #1C2013, #141C12, #0B1710: the night print | same | `--face-miles-sky` (renames `--face-night`) |
 | `SkyOvercast1`, `2`, `3` | #D6D8D9, #E1E2E0, #ECEBE7: the failed sky | same; not drawn (dark mode veils the print) | same | new `--face-overcast` |
-| `SkyLit` | #FFD98C, the top of the lit sky's gradient, with its alpha set in code: on the sky `(0.76 + 0.16 × v) × 0.9` (0.42 × 0.9 when calm), a tenth of that beyond the edge; never on the ground | same; not drawn | same | new `--face-lit-top` |
-| `SkyLitBottom` | #E0A24A, the lit sky's deeper amber at the horizon's lowest point, same alpha | same; not drawn | same | new `--face-lit-bottom` |
+| `SkyLit` | #E3F1FA, the lighter blue at the top of the lit sky, with its alpha set in code: on the sky `0.76 + 0.16 × v` (0.42 when calm), nothing beyond the edge; never on the ground | same; not drawn | same | new `--face-lit-top` |
+| `SkyLitBottom` | #DCEBF7, the lit sky a shade deeper at the horizon's lowest point, same alpha | same; not drawn | same | new `--face-lit-bottom` |
 | `Contrail` | #FFFFFF at 45%; miles only | same; not drawn | same | new `--face-contrail` |
 | `InkCashback` | #1C1B18 | #1C1B18 | same | `--face-cashback-ink` (renames `--face-day-ink`) |
 | `InkMiles` | #1C1B18 | #F7F5EF | same | `--face-miles-ink` (renames `--face-night-ink`) |
@@ -769,8 +769,8 @@ Each colour set is named for its role and, where it matters, the reward type, so
 | `FootInkSoft` | #2C3832 | #D4E2D9 | #1F2924 / #EEF4F0 | new `--face-foot-soft` |
 | `UrgentInk` | #5A2F00, a dark umber | #FFD98C | #4A2600 / #FFE7B5 | new `--face-urgent-ink` |
 | `FailedInk` | #701510, a dark red | #FFABAE | #5E100C / #FFD1D3 | new `--face-failed-ink` |
-| `RidgeBack` | #9DC5A8, the far slope (the former unlit green, now the whole floor) | #2A6648 | #B8E0BF / #235741 | `--ridge-back` |
-| `RidgeFront` | #80B591, the near ground (likewise) | #1E4433 | #96CCA4 / #163527 | `--ridge-front` |
+| `RidgeBack` | #A9D6B1, the far slope (version 3's green, the whole floor) | #2A6648 | #B8E0BF / #235741 | `--ridge-back` |
+| `RidgeFront` | #86C396, the near ground (likewise) | #1E4433 | #96CCA4 / #163527 | `--ridge-front` |
 | `Crest` | #FFD98C; the target crest at 40%, the spend crest at 75%, merged at 90% rising to 100% with `v` | same | 70%, 100%, 100% | `--ridge-crest` |
 | `SunDiscTop`, `SunDiscBottom` | #FFFDF6, #F8E6BA | same | same | `--sun-disc-1`, `--sun-disc-2` |
 | `SunRiseTop`, `SunRiseBottom` | #FFE3AE, #F0B55E: the disc while the tone is needs-minimum | same | same | `--sun-rise-1`, `--sun-rise-2` |
@@ -779,7 +779,6 @@ Each colour set is named for its role and, where it matters, the reward type, so
 | `Ring1` to `Ring4` | #FFD27A at 78%, #FFA452 at 28%, #F08446 at 14%, #D8604A at 7% | same | same | `--face-ring-1` to `--face-ring-4` |
 | `Horizon` | #FFAD5C at 17%; over the blue it reads as a warm haze | same | same | `--face-horizon` |
 | `VeilDim` | #3D5674 at 14%, whole frame, the failed face only | same; not drawn | same | new `--face-veil-dim` |
-| `DawnTop`, `DawnBottom` | #8F7EA6 down to #CF8D78 at (0.1 + 0.8 × `veil`), clipped to the sky: the unlit sky goes to early morning; not drawn when failed | same; not drawn | same | new `--face-dawn-top`, `--face-dawn-bottom` |
 | `VeilGrey` | #808080 (saturation blend, alpha 0.5 × `veil`); not drawn | #808080, saturation blend, alpha 0.5 × `veil` | same | new `--face-veil-grey` |
 | `VeilCashback` | #FFFFFF; not drawn | #D4CBD4, multiply, whole frame | same | new `--face-veil-cashback` |
 | `VeilMiles` | #FFFFFF; not drawn | #8A8496, multiply, whole frame | same | new `--face-veil-miles` |
@@ -797,10 +796,10 @@ Version 1's `Afterglow`, `Dim`, `PaceDay` and `PaceNight` are not needed. Versio
 | Rule | Light mode (daytime) | Dark mode (prints) |
 | --- | --- | --- |
 | Sky | `SkyCashback` or `SkyMiles`; `SkyOvercast` when failed | `SkyCashback` or `SkyMiles`, failed included |
-| Contrail | Miles, unless failed: after the sky, before the sky's gold | None |
-| Gold on the sky | `SkyLit` to `SkyLitBottom` at `(0.76 + 0.16 × v) × 0.9 × (1 − 0.9 × veil)`; 0.42 × 0.9 evenly when calm; none when failed | None |
-| Gold on the ground | None: one pair of greens throughout | None |
-| Veil | The dawn pair on the sky; `VeilDim` at 14% over the whole frame when failed | Whole frame, desaturation and multiply |
+| Contrail | Miles, unless failed: after the sky, before the sky's lit wash | None |
+| Lit wash on the sky | `SkyLit` to `SkyLitBottom` at `(0.76 + 0.16 × v) × (1 − veil)`; 0.42 evenly when calm; none when failed | None |
+| Lit wash on the ground | None: one pair of greens throughout | None |
+| Veil | `VeilDim` at 14% over the whole frame when failed; nothing otherwise | Whole frame, desaturation and multiply |
 | Foot scrim | None | `RidgeFront` at 55%, strip only |
 | Rings and core glow | Screen | Screen |
 | Bloom | None | `Bloom` at 30% × `v`: screen on miles, normal on cashback |
@@ -827,7 +826,7 @@ extension ExposureScene {
     if appearance == .daytime, exposure.stage == .failed { return Theme.Face.skyOvercast }
     return exposure.miles ? Theme.Face.skyMiles : Theme.Face.skyCashback
   }
-  /// Peak alpha of the gold on the sky, or nil when there is none. The ground is never lit.
+  /// Peak alpha of the lit wash on the sky, or nil when there is none. The ground is never lit.
   var litAlpha: Double? {
     guard appearance == .daytime else { return nil }
     switch exposure.light {
@@ -847,7 +846,7 @@ extension ExposureScene {
 }
 ```
 
-The lit wash is one layer: a vertical `linearGradient` from `SkyLit` to `SkyLitBottom` over the frame, then a white ramp in `destinationIn` at its alpha from the left edge to `(h − 0.04) W`, falling to a tenth at `(h + 0.04) W`. From the minimum on (`h` 1) it covers the whole band. When calm it is its calm alpha throughout.
+The lit wash is one layer: a vertical `linearGradient` from `SkyLit` to `SkyLitBottom` over the frame, then a white ramp in `destinationIn` at its alpha from the left edge to `(h − 0.04) W`, falling to nothing at `(h + 0.04) W`. From the minimum on (`h` 1) it covers the whole band. When calm it is its calm alpha throughout.
 
 **Reference.** The lab page shows both appearances side by side and is the visual reference for these faces. Where its values differ from the table, the lab wins, except where a value breaks a floor below:
 
@@ -864,17 +863,16 @@ Re-measure every pair in the contrast tables when a value changes; a value that 
 - Text that crosses the marker keeps at least 4.5:1 against the marker pixel.
 - The marker stays faint: about 1.5 to 2.5:1 in dark mode; in light mode, as measured below, as a decorative non-text mark.
 
-**Light mode (daytime faces).** Ranges cover both reward types, the three sky stops and the gold's alpha from 0.76 to 0.92.
+**Light mode (daytime faces).** Ranges cover both reward types, the three sky stops and the lit wash's alpha from 0.76 to 0.92.
 
 | Text or mark | Background | Ratio |
 | --- | --- | --- |
-| `InkCashback` | `SkyCashback1` to `3`, the unlit blue (a tenth of it left in the dawn) | 8.0 to 13.9:1 |
-| `InkMiles` | `SkyMiles1` to `3`, the unlit blue (a tenth of it left in the dawn) | 6.7 to 14.2:1 |
-| `InkCashback`, `InkMiles` | `DawnTop` to `DawnBottom` over the blue: the unlit sky | 5.1:1 at the lavender top (measured on the phone strip) and above |
-| `InkCashback`, `InkMiles` | `SkyLit` to `SkyLitBottom` over the blue: the gold | 8.0 to 13.0:1 (the amber at the horizon measures 8.0:1 on the phone strip) |
-| `InkCashback`, `InkMiles` | the falloff's midpoint, half gold and half blue | 8.9 to 13.4:1, never below the blue figure |
-| `InkCashback`, `InkMiles` | calm: `SkyLit` at 42% over the blue | 8.7 to 13.5:1 |
-| `InkCashback`, `InkMiles` | the pour over the gold | Above the gold figure: the pour only lightens |
+| `InkCashback` | `SkyCashback1` to `3`, the unlit blue | 8.0 to 13.9:1 |
+| `InkMiles` | `SkyMiles1` to `3`, the unlit blue | 6.7 to 14.2:1 |
+| `InkCashback`, `InkMiles` | `SkyLit` to `SkyLitBottom` over the blue: the lit sky | Above the blue figure: the wash only lightens (13.2:1 and above on the phone strip) |
+| `InkCashback`, `InkMiles` | the falloff's midpoint, half lit and half blue | Between the two, never below the blue figure |
+| `InkCashback`, `InkMiles` | calm: `SkyLit` at 42% over the blue | Above the blue figure |
+| `InkCashback`, `InkMiles` | the pour over the lit sky | Above the lit figure: the pour only lightens |
 | `InkCashback`, `InkMiles` | rings 3 and 4 screened over the blue, dimmed or not, or the gold | 5.8 to 14.4:1 |
 | `InkCashback`, `InkMiles` | a marker pixel over the sky | 14.2 to 15.9:1 |
 | `InkCashback`, `InkMiles` | `SkyOvercast1` to `3` under the 14% dim, at saturation 0.15 | 10.0 to 11.8:1 |
@@ -883,12 +881,12 @@ Re-measure every pair in the contrast tables when a value changes; a value that 
 | `FailedInk`, `FootInkSoft` | `RidgeFront` under the 14% dim, at saturation 0.15 | 4.7, 5.0:1 |
 | `FootInk`, `FootInkSoft`, `UrgentInk`, Increase Contrast | `RidgeFront`, Increase Contrast | 9.4, 8.2, 7.3:1 |
 | `FailedInk`, Increase Contrast | `RidgeFront`, Increase Contrast, dimmed, at saturation 0.15 | 6.1:1 |
-| Marker (non-text) | the gold; the pale sky and the saturated blue (dimmed or not); `RidgeFront`, lit or not; `RidgeBack` | 1.2 to 1.3:1; 1.1 to 2.5:1; 1.6 to 2.0:1; 1.4 to 1.7:1 |
+| Marker (non-text) | the lit sky; the pale sky and the saturated blue; `RidgeFront`; `RidgeBack` | 1.0 to 1.2:1; 1.1 to 2.5:1; 1.6 to 2.0:1; 1.4 to 1.7:1 |
 | `MarkerEdge` (non-text) | either side of the line, on any background | 1.25:1 |
 | Ridge gap (non-text) | `RidgeBack` against `RidgeFront`; Increase Contrast | 1.26:1; 1.26:1 |
-| Skyline (non-text) | `RidgeBack` against the lower blue; against the lower gold; the merged `RidgeFront` against the gold | 1.0 to 1.3:1; 1.1 to 1.2:1; 1.4 to 1.6:1, with the hue step from gold to green |
+| Skyline (non-text) | `RidgeBack` against the lower blue; against the lower lit sky; the merged `RidgeFront` against the lit sky | 1.0 to 1.3:1; 1.2 to 1.5:1; 1.6 to 1.9:1, with the hue step from blue to green |
 | `Contrail` (non-text) | `SkyMiles1` | 1.6:1 |
-| Lit against unlit (non-text) | the gold against the dawn; the ground has no edge | 1.6 to 2.0:1, a hue and luminance step; none |
+| Lit against unlit (non-text) | the lighter blue against the blue; the ground has no edge | 1.2 to 1.4:1, a luminance step; none |
 
 The ridge gap and the skyline are decorative too: the gap is the remainder the headline states, and the crest strokes and the sun carry the same read.
 
@@ -1058,15 +1056,13 @@ The rounding and Singapore-day rules have edge cases no fixture reaches.
   | `--face-foot-soft` | `#2c3832` | `#d4e2d9` |
   | `--face-urgent-ink` | `#5a2f00` | `#ffd98c` |
   | `--face-failed-ink` | `#701510` | `#ffabae` |
-  | `--ridge-back` | `#9dc5a8` | `#2a6648` |
-  | `--ridge-front` | `#80b591` | `#1e4433` |
+  | `--ridge-back` | `#a9d6b1` | `#2a6648` |
+  | `--ridge-front` | `#86c396` | `#1e4433` |
   | `--face-scrim` | `transparent` | `#1e44338c` |
-  | `--face-lit-top` | `#ffd98c` | `transparent` |
-  | `--face-lit-bottom` | `#e0a24a` | `transparent` |
+  | `--face-lit-top` | `#e3f1fa` | `transparent` |
+  | `--face-lit-bottom` | `#dcebf7` | `transparent` |
   | `--face-contrail` | `#ffffff73` | `transparent` |
   | `--face-veil-dim` | `#3d567426` | `transparent` |
-  | `--face-dawn-top` | `#8f7ea6` | `transparent` |
-  | `--face-dawn-bottom` | `#cf8d78` | `transparent` |
   | `--face-veil-cashback` | `#ffffff` | `#d4cbd4` |
   | `--face-veil-miles` | `#ffffff` | `#8a8496` |
   | `--face-veil-grey` | `transparent` | `#808080` |
@@ -1081,8 +1077,8 @@ The rounding and Singapore-day rules have edge cases no fixture reaches.
 
   The Increase Contrast values follow the colour-asset table through the existing `prefers-contrast: more` blocks. Constant, on `:root` only: `--sun-rise-1` #ffe3ae and `--sun-rise-2` #f0b55e, beside the shipped `--ridge-crest`, `--sun-core`, `--sun-disc-1`, `--sun-disc-2`, `--sun-rim`, `--face-ring-1` to `--face-ring-4` and `--face-horizon`. The foot inks, which version 2 kept constant, now follow the mode. How the face uses the switches:
   - `.rw-face` paints `var(--face-cashback-sky)`, and miles `var(--face-miles-sky)`. `[data-stage="failed"]` layers `var(--face-overcast)` over the type's sky, so `none` in dark mode leaves the print.
-  - The sky's gold is one `<rect>` in the sky layer, under the ridges, filled with a vertical gradient from `--face-lit-top` to `--face-lit-bottom` (its `y2` the horizon's lowest point) and masked by a horizontal white ramp. The tween writes the ramp's stop opacities (`0.76 + 0.16 × v` to `(h − 0.04)` of the width, falling to a tenth by `(h + 0.04)`; 0.42 evenly when calm). The ground gets no gold. In dark mode `transparent` draws nothing.
-  - The contrail is two parallel `<line>`s stroked with `--face-contrail`, faded at both ends, drawn before the sky's gold and only for `[data-type="miles"]`.
+  - The sky's lit wash is one `<rect>` in the sky layer, under the ridges, filled with a vertical gradient from `--face-lit-top` to `--face-lit-bottom` (its `y2` the horizon's lowest point) and masked by a horizontal white ramp. The tween writes the ramp's stop opacities (`0.76 + 0.16 × v` to `(h − 0.04)` of the width, falling to nothing by `(h + 0.04)`; 0.42 evenly when calm). The ground gets no wash. In dark mode `transparent` draws nothing.
+  - The contrail is two parallel `<line>`s stroked with `--face-contrail`, faded at both ends, drawn before the sky's lit wash and only for `[data-type="miles"]`.
   - The cashback halo and rings take `mix-blend-mode: var(--face-cashback-blend)`; miles keeps its screen rule (`rewards-board.css:548`).
   - The foot scrim is the shipped gradient under the foot, now `var(--face-scrim)`, so light mode draws none.
 - **Sun and halo** (`:529-565`): place them from the scene, not the fixed 76% column. The disc is drawn after the veil and clipped to the sky; the halo (four stacked circles of radius `R` times 0.27, 0.46, 0.68 and 0.92, and a core of 0.15 `R`) sits behind the ridges.
@@ -1095,7 +1091,7 @@ The rounding and Singapore-day rules have edge cases no fixture reaches.
 
 - **The pour.** One `<rect>` over the sky filled with a radial gradient centred at the sun's column on the top edge (`--sun-disc-1` at the centre, `--sun-core` at 30% of the radius, nothing at the radius); the tween writes its opacity (`peak × clamp((v − 0.4) / 0.6)`, the peak from `--face-pour-cashback` or `--face-pour-miles`) and its radius (0.62 W, hero and desktop face 0.78 W, miles in dark mode 0.35 W). The bloom's own opacity is `0.3 × v`, dark mode only.
 - **Rings.** The halo's radius is `R = (0.14 + 0.24 × v) × W` (on the phone strip also capped at `(0.42 + 0.6 × v)` of the height), so there is no ring gating attribute: the tween writes `--halo-r`.
-- **Veil.** Light mode: one `<rect>` clipped to the sky, filled with the vertical dawn gradient (`--face-dawn-top` to `--face-dawn-bottom`, `transparent` in dark mode) and masked by a horizontal white ramp from `(h − 0.04)` to `(h + 0.04)` of the width, and one across the face filled with `--face-veil-dim` (`transparent` in dark mode), lit only when failed. Dark mode: two `<rect>`s with the same gradient, one with `mix-blend-mode: saturation` (`--face-veil-grey`), one with `mix-blend-mode: multiply` (`--face-veil-cashback` or `--face-veil-miles` by `data-type`; white in light mode, where the pair is not drawn). The face is already `isolation: isolate`. Every stage but `gate` and `failed` hides them; `[data-stage="failed"]` sets them to full strength everywhere, with the light-mode dim at 14%.
+- **Veil.** Light mode: one `<rect>` across the face filled with `--face-veil-dim` (`transparent` in dark mode), lit only when failed. Dark mode: two `<rect>`s with the same gradient, one with `mix-blend-mode: saturation` (`--face-veil-grey`), one with `mix-blend-mode: multiply` (`--face-veil-cashback` or `--face-veil-miles` by `data-type`; white in light mode, where the pair is not drawn). The face is already `isolation: isolate`. Every stage but `gate` and `failed` hides them; `[data-stage="failed"]` sets them to full strength everywhere, with the light-mode dim at 14%.
 - **States.**
   - Delete the `[data-tone="complete"]` sunset rules (`:649-664`): a cap is now `[data-stage="capped"]`, with the sun off the top, the gold and the pour, and no dim.
   - `[data-mono]` replaces `saturate(0.35)` (`:666-668`) with 0.15, and hides the sun and halo.
@@ -1120,8 +1116,8 @@ iOS checks run on the Mac runner through `scripts/ios-xcodebuild.sh` and the Sim
 | 3 | The journeys mixed or the climb mis-measured: a tier drawn in the minimum journey, the cap climb read from 0 (a jump at the minimum), the reached tier ignored (a jump at the tier), a further tier sinking the sun, any value falling as spend grows | **The isolated mapping walk, written first** (below). E2E cards O and P show one point each. |
 | 4 | Picture data missing or out of step with the report: no minimum amount or reached tier, a next tier at or below the minimum, a cap at or below the foot of the climb, counted spend lagging raw spend, refunds below zero, amounts that are not finite | **The isolated edge cases, written first** (below). No fixture reaches them. |
 | 5 | Time leaks back into the art: equal `h` drawn at different places in rows with different dates | E2E: cards A and B share $315.50 / $500.00 with different periods and deadlines. Their marker x and sun centre must match within 1pt. |
-| 6 | Text illegible on the art: the marker or the dusk veil under a long name, the pour behind a name at night, dark ink on the light ground under the gold or on the desaturated side, the umber urgent ink, light ink on a light sky in dark mode | The existing OCR snapshot test, retargeted; E2E card N (a long name over the marker at `h` 0.63) and card B (urgent) in light, dark, AX3 and Increase Contrast |
-| 7 | The light does not read: blend modes or the lit washes dropped by a renderer, so the right side is not dim, or not blue | E2E: sample pixels on card A's sky and ground 10% left and 15% right of the marker. Dark mode: the right sample must be darker and less saturated, on the dusk and night prints. Light mode: the left sky sample must be gold (red channel above blue) and the right one blue (blue above red), and the left ground sample warmer (red minus blue larger) than the right, on both reward types. |
+| 6 | Text illegible on the art: the marker or the dusk veil under a long name, the pour behind a name at night, dark ink on the light ground or on the desaturated side, the umber urgent ink, light ink on a light sky in dark mode | The existing OCR snapshot test, retargeted; E2E card N (a long name over the marker at `h` 0.63) and card B (urgent) in light, dark, AX3 and Increase Contrast |
+| 7 | The light does not read: blend modes or the lit washes dropped by a renderer, so the right side is not dim, or not blue | E2E: sample pixels on card A's sky and ground 10% left and 15% right of the marker. Dark mode: the right sample must be darker and less saturated, on the dusk and night prints. Light mode: the left sky sample must be lighter (higher luminance) than the right one, both blue (blue channel above red), and the two ground samples the same, on both reward types. |
 | 8 | VoiceOver drifts: the art becomes focusable or the value string changes | The existing pinned value test (`:1413`); an E2E accessibility dump showing one element per card |
 | 9 | The rise replays on every scroll, plays under Reduce Motion, or moves a sun off its axis (a diagonal sweep on first show) | E2E recordings |
 | 10 | A falling change glides the marker backwards or sinks the sun instead of crossfading | E2E: card K across its month end (step 9) |

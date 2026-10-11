@@ -1,7 +1,7 @@
 import { memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { cssEase, cssTime, tweenPose } from "../lib/exposure-tween";
 import { falls, type Exposure, type Pose } from "../lib/reward-exposure";
-import { exposureScene, type Scene, type SceneLayout, MEET } from "../lib/reward-exposure-scene";
+import { exposureScene, type Scene, type SceneLayout } from "../lib/reward-exposure-scene";
 
 /*
  * The Rewards card's face: a sky, a pair of ridges and a sun, drawn as one SVG (docs/frontend/
@@ -176,18 +176,12 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
         <linearGradient id={`${uid}-sr`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: "var(--sun-rise-1)" }} /><stop offset="1" style={{ stopColor: "var(--sun-rise-2)" }} />
         </linearGradient>
-        {/* The lit sky: a vertical pair of golds, masked by the edge's horizontal ramp, like the dawn beyond it. */}
+        {/* The lit sky: a vertical pair of lighter blues, masked by the edge's horizontal ramp. */}
         <linearGradient id={`${uid}-lit`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" data-p="litGrad" y2="1">
           <stop offset="0" style={{ stopColor: "var(--face-lit-top)" }} /><stop offset="1" style={{ stopColor: "var(--face-lit-bottom)" }} />
         </linearGradient>
         <linearGradient id={`${uid}-gs`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="gsGrad" x2="1" y2="0">{stops("gs", "#fff")}</linearGradient>
         <mask id={`${uid}-gsm`} maskUnits="userSpaceOnUse" x="0" y="0" width={w} height={h}><rect width={w} height={h} fill={ref("gs")} /></mask>
-        {/* The dawn beyond the lit edge: a vertical pair of hues, masked by the edge's horizontal ramp. */}
-        <linearGradient id={`${uid}-dawn`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" data-p="dawnGrad" y2="1">
-          <stop offset="0" style={{ stopColor: "var(--face-dawn-top)" }} /><stop offset="1" style={{ stopColor: "var(--face-dawn-bottom)" }} />
-        </linearGradient>
-        <linearGradient id={`${uid}-vs`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="vsGrad" x2="1" y2="0">{stops("vs", "#fff")}</linearGradient>
-        <mask id={`${uid}-vsm`} maskUnits="userSpaceOnUse" x="0" y="0" width={w} height={h}><rect width={w} height={h} fill={ref("vs")} /></mask>
         <linearGradient id={`${uid}-vd`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="vdGrad" x2="1" y2="0">{stops("vd", "var(--face-veil-dim)")}</linearGradient>
         <linearGradient id={`${uid}-vg`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="vgGrad" x2="1" y2="0">{stops("vg", "var(--face-veil-grey)")}</linearGradient>
         <linearGradient id={`${uid}-vm`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="vmGrad" x2="1" y2="0">{stops("vm", "var(--rw-veil-multiply)")}</linearGradient>
@@ -217,7 +211,6 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
         <rect data-p="goldSky" className="rw-gold" width={w} height={h} fill={ref("lit")} mask={`url(#${uid}-gsm)`} />
         <rect data-p="bloom" className="rw-bloom" width={w} height={h} />
         <rect data-p="pour" className="rw-pour" width={w} height={h} fill={ref("pour")} />
-        <rect data-p="vSky" className="rw-veil-sky" width={w} height={h} fill={ref("dawn")} mask={`url(#${uid}-vsm)`} />
       </g>
       <g data-p="halo" className="rw-halo">
         <g data-p="haloAt">
@@ -301,19 +294,16 @@ function paint(e: Record<string, SVGElement>, svg: SVGSVGElement, s: Scene, uid:
   const goldOffsets = [0, g.from, g.to, 1];
   const past = g.whole ? 1 : g.beyond;
   setStops(e, "gs", goldOffsets, [g.sky, g.sky, g.sky * past, g.sky * past]);
-  for (const name of ["gsGrad", "vsGrad", "vdGrad", "vgGrad", "vmGrad"]) set(name, "x2", n(s.w));
-  for (const name of ["litGrad", "dawnGrad"]) set(name, "y2", n(s.skyBottom));
+  for (const name of ["gsGrad", "vdGrad", "vgGrad", "vmGrad"]) set(name, "x2", n(s.w));
+  set("litGrad", "y2", n(s.skyBottom));
   const v = s.veil;
   const veilOffsets = [0, v.from, v.to, 1];
   const ramp = (v.whole ? [1, 1, 1, 1] : [0, 0, 1, 1]).map((k) => k * v.strength);
-  // Light mode's unlit sky goes to early morning (the owner's ask), meeting the gold the same way the gold meets
-  // it: a tenth of it on the lit side, nine tenths beyond. The daytime dim is for the failed face only, at 14%.
-  const dawn = (v.whole ? [1, 1, 1, 1] : [MEET, MEET, 1 - MEET, 1 - MEET]).map((k) => k * v.strength);
-  setStops(e, "vs", veilOffsets, v.failed ? [0, 0, 0, 0] : dawn);
+  // Light mode's unlit sky is the daytime blue itself; the daytime dim is for the failed face only, at 14%.
   setStops(e, "vd", veilOffsets, v.failed ? ramp.map((k) => k * 14 / 15) : [0, 0, 0, 0]);
   setStops(e, "vg", veilOffsets, ramp.map((k) => k * 0.5));
   setStops(e, "vm", veilOffsets, ramp);
-  show("vSky", v.on); show("vDim", v.on); show("vGrey", v.on); show("vMult", v.on);
+  show("vDim", v.on); show("vGrey", v.on); show("vMult", v.on);
 
   // The contrail: static, high in the right of the sky; the tokens leave it transparent in dark mode.
   show("trail", s.contrail.on);

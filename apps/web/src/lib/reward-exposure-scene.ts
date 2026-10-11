@@ -66,9 +66,6 @@ function normalised(table: readonly number[]): number[] {
   const lo = Math.min(...table), hi = Math.max(...table);
   return table.map((y) => (y - lo) / (hi - lo));
 }
-/** How far each side of the lit edge is moved towards the other, as a colour: the unlit sky carries this share of
- *  the gold, and the lit sky this share of the orange. A tenth (the owner's ask). The ground is not lit. */
-export const MEET = 0.1;
 
 /** The brand back ridge's rise, 1 at the left edge and 0 at the right: the phone strip's horizons take its shape. */
 export const BACK_RISE = normalised(BACK_CREST);
@@ -90,7 +87,7 @@ export interface Scene {
   lowerCrest: string;
   /** The sky above the target horizon: the clip for the sun, the gold, the bloom and the pour. */
   skyClip: string;
-  /** The lowest point of the target horizon: where the dawn gradient ends. */
+  /** The lowest point of the target horizon: where the lit sky's gradient ends. */
   skyBottom: number;
   /** One merged ridge: the target horizon and the spend horizon coincide. */
   merged: boolean;
@@ -191,12 +188,11 @@ export function exposureScene(layout: SceneLayout, ex: Exposure, pose: Pose, opt
   const even = ex.light === "even";
   const from = clamp01(pose.h - 0.04), to = clamp01(pose.h + 0.04);
   const whole = !gate;
-  // The gold's peak is version 3's (0.76 + 0.16 v; calm 0.42) with each side of the lit edge moved towards the
-  // other as a colour, by a tenth: the lit sky keeps 0.9 of its gold and the unlit sky carries 0.1 of it, and the
-  // orange does the same the other way (ExposureFace). The ground is never lit: it keeps the former unlit greens
-  // across the whole floor (the owner's ask). The strip's lift lets more of the gold past the edge as the sun clears.
-  const gold = failed ? 0 : even ? 0.42 * 0.9 : (0.76 + 0.16 * v) * 0.9;
-  const beyond = Math.max(MEET, lifted);
+  // The lit wash (light mode: a lighter blue over the daytime blue) peaks at version 3's figure (0.76 + 0.16 v;
+  // calm 0.42). Beyond the lit edge the sky is the daytime blue itself; the strip's lift lets the wash past the
+  // edge as the sun clears. The ground is never lit (the owner's ask).
+  const gold = failed ? 0 : even ? 0.42 : 0.76 + 0.16 * v;
+  const beyond = lifted;
 
   const sunOn = ex.hasSun;
   const markerOn = ex.hasMarker && pose.h < 1 && !strip;

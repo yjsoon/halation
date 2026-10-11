@@ -84,15 +84,14 @@
   /* Dark ink on every daytime sky and on the sunlit ground. */
   --face-cashback-ink: #1c1b18; --face-miles-ink: #1c1b18; --face-foot-ink: #1c1b18;
   --face-foot-soft: #2c3832; --face-urgent-ink: #5a2f00; --face-failed-ink: #701510;
-  --ridge-back: #9dc5a8; --ridge-front: #80b591; --ridge-crest: #ffd98c;   /* the former unlit greens, now the whole floor */
+  --ridge-back: #a9d6b1; --ridge-front: #86c396; --ridge-crest: #ffd98c;
   --face-crest-target: 0.4; --face-crest-spend: 0.75; --face-crest-merged: 0.9;
   --face-scrim: transparent;
   /* Gold laid over the blue to the marker, the cool dim beyond it, and the contrail (miles). */
   /* Gold laid over the blue to the marker and the cool dim beyond it; each side carries a share of the other (the scene). */
-  --face-lit-top: #ffd98c; --face-lit-bottom: #e0a24a; /* the lit sky: gold at the top down to a deeper amber at the horizon */
+  --face-lit-top: #e3f1fa; --face-lit-bottom: #dcebf7; /* the lit sky: a lighter blue over the daytime blue, a shade deeper at the horizon */
   --face-contrail: #ffffff73; --face-veil-dim: #3d567426;
   --face-veil-cashback: #ffffff; --face-veil-miles: #ffffff; --face-veil-grey: transparent; --face-bloom: transparent;
-  --face-dawn-top: #8f7ea6; --face-dawn-bottom: #cf8d78; /* the unlit sky: early morning, lavender down to rose-peach */
   --face-cashback-blend: screen; --face-pour-cashback: 0.65; --face-pour-miles: 0.65;
   /* One warm white line on the sky and the ground alike, over a faint dark edge. */
   --face-marker-cashback: #fff8e6d9; --face-marker-miles: #fff8e6d9; --face-marker-ridge: #fff8e6d9; --face-marker-edge: #1c1b181f;
@@ -163,7 +162,6 @@
   --face-scrim: #1e44338c;
   --face-lit-top: transparent; --face-lit-bottom: transparent; --face-contrail: transparent; --face-veil-dim: transparent;
   --face-veil-cashback: #d4cbd4; --face-veil-miles: #8a8496; --face-veil-grey: #808080; --face-bloom: #ffe3ac;
-  --face-dawn-top: transparent; --face-dawn-bottom: transparent;
   --face-cashback-blend: screen; --face-pour-cashback: 0.45; --face-pour-miles: 0.65;
   --face-marker-cashback: #ffd98c59; --face-marker-miles: #ffd98c59; --face-marker-ridge: #f7f5ef33; --face-marker-edge: transparent;
   /* The prints' sun is a gold going to orange, not the daytime's near-white: lighter than its amber sky, never glaring on it. */
