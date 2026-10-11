@@ -90,6 +90,8 @@ export interface Scene {
   lowerCrest: string;
   /** The sky above the target horizon: the clip for the sun, the gold, the bloom and the pour. */
   skyClip: string;
+  /** The lowest point of the target horizon: where the dawn gradient ends. */
+  skyBottom: number;
   /** One merged ridge: the target horizon and the spend horizon coincide. */
   merged: boolean;
   sun: { visible: boolean; x: number; y: number; r: number; rising: boolean };
@@ -217,6 +219,7 @@ export function exposureScene(layout: SceneLayout, ex: Exposure, pose: Pose, opt
     lowerFill: closed(lowerPts, H),
     lowerCrest: polyline(lowerPts),
     skyClip: `M0,0 ${backPts.map(([x, y]) => `L${x.toFixed(1)},${y.toFixed(1)}`).join(" ")} L${w},0 Z`,
+    skyBottom: Math.max(...backPts.map(([, y]) => y)),
     merged,
     sun: { visible: sunOn, x: sunPx.x, y: sunPx.y, r, rising: gate },
     halo: { visible: sunOn, opacity: 0.4 + 0.6 * v, soft: strip, rings: [R * 0.92, R * 0.68, R * 0.46, R * 0.27], core: R * 0.15 },

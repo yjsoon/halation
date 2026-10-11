@@ -41,7 +41,8 @@ extension Theme {
     static let horizon = named("Horizon")
 
     static let veilDim = named("VeilDim")
-    static let veilSky = named("VeilSky")
+    static let dawnTop = named("DawnTop")
+    static let dawnBottom = named("DawnBottom")
     static let veilGrey = named("VeilGrey")
     static let veilCashback = named("VeilCashback")
     static let veilMiles = named("VeilMiles")
@@ -327,9 +328,9 @@ private struct ExposurePainter {
 
   // MARK: Veil
 
-  /// Light mode's unlit sky goes to orange rather than a dimmed blue: an orange wash clipped to the
-  /// sky, with the lit edge's shares (a tenth on the lit side, nine tenths beyond), under the halo,
-  /// the ridges and the sun. The failed sky stays overcast.
+  /// Light mode's unlit sky goes to early morning rather than a dimmed blue: lavender down to
+  /// rose-peach, clipped to the sky and masked by the lit edge's ramp (a tenth on the lit side, nine
+  /// tenths beyond), under the halo, the ridges and the sun. The failed sky stays overcast.
   private func drawSkyVeil(in context: inout GraphicsContext) {
     guard daytime, exposure.stage != .failed, let edge = scene.veilEdge else { return }
     let strength = scene.veilStrength
@@ -337,11 +338,21 @@ private struct ExposurePainter {
     let meet = ExposureScene.meet
     var sky = context
     sky.clip(to: above { scene.horizonY(at: $0) })
-    sky.fill(
-      Path(frame),
-      with: .linearGradient(
-        Gradient.smoothRamp(Theme.Face.veilSky, base: strength * meet, peak: strength * (1 - meet)),
-        startPoint: CGPoint(x: edge.from, y: 0), endPoint: CGPoint(x: edge.to, y: 0)))
+    let bottom = max(scene.horizonY(at: 0), scene.horizonY(at: 1))
+    sky.drawLayer { layer in
+      layer.fill(
+        Path(frame),
+        with: .linearGradient(
+          Gradient(colors: [Theme.Face.dawnTop, Theme.Face.dawnBottom]),
+          startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: bottom)))
+      // The edge's ramp as the layer's alpha.
+      layer.blendMode = .destinationIn
+      layer.fill(
+        Path(frame),
+        with: .linearGradient(
+          Gradient.smoothRamp(.white, base: strength * meet, peak: strength * (1 - meet)),
+          startPoint: CGPoint(x: edge.from, y: 0), endPoint: CGPoint(x: edge.to, y: 0)))
+    }
   }
 
   /// Underexposes the art right of the marker in the minimum journey, and everything when failed.
