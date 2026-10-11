@@ -274,7 +274,7 @@ Text is never inside the scene. Each layout sets:
 
 `N` is the bottom of the name's line box and `F` the top of the headline, both measured in the row. So long names and large text move the ridges rather than overlap them.
 
-**The phone cut (10 Oct 2026).** The strip and the band are a different picture from the hero, not a smaller one: a 104pt row has no room for the whole landscape, and the owner found the first cut's sun a bead on a line with clipped rings and stray hairlines. The phone layouts therefore draw the same scene with four changes, and the hero and the web's 3:2 face keep the full treatment:
+**The phone cut (10 Oct 2026).** The strip and the band are a different picture from the hero, not a smaller one: a row of about 114pt has no room for the whole landscape, and the owner found the first cut's sun a bead on a line with clipped rings and stray hairlines. The phone layouts therefore draw the same scene with four changes, and the hero and the web's 3:2 face keep the full treatment:
 
 - **The sun is the marker.** No hairline. The disc rides at the fill (0.07 to 0.85 W) and the lit edge and the ridge gap carry the exact point. A hairline from the sky through the foot text read as a scratch, and beside the column it read as a pole the sun was skewered on.
 - **A half-sun on the horizon.** The disc is 10pt (7pt on the band) and its centre sits exactly on the target horizon while it rides, so the sky clip leaves a clean semicircle. It lifts clear from there, as before. Under the name the horizon is at least 12pt below it, so the half-sun's top stays clear of the name's line box.
@@ -868,8 +868,9 @@ Re-measure every pair in the contrast tables when a value changes; a value that 
 
 | Text or mark | Background | Ratio |
 | --- | --- | --- |
-| `InkCashback` | `SkyCashback1` to `3`, the unlit blue; under the 15% dim | 8.0 to 13.9:1; 6.9 to 11.2:1 |
-| `InkMiles` | `SkyMiles1` to `3`, the unlit blue; under the 15% dim | 6.7 to 14.2:1; 5.8 to 11.4:1 |
+| `InkCashback` | `SkyCashback1` to `3`, the unlit blue (a tenth of it left in the dawn) | 8.0 to 13.9:1 |
+| `InkMiles` | `SkyMiles1` to `3`, the unlit blue (a tenth of it left in the dawn) | 6.7 to 14.2:1 |
+| `InkCashback`, `InkMiles` | `DawnTop` to `DawnBottom` over the blue: the unlit sky | 5.1:1 at the lavender top (measured on the phone strip) and above |
 | `InkCashback`, `InkMiles` | `SkyLit` to `SkyLitBottom` over the blue: the gold | 8.0 to 13.0:1 (the amber at the horizon measures 8.0:1 on the phone strip) |
 | `InkCashback`, `InkMiles` | the falloff's midpoint, half gold and half blue | 8.9 to 13.4:1, never below the blue figure |
 | `InkCashback`, `InkMiles` | calm: `SkyLit` at 42% over the blue | 8.7 to 13.5:1 |
@@ -878,11 +879,9 @@ Re-measure every pair in the contrast tables when a value changes; a value that 
 | `InkCashback`, `InkMiles` | a marker pixel over the sky | 14.2 to 15.9:1 |
 | `InkCashback`, `InkMiles` | `SkyOvercast1` to `3` under the 14% dim, at saturation 0.15 | 10.0 to 11.8:1 |
 | `FootInk`, `FootInkSoft`, `UrgentInk` | `RidgeFront` | 8.4, 6.0, 5.6:1 |
-| `FootInk`, `FootInkSoft`, `UrgentInk` | `RidgeFront` under the 15% dim: the unlit ground | 7.1, 5.0, 4.7:1 |
-| `FootInk`, `FootInkSoft`, `UrgentInk` | `RidgeFront` under the ground's gold, 0.24 to 0.36 | 9.2 to 9.7, 6.6 to 6.9, 6.1 to 6.4:1 |
 | `FootInk`, `FootInkSoft`, `UrgentInk` | a marker pixel over the ground | 14.5 to 15.3, 10.3 to 10.9, 9.6 to 10.1:1 |
 | `FailedInk`, `FootInkSoft` | `RidgeFront` under the 14% dim, at saturation 0.15 | 4.7, 5.0:1 |
-| `FootInk`, `FootInkSoft`, `UrgentInk`, Increase Contrast | `RidgeFront`, Increase Contrast; the same under the dim | 9.4, 8.2, 7.3:1; 7.9, 6.9, 6.1:1 |
+| `FootInk`, `FootInkSoft`, `UrgentInk`, Increase Contrast | `RidgeFront`, Increase Contrast | 9.4, 8.2, 7.3:1 |
 | `FailedInk`, Increase Contrast | `RidgeFront`, Increase Contrast, dimmed, at saturation 0.15 | 6.1:1 |
 | Marker (non-text) | the gold; the pale sky and the saturated blue (dimmed or not); `RidgeFront`, lit or not; `RidgeBack` | 1.2 to 1.3:1; 1.1 to 2.5:1; 1.6 to 2.0:1; 1.4 to 1.7:1 |
 | `MarkerEdge` (non-text) | either side of the line, on any background | 1.25:1 |
@@ -1072,7 +1071,7 @@ The rounding and Singapore-day rules have edge cases no fixture reaches.
   | `--face-veil-miles` | `#ffffff` | `#8a8496` |
   | `--face-veil-grey` | `transparent` | `#808080` |
   | `--face-bloom` | `transparent` | `#ffe3ac` |
-  | `--face-cashback-blend` | `screen` | `normal` |
+  | `--face-cashback-blend` | `screen` | `screen` |
   | `--face-pour-cashback` | `0.65` | `0.45` |
   | `--face-pour-miles` | `0.65` | `0.65` |
   | `--face-marker-cashback` | `#fff8e6d9` | `#ffd98c59` |

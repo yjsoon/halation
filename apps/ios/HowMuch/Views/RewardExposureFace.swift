@@ -391,7 +391,7 @@ private struct ExposurePainter {
         with: .linearGradient(Gradient.smoothRamp(cast, peak: strength), startPoint: from, endPoint: to))
     case .daytime:
       // The failed face only: a cool 14% dim over the whole frame, which never darkens enough to break
-      // a floor. The minimum journey's unlit sky goes to orange instead (drawSkyVeil) and the ground
+      // a floor. The minimum journey's unlit sky goes to early morning instead (drawSkyVeil) and the ground
       // is one pair of greens throughout, so nothing else is dimmed.
       guard exposure.stage == .failed else { return }
       veil.fill(Path(frame), with: .color(Theme.Face.veilDim.opacity(0.14 * strength)))
