@@ -503,7 +503,7 @@ struct RewardExposureAnimator: View {
 }
 
 extension Gradient {
-  /// A ramp from clear to `colour` at `peak` opacity, shaped like smoothstep so the veil's
+  /// A ramp from `colour` at `base` opacity (clear by default) to `peak` opacity, shaped like smoothstep so the veil's
   /// edge is soft at both ends rather than a straight line.
   fileprivate static func smoothRamp(_ colour: Color, base: Double = 0, peak: Double) -> Gradient {
     let at = { (k: Double) in colour.opacity(base + (peak - base) * k) }

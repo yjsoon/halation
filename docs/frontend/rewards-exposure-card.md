@@ -178,7 +178,7 @@ Values are in Colour assets. "Gold" is `SkyLit` laid over the blue at `0.76 + 0.
 
 | # | State | Sky and light | Sun and rings | Ground and marker | Text |
 | --- | --- | --- | --- | --- | --- |
-| 1, 2 | Gate | Blue sky, gold from the left edge to the marker, then orange. At `h` 0 only a sliver at the left is gold; at 0.2 a fifth of the width is. | A half disc on the horizon at the marker, with the amber `SunRise` disc, which reads as a sunrise against the blue; small rings | Apart. One pair of greens throughout, never dark. The warm white marker with its faint dark edge, on the sky and the ground alike. | Name in dark ink on the gold and the blue alike. Foot in dark ink; `UrgentInk` dark umber when urgent. |
+| 1, 2 | Gate (hero and desktop face; the phone strip and band drop the hairline and draw one soft glow in place of the rings, see The phone cut) | Blue sky, gold from the left edge to the marker, then orange. At `h` 0 only a sliver at the left is gold; at 0.2 a fifth of the width is. | A half disc on the horizon at the marker, with the amber `SunRise` disc, which reads as a sunrise against the blue; small rings | Apart. One pair of greens throughout, never dark. The warm white marker with its faint dark edge, on the sky and the ground alike. | Name in dark ink on the gold and the blue alike. Foot in dark ink; `UrgentInk` dark umber when urgent. |
 | 3, 4, 5 | Climb | The whole band gold at `0.76 + 0.16 × v`, deepening as the sun climbs; the pour fades in from `v` 0.4 | In the column, climbing; the rings grow and, with the core glow, are screened over the sky, so they read as glare, never as mud on the gold | Merged, the same greens; no marker | As 1 |
 | 6, 7 | Rest | The whole band gold: 0.76 at rest (6), 0.84 at halfway (7) | Resting (6) or halfway (7) in the column | Merged | As 1 |
 | 8, 9, 10 | Capped | Gold at 0.92 with the pour at full strength from the top edge over the sun's column: a warm, bright noon | Off the top edge; the rings' lower arcs show at the top | Merged; crest bright end to end | Headline in foot ink |
@@ -677,9 +677,9 @@ extension ExposureScene {
       veil.fill(rect, with: .linearGradient(
         Gradient(colors: [.white, veilColour]), startPoint: from, endPoint: to))
     case .daytime:
-      let alpha = failed ? 0.14 : 0.15                       // the cool dim, whole frame
-      veil.fill(rect, with: .linearGradient(
-        Gradient(colors: [Theme.Face.veilDim.opacity(0), Theme.Face.veilDim.opacity(alpha)]), startPoint: from, endPoint: to))
+      // The minimum journey's unlit sky is the orange sky veil (drawSkyVeil); the dim is for the failed face only.
+      guard failed else { return }
+      veil.fill(rect, with: .color(Theme.Face.veilDim.opacity(0.14)))
     }
   }
 }
@@ -760,7 +760,7 @@ Each colour set is named for its role and, where it matters, the reward type, so
 | `SkyCashback1`, `2`, `3` | #8DB6D8, #BAD2E3, #EBE6DD: a warm, soft haze (stops 0, 0.48, 1 at 165°) | #7A4420, #5A3016, #3F2211: the amber dusk print | same | `--face-cashback-sky` (renames `--face-day`) |
 | `SkyMiles1`, `2`, `3` | #6EA6DA, #A6C9E9, #DCEBF6: higher, cooler and clearer | #1C2013, #141C12, #0B1710: the night print | same | `--face-miles-sky` (renames `--face-night`) |
 | `SkyOvercast1`, `2`, `3` | #D6D8D9, #E1E2E0, #ECEBE7: the failed sky | same; not drawn (dark mode veils the print) | same | new `--face-overcast` |
-| `SkyLit` | #FFD98C, with its alpha set in code: on the sky `(0.76 + 0.16 × v) × 0.9` (0.42 × 0.9 when calm), on the ground `(0.24 + 0.12 × v) × 0.8` (0.16 × 0.8 when calm); a tenth and a fifth of that beyond the edge | same; not drawn | same | new `--face-lit` |
+| `SkyLit` | #FFD98C, with its alpha set in code: on the sky `(0.76 + 0.16 × v) × 0.9` (0.42 × 0.9 when calm), a tenth of that beyond the edge; never on the ground | same; not drawn | same | new `--face-lit` |
 | `Contrail` | #FFFFFF at 45%; miles only | same; not drawn | same | new `--face-contrail` |
 | `InkCashback` | #1C1B18 | #1C1B18 | same | `--face-cashback-ink` (renames `--face-day-ink`) |
 | `InkMiles` | #1C1B18 | #F7F5EF | same | `--face-miles-ink` (renames `--face-night-ink`) |
@@ -826,13 +826,13 @@ extension ExposureScene {
     if appearance == .daytime, exposure.stage == .failed { return Theme.Face.skyOvercast }
     return exposure.miles ? Theme.Face.skyMiles : Theme.Face.skyCashback
   }
-  /// Peak alpha of the gold on the sky and on the ground, or nil when there is none.
-  var litAlpha: (sky: Double, ground: Double)? {
+  /// Peak alpha of the gold on the sky, or nil when there is none. The ground is never lit.
+  var litAlpha: Double? {
     guard appearance == .daytime else { return nil }
     switch exposure.light {
     case .overcast: return nil
-    case .even: return (0.42, 0.16)
-    case .journey: return (0.76 + 0.16 * pose.v, 0.24 + 0.12 * pose.v)
+    case .even: return 0.42 * 0.9
+    case .journey: return (0.76 + 0.16 * pose.v) * 0.9
     }
   }
   var glowBlend: GraphicsContext.BlendMode { appearance == .daytime || exposure.miles ? .screen : .normal }
@@ -1058,8 +1058,8 @@ The rounding and Singapore-day rules have edge cases no fixture reaches.
   | `--face-foot-soft` | `#2c3832` | `#d4e2d9` |
   | `--face-urgent-ink` | `#5a2f00` | `#ffd98c` |
   | `--face-failed-ink` | `#701510` | `#ffabae` |
-  | `--ridge-back` | `#a9d6b1` | `#2a6648` |
-  | `--ridge-front` | `#86c396` | `#1e4433` |
+  | `--ridge-back` | `#9dc5a8` | `#2a6648` |
+  | `--ridge-front` | `#80b591` | `#1e4433` |
   | `--face-scrim` | `transparent` | `#1e44338c` |
   | `--face-lit` | `#ffd98c` | `transparent` |
   | `--face-contrail` | `#ffffff73` | `transparent` |
