@@ -163,6 +163,24 @@ enum MoneyCodec {
   }
 }
 
+enum TypedNumber {
+  /// A plain number typed on the decimal pad, such as a reward rate. Where the
+  /// device's decimal separator is a comma, the pad offers only a comma, so a
+  /// single comma (and no full stop) is read as the decimal point.
+  static func double(
+    from input: String,
+    decimalSeparator: String? = Locale.current.decimalSeparator
+  ) -> Double? {
+    var trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    if decimalSeparator == ",",
+       !trimmed.contains("."),
+       trimmed.filter({ $0 == "," }).count == 1 {
+      trimmed = trimmed.replacingOccurrences(of: ",", with: ".")
+    }
+    return Double(trimmed)
+  }
+}
+
 enum LedgerDate {
   /// "Today", "Yesterday", or "Mon 8 Jun 2026" from an ISO `yyyy-MM-dd` string.
   static func friendlyString(fromISO isoDate: String) -> String {

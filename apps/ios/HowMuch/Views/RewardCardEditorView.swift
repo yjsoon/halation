@@ -560,7 +560,7 @@ struct RewardCardDraft: Equatable {
     if trimmed.isEmpty {
       return nil
     }
-    guard let value = Double(trimmed), value.isFinite else {
+    guard let value = TypedNumber.double(from: trimmed), value.isFinite else {
       throw RewardCardWriteError.message("\(label) must be a number.")
     }
     if nonnegative && value < 0 {

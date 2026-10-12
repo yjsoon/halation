@@ -1816,7 +1816,7 @@ struct RewardsValuationSheet: View {
 
   private func save() async {
     guard !saving else { return }
-    guard let value = Double(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+    guard let value = TypedNumber.double(from: text),
       value.isFinite, value >= 0 else {
       error = "Miles valuation must be a nonnegative number."
       return
