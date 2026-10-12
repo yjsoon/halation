@@ -29,9 +29,11 @@ export default defineConfig({
       allow: ["../.."],
     },
     allowedHosts: [".e2b.app", ".onamp.dev"],
+    // Trailing slashes, as in the Worker: a bare "/api" prefix also captures
+    // the SPA route /api-tokens and proxies it to the API, which answers 404.
     proxy: {
-      "/api": apiProxy,
-      "/v1": apiProxy,
+      "/api/": apiProxy,
+      "/v1/": apiProxy,
     },
   },
 });
