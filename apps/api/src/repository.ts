@@ -581,8 +581,9 @@ export class LedgerRepository {
   }
 
   async getAccount(planId: string, accountId: string): Promise<any> {
-    await this.ensureAccount(planId, accountId);
-    const row = await this.db.query(`${ACCOUNT_SELECT_SQL} WHERE id = ? AND plan_id = ?`).get(accountId, planId) as Row;
+    // A read must not create the account (and its transfer payee) for an unknown id.
+    const row = await this.db.query(`${ACCOUNT_SELECT_SQL} WHERE id = ? AND plan_id = ?`).get(accountId, planId) as Row | null;
+    if (!row) throw new NotFoundError("Account not found");
     return formatAccount(row);
   }
 

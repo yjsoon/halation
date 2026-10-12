@@ -53,3 +53,16 @@ budget account (and its transfers lost their category).
 | `type: "otherAsset"` | false | true | false |
 | `type: "savings"` | true | true | true |
 | `type: "checking", on_budget: false` (explicit) | false | false | false |
+
+## 3. Reading an unknown account id created the account
+
+Script: `ghost-account-e2e.ts`. `GET /v1/plans/{plan}/accounts/{id}` went
+through `getAccount`, which called `ensureAccount` first, so any token
+holder reading a mistyped or stale id inserted an "Imported account" row and
+its transfer payee (without a server-knowledge bump) and got 200.
+
+| Step | Expected | Before (`f57208d`) | After |
+| --- | --- | --- | --- |
+| GET unknown account id | 404 | 200, "Imported account ghost-be" | 404 "Account not found" |
+| List accounts | no such row | row present | absent |
+| List payees | no transfer payee for it | present | absent |
