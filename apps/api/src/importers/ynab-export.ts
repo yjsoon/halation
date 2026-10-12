@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { PlanNotFoundError } from "../repository";
 import type { LedgerStore } from "../storage";
 import type { ClearedState, TransactionInput } from "../types";
 
@@ -57,15 +58,24 @@ export async function importYnabExport(
 
   try {
     const months = planRows.map((row) => normaliseMonth(row.Month)).filter(Boolean) as string[];
+    // The export carries no currency or flag names, so these defaults only seed
+    // a new plan; an existing plan keeps its own settings and named flags.
+    const planExists = await repo.getPlan(options.planId).then(
+      () => true,
+      (error: unknown) => {
+        if (error instanceof PlanNotFoundError) return false;
+        throw error;
+      },
+    );
     await repo.upsertPlan(
       options.planId,
       {
         id: options.planId,
-        name: options.planName ?? "YNAB Web Export",
+        name: options.planName ?? (planExists ? undefined : "YNAB Web Export"),
         first_month: months.length > 0 ? months.sort()[0] : undefined,
         last_month: months.length > 0 ? months.sort()[months.length - 1] : undefined,
       },
-      {
+      planExists ? undefined : {
         date_format: { format: dateFormat === "mdy" ? "MM/DD/YYYY" : dateFormat === "ymd" ? "YYYY-MM-DD" : "DD/MM/YYYY" },
         currency_format: {
           iso_code: "SGD",
