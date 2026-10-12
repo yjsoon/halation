@@ -2182,9 +2182,18 @@ export class LedgerRepository {
     const scheduleSnapshot = scheduledOccurrenceSnapshotHash(schedule);
     if (existing && existing.snapshotHash !== scheduleSnapshot) throw new Error("stale scheduled occurrence");
 
-    const input = await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId);
+    // An occurrence posted from this exact schedule snapshot whose advance did
+    // not commit is only advanced here. Re-creating it would hash a different
+    // source_ref whenever the retry carries another operation seed (the next
+    // day's cron, a new Idempotency-Key), and be refused as key reuse forever.
     const operationId = `scheduled_occurrence_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
-    const transaction = await this.createTransaction(planId, input, { autoLink: true, operationId });
+    const transaction = existing
+      ? existing.transaction
+      : await this.createTransaction(
+        planId,
+        await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId),
+        { autoLink: true, operationId },
+      );
     const advanceId = `scheduled_advance_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
     let advanced: any;
     const expected = { date_first: schedule.date_first, date_next: occurrenceDate, frequency: schedule.frequency };

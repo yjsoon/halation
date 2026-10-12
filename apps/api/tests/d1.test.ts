@@ -774,6 +774,36 @@ describe("D1 foundation", () => {
     });
   });
 
+  // Failure mode: the occurrence transaction commits but the schedule advance
+  // does not (transport error, Worker eviction). The next attempt runs under a
+  // different operation seed (the next day's cron, or a manual retry with a new
+  // Idempotency-Key). It must advance the schedule over the posted occurrence,
+  // not refuse it as idempotency-key reuse and strand the schedule forever.
+  test("D1 materialisation recovers an occurrence posted before a failed advance under a new operation seed", async () => {
+    const db = await ledgerSqlite();
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    await repo.createScheduledTransaction("p", {
+      id: "stranded", account_id: "a", date_first: "2026-08-21", frequency: "monthly", amount: -100,
+    });
+    const update = repo.updateScheduledTransaction.bind(repo);
+    let failAdvance = true;
+    repo.updateScheduledTransaction = async (...args) => {
+      if (failAdvance) {
+        failAdvance = false;
+        throw new Error("temporary D1 command failure");
+      }
+      return update(...args);
+    };
+
+    expect(await repo.materializeScheduledTransactionsForCron("p", "2026-08-21", 5, "cron-day-1")).toMatchObject({ failure_count: 1, has_more: true });
+    expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
+    expect(await repo.getScheduledTransaction("p", "stranded")).toMatchObject({ date_next: "2026-08-21" });
+
+    expect(await repo.materializeScheduledTransactionsForCron("p", "2026-08-22", 5, "cron-day-2")).toMatchObject({ failure_count: 0, has_more: false });
+    expect(await repo.getScheduledTransaction("p", "stranded")).toMatchObject({ date_next: "2026-09-21" });
+    expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
+  });
+
   test("D1 cron materialisation continues past an invalid schedule and reports only counts", async () => {
     const db = await ledgerSqlite();
     const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
