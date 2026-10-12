@@ -67,3 +67,19 @@ Revision before fix: `6a57335`. `POST /api/mobile/quick-entry` (API token).
 | no `amount` | 400 | 500 | 400 `amount is required` |
 | `amount: "abc"` | 400 | 500 | 400 `amount must be a decimal amount` |
 | `amount: "-4.20"`, payee `Kopi` | 201 | 201 | 201 |
+
+## 5. Schedule moved back onto an already posted occurrence
+
+Revision after fix: `79ceb77`. Schedule `e2e-sched` (monthly from 2026-08-31,
+-1500 transfer to `e2e-save`) had posted 2026-08-31 and 2026-09-30 through
+`GET /__scheduled?cron=5+16+*+*+*` (local date 2026-10-13), leaving
+`date_next` 2026-10-31.
+
+1. `PATCH $B/scheduled_transactions/e2e-sched` `{"date_next":"2026-09-30"}` -> `date_next` 2026-09-30.
+2. Trigger the cron again.
+
+Expected: run finishes, no duplicate occurrence, `date_next` 2026-10-31.
+Observed: log `{"event":"scheduled_materialization","through_date":"2026-10-13","occurrence_count":0,"failure_count":0,"has_more":false}`,
+`date_next` 2026-10-31, still two +1500 rows in `e2e-save`. Before the fix the
+same-day run spun forever; the isolated regression test in `apps/api/tests/d1.test.ts`
+reproduces that spin (capped) and the stranded-advance case.
