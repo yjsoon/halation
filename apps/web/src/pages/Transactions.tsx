@@ -1448,7 +1448,9 @@ export function TransactionsPage() {
 
   const emptyMessage =
     page.loaded && page.transactions.length === 0
-      ? "No transactions yet."
+      // The page is fetched for the date range, so an empty one only means an
+      // empty ledger when no range is set.
+      ? filters.from || filters.to ? "No transactions in this date range." : "No transactions yet."
       : deferredSearch.trim()
         ? "No transactions match this search."
         : "No transactions match these filters.";
