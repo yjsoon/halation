@@ -22,7 +22,7 @@ import { splitCategoryGroups, UNCATEGORISED_CATEGORY_ID } from "../lib/categorie
 import { appliedReviewItems, reviewRows, suggestionRequestItems, suggestionTargets, type SuggestionReviewRow } from "../lib/category-suggestions";
 import { formatDate, todayIso, trailingMonthsRange } from "../lib/dates";
 import { stableHash } from "../lib/hash";
-import { formatAmount, formatMoney, parseMilliunits } from "../lib/money";
+import { currentCurrencyFormat, formatAmount, formatMoney, parseMilliunits } from "../lib/money";
 import {
   approveAllLabel,
   approvedToast,
@@ -58,6 +58,7 @@ import {
   fieldsFromSchedule,
   matchesRegisterQuery,
   mergeSearchRows,
+  moneyFormatFromPlan,
   parseRegisterQuery,
   searchStatusCopy,
   transactionMatchesQuery,
@@ -201,7 +202,13 @@ export function TransactionsPage() {
     loadingMore: false,
     error: null as string | null,
   });
-  const registerQuery = useMemo(() => parseRegisterQuery(deferredSearch), [deferredSearch]);
+  // Parsed with the plan's currency format, exactly as the server parses `q`,
+  // so local, scheduled and server matches agree on "£12.50" or "12,50".
+  const currencyFormat = currentCurrencyFormat();
+  const registerQuery = useMemo(
+    () => parseRegisterQuery(deferredSearch, moneyFormatFromPlan(currencyFormat)),
+    [currencyFormat, deferredSearch],
+  );
   const searchVersionRef = useRef(0);
   const [pendingDeletion, setPendingDeletion] = useState<Transaction | null>(null);
   const [pendingBulkDeletion, setPendingBulkDeletion] = useState<readonly Transaction[] | null>(null);
