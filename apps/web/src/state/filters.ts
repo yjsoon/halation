@@ -87,6 +87,9 @@ export function applyFilterPatch(previous: URLSearchParams, patch: Partial<Filte
   }
   if ("categoryIds" in patch && patch.categoryIds !== undefined) {
     writeParam(next, "categories", patch.categoryIds.join(",") || undefined);
+    // `flow=outflow` comes only with a Spending category drill-down and has no
+    // control of its own, so it goes when the categories are cleared.
+    if (patch.categoryIds.length === 0) next.delete("flow");
   }
   if (patch.interval) {
     writeParam(next, "interval", patch.interval);
