@@ -146,3 +146,15 @@ split in `e2e-save` whose -2000 line transfers into that account, then
 refuses a memo edit (400), accepts a flag edit (200 red/Dining), and follows
 a parent split edit to 2500 with its link and flag intact; account balance
 -1500.
+
+## 10. Move and flag in one edit took the old card's flag name
+
+Revision before fix: `27a9390`. Script: `move-flag-e2e.ts <tag>` creates
+accounts `move-from-<tag>` and `move-to-<tag>` with rewards cards naming
+`red` "Dining (from card)" and "Groceries (to card)", a -1500 row in the
+first, then `PATCH $B/transactions/<id>` with
+`{"account_id":"move-to-<tag>","flag_color":"red"}`.
+
+| Check | Expected | Before (`before`) | After (`after`) |
+| --- | --- | --- | --- |
+| `flag_name` | Groceries (to card) | Dining (from card) | Groceries (to card) |

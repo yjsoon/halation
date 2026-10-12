@@ -592,8 +592,11 @@ async function handleV1(
       const body = await readJson(request);
       const patch = body.transaction ?? body;
       if (Object.prototype.hasOwnProperty.call(patch, "flag_color") && !Object.prototype.hasOwnProperty.call(patch, "flag_name")) {
-        const existing = await repo.getTransaction(planId, transactionId);
-        await stampTransactionFlagName(repo, planId, existing.account_id, patch);
+        // A move and a flag in one edit take the destination card's names.
+        const accountId = typeof patch.account_id === "string" && patch.account_id
+          ? patch.account_id
+          : (await repo.getTransaction(planId, transactionId)).account_id;
+        await stampTransactionFlagName(repo, planId, accountId, patch);
       }
       const updated = await repo.updateTransaction(planId, transactionId, patch);
       return json({ data: { transaction: updated, server_knowledge: await repo.getServerKnowledge(planId) } });
