@@ -98,7 +98,7 @@ export function NetWorthPage() {
               <section className="report-section">
                 <div className="section-heading">
                   <span className="section-title">Trend</span>
-                  <span className="section-meta">{periods.length} closing snapshots</span>
+                  <span className="section-meta">{periods.length} closing {periods.length === 1 ? "snapshot" : "snapshots"}</span>
                 </div>
                 <SteppedArea periods={periods} />
               </section>
