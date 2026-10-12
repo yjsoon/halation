@@ -150,6 +150,10 @@ export function ScheduledTransactionsPage() {
       {mutationSuccess && <div className="status-panel" role="status"><p className="status-title">{mutationSuccess}</p></div>}
       {editor && (
         <ScheduleEditor
+          // The form copies its schedule into state once, so switching from one
+          // schedule's Edit to another's (or to Add) must remount it; otherwise
+          // the second schedule is saved with the first one's fields.
+          key={editor.mode === "edit" ? `edit-${editor.schedule.id}` : "create"}
           schedule={editor.mode === "edit" ? editor.schedule : undefined}
           accounts={accounts}
           categoryGroups={categoryGroups}
