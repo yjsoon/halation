@@ -15,10 +15,10 @@ export function yesterdayIso(): string {
   return iso(date);
 }
 
+/** Same day `months` away, clamped to the target month's last day (31 May - 3 = 28 Feb). */
 function shiftMonths(date: Date, months: number): Date {
-  const result = new Date(date);
-  result.setMonth(result.getMonth() + months);
-  return result;
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + months + 1, 0).getDate();
+  return new Date(date.getFullYear(), date.getMonth() + months, Math.min(date.getDate(), lastDay));
 }
 
 function monthBounds(year: number, monthIndex: number): { from: string; to: string } {
