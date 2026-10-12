@@ -910,6 +910,10 @@ struct APIClient {
     let basePath = components.percentEncodedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     components.percentEncodedPath = basePath.isEmpty ? requestPath : "/\(basePath)\(requestPath)"
     components.queryItems = queryItems.isEmpty ? nil : queryItems
+    // `URLQueryItem` leaves "+" bare, and the server's `URLSearchParams` reads
+    // a bare "+" as a space. Every "+" left in the encoded query is a literal.
+    components.percentEncodedQuery = components.percentEncodedQuery?
+      .replacingOccurrences(of: "+", with: "%2B")
 
     guard let url = components.url else {
       throw APIClientError.invalidBaseURL
