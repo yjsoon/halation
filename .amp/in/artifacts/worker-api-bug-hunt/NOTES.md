@@ -57,3 +57,13 @@ the INTEGER milliunit columns.
 | `{"name":"Float acct","balance":"12.50"}` | 400 | 201, balance `12.5` (fractional milliunits) | 400 `account.balance must be integer milliunits` |
 | `{"name":"Obj acct","balance":{"x":1}}` | 400 | 500 | 400 |
 | `{"name":"Good acct","type":"cash","balance":125000}` | 201 | 201 | 201, balance 125000 |
+
+## 4. Quick entry answered 500 for a missing or unparseable amount
+
+Revision before fix: `6a57335`. `POST /api/mobile/quick-entry` (API token).
+
+| Body | Expected | Before | After |
+| --- | --- | --- | --- |
+| no `amount` | 400 | 500 | 400 `amount is required` |
+| `amount: "abc"` | 400 | 500 | 400 `amount must be a decimal amount` |
+| `amount: "-4.20"`, payee `Kopi` | 201 | 201 | 201 |

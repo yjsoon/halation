@@ -757,10 +757,10 @@ async function handleNative(
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
     if (denied) return denied;
     await repo.ensurePlan(targetPlanId);
-    const amount = body.amount_milli ?? decimalToMilliunits(body.amount);
+    const amount = quickEntryMilliunits(body.amount_milli, body.amount, "amount");
     const subtransactions = Array.isArray(body.subtransactions)
       ? body.subtransactions.map((sub: any) => ({
-          amount: sub.amount_milli ?? decimalToMilliunits(sub.amount),
+          amount: quickEntryMilliunits(sub.amount_milli, sub.amount, "subtransaction amount"),
           payee_id: sub.payee_id ?? null,
           payee_name: sub.payee_name ?? null,
           category_id: sub.category_id ?? null,
@@ -868,6 +868,21 @@ async function handleNative(
   }
 
   return apiError(404, "not_found", "Route not found");
+}
+
+/**
+ * Quick entry takes integer milliunits or a decimal string. A missing or
+ * unparseable decimal is the caller's mistake, not a server failure; integer
+ * checks on `amount_milli` stay with the transaction writer.
+ */
+function quickEntryMilliunits(milli: unknown, decimal: unknown, label: string): number {
+  if (milli !== undefined && milli !== null) return milli as number;
+  if (typeof decimal !== "string" && typeof decimal !== "number") throw new ValidationError(`${label} is required`);
+  try {
+    return decimalToMilliunits(decimal);
+  } catch {
+    throw new ValidationError(`${label} must be a decimal amount`);
+  }
 }
 
 function queryFilters(url: URL, overrides: Record<string, string | null> = {}): TransactionFilters {
