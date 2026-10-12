@@ -38,3 +38,18 @@ YNAB-imported categorised payment lost its category on the first edit there).
 The mortgage-side edit was also checked on both stores through the API
 harness (`nativeHarness`) with a category already stored: SQLite kept it,
 D1 wiped it before the fix and keeps it after.
+
+## 2. Account create made every type on-budget
+
+Script: `account-kind-e2e.ts`. `docs/api-contract.md` documents the create
+body as `name`, `type`, `balance`, `icon` and says `on_budget` is derived from
+`type`, but `POST /accounts` stored `on_budget = 1` whenever the body left it
+out, so a mortgage or asset account created through the API counted as a
+budget account (and its transfers lost their category).
+
+| POST body | Expected GET `on_budget` | Before (`89c8643`) | After |
+| --- | --- | --- | --- |
+| `type: "mortgage"` | false | true | false |
+| `type: "otherAsset"` | false | true | false |
+| `type: "savings"` | true | true | true |
+| `type: "checking", on_budget: false` (explicit) | false | false | false |

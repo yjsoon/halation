@@ -33,7 +33,7 @@ import {
 } from "./password-auth";
 import { randomBytes } from "node:crypto";
 import { ScheduledTransactionValidationError } from "./scheduled-transactions";
-import { ACCOUNT_KINDS, parseAccountKind, type AccountUpdatePatch } from "./account-kind";
+import { ACCOUNT_KINDS, onBudgetForKind, parseAccountKind, type AccountUpdatePatch } from "./account-kind";
 import { handleRewardTool } from "./reward-tools";
 import { autoCategorise, CategoriserUnavailableError, parseCategoriseExclusions, parseCategoriseItems, suggestCategories, type CategoriserConfig } from "./categoriser";
 import type { Fetch } from "@typesafe-ai/sdk";
@@ -274,7 +274,12 @@ async function handleV1(
           throw new ValidationError(`account.${field} must be integer milliunits`);
         }
       }
-      const account = await repo.createAccount(planId, payload);
+      // The documented create body names a type and no on_budget; a tracking
+      // kind (mortgage, asset, loan) must not default to on-budget.
+      const kind = parseAccountKind(payload.type);
+      const account = await repo.createAccount(planId, payload.on_budget == null && kind
+        ? { ...payload, on_budget: onBudgetForKind(kind) }
+        : payload);
       return json({ data: { account, server_knowledge: await repo.getServerKnowledge(planId) } }, 201);
     }
     // Must precede the `/accounts/{account_id}` branch below, or "usage" would
