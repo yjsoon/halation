@@ -35,6 +35,14 @@ final class RegisterQueryTests: XCTestCase {
     XCTAssertTrue(twelve.matches(try transaction(payee: "Scoot", amount: -12_000).registerSearchFields))
   }
 
+  /// Failure mode: a pasted reference number fits `Int` but not once scaled
+  /// to milliunits, and the multiply traps instead of falling back to text.
+  func testLongDigitRunStaysATextQueryInsteadOfTrapping() throws {
+    let query = try XCTUnwrap(RegisterQuery.parse("12345678901234567", currencyFormat: format))
+    XCTAssertNil(query.amount)
+    XCTAssertTrue(query.matches(try transaction(payee: "Ref 12345678901234567", amount: -1_000).registerSearchFields))
+  }
+
   private func range(_ lo: Int, _ hi: Int, _ sign: RegisterQuery.AmountRange.Sign) -> RegisterQuery.AmountRange {
     RegisterQuery.AmountRange(lo: lo, hi: hi, sign: sign)
   }
