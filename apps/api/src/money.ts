@@ -35,14 +35,13 @@ export function csvRowToMilliunits(row: { outflow?: unknown; inflow?: unknown; a
   const outflow = row.outflow === undefined || row.outflow === null ? "" : String(row.outflow).trim();
   const inflow = row.inflow === undefined || row.inflow === null ? "" : String(row.inflow).trim();
 
-  if (outflow) {
-    return -Math.abs(decimalToMilliunits(outflow));
+  // Many bank exports write 0.00 in the unused column, so a zero outflow must
+  // fall through to the inflow rather than win as a blank-looking amount.
+  const outflowAmount = outflow ? Math.abs(decimalToMilliunits(outflow)) : 0;
+  if (outflowAmount !== 0) {
+    return -outflowAmount;
   }
 
-  if (inflow) {
-    return Math.abs(decimalToMilliunits(inflow));
-  }
-
-  return 0;
+  return inflow ? Math.abs(decimalToMilliunits(inflow)) : 0;
 }
 

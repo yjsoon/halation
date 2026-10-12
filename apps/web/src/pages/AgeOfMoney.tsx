@@ -1,4 +1,5 @@
 import { api, useApi } from "../api/client";
+import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
 import { DottedLine } from "../components/charts";
 import { formatPeriod } from "../lib/dates";
@@ -9,9 +10,10 @@ import { useFilters } from "../state/filters";
 // Age of money replays income lots from the start of the range, so a clipped
 // window distorts the figure — default to the full history.
 const ALL_TIME = () => ({});
+const INTERVALS: Interval[] = ["week", "month"];
 
 export function AgeOfMoneyPage() {
-  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ALL_TIME });
+  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ALL_TIME, intervals: INTERVALS });
   const query = { ...reportQuery, category_ids: undefined };
   const report = useApi(JSON.stringify(query), () => api.ageOfMoney(query));
 
@@ -31,7 +33,7 @@ export function AgeOfMoneyPage() {
       <FilterRail
         filters={filters}
         setFilters={setFilters}
-        intervals={["week", "month"]}
+        intervals={INTERVALS}
         showCategories={false}
         busy={report.loading}
         collapsible={isPhone}

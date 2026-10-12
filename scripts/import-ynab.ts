@@ -1,8 +1,7 @@
-import { copyFileSync, existsSync, mkdirSync } from "node:fs";
-import { basename, dirname, extname, join } from "node:path";
 import { openDatabase } from "../apps/api/src/db";
 import { importYnabFromApi, listYnabPlans, type YnabPlanSummary } from "../apps/api/src/importers/ynab";
 import { LedgerRepository } from "../apps/api/src/repository";
+import { backupSqliteDatabase } from "./lib/sqlite-backup";
 
 type CliOptions = {
   planId?: string;
@@ -48,7 +47,7 @@ if (options.listPlans) {
 }
 
 const selectedPlan = resolvePlan(plans, options.planId, options.planName);
-const backupPath = options.noBackup ? null : maybeBackupDatabase(options.dbPath);
+const backupPath = options.noBackup ? null : backupSqliteDatabase(options.dbPath);
 const db = openDatabase(options.dbPath);
 const repo = new LedgerRepository(db, selectedPlan.id);
 
@@ -194,24 +193,6 @@ function resolvePlan(plans: YnabPlanSummary[], planId?: string, planName?: strin
   }
 
   throw new Error("Multiple YNAB plans are available. Run with --list-plans, then pass --plan-id.");
-}
-
-function maybeBackupDatabase(dbPath: string): string | null {
-  if (!existsSync(dbPath)) {
-    return null;
-  }
-
-  const backupDir = join(dirname(dbPath), "backups");
-  mkdirSync(backupDir, { recursive: true });
-  const extension = extname(dbPath);
-  const name = basename(dbPath, extension);
-  const backupPath = join(backupDir, `${name}-${timestampForFileName()}.${extension ? extension.slice(1) : "sqlite"}`);
-  copyFileSync(dbPath, backupPath);
-  return backupPath;
-}
-
-function timestampForFileName(): string {
-  return new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "-");
 }
 
 function queryImportSummary(db: ReturnType<typeof openDatabase>, planId: string) {

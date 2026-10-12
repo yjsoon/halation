@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { PlanNotFoundError } from "../repository";
 import type { LedgerStore } from "../storage";
 import type { ClearedState, TransactionInput } from "../types";
 
@@ -16,6 +17,8 @@ type PreparedTransaction = {
   row: CsvRow;
   index: number;
   input: TransactionInput;
+  /** The pre-occurrence import id, keyed on the row's position in its file. */
+  legacyImportId: string;
 };
 
 export type YnabExportImportResult = {
@@ -45,21 +48,34 @@ export async function importYnabExport(
   const categoryIds = new Set<string>();
   const payeeNames = new Set<string>();
   const preparedTransactions: PreparedTransaction[] = [];
+  // Identical rows (two equal coffees on one day) are told apart by how many
+  // came before them, never by file position: a later export inserts rows and
+  // shifts every index after them, which made each re-import a duplicate.
+  const occurrences = new Map<string, number>();
   let imported = 0;
   let duplicate = 0;
   let failed = 0;
 
   try {
     const months = planRows.map((row) => normaliseMonth(row.Month)).filter(Boolean) as string[];
+    // The export carries no currency or flag names, so these defaults only seed
+    // a new plan; an existing plan keeps its own settings and named flags.
+    const planExists = await repo.getPlan(options.planId).then(
+      () => true,
+      (error: unknown) => {
+        if (error instanceof PlanNotFoundError) return false;
+        throw error;
+      },
+    );
     await repo.upsertPlan(
       options.planId,
       {
         id: options.planId,
-        name: options.planName ?? "YNAB Web Export",
+        name: options.planName ?? (planExists ? undefined : "YNAB Web Export"),
         first_month: months.length > 0 ? months.sort()[0] : undefined,
         last_month: months.length > 0 ? months.sort()[months.length - 1] : undefined,
       },
-      {
+      planExists ? undefined : {
         date_format: { format: dateFormat === "mdy" ? "MM/DD/YYYY" : dateFormat === "ymd" ? "YYYY-MM-DD" : "DD/MM/YYYY" },
         currency_format: {
           iso_code: "SGD",
@@ -138,21 +154,11 @@ export async function importYnabExport(
           payeeNames.add(payeeName);
         }
 
+        const importKey = [accountName, row.Date, row.Payee, row.Memo, row.Outflow, row.Inflow].join("|");
+        const occurrence = occurrences.get(importKey) ?? 0;
+        occurrences.set(importKey, occurrence + 1);
         const input: TransactionInput = {
-          id: stableId(
-            "ynab-export-txn",
-            [
-              index,
-              accountName,
-              row.Date,
-              row.Payee,
-              row["Category Group/Category"],
-              row.Memo,
-              row.Outflow,
-              row.Inflow,
-              row.Cleared,
-            ].join("|"),
-          ),
+          id: stableId("ynab-export-txn", `occurrence|${importKey}|${occurrence}`),
           account_id: accountId,
           date: parseExportDate(row.Date, dateFormat),
           amount: parseInflowOutflow(row.Outflow, row.Inflow),
@@ -162,16 +168,18 @@ export async function importYnabExport(
           cleared: parseCleared(row.Cleared),
           approved: true,
           flag_name: clean(row.Flag) || null,
-          import_id: stableId(
-            "ynab-export-import",
-            [index, accountName, row.Date, row.Payee, row.Memo, row.Outflow, row.Inflow].join("|"),
-          ),
+          import_id: stableId("ynab-export-import", `occurrence|${importKey}|${occurrence}`),
           source_kind: "ynab-web-export",
           source_ref: sessionId,
           external_ynab_id: null,
         };
 
-        preparedTransactions.push({ row, index, input });
+        preparedTransactions.push({
+          row,
+          index,
+          input,
+          legacyImportId: stableId("ynab-export-import", [index, importKey].join("|")),
+        });
       } catch (error) {
         failed += 1;
         await repo.recordImportRow(sessionId, index, "failed", row, error instanceof Error ? error.message : String(error));
@@ -183,8 +191,10 @@ export async function importYnabExport(
 
     for (const prepared of preparedTransactions) {
       try {
+        // Rows imported before occurrence keys carry the positional import id.
         const existing = prepared.input.import_id && prepared.input.account_id
           ? await repo.findTransactionByImportId(options.planId, prepared.input.import_id, prepared.input.account_id)
+            ?? await repo.findTransactionByImportId(options.planId, prepared.legacyImportId, prepared.input.account_id)
           : null;
         if (existing) {
           await repo.recordImportRow(sessionId, prepared.index, "duplicate", prepared.row, undefined, existing.id);
@@ -397,6 +407,13 @@ function inferTransferPairs(transactions: PreparedTransaction[]): number {
 
       for (const positive of unmatchedPositives) {
         if (negative.input.account_id === positive.input.account_id) {
+          continue;
+        }
+        // A "Transfer : X" payee names its counterpart; never pair it elsewhere.
+        if (
+          (negative.input.transfer_account_id && negative.input.transfer_account_id !== positive.input.account_id)
+          || (positive.input.transfer_account_id && positive.input.transfer_account_id !== negative.input.account_id)
+        ) {
           continue;
         }
 

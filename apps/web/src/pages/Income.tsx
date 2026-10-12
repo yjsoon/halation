@@ -1,4 +1,5 @@
 import { api, useApi } from "../api/client";
+import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
 import { PairedColumns } from "../components/charts";
 import { formatPeriod, ytdRange } from "../lib/dates";
@@ -6,8 +7,10 @@ import { formatAmount, formatMoney, formatSavingsRate } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
 
+const INTERVALS: Interval[] = ["week", "month", "year"];
+
 export function IncomePage() {
-  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ytdRange });
+  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ytdRange, intervals: INTERVALS });
   const report = useApi(JSON.stringify(reportQuery), () => api.incomeVsSpending(reportQuery));
   const isPhone = useIsPhone();
 
@@ -27,7 +30,7 @@ export function IncomePage() {
       <FilterRail
         filters={filters}
         setFilters={setFilters}
-        intervals={["week", "month", "year"]}
+        intervals={INTERVALS}
         busy={report.loading}
         collapsible={isPhone}
       />

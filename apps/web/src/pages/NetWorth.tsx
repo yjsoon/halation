@@ -1,4 +1,5 @@
 import { api, useApi } from "../api/client";
+import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
 import { SteppedArea } from "../components/charts";
 import { formatDate, formatPeriod, trailingMonthsRange } from "../lib/dates";
@@ -7,9 +8,10 @@ import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
 
 const TRAILING_YEAR = () => trailingMonthsRange(12);
+const INTERVALS: Interval[] = ["week", "month"];
 
 export function NetWorthPage() {
-  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: TRAILING_YEAR });
+  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: TRAILING_YEAR, intervals: INTERVALS });
   const query = { ...reportQuery, category_ids: undefined };
   const report = useApi(JSON.stringify(query), () => api.netWorth(query));
   const isPhone = useIsPhone();
@@ -45,7 +47,7 @@ export function NetWorthPage() {
       <FilterRail
         filters={filters}
         setFilters={setFilters}
-        intervals={["week", "month"]}
+        intervals={INTERVALS}
         showCategories={false}
         busy={report.loading}
         collapsible={isPhone}

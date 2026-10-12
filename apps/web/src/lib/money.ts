@@ -3,8 +3,15 @@ import type { CurrencyFormat } from "../api/types";
 let formatter = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let symbol = "";
 let symbolFirst = true;
+let currencyFormat: CurrencyFormat | undefined;
+
+/** The plan currency format last passed to `configureMoney`. */
+export function currentCurrencyFormat(): CurrencyFormat | undefined {
+  return currencyFormat;
+}
 
 export function configureMoney(format?: CurrencyFormat): void {
+  currencyFormat = format;
   const digits = format?.decimal_digits ?? 2;
   formatter = new Intl.NumberFormat("en-GB", {
     minimumFractionDigits: digits,

@@ -278,6 +278,9 @@ function ScheduleEditor({ schedule, accounts, categoryGroups, payees, saving, on
     } else {
       input.payee_id = payeeId || null; input.category_id = categoryId || null; input.transfer_account_id = null;
     }
+    // The PATCH keeps existing lines when `subtransactions` is absent, so an
+    // unsplit schedule must clear them explicitly.
+    if (!isSplit) input.subtransactions = [];
     setValidationError(null);
     await onSave(input, `scheduled-${operationSeed}-${stableHash(JSON.stringify(input))}`);
   };
