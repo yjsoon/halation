@@ -538,6 +538,8 @@ struct TransactionFormView: View {
         )
     }
     .buttonStyle(.plain)
+    // The chosen side is shown only by its fill, so VoiceOver needs the trait.
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 
   private var detailCard: some View {
