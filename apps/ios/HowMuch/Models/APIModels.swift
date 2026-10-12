@@ -25,10 +25,6 @@ struct APISettings: Codable, Equatable {
   /// no longer the default for new installs; it stays so installs that saved
   /// an earlier hosted default keep following it.
   static let productionBaseURL = "https://howmuch.tk.sg"
-  /// The development-only default from before the app shipped against a
-  /// hosted API. Its session never authenticated with production, so the
-  /// token must not follow the connection change.
-  private static let legacyDevelopmentBaseURL = "http://127.0.0.1:8787"
   /// The hosted default used before production moved to `tk.sg`. The same
   /// service answers on both hosts (the former one redirects permanently), so
   /// an existing session stays valid and moves with the connection setting.
@@ -296,14 +292,9 @@ struct APISettings: Codable, Equatable {
       }
       return settings
     }
-    if settings.normalizedBaseURLString == normalizedBaseURLString(from: legacyDevelopmentBaseURL) {
-      settings.baseURLString = productionBaseURL
-      settings.sessionToken = ""
-      settings.authenticatedUserID = ""
-      settings.save(to: defaults)
-      return settings
-    }
-
+    // `http://127.0.0.1:8787` was once a development default, but it is also
+    // the self-hosted server's own address in the Simulator, so it is kept:
+    // only the owner's former hosted address moves with the service.
     if let storedBaseURL = settings.normalizedBaseURLString,
        storedBaseURL == normalizedBaseURLString(from: legacyProductionBaseURL) {
       // Anyone who left the connection on an earlier version's hosted default
