@@ -504,10 +504,11 @@ struct IncomeVsSpendingPeriodDetailView: View {
       }
     } catch {
       guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      // After a step, `groups` is the previous period's breakdown. Drop it so
+      // it never sits under this period's header; the placeholder offers Retry.
       withAnimation(Theme.Motion.arrive) {
-        if groups == nil {
-          phase = .failed(error.localizedDescription)
-        }
+        groups = nil
+        phase = .failed(error.localizedDescription)
       }
     }
   }

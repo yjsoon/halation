@@ -144,9 +144,15 @@ private func parseAmountRange(_ raw: String, currencyFormat: CurrencyFormat?) ->
   let typedFractionDigits = min(fraction?.count ?? 0, 3)
   let paddedFraction = (fraction ?? "").padding(toLength: 3, withPad: "0", startingAt: 0)
   let fractionValue = Int(paddedFraction.prefix(3)) ?? 0
-  let lo = whole * 1000 + fractionValue
   let step = Int(pow(10.0, Double(3 - typedFractionDigits)))
-  return RegisterQuery.AmountRange(lo: lo, hi: lo + step, sign: sign)
+  // A long digit run (a pasted reference number) is text, not an amount.
+  let scaled = whole.multipliedReportingOverflow(by: 1000)
+  let (lo, loOverflow) = scaled.partialValue.addingReportingOverflow(fractionValue)
+  let (hi, hiOverflow) = lo.addingReportingOverflow(step)
+  guard !scaled.overflow, !loOverflow, !hiOverflow else {
+    return nil
+  }
+  return RegisterQuery.AmountRange(lo: lo, hi: hi, sign: sign)
 }
 
 private func amountMatches(_ range: RegisterQuery.AmountRange, amountMilli: Int?) -> Bool {
