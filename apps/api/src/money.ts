@@ -35,13 +35,10 @@ export function csvRowToMilliunits(row: { outflow?: unknown; inflow?: unknown; a
   const outflow = row.outflow === undefined || row.outflow === null ? "" : String(row.outflow).trim();
   const inflow = row.inflow === undefined || row.inflow === null ? "" : String(row.inflow).trim();
 
-  // Many bank exports write 0.00 in the unused column, so a zero outflow must
-  // fall through to the inflow rather than win as a blank-looking amount.
-  const outflowAmount = outflow ? Math.abs(decimalToMilliunits(outflow)) : 0;
-  if (outflowAmount !== 0) {
-    return -outflowAmount;
-  }
-
-  return inflow ? Math.abs(decimalToMilliunits(inflow)) : 0;
+  // Register exports (YNAB's among them) fill the unused column with "0.00",
+  // so a filled outflow cell must not hide the inflow beside it.
+  const outflowMilli = outflow ? Math.abs(decimalToMilliunits(outflow)) : 0;
+  const inflowMilli = inflow ? Math.abs(decimalToMilliunits(inflow)) : 0;
+  return inflowMilli - outflowMilli || 0;
 }
 

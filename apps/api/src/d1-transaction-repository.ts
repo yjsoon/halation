@@ -1,5 +1,6 @@
 import { createId } from "./ids";
 import type { TransactionInput } from "./types";
+import { NotFoundError, ValidationError } from "./repository";
 import type { D1Database } from "./d1";
 import type { SqlValues } from "./async-sql";
 import { createHash } from "node:crypto";
@@ -32,8 +33,8 @@ export class D1TransactionRepository {
     const fingerprint = requestHash({ input, autoLink, upsert: options.upsert ?? false });
     this.assertContext(planId, context);
     return this.write("create", planId, stable, fingerprint, context, async (snapshot) => {
-      if (snapshot.transaction && !options.upsert) throw new Error("Transaction already exists");
-      if (snapshot.transaction?.plan_id !== undefined && snapshot.transaction.plan_id !== planId) throw new Error("Transaction belongs to another plan");
+      if (snapshot.transaction && !options.upsert) throw new ValidationError("Transaction already exists");
+      if (snapshot.transaction?.plan_id !== undefined && snapshot.transaction.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
       return this.planUpsert("create", planId, { ...input, id: stable.transactionId }, snapshot, stable, false, fingerprint, context, autoLink);
     });
   }
@@ -43,10 +44,31 @@ export class D1TransactionRepository {
     const fingerprint = requestHash(patch);
     this.assertContext(planId, context);
     return this.write("update", planId, stable, fingerprint, context, async (snapshot) => {
-      if (snapshot.linkedSub) throw new Error("This transaction is the linked side of a split line; edit the split parent");
+      if (snapshot.linkedSub) {
+        // The split line owns this row's link, amount, date and memo, but not
+        // its flag: a rewards flag rename restamps every row in the account.
+        const old = snapshot.transaction;
+        const fields = Object.keys(patch).filter((field) => (patch as Record<string, unknown>)[field] !== undefined);
+        if (!old || old.deleted) throw new NotFoundError("Transaction not found");
+        if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
+        if (fields.length === 0 || fields.some((field) => field !== "flag_color" && field !== "flag_name")) {
+          throw new ValidationError("This transaction is the linked side of a split line; edit the split parent");
+        }
+        const body: PlannedStatement[] = [
+          assertion(stable.commandId, "graph_update_target", transactionId, planId),
+          statement("UPDATE transactions SET flag_color=?,flag_name=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0", [
+            patch.flag_color === undefined ? old.flag_color : patch.flag_color,
+            patch.flag_name === undefined ? old.flag_name : patch.flag_name,
+            transactionId,
+            planId,
+          ]),
+          knowledge(planId, transactionId),
+        ];
+        return makePlan(stable.commandId, snapshot.writeVersion, transactionId, planId, "update", fingerprint, context, body);
+      }
       const old = snapshot.transaction;
-      if (!old || old.deleted) throw new Error("Transaction not found");
-      if (old.plan_id !== planId) throw new Error("Transaction belongs to another plan");
+      if (!old || old.deleted) throw new NotFoundError("Transaction not found");
+      if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
       if (old.cleared === "reconciled" && patch.cleared !== undefined && patch.cleared !== "reconciled") {
         throw new Error("reconciled transaction state conflict");
       }
@@ -80,8 +102,8 @@ export class D1TransactionRepository {
     this.assertContext(planId, context);
     return this.write("approve", planId, stable, fingerprint, context, async (snapshot) => {
       const target = snapshot.transaction;
-      if (!target || target.deleted) throw new Error("Transaction not found");
-      if (target.plan_id !== planId) throw new Error("Transaction belongs to another plan");
+      if (!target || target.deleted) throw new NotFoundError("Transaction not found");
+      if (target.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
       const parentId = snapshot.linkedSub?.transaction_id ?? transactionId;
       const rows = await this.db.all<Record<string, any>>(
         `SELECT * FROM transactions WHERE plan_id = ? AND deleted = 0 AND id = ?
@@ -117,8 +139,8 @@ export class D1TransactionRepository {
     this.assertContext(planId, context);
     return this.write("cleared", planId, stable, fingerprint, context, async (snapshot) => {
       const old = snapshot.transaction;
-      if (!old || old.deleted) throw new Error("Transaction not found");
-      if (old.plan_id !== planId) throw new Error("Transaction belongs to another plan");
+      if (!old || old.deleted) throw new NotFoundError("Transaction not found");
+      if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
       if (old.cleared !== expectedCleared) throw new Error("transaction cleared state conflict");
       const body = [
         assertion(stable.commandId, "graph_update_target", transactionId, planId),
@@ -135,13 +157,13 @@ export class D1TransactionRepository {
     const fingerprint = requestHash({ expectedApproved });
     this.assertContext(planId, context);
     return this.write("delete", planId, stable, fingerprint, context, async (snapshot) => {
-      if (!snapshot.transaction || snapshot.transaction.deleted) throw new Error("Transaction not found");
-      if (snapshot.transaction.plan_id !== planId) throw new Error("Transaction belongs to another plan");
+      if (!snapshot.transaction || snapshot.transaction.deleted) throw new NotFoundError("Transaction not found");
+      if (snapshot.transaction.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
       if (expectedApproved !== undefined && Boolean(snapshot.transaction.approved) !== expectedApproved) {
         throw new Error("transaction approved state conflict");
       }
       if (snapshot.linkedSub) {
-        if (snapshot.linkedSub.parent_plan_id !== planId) throw new Error("Transaction belongs to another plan");
+        if (snapshot.linkedSub.parent_plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
         const body: PlannedStatement[] = [
           assertion(stable.commandId, "graph_update_target", transactionId, planId),
           assertion(stable.commandId, "graph_transaction", transactionId, planId),
@@ -221,12 +243,12 @@ export class D1TransactionRepository {
   private async planUpsert(kind: string, planId: string, input: TransactionInput, snapshot: Snapshot, stable: { transactionId: string; commandId: string; sourceEventId: string }, payeeChanged: boolean, fingerprint: string, context: D1WriteContext | undefined, autoLink: boolean): Promise<D1TransactionPlan> {
     this.assertInput(input);
     const account = await this.db.get<Record<string, any>>("SELECT * FROM accounts WHERE id = $1 AND plan_id = $2 AND deleted = 0", [input.account_id, planId]);
-    if (!account) throw new Error("Account not found");
+    if (!account) throw new ValidationError("Account not found");
     const payee = input.payee_id ? await this.db.get<Record<string, any>>("SELECT id, name, transfer_account_id FROM payees WHERE id = $1 AND plan_id = $2 AND deleted = 0", [input.payee_id, planId]) : null;
-    if (input.payee_id && !payee) throw new Error("Payee not found");
+    if (input.payee_id && !payee) throw new ValidationError("Payee not found");
     const category = input.category_id ? await this.db.get<Record<string, any>>("SELECT id, name FROM categories WHERE id = $1 AND plan_id = $2 AND deleted = 0", [input.category_id, planId]) : null;
-    if (input.category_id && !category) throw new Error("Category not found");
-    if (snapshot.transaction && snapshot.transaction.plan_id !== planId) throw new Error("Transaction belongs to another plan");
+    if (input.category_id && !category) throw new ValidationError("Category not found");
+    if (snapshot.transaction && snapshot.transaction.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
     const body: PlannedStatement[] = [assertion(stable.commandId, "account", input.account_id, planId)];
     const touched = new Set<string>([input.id!]);
     const accounts = new Set<string>([input.account_id]);
@@ -243,17 +265,17 @@ export class D1TransactionRepository {
       touched.add(snapshot.transaction.transfer_transaction_id); transferId = null; transferAccount = null;
     }
     if (autoLink && transferAccount && snapshot.transaction?.transfer_transaction_id && transferId !== snapshot.transaction.transfer_transaction_id) {
-      throw new Error("An existing transfer mirror ID cannot be replaced");
+      throw new ValidationError("An existing transfer mirror ID cannot be replaced");
     }
-    if (input.subtransactions?.length && transferAccount) throw new Error("A split transaction cannot itself be a transfer; use a transfer subtransaction instead");
-    if (transferAccount && transferAccount === input.account_id) throw new Error("Transfer target must be a different account");
+    if (input.subtransactions?.length && transferAccount) throw new ValidationError("A split transaction cannot itself be a transfer; use a transfer subtransaction instead");
+    if (transferAccount && transferAccount === input.account_id) throw new ValidationError("Transfer target must be a different account");
     let parentPayeeId = input.payee_id ?? null;
     let parentPayeeName = input.payee_name ?? payee?.name ?? null;
     if (input.payee_id && (!transferAccount || !autoLink)) body.push(assertion(stable.commandId, payee?.transfer_account_id ? "transfer_payee" : "payee", input.payee_id, planId));
     if (input.category_id && !input.subtransactions?.length && (!transferAccount || !autoLink)) body.push(assertion(stable.commandId, "category", input.category_id, planId));
     if (transferAccount && autoLink) {
       const target = await this.db.get<Record<string, any>>("SELECT * FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [transferAccount, planId]);
-      if (!target) throw new Error("Transfer account not found");
+      if (!target) throw new ValidationError("Transfer account not found");
       body.push(assertion(stable.commandId, "account", transferAccount, planId)); accounts.add(transferAccount);
       if (!transferId) transferId = stableId(stable.commandId, "mirror", input.id!);
       const sourcePayee = await this.db.get<Record<string, any>>("SELECT id,name FROM payees WHERE id=$1 AND plan_id=$2 AND deleted=0", [account.transfer_payee_id, planId]);
@@ -262,11 +284,11 @@ export class D1TransactionRepository {
       body.push(assertion(stable.commandId, "upsert_transaction", transferId, planId));
       body.push(assertion(stable.commandId, "mirror_transaction", transferId, input.id!));
       const existingMirror = snapshot.mirrors.find((row) => row.id === transferId);
-      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" ? (target.type === "cash" ? "cleared" : "uncleared") : input.cleared), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, transferAccountId: input.account_id, transferTransactionId: input.id! }));
+      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" ? (target.type === "cash" ? "cleared" : "uncleared") : input.cleared), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
       touched.add(transferId);
     } else if (transferAccount) {
       const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [transferAccount, planId]);
-      if (!target) throw new Error("Transfer account not found");
+      if (!target) throw new ValidationError("Transfer account not found");
       body.push(assertion(stable.commandId, "account", transferAccount, planId));
     }
     const parentCategory = input.subtransactions?.length || (autoLink && transferAccount) ? null : input.category_id ?? null;
@@ -278,9 +300,9 @@ export class D1TransactionRepository {
       const sub = input.subtransactions![index]!;
       const id = sub.id ?? stableId(stable.commandId, "sub", String(index)); keptSubs.add(id);
       const subPayee = sub.payee_id ? await this.db.get<Record<string, any>>("SELECT id,name,transfer_account_id FROM payees WHERE id=$1 AND plan_id=$2 AND deleted=0", [sub.payee_id, planId]) : null;
-      if (sub.payee_id && !subPayee) throw new Error("Payee not found");
+      if (sub.payee_id && !subPayee) throw new ValidationError("Payee not found");
       const subCategory = sub.category_id ? await this.db.get<Record<string, any>>("SELECT id,name FROM categories WHERE id=$1 AND plan_id=$2 AND deleted=0", [sub.category_id, planId]) : null;
-      if (sub.category_id && !subCategory) throw new Error("Category not found");
+      if (sub.category_id && !subCategory) throw new ValidationError("Category not found");
       const oldSub = snapshot.subs.find((s) => s.id === id);
       let subTarget = (autoLink ? subPayee?.transfer_account_id : null) ?? sub.transfer_account_id ?? null;
       let subMirror = sub.transfer_transaction_id ?? oldSub?.transfer_transaction_id ?? null;
@@ -289,12 +311,12 @@ export class D1TransactionRepository {
         touched.add(oldSub.transfer_transaction_id); subMirror=null;
       }
       if (autoLink && subTarget && oldSub?.transfer_transaction_id && subMirror !== oldSub.transfer_transaction_id) {
-        throw new Error("An existing transfer mirror ID cannot be replaced");
+        throw new ValidationError("An existing transfer mirror ID cannot be replaced");
       }
       if (subTarget && autoLink) {
-        if (subTarget === input.account_id) throw new Error("Transfer target must be a different account");
+        if (subTarget === input.account_id) throw new ValidationError("Transfer target must be a different account");
         const target = await this.db.get<Record<string, any>>("SELECT * FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [subTarget, planId]);
-        if (!target) throw new Error("Transfer account not found");
+        if (!target) throw new ValidationError("Transfer account not found");
         body.push(assertion(stable.commandId, "account", subTarget, planId));
         if (sub.payee_id) body.push(assertion(stable.commandId, "transfer_payee", sub.payee_id, planId));
         accounts.add(subTarget);
@@ -304,11 +326,11 @@ export class D1TransactionRepository {
         body.push(assertion(stable.commandId, "upsert_transaction", subMirror, planId));
         body.push(assertion(stable.commandId, "mirror_transaction", subMirror, id));
         const existingMirror = snapshot.mirrors.find((row) => row.id === subMirror);
-        body.push(upsertTransaction({ id: subMirror, planId, accountId: subTarget, date: input.date, amount: -sub.amount, memo: sub.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, transferAccountId: input.account_id, transferTransactionId: id }));
+        body.push(upsertTransaction({ id: subMirror, planId, accountId: subTarget, date: input.date, amount: -sub.amount, memo: sub.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, transferAccountId: input.account_id, transferTransactionId: id, extra: mirrorOwnFields(existingMirror) }));
         keptMirrors.add(subMirror); touched.add(subMirror);
       } else if (subTarget) {
         const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [subTarget,planId]);
-        if (!target) throw new Error("Transfer account not found");
+        if (!target) throw new ValidationError("Transfer account not found");
         body.push(assertion(stable.commandId,"account",subTarget,planId));
         if(sub.payee_id) body.push(assertion(stable.commandId,subPayee?.transfer_account_id?"transfer_payee":"payee",sub.payee_id,planId));
       }
@@ -328,17 +350,17 @@ export class D1TransactionRepository {
   }
 
   private assertInput(input: Partial<TransactionInput>): void {
-    if (!input.account_id || typeof input.account_id !== "string") throw new Error("account_id is required");
-    if (!input.date || !/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new Error("date must use YYYY-MM-DD");
-    if (!Number.isInteger(input.amount)) throw new Error("amount must be an integer number of milliunits");
+    if (!input.account_id || typeof input.account_id !== "string") throw new ValidationError("account_id is required");
+    if (!input.date || !isCalendarDate(input.date)) throw new ValidationError("date must use YYYY-MM-DD");
+    if (!Number.isInteger(input.amount)) throw new ValidationError("amount must be an integer number of milliunits");
     if (input.cleared && !["cleared", "uncleared", "reconciled"].includes(input.cleared)) {
-      throw new Error("cleared must be cleared, uncleared, or reconciled");
+      throw new ValidationError("cleared must be cleared, uncleared, or reconciled");
     }
     if (input.subtransactions?.length) {
-      if (input.subtransactions.length < 2) throw new Error("split transactions need at least two subtransactions");
-      if (input.subtransactions.some((sub) => !Number.isInteger(sub.amount))) throw new Error("subtransaction amounts must be integer milliunits");
+      if (input.subtransactions.length < 2) throw new ValidationError("split transactions need at least two subtransactions");
+      if (input.subtransactions.some((sub) => !Number.isInteger(sub.amount))) throw new ValidationError("subtransaction amounts must be integer milliunits");
       const sum = input.subtransactions.reduce((total, sub) => total + sub.amount, 0);
-      if (sum !== input.amount) throw new Error(`subtransactions must sum to the transaction amount (lines total ${sum}, transaction is ${input.amount})`);
+      if (sum !== input.amount) throw new ValidationError(`subtransactions must sum to the transaction amount (lines total ${sum}, transaction is ${input.amount})`);
     }
   }
   private assertContext(planId: string, context?: D1WriteContext): void {
@@ -361,12 +383,31 @@ export class D1TransactionRepository {
   }
 }
 
+/** A real calendar day: the account balance counts the row, but the month aggregate drops an impossible date. */
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
 function statement(sql: string, values: SqlValues = []): PlannedStatement { return Object.freeze({ sql, values: Object.freeze([...values]) }); }
 function stableId(operationId: string, kind: string, seed: string): string {
   return `${kind}_${createHash("sha256").update(`${operationId}:${kind}:${seed}`).digest("hex").slice(0, 24)}`;
 }
 function subInput(row: Record<string, any>) {
   return { id: row.id, amount: row.amount_milli, memo: row.memo, payee_id: row.payee_id, payee_name: row.payee_name_snapshot, category_id: row.category_id, transfer_account_id: row.transfer_account_id, transfer_transaction_id: row.transfer_transaction_id, external_ynab_id: row.external_ynab_id };
+}
+/**
+ * Fields a linked side owns. Writing the other side rewrites the mirror row,
+ * and must keep its flag, its bank match and its source, as SQLite does.
+ */
+function mirrorOwnFields(existing: Record<string, any> | undefined): Record<string, unknown> {
+  if (!existing) return {};
+  return {
+    flag_color: existing.flag_color, flag_name: existing.flag_name,
+    matched_transaction_id: existing.matched_transaction_id, import_id: existing.import_id,
+    import_payee_name: existing.import_payee_name, import_payee_name_original: existing.import_payee_name_original,
+    source_kind: existing.source_kind, source_ref: existing.source_ref, external_ynab_id: existing.external_ynab_id,
+  };
 }
 function upsertTransaction(value: Record<string, any>): PlannedStatement {
   const extra = value.extra ?? {};

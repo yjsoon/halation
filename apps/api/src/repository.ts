@@ -2213,19 +2213,31 @@ export class LedgerRepository {
     const scheduleSnapshot = scheduledOccurrenceSnapshotHash(schedule);
     if (existing && existing.snapshotHash !== scheduleSnapshot) throw new Error("stale scheduled occurrence");
 
-    const input = await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId);
+    // An occurrence posted from this exact schedule snapshot whose advance did
+    // not commit is only advanced here. Re-creating it would hash a different
+    // source_ref whenever the retry carries another operation seed (the next
+    // day's cron, a new Idempotency-Key), and be refused as key reuse forever.
     const operationId = `scheduled_occurrence_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
-    const transaction = await this.createTransaction(planId, input, { autoLink: true, operationId });
-    const advanceId = `scheduled_advance_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
-    let advanced: any;
+    const transaction = existing
+      ? existing.transaction
+      : await this.createTransaction(
+        planId,
+        await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId),
+        { autoLink: true, operationId },
+      );
+    const advanceKind = schedule.frequency === "never" ? "complete" : "advance";
+    const advanceId = `scheduled_${advanceKind}_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
     const expected = { date_first: schedule.date_first, date_next: occurrenceDate, frequency: schedule.frequency };
-    if (schedule.frequency === "never") {
-      advanced = await this.deleteScheduledTransaction(planId, scheduledTransactionId, { operationId: advanceId, expected });
-    } else {
-      const nextDate = nextScheduledOccurrence(schedule.date_first, occurrenceDate, schedule.frequency);
-      if (!nextDate) throw new ValidationError("Recurring schedule did not produce a next date");
-      advanced = await this.updateScheduledTransaction(planId, scheduledTransactionId, { date_next: nextDate }, { operationId: advanceId, expected });
-    }
+    const nextDate = schedule.frequency === "never" ? null : nextScheduledOccurrence(schedule.date_first, occurrenceDate, schedule.frequency);
+    if (schedule.frequency !== "never" && !nextDate) throw new ValidationError("Recurring schedule did not produce a next date");
+    const advance = (operationId?: string) => schedule.frequency === "never"
+      ? this.deleteScheduledTransaction(planId, scheduledTransactionId, { operationId, expected })
+      : this.updateScheduledTransaction(planId, scheduledTransactionId, { date_next: nextDate! }, { operationId, expected });
+    let advanced: any = await advance(advanceId);
+    // The keyed advance replays an earlier one without writing when the
+    // schedule was moved back onto this already-posted occurrence. Advance it
+    // for real; `expected` still refuses a concurrent change.
+    if (!advanced.deleted && advanced.date_next === occurrenceDate) advanced = await advance();
     return {
       transaction,
       scheduled_transaction: advanced,
@@ -2459,8 +2471,11 @@ export class LedgerRepository {
   private async validateScheduledReferences(planId: string, transaction: EffectiveScheduledTransaction): Promise<void> {
     const requireReference = async (table: "accounts" | "payees" | "categories", id: unknown, label: string) => {
       if (id == null) return;
-      const row = await this.db.query(`SELECT name FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`).get(id, planId) as Row | null;
+      const row = await this.db.query(`SELECT ${table === "payees" ? "name,transfer_account_id" : "name"} FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`).get(id, planId) as Row | null;
       if (!row) throw new ValidationError(`${label} not found`);
+      if (table === "payees" && row.transfer_account_id != null && row.transfer_account_id === transaction.account_id) {
+        throw new ValidationError(`${label} is a transfer to the scheduled transaction's own account`);
+      }
       return row;
     };
     const account = await requireReference("accounts", transaction.account_id, "Account");
@@ -3318,11 +3333,17 @@ function normaliseReconciliationDate(value: unknown): string {
 
 const CLEARED_STATES = new Set(["cleared", "uncleared", "reconciled"]);
 
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function validateTransactionInput(input: TransactionInput, strict: boolean): void {
   if (!input.account_id || typeof input.account_id !== "string") {
     throw new ValidationError("account_id is required");
   }
-  if (!input.date || (strict && !/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)))) {
+  if (!input.date || (strict && !isCalendarDate(String(input.date)))) {
     // Importers (strict=false) keep accepting the loose date spellings they
     // always stored verbatim; API writes must be ISO.
     throw new ValidationError("date must be an ISO date (YYYY-MM-DD)");
