@@ -51,6 +51,19 @@ final class SlipReaderMappingTests: XCTestCase {
     XCTAssertNil(MoneyCodec.milliunits(from: "S$50"))
   }
 
+  /// The system decimal pad shows the device's own decimal separator. Where
+  /// that is a comma, stripping it as a thousands separator saved "12,50" as
+  /// 1,250.00: a hundred times the amount, with no error shown.
+  func testTypedAmountsReadADeviceDecimalComma() {
+    XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "12,50", decimalSeparator: ","), 12_500)
+    XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "-0,5", decimalSeparator: ","), -500)
+    XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "12.50", decimalSeparator: ","), 12_500)
+    XCTAssertNil(MoneyCodec.milliunits(fromTyped: "1,2345", decimalSeparator: ","))
+    // Where the decimal point is a full stop, a comma still groups thousands.
+    XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "1,250", decimalSeparator: "."), 1_250_000)
+    XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "1,234.56", decimalSeparator: "."), 1_234_560)
+  }
+
   func testUnambiguousNameMapsToID() {
     let mapped = SlipReaderMapping.map(
       [.init(amount: "5", category: "Groceries", account: "Everyday Account")],
