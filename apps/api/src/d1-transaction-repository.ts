@@ -287,7 +287,9 @@ export class D1TransactionRepository {
       body.push(assertion(stable.commandId, "upsert_transaction", transferId, planId));
       body.push(assertion(stable.commandId, "mirror_transaction", transferId, input.id!));
       const existingMirror = snapshot.mirrors.find((row) => row.id === transferId);
-      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" ? (target.type === "cash" ? "cleared" : "uncleared") : input.cleared), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: existingMirror?.category_id, categoryName: existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
+      // A new other side is uncleared (as on SQLite and for split lines): the
+      // source's cleared or reconciled state says nothing about the target's statement.
+      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: existingMirror?.category_id, categoryName: existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
       touched.add(transferId);
     } else if (transferAccount) {
       const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [transferAccount, planId]);

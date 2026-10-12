@@ -66,3 +66,25 @@ its transfer payee (without a server-knowledge bump) and got 200.
 | GET unknown account id | 404 | 200, "Imported account ghost-be" | 404 "Account not found" |
 | List accounts | no such row | row present | absent |
 | List payees | no transfer payee for it | present | absent |
+
+## 4. D1 copied the source's cleared state onto a new transfer's other side
+
+Script: `mirror-cleared-e2e.ts`. The SQLite store, and the D1 writer for a
+split's transfer line, create the other side of a transfer `uncleared` (or
+`cleared` for a scheduled transfer into cash), because the source's state says
+nothing about the target account's statement. The D1 writer for a plain
+transfer copied `input.cleared` instead, so recording a cleared payment marked
+the savings side cleared (and a reconciled source would mark it reconciled),
+which inflates the target's cleared balance and lets it be reconciled unseen.
+The same applied whenever a transfer was retargeted to another account.
+
+| Step | Expected | Before (`c8cf180`) | After |
+| --- | --- | --- | --- |
+| POST transfer checking to savings, `cleared: "cleared"` | 201, source cleared | 201, cleared | 201, cleared |
+| GET savings side | `uncleared` | `cleared` | `uncleared` |
+| Savings cleared / uncleared balance | 0 / 40000 | 40000 / 0 | 0 / 40000 |
+
+A SQLite/D1 parity probe through the API harness (delete either side, drop a
+split's transfer line, delete a split parent, amount and date edits on either
+side, retarget, bulk delete) matched on every step after the fix apart from
+generated ids.
