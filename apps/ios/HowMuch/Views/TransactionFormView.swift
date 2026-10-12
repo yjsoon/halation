@@ -1295,20 +1295,20 @@ struct CalculatorKeypad: View {
     VStack(spacing: 4) {
       keypadRow {
         digitKey(7); digitKey(8); digitKey(9)
-        symbolKey("minus") { engine.tapOperator(.subtract) }
+        symbolKey("minus", label: "Minus") { engine.tapOperator(.subtract) }
       }
       keypadRow {
         digitKey(4); digitKey(5); digitKey(6)
-        symbolKey("plus") { engine.tapOperator(.add) }
+        symbolKey("plus", label: "Plus") { engine.tapOperator(.add) }
       }
       keypadRow {
         digitKey(1); digitKey(2); digitKey(3)
-        symbolKey("equal") { engine.tapEquals() }
+        symbolKey("equal", label: "Equals") { engine.tapEquals() }
       }
       keypadRow {
-        symbolKey("xmark.circle.fill", colour: .secondary) { engine.tapClear() }
+        symbolKey("xmark.circle.fill", label: "Clear", colour: .secondary) { engine.tapClear() }
         digitKey(0)
-        symbolKey("delete.left") { engine.tapBackspace() }
+        symbolKey("delete.left", label: "Delete") { engine.tapBackspace() }
         primaryKey
       }
     }
@@ -1339,7 +1339,14 @@ struct CalculatorKeypad: View {
     }
   }
 
-  private func symbolKey(_ systemName: String, colour: Color = Theme.accent, action: @escaping () -> Void) -> some View {
+  /// `label` is what VoiceOver says: the symbol's own name would read the
+  /// clear key as "Close", as though it dismissed the form.
+  private func symbolKey(
+    _ systemName: String,
+    label: String,
+    colour: Color = Theme.accent,
+    action: @escaping () -> Void
+  ) -> some View {
     key {
       symbolTaps += 1
       action()
@@ -1348,6 +1355,7 @@ struct CalculatorKeypad: View {
         .font(.title3.weight(.medium))
         .foregroundStyle(colour)
     }
+    .accessibilityLabel(label)
   }
 
   private var primaryKey: some View {
