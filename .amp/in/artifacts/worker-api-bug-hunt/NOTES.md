@@ -83,3 +83,17 @@ Observed: log `{"event":"scheduled_materialization","through_date":"2026-10-13",
 `date_next` 2026-10-31, still two +1500 rows in `e2e-save`. Before the fix the
 same-day run spun forever; the isolated regression test in `apps/api/tests/d1.test.ts`
 reproduces that spin (capped) and the stranded-advance case.
+
+## 6. Schedules that can never occur were accepted
+
+Revision before fix: `8264c6f`. `POST $B/scheduled_transactions` with
+`transfer_account_id` equal to `account_id` answered 201; the next
+`GET /__scheduled?cron=5+16+*+*+*` failed with "Scheduled materialisation
+completed with schedule failures" (500), and would every day after.
+
+| Request | Expected | Before | After |
+| --- | --- | --- | --- |
+| `transfer_account_id` = own account | 400 | 201, cron fails daily | 400 `transfer_account_id must be a different account` |
+| `payee_id` = own account's transfer payee | 400 | 201, cron fails daily | 400 `Payee is a transfer to the scheduled transaction's own account` |
+| transfer to `e2e-save` from 2026-11-01 | 201 | 201 | 201 |
+| cron after deleting the bad schedule | `failure_count` 0 | | `failure_count` 0 |

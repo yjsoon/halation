@@ -2445,8 +2445,11 @@ export class LedgerRepository {
   private async validateScheduledReferences(planId: string, transaction: EffectiveScheduledTransaction): Promise<void> {
     const requireReference = async (table: "accounts" | "payees" | "categories", id: unknown, label: string) => {
       if (id == null) return;
-      const row = await this.db.query(`SELECT name FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`).get(id, planId) as Row | null;
+      const row = await this.db.query(`SELECT ${table === "payees" ? "name,transfer_account_id" : "name"} FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`).get(id, planId) as Row | null;
       if (!row) throw new ValidationError(`${label} not found`);
+      if (table === "payees" && row.transfer_account_id != null && row.transfer_account_id === transaction.account_id) {
+        throw new ValidationError(`${label} is a transfer to the scheduled transaction's own account`);
+      }
       return row;
     };
     const account = await requireReference("accounts", transaction.account_id, "Account");
