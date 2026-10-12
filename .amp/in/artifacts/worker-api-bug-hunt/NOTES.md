@@ -31,3 +31,18 @@ Revision before fix: `c99b9f8`.
 
 The Bun/SQLite stack already answered 400/404 for the same requests; only the
 deployed D1 path lost the classification.
+
+## 2. Impossible calendar dates were stored
+
+Revision before fix: `6c0fe50`. The writers only checked the `\d{4}-\d{2}-\d{2}`
+shape. `POST $B/transactions` with `date: "2026-19-45"` answered 201 and the row
+was counted in `accounts.balance_milli`, while the `account_month_balances`
+trigger computes `date('2026-19-01','+1 month')` as NULL and drops the row, so
+net worth and the account balance disagree.
+
+| Request | Expected | Before | After |
+| --- | --- | --- | --- |
+| POST date `2026-19-45` | 400 | 201 | 400 |
+| POST date `2026-02-30` | 400 | 201 | 400 |
+| POST date `2026-02-28` | 201 | 201 | 201 |
+| PUT `e2e-ok` date `2026-04-31` | 400 | (accepted shape) | 400 |

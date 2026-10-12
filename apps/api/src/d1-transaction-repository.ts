@@ -330,7 +330,7 @@ export class D1TransactionRepository {
 
   private assertInput(input: Partial<TransactionInput>): void {
     if (!input.account_id || typeof input.account_id !== "string") throw new ValidationError("account_id is required");
-    if (!input.date || !/^\d{4}-\d{2}-\d{2}$/.test(input.date)) throw new ValidationError("date must use YYYY-MM-DD");
+    if (!input.date || !isCalendarDate(input.date)) throw new ValidationError("date must use YYYY-MM-DD");
     if (!Number.isInteger(input.amount)) throw new ValidationError("amount must be an integer number of milliunits");
     if (input.cleared && !["cleared", "uncleared", "reconciled"].includes(input.cleared)) {
       throw new ValidationError("cleared must be cleared, uncleared, or reconciled");
@@ -362,6 +362,12 @@ export class D1TransactionRepository {
   }
 }
 
+/** A real calendar day: the account balance counts the row, but the month aggregate drops an impossible date. */
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
 function statement(sql: string, values: SqlValues = []): PlannedStatement { return Object.freeze({ sql, values: Object.freeze([...values]) }); }
 function stableId(operationId: string, kind: string, seed: string): string {
   return `${kind}_${createHash("sha256").update(`${operationId}:${kind}:${seed}`).digest("hex").slice(0, 24)}`;

@@ -3301,11 +3301,17 @@ function normaliseReconciliationDate(value: unknown): string {
 
 const CLEARED_STATES = new Set(["cleared", "uncleared", "reconciled"]);
 
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function validateTransactionInput(input: TransactionInput, strict: boolean): void {
   if (!input.account_id || typeof input.account_id !== "string") {
     throw new ValidationError("account_id is required");
   }
-  if (!input.date || (strict && !/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)))) {
+  if (!input.date || (strict && !isCalendarDate(String(input.date)))) {
     // Importers (strict=false) keep accepting the loose date spellings they
     // always stored verbatim; API writes must be ISO.
     throw new ValidationError("date must be an ISO date (YYYY-MM-DD)");
