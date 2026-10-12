@@ -581,8 +581,9 @@ export class LedgerRepository {
   }
 
   async getAccount(planId: string, accountId: string): Promise<any> {
-    await this.ensureAccount(planId, accountId);
-    const row = await this.db.query(`${ACCOUNT_SELECT_SQL} WHERE id = ? AND plan_id = ?`).get(accountId, planId) as Row;
+    // A read must not create the account (and its transfer payee) for an unknown id.
+    const row = await this.db.query(`${ACCOUNT_SELECT_SQL} WHERE id = ? AND plan_id = ?`).get(accountId, planId) as Row | null;
+    if (!row) throw new NotFoundError("Account not found");
     return formatAccount(row);
   }
 
@@ -1221,11 +1222,9 @@ export class LedgerRepository {
         .query("SELECT id, transfer_transaction_id FROM subtransactions WHERE transaction_id = ?")
         .all(transactionId) as Row[];
       await this.db.query("DELETE FROM subtransactions WHERE transaction_id = ?").run(transactionId);
-      const keptSubIds = new Set<string>();
       const keptLinkIds = new Set<string>();
       for (const sub of input.subtransactions ?? []) {
         const subId = sub.id ?? createId("sub");
-        keptSubIds.add(subId);
         const subRefs = await this.resolveTransactionRefs(planId, {
           account_id: input.account_id,
           date: input.date,
@@ -1312,11 +1311,11 @@ export class LedgerRepository {
           );
       }
 
-      // Split lines that disappeared take their linked sides with them — but
-      // a line that was merely re-keyed keeps the linked side it still cites.
+      // A linked side no line still cites goes: the line disappeared, stopped
+      // being a transfer, or kept its id but was given a new linked side. A
+      // line that was merely re-keyed keeps the linked side it still cites.
       for (const previous of previousSubs) {
         if (
-          !keptSubIds.has(previous.id) &&
           previous.transfer_transaction_id &&
           !keptLinkIds.has(previous.transfer_transaction_id)
         ) {
