@@ -51,17 +51,19 @@ final class APISettingsTests: XCTestCase {
     XCTAssertEqual(loaded.sessionToken, "custom-token")
   }
 
-  func testLegacyDevelopmentDefaultIsReplacedAndSignedOut() {
+  /// 8787 is the self-hosted server's default port, so this is what a
+  /// self-hoster types to reach their own server from the Simulator. Moving it
+  /// to the owner's instance on the next launch signed them out and pointed
+  /// their next sign-in at someone else's server.
+  func testLocalServerOnTheDefaultPortIsKept() {
     var development = APISettings(baseURLString: "http://127.0.0.1:8787")
-    development.sessionToken = "development-token"
     development.authenticatedUserID = "development-user"
     development.save(to: defaults)
 
     let loaded = APISettings.load(from: defaults)
 
-    XCTAssertEqual(loaded.baseURLString, APISettings.productionBaseURL)
-    XCTAssertEqual(loaded.sessionToken, "")
-    XCTAssertEqual(loaded.authenticatedUserID, "")
+    XCTAssertEqual(loaded.baseURLString, "http://127.0.0.1:8787")
+    XCTAssertEqual(loaded.authenticatedUserID, "development-user")
   }
 
   // MARK: - Local mode migration
