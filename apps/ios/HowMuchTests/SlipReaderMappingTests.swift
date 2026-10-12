@@ -64,6 +64,19 @@ final class SlipReaderMappingTests: XCTestCase {
     XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "1,234.56", decimalSeparator: "."), 1_234_560)
   }
 
+  /// Reward rates, block sizes and the miles valuation are typed on the same
+  /// decimal pad. With a device decimal comma, `Double("1,4")` is nil, so a
+  /// fractional rate could never be saved: every entry was "not a number".
+  func testTypedDecimalsReadADeviceDecimalComma() {
+    XCTAssertEqual(TypedNumber.double(from: "1,4", decimalSeparator: ","), 1.4)
+    XCTAssertEqual(TypedNumber.double(from: " 0,015 ", decimalSeparator: ","), 0.015)
+    XCTAssertEqual(TypedNumber.double(from: "1.4", decimalSeparator: ","), 1.4)
+    XCTAssertEqual(TypedNumber.double(from: "1.4", decimalSeparator: "."), 1.4)
+    XCTAssertNil(TypedNumber.double(from: "1,4", decimalSeparator: "."))
+    XCTAssertNil(TypedNumber.double(from: "1,4,5", decimalSeparator: ","))
+    XCTAssertNil(TypedNumber.double(from: "", decimalSeparator: ","))
+  }
+
   func testUnambiguousNameMapsToID() {
     let mapped = SlipReaderMapping.map(
       [.init(amount: "5", category: "Groceries", account: "Everyday Account")],
