@@ -245,8 +245,9 @@ enum IncomeVsSpendingMaths {
     }
     let dayOfYear = ordinalDay(year: parts.year, month: parts.month, day: parts.day) - 1
     let jan1Weekday = weekdaySundayZero(year: parts.year, month: 1, day: 1)
-    let jan1MondayBased = (jan1Weekday + 6) % 7
-    let week = (dayOfYear + jan1MondayBased) / 7
+    // SQLite: (yday + 7 - mondayBasedWeekday) / 7, so the first Monday starts W01.
+    let mondayBased = (jan1Weekday + 6 + dayOfYear) % 7
+    let week = (dayOfYear + 7 - mondayBased) / 7
     return String(format: "%04d-W%02d", parts.year, week)
   }
 
