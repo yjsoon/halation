@@ -22,11 +22,11 @@ if (!token || !budgetId) {
   process.exit(1);
 }
 
-await assertCloudflareAccount();
 const ynabAccounts = await fetchYnabAccounts(token, budgetId);
 console.log(`YNAB GET accounts: ${ynabAccounts.length} (read-only)`);
 
 for (const target of options.targets) {
+  await assertCloudflareAccount(target);
   const howmuch = await listHowMuchAccounts(target);
   const plan = planIconRestoreFromYnab(ynabAccounts, howmuch);
   console.log(JSON.stringify({ target, ...counts(plan) }));
@@ -63,7 +63,7 @@ function parseArgs(argv: string[]) {
   return { targets: targets.length ? targets : ["preview", "production"] as Target[], dryRun, help };
 }
 
-async function assertCloudflareAccount() {
+async function assertCloudflareAccount(target: Target) {
   const expectedAccountId = Bun.env.CLOUDFLARE_ACCOUNT_ID;
   if (!expectedAccountId) {
     throw new Error("CLOUDFLARE_ACCOUNT_ID is required so this script cannot target the wrong account");
@@ -73,7 +73,7 @@ async function assertCloudflareAccount() {
   if (!whoami.loggedIn || !ids.includes(expectedAccountId)) {
     throw new Error("Wrangler is not authenticated to the configured Cloudflare account");
   }
-  const bookmark = await wranglerJson(["d1", "time-travel", "info", "DB", "--json"], WORKER_DIR);
+  const bookmark = await wranglerJson(["d1", "time-travel", "info", "DB", "--json", ...targetFlags(target)], WORKER_DIR);
   if (!bookmark?.bookmark) {
     throw new Error("D1 Time Travel bookmark missing; refusing to write");
   }
@@ -128,8 +128,13 @@ async function d1Query(target: Target, sql: string) {
   return (batch?.results ?? batch?.result?.[0]?.results ?? []) as Array<Record<string, unknown>>;
 }
 
+/**
+ * Production is the `tk` environment (howmuch-production-sg). The top-level
+ * environment is the legacy redirect whose D1 is a frozen cold backup that must
+ * never be written, so no target may fall through to it.
+ */
 function targetFlags(target: Target): string[] {
-  return target === "preview" ? ["--env", "preview"] : [];
+  return ["--env", target === "preview" ? "preview" : "tk"];
 }
 
 async function wrangler(args: string[], cwd?: string) {
