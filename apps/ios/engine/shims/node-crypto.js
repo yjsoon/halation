@@ -65,9 +65,14 @@ export function createHash(alg) {
   };
 }
 export function randomBytes(n) { return new Buf(globalThis.__random(n)); }
+export function randomUUID() {
+  const b = globalThis.__random(16); b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
 export function timingSafeEqual(a, b) {
   if (a.length !== b.length) throw new RangeError("Input buffers must have the same byte length");
   let r = 0; for (let i = 0; i < a.length; i++) r |= a[i] ^ b[i]; return r === 0;
 }
 export function scrypt() { throw new Error("Password sign-in is not available in the on-device engine"); }
-export default { createHash, randomBytes, timingSafeEqual, scrypt };
+export default { createHash, randomBytes, randomUUID, timingSafeEqual, scrypt };
