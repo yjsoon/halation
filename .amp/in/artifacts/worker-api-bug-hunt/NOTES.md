@@ -97,3 +97,15 @@ completed with schedule failures" (500), and would every day after.
 | `payee_id` = own account's transfer payee | 400 | 201, cron fails daily | 400 `Payee is a transfer to the scheduled transaction's own account` |
 | transfer to `e2e-save` from 2026-11-01 | 201 | 201 | 201 |
 | cron after deleting the bad schedule | `failure_count` 0 | | `failure_count` 0 |
+
+## 7. CSV inflow hidden behind a "$0.00" outflow cell
+
+Revision before fix: `cfe9ced`. Register exports (YNAB's included) fill the
+unused money column with `$0.00`. Script: `csv-e2e.ts` in this folder
+(`bun csv-e2e.ts <tag>`), which posts two rows to `POST /api/import/csv` for
+`e2e-acct` and reads `GET $B/accounts/e2e-acct/transactions?since_date=2026-10-01`.
+
+| Row | Expected amount | Before (`before`) | After (`after`) |
+| --- | --- | --- | --- |
+| outflow `$0.00`, inflow `$50.00` | 50000 | 0 (imported) | 50000 (imported) |
+| outflow `$12.34`, inflow `$0.00` | -12340 | -12340 | duplicate of the `before` row (same date, payee and amount), as designed |
