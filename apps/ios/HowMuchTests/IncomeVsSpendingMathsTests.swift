@@ -73,6 +73,17 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
     XCTAssertEqual(IncomeVsSpendingMaths.sqliteWeekKey(for: "2026-12-31"), "2026-W52")
   }
 
+  /// Failure mode: when 1 January is a Monday, SQLite starts that year at W01,
+  /// so every client week key that year is one behind the server's.
+  func testSqliteWeekKeysWhenFirstJanuaryIsAMonday() {
+    XCTAssertEqual(IncomeVsSpendingMaths.sqliteWeekKey(for: "2024-01-01"), "2024-W01")
+    XCTAssertEqual(IncomeVsSpendingMaths.sqliteWeekKey(for: "2024-01-07"), "2024-W01")
+    XCTAssertEqual(IncomeVsSpendingMaths.sqliteWeekKey(for: "2024-01-08"), "2024-W02")
+    XCTAssertEqual(IncomeVsSpendingMaths.sqliteWeekKey(for: "2029-01-01"), "2029-W01")
+    XCTAssertEqual(IncomeVsSpendingMaths.sqliteWeekKey(for: "2023-01-01"), "2023-W00")
+    XCTAssertEqual(IncomeVsSpendingMaths.sqliteWeekKey(for: "2023-01-02"), "2023-W01")
+  }
+
   func testYearSectionsNewestYearFirstWhenRowsAreNewestFirst() {
     let rows = IncomeVsSpendingMaths.zeroFill(
       periods: [
