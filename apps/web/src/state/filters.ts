@@ -18,6 +18,12 @@ export interface Filters {
 export interface FilterOptions {
   /** Range shown when the URL carries no explicit dates. Defaults to the current month. */
   defaultRange?: () => { from?: string; to?: string };
+  /**
+   * Intervals this report offers. A remembered or linked interval outside the
+   * list (Year chosen on Income, then Net worth opened) falls back to month, so
+   * the query, the highlighted segment and the summary always agree.
+   */
+  intervals?: Interval[];
 }
 
 const INTERVALS: Interval[] = ["day", "week", "month", "year"];
@@ -28,7 +34,11 @@ function parseList(value: string | null): string[] {
 
 export function filtersFromSearch(
   params: URLSearchParams,
-  options: { defaultRange: () => { from?: string; to?: string }; prefs?: ReturnType<typeof loadPrefs> },
+  options: {
+    defaultRange: () => { from?: string; to?: string };
+    prefs?: ReturnType<typeof loadPrefs>;
+    intervals?: Interval[];
+  },
 ): Filters {
   const prefs = options.prefs ?? {};
   const explicitFrom = params.get("from") ?? undefined;
@@ -44,7 +54,11 @@ export function filtersFromSearch(
   const accountIds =
     accountsParam === null ? (prefs.accountIds ?? []) : accountsParam === "all" ? [] : parseList(accountsParam);
 
-  const interval = (params.get("interval") ?? prefs.interval) as Interval | null;
+  const requested = (params.get("interval") ?? prefs.interval) as Interval | null;
+  const supported = options.intervals ?? INTERVALS;
+  const interval = requested && supported.includes(requested)
+    ? requested
+    : supported.includes("month") ? "month" : supported[0];
 
   return {
     from: range.from,
@@ -98,10 +112,11 @@ export function useFilters(options?: FilterOptions): {
   const [params, setParams] = useSearchParams();
   const { planId } = usePlan();
   const defaultRange = options?.defaultRange ?? monthRange;
+  const intervals = options?.intervals;
 
   const filters = useMemo<Filters>(
-    () => filtersFromSearch(params, { defaultRange, prefs: loadPrefs() }),
-    [params, defaultRange],
+    () => filtersFromSearch(params, { defaultRange, prefs: loadPrefs(), intervals }),
+    [params, defaultRange, intervals],
   );
 
   const setFilters = useCallback(
