@@ -186,6 +186,31 @@ final class LocalModeTests: XCTestCase {
     XCTAssertEqual(model.accounts.first?.balance, 100_000)
   }
 
+  /// Failure mode: `URLQueryItem` leaves a "+" bare in the query, and the
+  /// backend's `URLSearchParams` reads it as a space, so a search for
+  /// "C+C" (or a "+12.50" inflow search) reaches the server as something else.
+  func testRegisterSearchSendsAPlusSignIntact() async throws {
+    let settings = APISettings.local(in: defaults)
+    let client = APIClient(settings: settings)
+    try await LocalEngine.shared.prepare(config: settings.localEngineConfig)
+    let account = try await client.createAccount(
+      planID: settings.planID, name: "Everyday", type: "checking", balance: 0, icon: nil, onBudget: true
+    )
+    _ = try await client.createTransaction(planID: settings.planID, request: TransactionWriteRequest(
+      accountID: account.id, date: "2026-09-01", amount: -12_500, payeeID: nil, payeeName: "C+C Hardware",
+      categoryID: nil, memo: nil, cleared: .uncleared, approved: true, flagColor: nil, subtransactions: []
+    ))
+    _ = try await client.createTransaction(planID: settings.planID, request: TransactionWriteRequest(
+      accountID: account.id, date: "2026-09-02", amount: 12_500, payeeID: nil, payeeName: "Refund",
+      categoryID: nil, memo: nil, cleared: .uncleared, approved: true, flagColor: nil, subtransactions: []
+    ))
+
+    let byName = try await client.fetchTransactions(planID: settings.planID, q: "C+C")
+    XCTAssertEqual(byName.transactions.map(\.payeeName), ["C+C Hardware"])
+    let inflows = try await client.fetchTransactions(planID: settings.planID, q: "+12.50")
+    XCTAssertEqual(inflows.transactions.map(\.payeeName), ["Refund"])
+  }
+
   /// Lost preferences with the ledger still on disk: starting again adopts
   /// that plan rather than creating an empty one beside it.
   func testLostPlanIDAdoptsThePlanAlreadyOnTheDevice() async throws {
