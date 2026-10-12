@@ -44,7 +44,28 @@ export class D1TransactionRepository {
     const fingerprint = requestHash(patch);
     this.assertContext(planId, context);
     return this.write("update", planId, stable, fingerprint, context, async (snapshot) => {
-      if (snapshot.linkedSub) throw new ValidationError("This transaction is the linked side of a split line; edit the split parent");
+      if (snapshot.linkedSub) {
+        // The split line owns this row's link, amount, date and memo, but not
+        // its flag: a rewards flag rename restamps every row in the account.
+        const old = snapshot.transaction;
+        const fields = Object.keys(patch).filter((field) => (patch as Record<string, unknown>)[field] !== undefined);
+        if (!old || old.deleted) throw new NotFoundError("Transaction not found");
+        if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
+        if (fields.length === 0 || fields.some((field) => field !== "flag_color" && field !== "flag_name")) {
+          throw new ValidationError("This transaction is the linked side of a split line; edit the split parent");
+        }
+        const body: PlannedStatement[] = [
+          assertion(stable.commandId, "graph_update_target", transactionId, planId),
+          statement("UPDATE transactions SET flag_color=?,flag_name=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0", [
+            patch.flag_color === undefined ? old.flag_color : patch.flag_color,
+            patch.flag_name === undefined ? old.flag_name : patch.flag_name,
+            transactionId,
+            planId,
+          ]),
+          knowledge(planId, transactionId),
+        ];
+        return makePlan(stable.commandId, snapshot.writeVersion, transactionId, planId, "update", fingerprint, context, body);
+      }
       const old = snapshot.transaction;
       if (!old || old.deleted) throw new NotFoundError("Transaction not found");
       if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
