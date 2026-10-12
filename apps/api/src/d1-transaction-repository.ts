@@ -272,10 +272,13 @@ export class D1TransactionRepository {
     let parentPayeeId = input.payee_id ?? null;
     let parentPayeeName = input.payee_name ?? payee?.name ?? null;
     if (input.payee_id && (!transferAccount || !autoLink)) body.push(assertion(stable.commandId, payee?.transfer_account_id ? "transfer_payee" : "payee", input.payee_id, planId));
-    if (input.category_id && !input.subtransactions?.length && (!transferAccount || !autoLink)) body.push(assertion(stable.commandId, "category", input.category_id, planId));
+    // Transfers between two budget accounts carry no category; a transfer to a
+    // tracking account keeps it and counts as spending, as on SQLite.
+    let transferDropsCategory = false;
     if (transferAccount && autoLink) {
       const target = await this.db.get<Record<string, any>>("SELECT * FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [transferAccount, planId]);
       if (!target) throw new ValidationError("Transfer account not found");
+      transferDropsCategory = bothOnBudget(account, target);
       body.push(assertion(stable.commandId, "account", transferAccount, planId)); accounts.add(transferAccount);
       if (!transferId) transferId = stableId(stable.commandId, "mirror", input.id!);
       const sourcePayee = await this.db.get<Record<string, any>>("SELECT id,name FROM payees WHERE id=$1 AND plan_id=$2 AND deleted=0", [account.transfer_payee_id, planId]);
@@ -284,14 +287,15 @@ export class D1TransactionRepository {
       body.push(assertion(stable.commandId, "upsert_transaction", transferId, planId));
       body.push(assertion(stable.commandId, "mirror_transaction", transferId, input.id!));
       const existingMirror = snapshot.mirrors.find((row) => row.id === transferId);
-      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" ? (target.type === "cash" ? "cleared" : "uncleared") : input.cleared), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
+      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" ? (target.type === "cash" ? "cleared" : "uncleared") : input.cleared), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: existingMirror?.category_id, categoryName: existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
       touched.add(transferId);
     } else if (transferAccount) {
       const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [transferAccount, planId]);
       if (!target) throw new ValidationError("Transfer account not found");
       body.push(assertion(stable.commandId, "account", transferAccount, planId));
     }
-    const parentCategory = input.subtransactions?.length || (autoLink && transferAccount) ? null : input.category_id ?? null;
+    if (input.category_id && !input.subtransactions?.length && !transferDropsCategory) body.push(assertion(stable.commandId, "category", input.category_id, planId));
+    const parentCategory = input.subtransactions?.length || transferDropsCategory ? null : input.category_id ?? null;
     body.push(assertion(stable.commandId, "upsert_transaction", input.id!, planId));
     body.push(upsertTransaction({ id: input.id!, planId, accountId: input.account_id, date: input.date, amount: input.amount, memo: input.memo, cleared: input.cleared, approved: input.approved, payeeId: parentPayeeId, payeeName: parentPayeeName, categoryId: parentCategory, categoryName: parentCategory ? category?.name : null, transferAccountId: transferAccount, transferTransactionId: transferId, deleted: input.deleted, extra: input }));
 
@@ -313,10 +317,12 @@ export class D1TransactionRepository {
       if (autoLink && subTarget && oldSub?.transfer_transaction_id && subMirror !== oldSub.transfer_transaction_id) {
         throw new ValidationError("An existing transfer mirror ID cannot be replaced");
       }
+      let subTransferDropsCategory = false;
       if (subTarget && autoLink) {
         if (subTarget === input.account_id) throw new ValidationError("Transfer target must be a different account");
         const target = await this.db.get<Record<string, any>>("SELECT * FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [subTarget, planId]);
         if (!target) throw new ValidationError("Transfer account not found");
+        subTransferDropsCategory = bothOnBudget(account, target);
         body.push(assertion(stable.commandId, "account", subTarget, planId));
         if (sub.payee_id) body.push(assertion(stable.commandId, "transfer_payee", sub.payee_id, planId));
         accounts.add(subTarget);
@@ -326,7 +332,7 @@ export class D1TransactionRepository {
         body.push(assertion(stable.commandId, "upsert_transaction", subMirror, planId));
         body.push(assertion(stable.commandId, "mirror_transaction", subMirror, id));
         const existingMirror = snapshot.mirrors.find((row) => row.id === subMirror);
-        body.push(upsertTransaction({ id: subMirror, planId, accountId: subTarget, date: input.date, amount: -sub.amount, memo: sub.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, transferAccountId: input.account_id, transferTransactionId: id, extra: mirrorOwnFields(existingMirror) }));
+        body.push(upsertTransaction({ id: subMirror, planId, accountId: subTarget, date: input.date, amount: -sub.amount, memo: sub.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: existingMirror?.category_id, categoryName: existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: id, extra: mirrorOwnFields(existingMirror) }));
         keptMirrors.add(subMirror); touched.add(subMirror);
       } else if (subTarget) {
         const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [subTarget,planId]);
@@ -334,10 +340,10 @@ export class D1TransactionRepository {
         body.push(assertion(stable.commandId,"account",subTarget,planId));
         if(sub.payee_id) body.push(assertion(stable.commandId,subPayee?.transfer_account_id?"transfer_payee":"payee",sub.payee_id,planId));
       }
-      if (sub.category_id && (!subTarget || !autoLink)) body.push(assertion(stable.commandId, "category", sub.category_id, planId));
+      if (sub.category_id && !subTransferDropsCategory) body.push(assertion(stable.commandId, "category", sub.category_id, planId));
       body.push(assertion(stable.commandId, "upsert_subtransaction", id, planId));
       body.push(assertion(stable.commandId, "upsert_subtransaction_parent", id, input.id!));
-      body.push(upsertSubtransaction(id, input.id!, sub, subPayee, subCategory, subTarget, subMirror));
+      body.push(upsertSubtransaction(id, input.id!, sub, subPayee, subTransferDropsCategory ? null : subCategory, subTarget, subMirror));
     }
     for (const old of snapshot.subs) if (!keptSubs.has(old.id)) {
       body.push(statement("UPDATE subtransactions SET deleted=1, updated_at=CURRENT_TIMESTAMP WHERE id=?", [old.id]));
@@ -398,7 +404,8 @@ function subInput(row: Record<string, any>) {
 }
 /**
  * Fields a linked side owns. Writing the other side rewrites the mirror row,
- * and must keep its flag, its bank match and its source, as SQLite does.
+ * and must keep its flag, its bank match and its source, as SQLite does. Its
+ * category is kept by the callers, which pass it beside these fields.
  */
 function mirrorOwnFields(existing: Record<string, any> | undefined): Record<string, unknown> {
   if (!existing) return {};
@@ -415,8 +422,11 @@ function upsertTransaction(value: Record<string, any>): PlannedStatement {
   const values = [value.id,value.planId,value.accountId,value.date,value.amount,value.memo??null,value.cleared??"uncleared",value.approved?1:0,extra.flag_color??null,extra.flag_name??null,value.payeeId??null,value.payeeName??null,value.categoryId??null,value.categoryName??null,value.transferAccountId??null,value.transferTransactionId??null,extra.matched_transaction_id??null,extra.import_id??null,extra.import_payee_name??null,extra.import_payee_name_original??null,extra.source_kind??null,extra.source_ref??null,extra.external_ynab_id??value.id,value.deleted?1:0];
   return statement(`INSERT INTO transactions (${columns},updated_at) VALUES (${values.map(() => "?").join(",")},CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,date=excluded.date,amount_milli=excluded.amount_milli,memo=excluded.memo,cleared=excluded.cleared,approved=excluded.approved,flag_color=excluded.flag_color,flag_name=excluded.flag_name,payee_id=excluded.payee_id,payee_name_snapshot=excluded.payee_name_snapshot,category_id=excluded.category_id,category_name_snapshot=excluded.category_name_snapshot,transfer_account_id=excluded.transfer_account_id,transfer_transaction_id=excluded.transfer_transaction_id,matched_transaction_id=excluded.matched_transaction_id,import_id=excluded.import_id,import_payee_name=excluded.import_payee_name,import_payee_name_original=excluded.import_payee_name_original,source_kind=excluded.source_kind,source_ref=excluded.source_ref,external_ynab_id=excluded.external_ynab_id,deleted=excluded.deleted,updated_at=CURRENT_TIMESTAMP`, values);
 }
+function bothOnBudget(source: Record<string, any>, target: Record<string, any>): boolean {
+  return Number(source.on_budget) === 1 && Number(target.on_budget) === 1;
+}
 function upsertSubtransaction(id: string, parentId: string, sub: Record<string, any>, payee: Record<string, any> | null, category: Record<string, any> | null, transferAccountId: string | null, transferTransactionId: string | null): PlannedStatement {
-  const values = [id,parentId,sub.amount,sub.memo??null,sub.payee_id??null,sub.payee_name??payee?.name??null,transferAccountId?null:sub.category_id??null,transferAccountId?null:category?.name??null,transferAccountId,transferTransactionId,sub.external_ynab_id??id];
+  const values = [id,parentId,sub.amount,sub.memo??null,sub.payee_id??null,sub.payee_name??payee?.name??null,category?sub.category_id??null:null,category?.name??null,transferAccountId,transferTransactionId,sub.external_ynab_id??id];
   return statement(`INSERT INTO subtransactions (id,transaction_id,amount_milli,memo,payee_id,payee_name_snapshot,category_id,category_name_snapshot,transfer_account_id,transfer_transaction_id,external_ynab_id,deleted,updated_at) VALUES (${values.map(() => "?").join(",")},0,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET transaction_id=excluded.transaction_id,amount_milli=excluded.amount_milli,memo=excluded.memo,payee_id=excluded.payee_id,payee_name_snapshot=excluded.payee_name_snapshot,category_id=excluded.category_id,category_name_snapshot=excluded.category_name_snapshot,transfer_account_id=excluded.transfer_account_id,transfer_transaction_id=excluded.transfer_transaction_id,external_ynab_id=excluded.external_ynab_id,deleted=0,updated_at=CURRENT_TIMESTAMP`, values);
 }
 function recalculate(accountId: string): PlannedStatement { return statement(`UPDATE accounts SET balance_milli = opening_balance_milli + COALESCE((SELECT SUM(amount_milli) FROM transactions WHERE account_id = ? AND deleted = 0), 0), cleared_balance_milli = opening_balance_milli + COALESCE((SELECT SUM(amount_milli) FROM transactions WHERE account_id = ? AND deleted = 0 AND cleared IN ('cleared', 'reconciled')), 0), uncleared_balance_milli = COALESCE((SELECT SUM(amount_milli) FROM transactions WHERE account_id = ? AND deleted = 0 AND cleared = 'uncleared'), 0), updated_at = CURRENT_TIMESTAMP WHERE id = ?`, [accountId, accountId, accountId, accountId]); }
