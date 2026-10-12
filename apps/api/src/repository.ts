@@ -2194,16 +2194,19 @@ export class LedgerRepository {
         await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId),
         { autoLink: true, operationId },
       );
-    const advanceId = `scheduled_advance_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
-    let advanced: any;
+    const advanceKind = schedule.frequency === "never" ? "complete" : "advance";
+    const advanceId = `scheduled_${advanceKind}_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
     const expected = { date_first: schedule.date_first, date_next: occurrenceDate, frequency: schedule.frequency };
-    if (schedule.frequency === "never") {
-      advanced = await this.deleteScheduledTransaction(planId, scheduledTransactionId, { operationId: advanceId, expected });
-    } else {
-      const nextDate = nextScheduledOccurrence(schedule.date_first, occurrenceDate, schedule.frequency);
-      if (!nextDate) throw new ValidationError("Recurring schedule did not produce a next date");
-      advanced = await this.updateScheduledTransaction(planId, scheduledTransactionId, { date_next: nextDate }, { operationId: advanceId, expected });
-    }
+    const nextDate = schedule.frequency === "never" ? null : nextScheduledOccurrence(schedule.date_first, occurrenceDate, schedule.frequency);
+    if (schedule.frequency !== "never" && !nextDate) throw new ValidationError("Recurring schedule did not produce a next date");
+    const advance = (operationId?: string) => schedule.frequency === "never"
+      ? this.deleteScheduledTransaction(planId, scheduledTransactionId, { operationId, expected })
+      : this.updateScheduledTransaction(planId, scheduledTransactionId, { date_next: nextDate! }, { operationId, expected });
+    let advanced: any = await advance(advanceId);
+    // The keyed advance replays an earlier one without writing when the
+    // schedule was moved back onto this already-posted occurrence. Advance it
+    // for real; `expected` still refuses a concurrent change.
+    if (!advanced.deleted && advanced.date_next === occurrenceDate) advanced = await advance();
     return {
       transaction,
       scheduled_transaction: advanced,

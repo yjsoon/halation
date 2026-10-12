@@ -804,6 +804,34 @@ describe("D1 foundation", () => {
     expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
   });
 
+  // Failure mode: a user moves date_next back onto an occurrence that was
+  // already posted and advanced. The deterministic advance key then replays the
+  // earlier advance without writing, so the schedule never leaves that date and
+  // the cron's "made progress" loop spins on it until the Worker is killed.
+  test("D1 cron materialisation advances a schedule moved back onto an already posted occurrence", async () => {
+    const db = await ledgerSqlite();
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    await repo.createScheduledTransaction("p", {
+      id: "moved-back", account_id: "a", date_first: "2026-08-21", frequency: "monthly", amount: -100,
+    });
+    expect(await repo.materializeScheduledTransactionsForCron("p", "2026-08-21", 5, "cron-day-1")).toMatchObject({ occurrence_count: 1 });
+    expect(await repo.getScheduledTransaction("p", "moved-back")).toMatchObject({ date_next: "2026-09-21" });
+    await repo.updateScheduledTransaction("p", "moved-back", { date_next: "2026-08-21" });
+
+    // The fake D1 never yields to the event loop, so a spinning run cannot be
+    // timed out; cap the attempts instead and turn a spin into a failure.
+    const materialize = repo.materializeScheduledOccurrence.bind(repo);
+    let attempts = 0;
+    repo.materializeScheduledOccurrence = async (...args) => {
+      attempts += 1;
+      if (attempts > 10) throw new Error("materialisation is not making progress");
+      return materialize(...args);
+    };
+    expect(await repo.materializeScheduledTransactionsForCron("p", "2026-08-22", 5, "cron-day-2")).toMatchObject({ failure_count: 0, has_more: false });
+    expect(await repo.getScheduledTransaction("p", "moved-back")).toMatchObject({ date_next: "2026-09-21" });
+    expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
+  });
+
   test("D1 cron materialisation continues past an invalid schedule and reports only counts", async () => {
     const db = await ledgerSqlite();
     const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
