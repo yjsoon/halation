@@ -266,6 +266,13 @@ async function handleV1(
       if (!payload || (!payload.id && !payload.name)) {
         return apiError(400, "bad_request", "account requires a name");
       }
+      // Balances feed integer milliunit arithmetic; a decimal string or an
+      // object would be stored verbatim and corrupt every later balance.
+      for (const field of ["balance", "opening_balance", "cleared_balance", "uncleared_balance"]) {
+        if (payload[field] != null && !Number.isSafeInteger(payload[field])) {
+          throw new ValidationError(`account.${field} must be integer milliunits`);
+        }
+      }
       const account = await repo.createAccount(planId, payload);
       return json({ data: { account, server_knowledge: await repo.getServerKnowledge(planId) } }, 201);
     }

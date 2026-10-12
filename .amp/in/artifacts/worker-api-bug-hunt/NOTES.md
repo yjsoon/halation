@@ -46,3 +46,14 @@ net worth and the account balance disagree.
 | POST date `2026-02-30` | 400 | 201 | 400 |
 | POST date `2026-02-28` | 201 | 201 | 201 |
 | PUT `e2e-ok` date `2026-04-31` | 400 | (accepted shape) | 400 |
+
+## 3. Account create stored non-integer balances
+
+Revision before fix: `a53aefa`. `POST $B/accounts` passed `balance` straight to
+the INTEGER milliunit columns.
+
+| Request | Expected | Before | After |
+| --- | --- | --- | --- |
+| `{"name":"Float acct","balance":"12.50"}` | 400 | 201, balance `12.5` (fractional milliunits) | 400 `account.balance must be integer milliunits` |
+| `{"name":"Obj acct","balance":{"x":1}}` | 400 | 500 | 400 |
+| `{"name":"Good acct","type":"cash","balance":125000}` | 201 | 201 | 201, balance 125000 |
