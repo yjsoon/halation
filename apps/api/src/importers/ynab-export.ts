@@ -399,6 +399,13 @@ function inferTransferPairs(transactions: PreparedTransaction[]): number {
         if (negative.input.account_id === positive.input.account_id) {
           continue;
         }
+        // A "Transfer : X" payee names its counterpart; never pair it elsewhere.
+        if (
+          (negative.input.transfer_account_id && negative.input.transfer_account_id !== positive.input.account_id)
+          || (positive.input.transfer_account_id && positive.input.transfer_account_id !== negative.input.account_id)
+        ) {
+          continue;
+        }
 
         const distance = Math.abs(daysBetweenIso(negative.input.date, positive.input.date));
         if (distance > 3 || distance > bestDistance) {
