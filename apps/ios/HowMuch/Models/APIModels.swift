@@ -3118,7 +3118,7 @@ struct TransactionSubtransactionDraft: Equatable, Codable {
     memo = subtransaction.memo ?? ""
   }
 
-  var amount: Int? { MoneyCodec.milliunits(from: amountText) }
+  var amount: Int? { MoneyCodec.milliunits(fromTyped: amountText) }
 
   func writeRequest() -> TransactionSubtransactionWriteRequest? {
     guard let amount else { return nil }

@@ -45,6 +45,24 @@ enum MoneyCodec {
     return total.partialValue
   }
 
+  /// An amount a person typed into a field. The system decimal pad shows the
+  /// device's own decimal separator, so where that is a comma, "12,50" is
+  /// twelve and a half, not 1,250. A comma is read as the decimal point only
+  /// there, and only when the entry has one comma and no full stop; anything
+  /// else reads exactly as `milliunits(from:)`.
+  static func milliunits(
+    fromTyped input: String,
+    decimalSeparator: String? = Locale.current.decimalSeparator
+  ) -> Int? {
+    guard decimalSeparator == ",",
+          !input.contains("."),
+          input.filter({ $0 == "," }).count == 1
+    else {
+      return milliunits(from: input)
+    }
+    return milliunits(from: input.replacingOccurrences(of: ",", with: "."))
+  }
+
   static func editableString(for milliunits: Int) -> String {
     let magnitude = milliunits.magnitude
     let whole = magnitude / 1_000
