@@ -263,7 +263,7 @@ export class D1TransactionRepository {
       body.push(assertion(stable.commandId, "upsert_transaction", transferId, planId));
       body.push(assertion(stable.commandId, "mirror_transaction", transferId, input.id!));
       const existingMirror = snapshot.mirrors.find((row) => row.id === transferId);
-      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" ? (target.type === "cash" ? "cleared" : "uncleared") : input.cleared), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, transferAccountId: input.account_id, transferTransactionId: input.id! }));
+      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" ? (target.type === "cash" ? "cleared" : "uncleared") : input.cleared), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
       touched.add(transferId);
     } else if (transferAccount) {
       const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [transferAccount, planId]);
@@ -305,7 +305,7 @@ export class D1TransactionRepository {
         body.push(assertion(stable.commandId, "upsert_transaction", subMirror, planId));
         body.push(assertion(stable.commandId, "mirror_transaction", subMirror, id));
         const existingMirror = snapshot.mirrors.find((row) => row.id === subMirror);
-        body.push(upsertTransaction({ id: subMirror, planId, accountId: subTarget, date: input.date, amount: -sub.amount, memo: sub.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, transferAccountId: input.account_id, transferTransactionId: id }));
+        body.push(upsertTransaction({ id: subMirror, planId, accountId: subTarget, date: input.date, amount: -sub.amount, memo: sub.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, transferAccountId: input.account_id, transferTransactionId: id, extra: mirrorOwnFields(existingMirror) }));
         keptMirrors.add(subMirror); touched.add(subMirror);
       } else if (subTarget) {
         const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [subTarget,planId]);
@@ -374,6 +374,19 @@ function stableId(operationId: string, kind: string, seed: string): string {
 }
 function subInput(row: Record<string, any>) {
   return { id: row.id, amount: row.amount_milli, memo: row.memo, payee_id: row.payee_id, payee_name: row.payee_name_snapshot, category_id: row.category_id, transfer_account_id: row.transfer_account_id, transfer_transaction_id: row.transfer_transaction_id, external_ynab_id: row.external_ynab_id };
+}
+/**
+ * Fields a linked side owns. Writing the other side rewrites the mirror row,
+ * and must keep its flag, its bank match and its source, as SQLite does.
+ */
+function mirrorOwnFields(existing: Record<string, any> | undefined): Record<string, unknown> {
+  if (!existing) return {};
+  return {
+    flag_color: existing.flag_color, flag_name: existing.flag_name,
+    matched_transaction_id: existing.matched_transaction_id, import_id: existing.import_id,
+    import_payee_name: existing.import_payee_name, import_payee_name_original: existing.import_payee_name_original,
+    source_kind: existing.source_kind, source_ref: existing.source_ref, external_ynab_id: existing.external_ynab_id,
+  };
 }
 function upsertTransaction(value: Record<string, any>): PlannedStatement {
   const extra = value.extra ?? {};

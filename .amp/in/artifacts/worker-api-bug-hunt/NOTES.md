@@ -109,3 +109,40 @@ unused money column with `$0.00`. Script: `csv-e2e.ts` in this folder
 | --- | --- | --- | --- |
 | outflow `$0.00`, inflow `$50.00` | 50000 | 0 (imported) | 50000 (imported) |
 | outflow `$12.34`, inflow `$0.00` | -12340 | -12340 | duplicate of the `before` row (same date, payee and amount), as designed |
+
+## 8. Editing one side of a transfer wiped the other side's flag
+
+Revision before fix: `4b45c88`. Script: `mirror-flag-e2e.ts <tag>`. It creates
+a -7000 transfer from `e2e-acct` to `e2e-save` (transfer payee), sets
+`flag_color: green, flag_name: Groceries` on the mirror, then PATCHes only the
+memo of the source side and reads the mirror back. The D1 writer rewrote the
+mirror row with null flag, import and source fields (SQLite keeps them).
+
+| Step | Expected | Before (`before`) | After (`after`) |
+| --- | --- | --- | --- |
+| flag the mirror | 200 green/Groceries | 200 green/Groceries | 200 green/Groceries |
+| PATCH source memo | 200 | 200 | 200 |
+| mirror flag after | green/Groceries | null/null | green/Groceries |
+
+The same held for the linked side of a split transfer line: after the parent
+split was edited (`linked-flag-e2e.ts`), its flag came back null before the
+fix and `red`/`Dining` after.
+
+## 9. Rewards flag rename failed halfway on a split transfer's linked side
+
+Revision before fix: `4b45c88` plus fix 8. Script: `retitle-e2e.ts <tag>`
+creates account `retitle-acct-<tag>` with one plain unflagged -4000 row, a
+split in `e2e-save` whose -2000 line transfers into that account, then
+`POST /api/rewards/cards?plan_id=…` with `flagNames: {unflagged: "Base rate"}`.
+
+| Check | Expected | Before (`before`) | After (`after2`) |
+| --- | --- | --- | --- |
+| POST card | 201 | 400 `This transaction is the linked side of a split line` | 201 |
+| card stored | yes | yes (despite the 400) | yes |
+| plain row `flag_name` | Base rate | null | Base rate |
+| linked row `flag_name` | Base rate | null | Base rate |
+
+`linked-flag-e2e.ts retitle-acct-after2` then confirms the linked side still
+refuses a memo edit (400), accepts a flag edit (200 red/Dining), and follows
+a parent split edit to 2500 with its link and flag intact; account balance
+-1500.
