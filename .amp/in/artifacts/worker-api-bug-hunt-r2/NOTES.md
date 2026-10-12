@@ -88,3 +88,21 @@ A SQLite/D1 parity probe through the API harness (delete either side, drop a
 split's transfer line, delete a split parent, amount and date edits on either
 side, retarget, bulk delete) matched on every step after the fix apart from
 generated ids.
+
+## 5. SQLite left a split line's old transfer side live
+
+Script: `split-line-mirror-e2e.ts`, run against a disposable bun SQLite
+server (`HOWMUCH_DB_PATH=<scratch>/x.sqlite HOWMUCH_API_TOKEN=local-e2e-token
+HOWMUCH_HOST=127.0.0.1 PORT=8798 bun apps/api/src/server.ts`, plan
+`local-plan`), the stack `bun run dev` and the verify recipes use. The web
+register turns a split's transfer line into a regular payee by resending every
+line with its id and the transfer fields null. SQLite only removed a linked
+side when its line id disappeared, so the savings side stayed live (and a
+resend that re-minted the link doubled it). D1 already removed it.
+
+| Step | Expected | Before (`8c4f915`, SQLite) | After (SQLite) | D1 Worker |
+| --- | --- | --- | --- | --- |
+| POST split, one transfer line | 201, 1 linked line | 201, 1 | 201, 1 | 201, 1 |
+| PATCH that line to payee "Grocer" | 200, 0 linked lines | 200, 0 | 200, 0 | 200, 0 |
+| Live savings transactions | 0 | 1 | 0 | 0 |
+| Savings balance | 0 | 2000 | 0 | 0 |
