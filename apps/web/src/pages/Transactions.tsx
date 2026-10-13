@@ -22,7 +22,7 @@ import { splitCategoryGroups, UNCATEGORISED_CATEGORY_ID } from "../lib/categorie
 import { appliedReviewItems, reviewRows, suggestionRequestItems, suggestionTargets, type SuggestionReviewRow } from "../lib/category-suggestions";
 import { formatDate, todayIso, trailingMonthsRange } from "../lib/dates";
 import { stableHash } from "../lib/hash";
-import { formatAmount, formatMoney, parseMilliunits } from "../lib/money";
+import { currentCurrencyFormat, formatAmount, formatMoney, parseMilliunits } from "../lib/money";
 import {
   approveAllLabel,
   approvedToast,
@@ -60,6 +60,7 @@ import {
   fieldsFromSchedule,
   matchesRegisterQuery,
   mergeSearchRows,
+  moneyFormatFromPlan,
   parseRegisterQuery,
   searchStatusCopy,
   transactionMatchesQuery,
@@ -76,6 +77,7 @@ import {
 } from "../lib/register-selection";
 import { activeSchedulesForScope, scheduledAmount, scheduleRecurrence, transferScheduleLabel } from "../lib/schedules";
 import { useFilters } from "../state/filters";
+import { useConfirmationFocus } from "../lib/use-confirmation-focus";
 import { usePlan } from "../state/plan";
 import { isCachedPayees, isCachedRegisterPage, isCachedScheduled } from "../state/cache-shapes";
 import type { CachedRegisterPage } from "../state/cache-shapes";
@@ -98,6 +100,15 @@ type ReconcileDraft = {
   confirmationChecked: boolean;
   mismatch: ReconciliationMismatchDetail | null;
 };
+
+/**
+ * The rows a Spending drill-down (`flow=outflow`) keeps, by the report's own
+ * rule: an outflow counts unless it is an uncategorised transfer leg, so a
+ * categorised transfer to a tracking account (a loan payment) stays in.
+ */
+function isSpendingOutflow(txn: Transaction): boolean {
+  return txn.amount < 0 && (!txn.transfer_account_id || txn.category_id !== null);
+}
 
 export function TransactionsPage() {
   const { filters, setFilters } = useFilters({ defaultRange: () => trailingMonthsRange(2) });
@@ -203,13 +214,51 @@ export function TransactionsPage() {
     loadingMore: false,
     error: null as string | null,
   });
-  const registerQuery = useMemo(() => parseRegisterQuery(deferredSearch), [deferredSearch]);
+  // Parsed with the plan's currency format, exactly as the server parses `q`,
+  // so local, scheduled and server matches agree on "£12.50" or "12,50".
+  const currencyFormat = currentCurrencyFormat();
+  const registerQuery = useMemo(
+    () => parseRegisterQuery(deferredSearch, moneyFormatFromPlan(currencyFormat)),
+    [currencyFormat, deferredSearch],
+  );
   const searchVersionRef = useRef(0);
   const [pendingDeletion, setPendingDeletion] = useState<Transaction | null>(null);
   const [pendingBulkDeletion, setPendingBulkDeletion] = useState<readonly Transaction[] | null>(null);
+  // The confirmation renders above the register, behind the row that asked
+  // for it in tab order, so a keyboard user is taken to its Cancel button.
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  const bulkDeleteCancelRef = useRef<HTMLButtonElement>(null);
+  const deletionRowDomId = useRef<string | null>(null);
+  useEffect(() => {
+    if (pendingDeletion) {
+      deletionRowDomId.current = registerRowDomId({ kind: "posted", transaction: pendingDeletion });
+      deleteCancelRef.current?.focus();
+      return;
+    }
+    // Cancelled (or deleted): back to the row when it is still there.
+    const rowElement = deletionRowDomId.current ? document.getElementById(deletionRowDomId.current) : null;
+    deletionRowDomId.current = null;
+    if (rowElement && (document.activeElement === null || document.activeElement === document.body)) {
+      rowElement.focus({ preventScroll: true });
+    }
+  }, [pendingDeletion?.id]);
+  // The bulk bar's own button opened the bulk confirmation, the review and
+  // the reconcile editor; when that control is gone (the selection was
+  // cleared by the write), focus stays in the register at select-all.
+  const selectAllFallback = () =>
+    document.querySelector<HTMLInputElement>("input[aria-label='Select all visible transactions']") ?? addTransactionRef.current;
+  useConfirmationFocus(pendingBulkDeletion, bulkDeleteCancelRef, selectAllFallback);
   const [suggestionReview, setSuggestionReview] = useState<SuggestionReviewRow[] | null>(null);
   const [suggesting, setSuggesting] = useState(false);
+  // "Suggest categories" is disabled while Jev answers, which drops focus, so
+  // the review restores to that button rather than to whatever had focus.
+  const suggestButtonRef = useRef<HTMLButtonElement>(null);
+  const suggestionHeadingRef = useRef<HTMLHeadingElement>(null);
+  useConfirmationFocus(suggestionReview !== null, suggestionHeadingRef, () =>
+    suggestButtonRef.current?.isConnected ? suggestButtonRef.current : selectAllFallback());
   const [reconcileDraft, setReconcileDraft] = useState<ReconcileDraft | null>(null);
+  const reconcileFirstFieldRef = useRef<HTMLSelectElement>(null);
+  useConfirmationFocus(reconcileDraft?.operationSeed, reconcileFirstFieldRef, () => addTransactionRef.current);
   const [reconciliationPreviewGeneration, setReconciliationPreviewGeneration] = useState(0);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [mutationSuccess, setMutationSuccess] = useState<string | null>(null);
@@ -217,12 +266,20 @@ export function TransactionsPage() {
   // A committed edit refetches the first page, which empties the table for a
   // moment, so the bloom waits for the rows to land rather than firing at nothing.
   const [bloomIds, setBloomIds] = useState<string[]>([]);
+  // The row a keyboard save came from. The refetch remounts it, dropping focus
+  // to <body>, so focus goes back to it when it lands, as Esc already does.
+  const refocusRowIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!bloomIds.length) return;
     const onScreen = bloomIds.some((id) => document.getElementById(id));
     if (!onScreen && (page.loading || page.filling)) return;
     bloomRows(bloomIds);
     setBloomIds([]);
+    const refocus = refocusRowIdRef.current ? document.getElementById(refocusRowIdRef.current) : null;
+    refocusRowIdRef.current = null;
+    if (refocus && (document.activeElement === null || document.activeElement === document.body)) {
+      refocus.focus({ preventScroll: true });
+    }
   }, [bloomIds, page.filling, page.loading, page.transactions]);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [unapprovedOnly, setUnapprovedOnly] = useState(false);
@@ -239,6 +296,17 @@ export function TransactionsPage() {
   const [approvalSession, setApprovalSession] = useState(emptyApprovalSession);
   const approvalSessionRef = useRef(approvalSession);
   const [compose, setCompose] = useState<RegisterComposeState>(closedCompose);
+  // Closing the compose row (Esc, Cancel or a save) unmounts the focused
+  // field; hand focus back to "+ Add transaction" rather than to <body>.
+  const addTransactionRef = useRef<HTMLButtonElement>(null);
+  const composeWasOpen = useRef(false);
+  useEffect(() => {
+    const closed = composeWasOpen.current && compose.status !== "open";
+    composeWasOpen.current = compose.status === "open";
+    if (closed && (document.activeElement === null || document.activeElement === document.body)) {
+      addTransactionRef.current?.focus({ preventScroll: true });
+    }
+  }, [compose.status]);
   const [composeFocus, setComposeFocus] = useState(0);
   const mutationLockRef = useRef(false);
   const clearedInFlightRef = useRef(new Set<string>());
@@ -791,6 +859,7 @@ export function TransactionsPage() {
           ? `${savedName} saved.`
           : `${savedName} saved. It is outside this date range.`,
       );
+      refocusRowIdRef.current = registerRowDomId(session.row);
       setBloomIds([registerRowDomId(session.row)]);
       dispatchRowEdit({ type: "committed" });
     } catch (cause) {
@@ -1051,7 +1120,7 @@ export function TransactionsPage() {
     const outflowOnly = flow === "outflow" || wantsUncategorised;
     return inScope
       .filter((txn) => !unapprovedOnly || !txn.approved)
-      .filter((txn) => !outflowOnly || (txn.amount < 0 && !txn.transfer_account_id))
+      .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
           return true;
@@ -1100,7 +1169,7 @@ export function TransactionsPage() {
       .filter((txn) => registerAccountIds.has(txn.account_id))
       .filter((txn) => unapprovedOnly || dateInRegisterWindow(txn.date, filters.from, filters.to, today))
       .filter((txn) => !unapprovedOnly || !txn.approved)
-      .filter((txn) => !outflowOnly || (txn.amount < 0 && !txn.transfer_account_id))
+      .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
           return true;
@@ -1441,7 +1510,9 @@ export function TransactionsPage() {
 
   const emptyMessage =
     page.loaded && page.transactions.length === 0
-      ? "No transactions yet."
+      // The page is fetched for the date range, so an empty one only means an
+      // empty ledger when no range is set.
+      ? filters.from || filters.to ? "No transactions in this date range." : "No transactions yet."
       : deferredSearch.trim()
         ? "No transactions match this search."
         : "No transactions match these filters.";
@@ -1533,6 +1604,7 @@ export function TransactionsPage() {
         <div className="register-toolbar-actions">
           <button
             type="button"
+            ref={addTransactionRef}
             className="register-add-link"
             onClick={openCompose}
             disabled={!canCompose || mutationBusy}
@@ -1603,7 +1675,12 @@ export function TransactionsPage() {
 
       {selectedRowIds.length > 0 && (
         <div className="register-bulk-bar" role="group" aria-label="Selected transaction actions">
-          <button type="button" className="register-bulk-action register-bulk-clear" onClick={() => dispatchSelection({ kind: "none" })} disabled={mutationBusy} aria-label="Clear selection">
+          <button type="button" className="register-bulk-action register-bulk-clear" onClick={() => {
+            // The bar goes with the selection; keep keyboard focus on the
+            // register's select-all box rather than letting it fall to <body>.
+            document.querySelector<HTMLInputElement>("input[aria-label='Select all visible transactions']")?.focus();
+            dispatchSelection({ kind: "none" });
+          }} disabled={mutationBusy} aria-label="Clear selection">
             × {selectedRowIds.length} selected
           </button>
           <span className="register-bulk-sep" aria-hidden="true" />
@@ -1631,6 +1708,7 @@ export function TransactionsPage() {
           />
           <button
             type="button"
+            ref={suggestButtonRef}
             className="register-bulk-action"
             onClick={() => void suggestCategories(selectedRows)}
             disabled={mutationBusy || suggesting || suggestionTargets(selectedRows).length === 0}
@@ -1681,7 +1759,11 @@ export function TransactionsPage() {
       {mutationSuccess && (
         <div className="status-panel status-panel-success compact-panel register-toast" role="status">
           <p className="status-title">{mutationSuccess}</p>
-          <button type="button" className="register-toast-dismiss" aria-label="Dismiss" onClick={() => setMutationSuccess(null)}>×</button>
+          <button type="button" className="register-toast-dismiss" aria-label="Dismiss" onClick={() => {
+            // The toast goes with its message; keep focus in the register.
+            addTransactionRef.current?.focus();
+            setMutationSuccess(null);
+          }}>×</button>
         </div>
       )}
       {reconcileDraft && (
@@ -1710,6 +1792,7 @@ export function TransactionsPage() {
               <label className="field">
                 <span className="field-label">Account</span>
                 <select
+                  ref={reconcileFirstFieldRef}
                   value={reconcileDraft.accountId}
                   onChange={(event) => updateReconcile({ accountId: event.target.value })}
                   disabled={reconciliationBusy}
@@ -1850,7 +1933,7 @@ export function TransactionsPage() {
             </p>
           </div>
           <div className="transaction-delete-confirm-actions">
-            <button type="button" className="text-button" onClick={() => setPendingDeletion(null)} disabled={writeLocked || mutatingId === pendingDeletion.id}>Cancel</button>
+            <button type="button" ref={deleteCancelRef} className="text-button" onClick={() => setPendingDeletion(null)} disabled={writeLocked || mutatingId === pendingDeletion.id}>Cancel</button>
             <button type="button" className="transaction-delete-button" onClick={() => void deleteTransaction(pendingDeletion)} disabled={writeLocked || mutatingId === pendingDeletion.id}>
               {mutatingId === pendingDeletion.id ? "Removing..." : pendingDeletion.approved ? "Delete transaction" : "Reject transaction"}
             </button>
@@ -1865,6 +1948,7 @@ export function TransactionsPage() {
           onChange={setSuggestionReview}
           onApply={() => void applySuggestions(suggestionReview)}
           onCancel={() => setSuggestionReview(null)}
+          headingRef={suggestionHeadingRef}
         />
       )}
       {pendingBulkDeletion && (
@@ -1878,7 +1962,7 @@ export function TransactionsPage() {
             <p>Linked transfer entries are removed with them. Split lines on other accounts stay and lose their transfer link.</p>
           </div>
           <div className="transaction-delete-confirm-actions">
-            <button type="button" className="text-button" onClick={() => setPendingBulkDeletion(null)} disabled={mutationBusy}>Cancel</button>
+            <button type="button" ref={bulkDeleteCancelRef} className="text-button" onClick={() => setPendingBulkDeletion(null)} disabled={mutationBusy}>Cancel</button>
             <button type="button" className="transaction-delete-button" onClick={() => void deleteMany(pendingBulkDeletion)} disabled={mutationBusy}>
               {mutationBusy ? "Removing…" : pendingBulkDeletion.every((txn) => !txn.approved) ? "Reject transactions" : "Delete transactions"}
             </button>

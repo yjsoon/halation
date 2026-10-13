@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import type {
@@ -19,6 +19,7 @@ import { formatMoney } from "../lib/money";
 import { rewardCardAccountChoices, syncedRewardCardName } from "../lib/reward-card-accounts";
 import { ledgerFlagNames, namedFlagLabel, namesFromSubcategories, parseRewardFlagNames, REWARD_NAME_COLOURS, snapshotFlagLabel } from "../lib/reward-flag-names";
 import { usePlan } from "../state/plan";
+import { useConfirmationFocus } from "../lib/use-confirmation-focus";
 
 type FlagDraft = {
   id: string;
@@ -126,6 +127,9 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   const [busy, setBusy] = useState<"save" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
+  // The confirmation renders at the top of the page, far from Delete card.
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  useConfirmationFocus(pendingDelete, deleteCancelRef);
   const [importCategoryId, setImportCategoryId] = useState("");
   const [importFlagColor, setImportFlagColor] = useState<RewardFlagColour>("red");
   const [importRate, setImportRate] = useState("");
@@ -248,7 +252,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
           </div>
           <p>{card.name} will no longer appear on Rewards.</p>
           <div className="transaction-editor-actions">
-            <button type="button" className="text-button" onClick={() => setPendingDelete(false)} disabled={busy === "delete"}>Cancel</button>
+            <button type="button" ref={deleteCancelRef} className="text-button" onClick={() => setPendingDelete(false)} disabled={busy === "delete"}>Cancel</button>
             <button type="button" className="save-button schedule-delete-button" onClick={() => void remove()} disabled={busy === "delete"}>
               {busy === "delete" ? "Deleting…" : "Delete card"}
             </button>

@@ -63,6 +63,8 @@ import {
   type CategoryRow,
 } from "./category-management";
 import { requestHash } from "./d1-guarded-command";
+import { cardFlagNames, flagNameForColour } from "./rewards/flag-names";
+import type { CreditCard } from "./rewards/types";
 import {
   PLAN_NOT_EMPTY_CONDITION,
   PlanNotEmptyError,
@@ -320,6 +322,11 @@ export class LedgerRepository {
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(accountId, planId, name ?? `Imported account ${accountId.slice(0, 8)}`, accountId);
+    // The insert skips an id that exists anywhere: another plan's account id
+    // booked this plan's transaction against that plan's balance.
+    if (await this.db.query("SELECT 1 FROM accounts WHERE id = ? AND plan_id <> ?").get(accountId, planId)) {
+      throw new ValidationError("Account not found");
+    }
     await this.ensureTransferPayee(planId, accountId);
   }
 
@@ -414,7 +421,10 @@ export class LedgerRepository {
 
   async upsertAccount(planId: string, account: any): Promise<void> {
     await this.ensurePlan(planId);
-    const existing = await this.db.query("SELECT icon FROM accounts WHERE id = ?").get(account.id) as Row | null;
+    const existing = await this.db.query("SELECT icon, plan_id FROM accounts WHERE id = ?").get(account.id) as Row | null;
+    // The upsert matches on id alone: another plan's account id renamed and
+    // retyped that plan's account.
+    if (existing && existing.plan_id !== planId) throw new ValidationError("Account belongs to another plan");
     const presentation = resolveAccountPresentation({
       name: account.name ?? `Account ${account.id}`,
       icon: account.icon,
@@ -581,8 +591,9 @@ export class LedgerRepository {
   }
 
   async getAccount(planId: string, accountId: string): Promise<any> {
-    await this.ensureAccount(planId, accountId);
-    const row = await this.db.query(`${ACCOUNT_SELECT_SQL} WHERE id = ? AND plan_id = ?`).get(accountId, planId) as Row;
+    // A read must not create the account (and its transfer payee) for an unknown id.
+    const row = await this.db.query(`${ACCOUNT_SELECT_SQL} WHERE id = ? AND plan_id = ?`).get(accountId, planId) as Row | null;
+    if (!row) throw new NotFoundError("Account not found");
     return formatAccount(row);
   }
 
@@ -718,6 +729,10 @@ export class LedgerRepository {
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(payeeId, planId, name ?? `Imported payee ${payeeId.slice(0, 8)}`, payeeId);
+    // As ensureCategory: another plan's payee must not be linked from this one.
+    if (await this.db.query("SELECT 1 FROM payees WHERE id = ? AND plan_id <> ?").get(payeeId, planId)) {
+      throw new ValidationError("Payee not found");
+    }
   }
 
   async upsertPayee(planId: string, payee: any): Promise<void> {
@@ -1102,6 +1117,11 @@ export class LedgerRepository {
       const existingRow = await this.db
         .query("SELECT * FROM transactions WHERE id = ? AND plan_id = ?")
         .get(transactionId, planId) as Row | null;
+      // The upsert below matches on id alone, so a write naming another plan's
+      // transaction id moved that row into this plan's account, as on D1 refused.
+      if (!existingRow && await this.db.query("SELECT 1 FROM transactions WHERE id = ? AND plan_id <> ?").get(transactionId, planId)) {
+        throw new NotFoundError("Transaction belongs to another plan");
+      }
       const refs = await this.resolveTransactionRefs(planId, input);
 
       let payeeId = refs.payeeId;
@@ -1142,6 +1162,11 @@ export class LedgerRepository {
           }
           createLinkedSide = true;
         }
+      }
+      // Moving a linked row into the account it transfers to made both sides
+      // land in that account, and the source lost its side of the money.
+      if (autoLink && transferTransactionId && transferAccountId === input.account_id) {
+        throw new ValidationError("Transfer target must be a different account");
       }
       if (autoLink && transferAccountId && await this.accountsBothOnBudget(planId, input.account_id, transferAccountId)) {
         // Transfers between two budget accounts carry no category in YNAB;
@@ -1221,11 +1246,9 @@ export class LedgerRepository {
         .query("SELECT id, transfer_transaction_id FROM subtransactions WHERE transaction_id = ?")
         .all(transactionId) as Row[];
       await this.db.query("DELETE FROM subtransactions WHERE transaction_id = ?").run(transactionId);
-      const keptSubIds = new Set<string>();
       const keptLinkIds = new Set<string>();
       for (const sub of input.subtransactions ?? []) {
         const subId = sub.id ?? createId("sub");
-        keptSubIds.add(subId);
         const subRefs = await this.resolveTransactionRefs(planId, {
           account_id: input.account_id,
           date: input.date,
@@ -1312,11 +1335,11 @@ export class LedgerRepository {
           );
       }
 
-      // Split lines that disappeared take their linked sides with them — but
-      // a line that was merely re-keyed keeps the linked side it still cites.
+      // A linked side no line still cites goes: the line disappeared, stopped
+      // being a transfer, or kept its id but was given a new linked side. A
+      // line that was merely re-keyed keeps the linked side it still cites.
       for (const previous of previousSubs) {
         if (
-          !keptSubIds.has(previous.id) &&
           previous.transfer_transaction_id &&
           !keptLinkIds.has(previous.transfer_transaction_id)
         ) {
@@ -1622,7 +1645,7 @@ export class LedgerRepository {
     };
   }
 
-  protected async resolveTransactionLookup(planId: string, lookup: TransactionLookup): Promise<string> {
+  async resolveTransactionLookup(planId: string, lookup: TransactionLookup): Promise<string> {
     if (lookup.kind === "id") {
       const row = await this.getTransactionRow(planId, lookup.id);
       if (!row) throw new NotFoundError("Transaction not found");
@@ -2213,19 +2236,31 @@ export class LedgerRepository {
     const scheduleSnapshot = scheduledOccurrenceSnapshotHash(schedule);
     if (existing && existing.snapshotHash !== scheduleSnapshot) throw new Error("stale scheduled occurrence");
 
-    const input = await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId);
+    // An occurrence posted from this exact schedule snapshot whose advance did
+    // not commit is only advanced here. Re-creating it would hash a different
+    // source_ref whenever the retry carries another operation seed (the next
+    // day's cron, a new Idempotency-Key), and be refused as key reuse forever.
     const operationId = `scheduled_occurrence_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
-    const transaction = await this.createTransaction(planId, input, { autoLink: true, operationId });
-    const advanceId = `scheduled_advance_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
-    let advanced: any;
+    const transaction = existing
+      ? existing.transaction
+      : await this.createTransaction(
+        planId,
+        await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId),
+        { autoLink: true, operationId },
+      );
+    const advanceKind = schedule.frequency === "never" ? "complete" : "advance";
+    const advanceId = `scheduled_${advanceKind}_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
     const expected = { date_first: schedule.date_first, date_next: occurrenceDate, frequency: schedule.frequency };
-    if (schedule.frequency === "never") {
-      advanced = await this.deleteScheduledTransaction(planId, scheduledTransactionId, { operationId: advanceId, expected });
-    } else {
-      const nextDate = nextScheduledOccurrence(schedule.date_first, occurrenceDate, schedule.frequency);
-      if (!nextDate) throw new ValidationError("Recurring schedule did not produce a next date");
-      advanced = await this.updateScheduledTransaction(planId, scheduledTransactionId, { date_next: nextDate }, { operationId: advanceId, expected });
-    }
+    const nextDate = schedule.frequency === "never" ? null : nextScheduledOccurrence(schedule.date_first, occurrenceDate, schedule.frequency);
+    if (schedule.frequency !== "never" && !nextDate) throw new ValidationError("Recurring schedule did not produce a next date");
+    const advance = (operationId?: string) => schedule.frequency === "never"
+      ? this.deleteScheduledTransaction(planId, scheduledTransactionId, { operationId, expected })
+      : this.updateScheduledTransaction(planId, scheduledTransactionId, { date_next: nextDate! }, { operationId, expected });
+    let advanced: any = await advance(advanceId);
+    // The keyed advance replays an earlier one without writing when the
+    // schedule was moved back onto this already-posted occurrence. Advance it
+    // for real; `expected` still refuses a concurrent change.
+    if (!advanced.deleted && advanced.date_next === occurrenceDate) advanced = await advance();
     return {
       transaction,
       scheduled_transaction: advanced,
@@ -2426,12 +2461,22 @@ export class LedgerRepository {
       cleared: sourceAccount.type === "cash" ? "cleared" : "uncleared",
       approved: false,
       flag_color: normalised.flag_color ?? null,
+      // Named from the account's rewards card, as a typed transaction is; a
+      // posted occurrence otherwise labels its flag group by colour alone.
+      ...await this.cardFlagName(planId, normalised.account_id, normalised.flag_color ?? null),
       transfer_account_id: parent.transferAccountId,
       import_id: `scheduled:${schedule.id}:${occurrenceDate}`,
       source_kind: "scheduled-transaction",
       source_ref: `${schedule.id}:${occurrenceDate}:${scheduledOccurrenceSnapshotHash(schedule)}:${scheduleDigest(requestOperationId ?? "direct").slice(0, 16)}`,
       subtransactions,
     };
+  }
+
+  private async cardFlagName(planId: string, accountId: string, flagColor: string | null): Promise<{ flag_name?: string | null }> {
+    const card = (await this.getRewardsTrackerSnapshot(planId)).cards.find((entry) =>
+      Boolean(entry && typeof entry === "object" && !Array.isArray(entry) && (entry as { ynabAccountId?: string }).ynabAccountId === accountId),
+    ) as CreditCard | undefined;
+    return card ? { flag_name: flagNameForColour(cardFlagNames(card), flagColor) } : {};
   }
 
   private async readMaterializedOccurrence(planId: string, transactionId: string, scheduleId: string, occurrenceDate: string): Promise<{ transaction: any; snapshotHash: string } | null> {
@@ -2459,8 +2504,11 @@ export class LedgerRepository {
   private async validateScheduledReferences(planId: string, transaction: EffectiveScheduledTransaction): Promise<void> {
     const requireReference = async (table: "accounts" | "payees" | "categories", id: unknown, label: string) => {
       if (id == null) return;
-      const row = await this.db.query(`SELECT name FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`).get(id, planId) as Row | null;
+      const row = await this.db.query(`SELECT ${table === "payees" ? "name,transfer_account_id" : "name"} FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`).get(id, planId) as Row | null;
       if (!row) throw new ValidationError(`${label} not found`);
+      if (table === "payees" && row.transfer_account_id != null && row.transfer_account_id === transaction.account_id) {
+        throw new ValidationError(`${label} is a transfer to the scheduled transaction's own account`);
+      }
       return row;
     };
     const account = await requireReference("accounts", transaction.account_id, "Account");
@@ -3318,11 +3366,17 @@ function normaliseReconciliationDate(value: unknown): string {
 
 const CLEARED_STATES = new Set(["cleared", "uncleared", "reconciled"]);
 
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function validateTransactionInput(input: TransactionInput, strict: boolean): void {
   if (!input.account_id || typeof input.account_id !== "string") {
     throw new ValidationError("account_id is required");
   }
-  if (!input.date || (strict && !/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)))) {
+  if (!input.date || (strict && !isCalendarDate(String(input.date)))) {
     // Importers (strict=false) keep accepting the loose date spellings they
     // always stored verbatim; API writes must be ISO.
     throw new ValidationError("date must be an ISO date (YYYY-MM-DD)");

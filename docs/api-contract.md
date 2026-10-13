@@ -104,7 +104,8 @@ Plan owners change the formats with `PATCH /api/plans/{plan_id}/settings`; see [
 `POST /v1/plans/{plan_id}/accounts/{account_id}/reconcile`
 
 Create body: `{ "account": { "name": "Savings", "type": "savings", "balance": 0, "icon": "💰" } }`.
-`icon` is optional. A leading emoji on `name` is lifted into `icon` and
+`icon` is optional. `on_budget` defaults from `type` when it is not sent, so a
+mortgage, loan or asset account is a tracking account. A leading emoji on `name` is lifted into `icon` and
 stripped from the stored name. A trailing emoji stays on the name. Accounts
 without a leading emoji receive a type default such as 🏦 for checking or 💳
 for credit cards.

@@ -3,7 +3,7 @@ import { isLoopbackHost, type ApiConfig } from "./config";
 import { AccountPreferencesConflictError, LedgerRepository, NotFoundError, ReconciliationMismatchError, TransactionStateConflictError, ValidationError } from "./repository";
 import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
-import { collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
+import { assertTransactionFieldTypes, collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
 import { ReportService } from "./reports";
 import { decimalToMilliunits } from "./money";
 import { importCsvRows } from "./importers/csv";
@@ -33,7 +33,7 @@ import {
 } from "./password-auth";
 import { randomBytes } from "node:crypto";
 import { ScheduledTransactionValidationError } from "./scheduled-transactions";
-import { ACCOUNT_KINDS, parseAccountKind, type AccountUpdatePatch } from "./account-kind";
+import { ACCOUNT_KINDS, onBudgetForKind, parseAccountKind, type AccountUpdatePatch } from "./account-kind";
 import { handleRewardTool } from "./reward-tools";
 import { autoCategorise, CategoriserUnavailableError, parseCategoriseExclusions, parseCategoriseItems, suggestCategories, type CategoriserConfig } from "./categoriser";
 import type { Fetch } from "@typesafe-ai/sdk";
@@ -267,7 +267,31 @@ async function handleV1(
       if (!payload || (!payload.id && !payload.name)) {
         return apiError(400, "bad_request", "account requires a name");
       }
-      const account = await repo.createAccount(planId, payload);
+      // An object name was stored as "[object Object]", an object type failed
+      // as a 500, and a string flag read as true on D1 but false on SQLite.
+      for (const field of ["id", "name", "type", "icon", "note"]) {
+        if (payload[field] != null && typeof payload[field] !== "string") {
+          throw new ValidationError(`account.${field} must be a string`);
+        }
+      }
+      for (const field of ["on_budget", "closed", "deleted"]) {
+        if (payload[field] != null && typeof payload[field] !== "boolean") {
+          throw new ValidationError(`account.${field} must be true or false`);
+        }
+      }
+      // Balances feed integer milliunit arithmetic; a decimal string or an
+      // object would be stored verbatim and corrupt every later balance.
+      for (const field of ["balance", "opening_balance", "cleared_balance", "uncleared_balance"]) {
+        if (payload[field] != null && !Number.isSafeInteger(payload[field])) {
+          throw new ValidationError(`account.${field} must be integer milliunits`);
+        }
+      }
+      // The documented create body names a type and no on_budget; a tracking
+      // kind (mortgage, asset, loan) must not default to on-budget.
+      const kind = parseAccountKind(payload.type);
+      const account = await repo.createAccount(planId, payload.on_budget == null && kind
+        ? { ...payload, on_budget: onBudgetForKind(kind) }
+        : payload);
       return json({ data: { account, server_knowledge: await repo.getServerKnowledge(planId) } }, 201);
     }
     // Must precede the `/accounts/{account_id}` branch below, or "usage" would
@@ -423,7 +447,11 @@ async function handleV1(
     }
     if (segments.length === 4 && method === "POST") {
       const body = await readJson(request);
-      const payee = await repo.createPayee(planId, body.payee?.name ?? body.name);
+      const name = body.payee?.name ?? body.name;
+      // A missing name reached the NOT NULL column as a 500; a blank one made
+      // a payee nobody can see or pick.
+      if (typeof name !== "string" || !name.trim()) throw new ValidationError("payee.name is required");
+      const payee = await repo.createPayee(planId, name.trim());
       return json({ data: { payee, server_knowledge: await repo.getServerKnowledge(planId) } }, 201);
     }
     const payeeId = segments[4];
@@ -505,13 +533,24 @@ async function handleV1(
       return transactionListResponse(repo, planId, queryFilters(url));
     }
     if (segments.length === 4 && method === "PATCH") {
-      const result = await repo.updateTransactions(planId, parseTransactionUpdates(await readJson(request)));
+      const edits = parseTransactionUpdates(await readJson(request));
+      // A bulk recolour takes the card's name for the new colour, as a single
+      // edit does; otherwise the row keeps the old colour's name.
+      for (const edit of edits) {
+        if (!Object.prototype.hasOwnProperty.call(edit.patch, "flag_color") || Object.prototype.hasOwnProperty.call(edit.patch, "flag_name")) continue;
+        const accountId = typeof edit.patch.account_id === "string" && edit.patch.account_id
+          ? edit.patch.account_id
+          : (await repo.getTransaction(planId, await repo.resolveTransactionLookup(planId, edit.lookup))).account_id;
+        await stampTransactionFlagName(repo, planId, accountId, edit.patch);
+      }
+      const result = await repo.updateTransactions(planId, edits);
       return json({ data: result });
     }
     if (segments.length === 4 && method === "POST") {
       const body = await readJson(request);
       if (collectionPostIntent(body) === "many") {
         const inputs = parseTransactionCreates(body.transactions);
+        for (const input of inputs) await stampTransactionFlagName(repo, planId, input.account_id, input);
         await autoCategorise(repo, planId, inputs, categoriser);
         const result = await repo.createTransactions(planId, inputs);
         return json({ data: result }, 201);
@@ -520,6 +559,7 @@ async function handleV1(
       if (!input) {
         return apiError(400, "bad_request", "transaction is required");
       }
+      assertTransactionFieldTypes(input);
       const existing = input?.import_id && input?.account_id
         ? await repo.findTransactionByImportId(planId, input.import_id, input.account_id)
         : null;
@@ -557,10 +597,10 @@ async function handleV1(
     }
     if (segments.length === 5 && segments[4] === "import" && method === "POST") {
       const body = await readJson(request);
-      const result = await repo.importTransactions(
-        planId,
-        (body.transactions ?? []).map((transaction: any) => transaction.transaction ?? transaction),
-      );
+      if (body.transactions != null && !Array.isArray(body.transactions)) throw new ValidationError("transactions must be an array");
+      const items = (body.transactions ?? []).map((transaction: any) => transaction?.transaction ?? transaction);
+      items.forEach((item: unknown, index: number) => assertTransactionFieldTypes(item, `transactions[${index}]`));
+      const result = await repo.importTransactions(planId, items);
       return json({ data: result }, 201);
     }
 
@@ -598,9 +638,13 @@ async function handleV1(
     if (segments.length === 5 && (method === "PUT" || method === "PATCH")) {
       const body = await readJson(request);
       const patch = body.transaction ?? body;
+      assertTransactionFieldTypes(patch);
       if (Object.prototype.hasOwnProperty.call(patch, "flag_color") && !Object.prototype.hasOwnProperty.call(patch, "flag_name")) {
-        const existing = await repo.getTransaction(planId, transactionId);
-        await stampTransactionFlagName(repo, planId, existing.account_id, patch);
+        // A move and a flag in one edit take the destination card's names.
+        const accountId = typeof patch.account_id === "string" && patch.account_id
+          ? patch.account_id
+          : (await repo.getTransaction(planId, transactionId)).account_id;
+        await stampTransactionFlagName(repo, planId, accountId, patch);
       }
       const updated = await repo.updateTransaction(planId, transactionId, patch);
       return json({ data: { transaction: updated, server_knowledge: await repo.getServerKnowledge(planId) } });
@@ -788,10 +832,13 @@ async function handleNative(
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
     if (denied) return denied;
     await repo.ensurePlan(targetPlanId);
-    const amount = body.amount_milli ?? decimalToMilliunits(body.amount);
+    const amount = quickEntryMilliunits(body.amount_milli, body.amount, "amount");
+    if (Array.isArray(body.subtransactions) && body.subtransactions.some((sub: unknown) => !sub || typeof sub !== "object" || Array.isArray(sub))) {
+      throw new ValidationError("subtransactions must be objects");
+    }
     const subtransactions = Array.isArray(body.subtransactions)
       ? body.subtransactions.map((sub: any) => ({
-          amount: sub.amount_milli ?? decimalToMilliunits(sub.amount),
+          amount: quickEntryMilliunits(sub.amount_milli, sub.amount, "subtransaction amount"),
           payee_id: sub.payee_id ?? null,
           payee_name: sub.payee_name ?? null,
           category_id: sub.category_id ?? null,
@@ -813,6 +860,7 @@ async function handleNative(
       source_ref: body.client_id ?? null,
       subtransactions,
     };
+    assertTransactionFieldTypes(input);
     await stampTransactionFlagName(repo, targetPlanId, input.account_id, input);
     await autoCategorise(repo, targetPlanId, [input], categoriser);
     const transaction = await repo.createTransaction(targetPlanId, input);
@@ -899,6 +947,21 @@ async function handleNative(
   }
 
   return apiError(404, "not_found", "Route not found");
+}
+
+/**
+ * Quick entry takes integer milliunits or a decimal string. A missing or
+ * unparseable decimal is the caller's mistake, not a server failure; integer
+ * checks on `amount_milli` stay with the transaction writer.
+ */
+function quickEntryMilliunits(milli: unknown, decimal: unknown, label: string): number {
+  if (milli !== undefined && milli !== null) return milli as number;
+  if (typeof decimal !== "string" && typeof decimal !== "number") throw new ValidationError(`${label} is required`);
+  try {
+    return decimalToMilliunits(decimal);
+  } catch {
+    throw new ValidationError(`${label} must be a decimal amount`);
+  }
 }
 
 function queryFilters(url: URL, overrides: Record<string, string | null> = {}): TransactionFilters {
@@ -1038,11 +1101,18 @@ async function readJson(request: Request): Promise<any> {
   if (!text) {
     return {};
   }
+  let body: unknown;
   try {
-    return JSON.parse(text);
+    body = JSON.parse(text);
   } catch {
     throw new ValidationError("Request body is not valid JSON");
   }
+  // Every route reads named fields; a bare null, array or scalar failed on the
+  // first property read as a 500.
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new ValidationError("Request body must be a JSON object");
+  }
+  return body;
 }
 
 function scheduledWriteOptions(request: Request): { operationId?: string } {

@@ -41,6 +41,12 @@ Preview:
 cd apps/worker
 wrangler d1 migrations apply DB --remote --env preview --profile yj
 bun run deploy:preview
+```
+
+Production (only when production itself is authorized; run `scripts/backup-d1.sh` first):
+
+```sh
+cd apps/worker
 wrangler d1 migrations apply DB --env tk --remote --profile tinkertanker
 bun run deploy:tk
 ```
@@ -249,8 +255,8 @@ bun run backup:d1
 ```
 
 - Destination: gitignored `data/backups/` (override with `HOWMUCH_BACKUP_DIR`).
-  Each run writes `howmuch-production-YYYY-MM-DD.sql` (UTC date) and
-  `howmuch-production-YYYY-MM-DD.sql.sha256`, and appends diagnostics to
+  Each run writes `howmuch-production-sg-YYYY-MM-DD.sql` (UTC date) and
+  `howmuch-production-sg-YYYY-MM-DD.sql.sha256`, and appends diagnostics to
   `data/backups/.backup-d1.log`.
 - The script is read-only against production. It first verifies that Wrangler
   profile `tinkertanker` exposes `howmuch-production-sg` = `d13295f9-...`, then
@@ -265,7 +271,7 @@ bun run backup:d1
   risky change. The YNAB raw mirror dominates the ~204 MB dump.
 - Retention: keeps the newest archive from each of the most recent 6 calendar
   months (`HOWMUCH_BACKUP_RETENTION_MONTHS`). Pruning removes only
-  `howmuch-production-*.sql` and its `.sha256` inside the configured backup
+  `howmuch-production-sg-YYYY-MM-DD.sql` and its `.sha256` inside the configured backup
   directory; it never touches `data/tk-migration/` or other artefacts, and the
   newest dump is always kept.
 - Other overrides: `HOWMUCH_BACKUP_COUNT_TOLERANCE`, `HOWMUCH_BACKUP_MIN_BYTES`,
@@ -289,7 +295,9 @@ fire `RAISE(ABORT, ...)` guards during bulk load):
 
 ```sh
 cd apps/worker
-wrangler d1 export howmuch-production --env tk --remote --profile tinkertanker --output <local-file>.sql
+# howmuch-production-sg, not howmuch-production: that name in this account is
+# the frozen pre-cutover KIX snapshot, which Wrangler would export instead.
+wrangler d1 export howmuch-production-sg --env tk --remote --profile tinkertanker --output <local-file>.sql
 
 # Build a local copy, then emit schema/data/triggers in dependency order:
 sqlite3 local-copy.sqlite < <local-file>.sql
@@ -324,8 +332,8 @@ Keep `HOWMUCH_API_TOKEN` as an encrypted secret. Use the local, validated import
 ## Historical: temporary YNAB transition mode
 
 > Completed. The YNAB transition finished before the 2026-09-11 account
-> migration; production (Tinkertanker) runs no YNAB configuration, no cron,
-> and accepts writes normally. This section is kept for reference and for its
+> migration; production (Tinkertanker) runs no YNAB configuration, no YNAB
+> cron (only the scheduled-materialisation cron), and accepts writes normally. This section is kept for reference and for its
 > privacy-safe verification rules, which still apply to any operational work.
 
 Production has finished the YNAB-primary transition. `HOWMUCH_TRANSITION_READ_ONLY=false`, there is no `HOWMUCH_YNAB_PLAN_ID`, and the only cron is HowMuch scheduled materialisation at `5 16 * * *` (`00:05 Asia/Singapore`). Do not add `HOWMUCH_YNAB_PLAN_ID` or the `10 16 * * *` YNAB delta cron again unless a new transition is explicitly authorised. `HOWMUCH_YNAB_TOKEN` must not exist as a Worker secret. Preview stays writable with no YNAB plan, token, or cron. Local configuration is writable unless the variable is the literal string `true`.

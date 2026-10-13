@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { api, useApi, type CreatedPersonalApiToken } from "../api/client";
 import { SettingsCrumb } from "../components/SettingsCrumb";
+import { useConfirmationFocus } from "../lib/use-confirmation-focus";
 
 export function ApiTokensPage() {
   const [generation, setGeneration] = useState(0);
@@ -8,6 +9,13 @@ export function ApiTokensPage() {
   const [created, setCreated] = useState<CreatedPersonalApiToken | null>(null);
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<string | null>(null);
+  // The confirmation replaces the token's Revoke button, so focus moves into
+  // it, and back to that token's Revoke button when it is cancelled.
+  const revokeCancelRef = useRef<HTMLButtonElement>(null);
+  const lastRevokeId = useRef<string | null>(null);
+  if (pendingRevoke) lastRevokeId.current = pendingRevoke;
+  useConfirmationFocus(pendingRevoke, revokeCancelRef, () =>
+    document.querySelector<HTMLButtonElement>(`[data-token-id="${CSS.escape(lastRevokeId.current ?? "")}"] .api-token-revoke`));
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const tokens = useApi(`personal-api-tokens:${generation}`, api.personalApiTokens);
@@ -137,7 +145,7 @@ export function ApiTokensPage() {
         {active.length > 0 && (
           <ul className="api-token-list">
             {active.map((token) => (
-              <li key={token.id}>
+              <li key={token.id} data-token-id={token.id}>
                 <div>
                   <strong>{token.name}</strong>
                   <span>Created {formatTimestamp(token.created_at)}</span>
@@ -145,7 +153,7 @@ export function ApiTokensPage() {
                 {pendingRevoke === token.id ? (
                   <div className="api-token-confirm">
                     <span>Stop this token immediately?</span>
-                    <button type="button" className="text-button" onClick={() => setPendingRevoke(null)} disabled={busy !== null}>Cancel</button>
+                    <button type="button" ref={revokeCancelRef} className="text-button" onClick={() => setPendingRevoke(null)} disabled={busy !== null}>Cancel</button>
                     <button type="button" className="api-token-revoke" onClick={() => void revokeToken(token.id)} disabled={busy !== null}>{busy === token.id ? "Revoking…" : "Revoke"}</button>
                   </div>
                 ) : (

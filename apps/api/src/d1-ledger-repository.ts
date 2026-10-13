@@ -83,6 +83,8 @@ export class D1LedgerRepository extends LedgerRepository {
   }
   override async createAccount(planId:string,account:any):Promise<any>{
     const id=account.id??createId("acct"); const opening=account.opening_balance??account.balance??0;
+    // Another plan's account id failed the write's plan assertion as a 500.
+    if(account.id&&await this.d1.get("SELECT 1 FROM accounts WHERE id=? AND plan_id<>?",[account.id,planId]))throw new ValidationError("Account belongs to another plan");
     await this.metadata.upsertAccount(planId,{...account,id,...(!account.id?{opening_balance:opening,balance:account.balance??opening,cleared_balance:account.cleared_balance??account.balance??opening}: {})},this.context("account.create",planId,id));
     return this.getAccount(planId,id);
   }
@@ -357,8 +359,11 @@ export class D1LedgerRepository extends LedgerRepository {
   private async validateD1ScheduledReferences(planId: string, transaction: EffectiveScheduledTransaction): Promise<void> {
     const requireReference = async (table: "accounts" | "payees" | "categories", id: unknown, label: string) => {
       if (id == null) return null;
-      const row = await this.d1.get<Record<string, any>>(`SELECT name FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`, [id, planId]);
+      const row = await this.d1.get<Record<string, any>>(`SELECT ${table === "payees" ? "name,transfer_account_id" : "name"} FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`, [id, planId]);
       if (!row) throw new ValidationError(`${label} not found`);
+      if (table === "payees" && row.transfer_account_id != null && row.transfer_account_id === transaction.account_id) {
+        throw new ValidationError(`${label} is a transfer to the scheduled transaction's own account`);
+      }
       return row;
     };
     const account = await requireReference("accounts", transaction.account_id, "Account");

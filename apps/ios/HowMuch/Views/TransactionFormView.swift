@@ -28,20 +28,33 @@ struct AmountKeypadEngine: Equatable {
     isTypingEntry = true
   }
 
-  mutating func tapDigit(_ digit: Int) {
+  /// Milliunits in the plan currency's smallest unit: 10 for cents, 1,000
+  /// for a currency without a minor unit such as the yen.
+  private static func digitUnit(fractionDigits: Int) -> Int {
+    switch min(max(fractionDigits, 0), 3) {
+    case 0: return 1_000
+    case 1: return 100
+    case 2: return 10
+    default: return 1
+    }
+  }
+
+  /// Digits shift in from the right in the plan currency's smallest unit.
+  mutating func tapDigit(_ digit: Int, fractionDigits: Int = 2) {
     if !isTypingEntry {
       entry = 0
       isTypingEntry = true
     }
-    let next = entry * 10 + digit * 10
+    let next = entry * 10 + digit * Self.digitUnit(fractionDigits: fractionDigits)
     entry = min(next, Self.cap)
   }
 
-  mutating func tapBackspace() {
+  mutating func tapBackspace(fractionDigits: Int = 2) {
     if !isTypingEntry {
       cancelPendingOperation()
     }
-    entry = (entry / 100) * 10
+    let unit = Self.digitUnit(fractionDigits: fractionDigits)
+    entry = (entry / (unit * 10)) * unit
   }
 
   mutating func tapClear() {
@@ -538,6 +551,8 @@ struct TransactionFormView: View {
         )
     }
     .buttonStyle(.plain)
+    // The chosen side is shown only by its fill, so VoiceOver needs the trait.
+    .accessibilityAddTraits(isSelected ? .isSelected : [])
   }
 
   private var detailCard: some View {
@@ -1282,6 +1297,7 @@ private struct TransactionSplitCategoryPicker: View {
 }
 
 struct CalculatorKeypad: View {
+  @Environment(AppModel.self) private var model
   @Binding var engine: AmountKeypadEngine
   let primaryAction: KeypadPrimaryAction
   let onPrimary: () -> Void
@@ -1295,20 +1311,20 @@ struct CalculatorKeypad: View {
     VStack(spacing: 4) {
       keypadRow {
         digitKey(7); digitKey(8); digitKey(9)
-        symbolKey("minus") { engine.tapOperator(.subtract) }
+        symbolKey("minus", label: "Minus") { engine.tapOperator(.subtract) }
       }
       keypadRow {
         digitKey(4); digitKey(5); digitKey(6)
-        symbolKey("plus") { engine.tapOperator(.add) }
+        symbolKey("plus", label: "Plus") { engine.tapOperator(.add) }
       }
       keypadRow {
         digitKey(1); digitKey(2); digitKey(3)
-        symbolKey("equal") { engine.tapEquals() }
+        symbolKey("equal", label: "Equals") { engine.tapEquals() }
       }
       keypadRow {
-        symbolKey("xmark.circle.fill", colour: .secondary) { engine.tapClear() }
+        symbolKey("xmark.circle.fill", label: "Clear", colour: .secondary) { engine.tapClear() }
         digitKey(0)
-        symbolKey("delete.left") { engine.tapBackspace() }
+        symbolKey("delete.left", label: "Delete") { engine.tapBackspace(fractionDigits: fractionDigits) }
         primaryKey
       }
     }
@@ -1322,6 +1338,11 @@ struct CalculatorKeypad: View {
     .sensoryFeedback(.impact(weight: .medium), trigger: symbolTaps)
   }
 
+  /// The plan currency's decimals, which the amount header draws with.
+  private var fractionDigits: Int {
+    model.currencyFormat?.decimalDigits ?? 2
+  }
+
   private func keypadRow(@ViewBuilder content: () -> some View) -> some View {
     HStack(spacing: 4) {
       content()
@@ -1331,7 +1352,7 @@ struct CalculatorKeypad: View {
   private func digitKey(_ digit: Int) -> some View {
     key {
       digitTaps += 1
-      engine.tapDigit(digit)
+      engine.tapDigit(digit, fractionDigits: fractionDigits)
     } label: {
       Text("\(digit)")
         .font(.title2.weight(.medium))
@@ -1339,7 +1360,14 @@ struct CalculatorKeypad: View {
     }
   }
 
-  private func symbolKey(_ systemName: String, colour: Color = Theme.accent, action: @escaping () -> Void) -> some View {
+  /// `label` is what VoiceOver says: the symbol's own name would read the
+  /// clear key as "Close", as though it dismissed the form.
+  private func symbolKey(
+    _ systemName: String,
+    label: String,
+    colour: Color = Theme.accent,
+    action: @escaping () -> Void
+  ) -> some View {
     key {
       symbolTaps += 1
       action()
@@ -1348,6 +1376,7 @@ struct CalculatorKeypad: View {
         .font(.title3.weight(.medium))
         .foregroundStyle(colour)
     }
+    .accessibilityLabel(label)
   }
 
   private var primaryKey: some View {

@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { formatAmount, formatMoney } from "../lib/money";
+import { formatAmount, formatMoney, withPlanDecimal } from "../lib/money";
 import { formatPeriod } from "../lib/dates";
 
 const WIDTH = 960;
@@ -24,8 +24,8 @@ function shortMoney(milliunits: number): string {
   const value = milliunits / 1000;
   const abs = Math.abs(value);
   const sign = value < 0 ? "−" : "";
-  if (abs >= 1_000_000) return `${sign}${(abs / 1_000_000).toFixed(1)}m`;
-  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`;
+  if (abs >= 1_000_000) return withPlanDecimal(`${sign}${(abs / 1_000_000).toFixed(1)}m`);
+  if (abs >= 1_000) return withPlanDecimal(`${sign}${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`);
   return `${sign}${abs.toFixed(0)}`;
 }
 

@@ -1,8 +1,9 @@
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
-import { basename, dirname, extname, join } from "node:path";
+import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 import { openDatabase } from "../apps/api/src/db";
 import { importYnabExport } from "../apps/api/src/importers/ynab-export";
 import { LedgerRepository } from "../apps/api/src/repository";
+import { backupSqliteDatabase } from "./lib/sqlite-backup";
 
 type CliOptions = {
   dbPath: string;
@@ -23,7 +24,7 @@ if (options.help) {
   process.exit(0);
 }
 
-const backupPath = options.noBackup ? null : maybeBackupDatabase(options.dbPath);
+const backupPath = options.noBackup ? null : backupSqliteDatabase(options.dbPath);
 const input = options.zipPath ? readYnabExportZip(options.zipPath) : readYnabExportFiles(options);
 const db = openDatabase(options.dbPath);
 const repo = new LedgerRepository(db, options.planId);
@@ -187,24 +188,6 @@ function inferPlanName(path: string): string | undefined {
   const file = basename(path);
   const match = file.match(/^(.+?)\s+as of\s+/i);
   return match?.[1];
-}
-
-function maybeBackupDatabase(dbPath: string): string | null {
-  if (!existsSync(dbPath)) {
-    return null;
-  }
-
-  const backupDir = join(dirname(dbPath), "backups");
-  mkdirSync(backupDir, { recursive: true });
-  const extension = extname(dbPath);
-  const name = basename(dbPath, extension);
-  const backupPath = join(backupDir, `${name}-${timestampForFileName()}.${extension ? extension.slice(1) : "sqlite"}`);
-  copyFileSync(dbPath, backupPath);
-  return backupPath;
-}
-
-function timestampForFileName(): string {
-  return new Date().toISOString().replace(/[-:]/g, "").replace(/\..+$/, "").replace("T", "-");
 }
 
 function queryImportSummary(db: ReturnType<typeof openDatabase>, planId: string) {
