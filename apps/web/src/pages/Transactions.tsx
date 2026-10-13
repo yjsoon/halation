@@ -263,6 +263,17 @@ export function TransactionsPage() {
   const [approvalSession, setApprovalSession] = useState(emptyApprovalSession);
   const approvalSessionRef = useRef(approvalSession);
   const [compose, setCompose] = useState<RegisterComposeState>(closedCompose);
+  // Closing the compose row (Esc, Cancel or a save) unmounts the focused
+  // field; hand focus back to "+ Add transaction" rather than to <body>.
+  const addTransactionRef = useRef<HTMLButtonElement>(null);
+  const composeWasOpen = useRef(false);
+  useEffect(() => {
+    const closed = composeWasOpen.current && compose.status !== "open";
+    composeWasOpen.current = compose.status === "open";
+    if (closed && (document.activeElement === null || document.activeElement === document.body)) {
+      addTransactionRef.current?.focus({ preventScroll: true });
+    }
+  }, [compose.status]);
   const [composeFocus, setComposeFocus] = useState(0);
   const mutationLockRef = useRef(false);
   const clearedInFlightRef = useRef(new Set<string>());
@@ -1560,6 +1571,7 @@ export function TransactionsPage() {
         <div className="register-toolbar-actions">
           <button
             type="button"
+            ref={addTransactionRef}
             className="register-add-link"
             onClick={openCompose}
             disabled={!canCompose || mutationBusy}
