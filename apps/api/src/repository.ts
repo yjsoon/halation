@@ -322,6 +322,11 @@ export class LedgerRepository {
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(accountId, planId, name ?? `Imported account ${accountId.slice(0, 8)}`, accountId);
+    // The insert skips an id that exists anywhere: another plan's account id
+    // booked this plan's transaction against that plan's balance.
+    if (await this.db.query("SELECT 1 FROM accounts WHERE id = ? AND plan_id <> ?").get(accountId, planId)) {
+      throw new ValidationError("Account not found");
+    }
     await this.ensureTransferPayee(planId, accountId);
   }
 
@@ -416,7 +421,10 @@ export class LedgerRepository {
 
   async upsertAccount(planId: string, account: any): Promise<void> {
     await this.ensurePlan(planId);
-    const existing = await this.db.query("SELECT icon FROM accounts WHERE id = ?").get(account.id) as Row | null;
+    const existing = await this.db.query("SELECT icon, plan_id FROM accounts WHERE id = ?").get(account.id) as Row | null;
+    // The upsert matches on id alone: another plan's account id renamed and
+    // retyped that plan's account.
+    if (existing && existing.plan_id !== planId) throw new ValidationError("Account belongs to another plan");
     const presentation = resolveAccountPresentation({
       name: account.name ?? `Account ${account.id}`,
       icon: account.icon,
@@ -721,6 +729,10 @@ export class LedgerRepository {
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(payeeId, planId, name ?? `Imported payee ${payeeId.slice(0, 8)}`, payeeId);
+    // As ensureCategory: another plan's payee must not be linked from this one.
+    if (await this.db.query("SELECT 1 FROM payees WHERE id = ? AND plan_id <> ?").get(payeeId, planId)) {
+      throw new ValidationError("Payee not found");
+    }
   }
 
   async upsertPayee(planId: string, payee: any): Promise<void> {
@@ -1105,6 +1117,11 @@ export class LedgerRepository {
       const existingRow = await this.db
         .query("SELECT * FROM transactions WHERE id = ? AND plan_id = ?")
         .get(transactionId, planId) as Row | null;
+      // The upsert below matches on id alone, so a write naming another plan's
+      // transaction id moved that row into this plan's account, as on D1 refused.
+      if (!existingRow && await this.db.query("SELECT 1 FROM transactions WHERE id = ? AND plan_id <> ?").get(transactionId, planId)) {
+        throw new NotFoundError("Transaction belongs to another plan");
+      }
       const refs = await this.resolveTransactionRefs(planId, input);
 
       let payeeId = refs.payeeId;
@@ -1145,6 +1162,11 @@ export class LedgerRepository {
           }
           createLinkedSide = true;
         }
+      }
+      // Moving a linked row into the account it transfers to made both sides
+      // land in that account, and the source lost its side of the money.
+      if (autoLink && transferTransactionId && transferAccountId === input.account_id) {
+        throw new ValidationError("Transfer target must be a different account");
       }
       if (autoLink && transferAccountId && await this.accountsBothOnBudget(planId, input.account_id, transferAccountId)) {
         // Transfers between two budget accounts carry no category in YNAB;

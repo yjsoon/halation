@@ -83,6 +83,8 @@ export class D1LedgerRepository extends LedgerRepository {
   }
   override async createAccount(planId:string,account:any):Promise<any>{
     const id=account.id??createId("acct"); const opening=account.opening_balance??account.balance??0;
+    // Another plan's account id failed the write's plan assertion as a 500.
+    if(account.id&&await this.d1.get("SELECT 1 FROM accounts WHERE id=? AND plan_id<>?",[account.id,planId]))throw new ValidationError("Account belongs to another plan");
     await this.metadata.upsertAccount(planId,{...account,id,...(!account.id?{opening_balance:opening,balance:account.balance??opening,cleared_balance:account.cleared_balance??account.balance??opening}: {})},this.context("account.create",planId,id));
     return this.getAccount(planId,id);
   }
