@@ -211,6 +211,42 @@ final class LocalModeTests: XCTestCase {
     XCTAssertEqual(inflows.transactions.map(\.payeeName), ["Refund"])
   }
 
+  /// Failure mode: one engine run enters at most 25 occurrences, as the
+  /// Worker's daily cron does, and says `has_more` when more are due. A phone
+  /// that was away for a month entered only the first 25 of a daily schedule,
+  /// and the register and balances stayed short until the app next came to
+  /// the front.
+  @MainActor
+  func testLocalCatchUpEntersEveryDueOccurrence() async throws {
+    let settings = APISettings.local(in: defaults)
+    let client = APIClient(settings: settings)
+    try await LocalEngine.shared.prepare(config: settings.localEngineConfig)
+    let account = try await client.createAccount(
+      planID: settings.planID, name: "Everyday", type: "checking", balance: 0, icon: nil, onBudget: true
+    )
+    let start = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -29, to: .now)).isoDateString
+    _ = try await client.createScheduledTransaction(
+      planID: settings.planID,
+      idempotencyKey: "local-catch-up",
+      request: ScheduledTransactionWriteRequest(
+        accountID: account.id, dateFirst: start, dateNext: start, frequency: "daily", amount: -1_000,
+        payeeID: nil, categoryID: nil, transferAccountID: nil, memo: nil, flagColor: nil, subtransactions: []
+      )
+    )
+    let model = AppModel(
+      outboxStore: .temporary(),
+      settings: settings,
+      viewPrefs: ViewPrefs(),
+      snapshotStore: SnapshotStore(directory: directory.appending(path: "snapshots", directoryHint: .isDirectory)),
+      hasSavedSettings: true
+    )
+
+    await model.runLocalScheduledTransactions(refreshAfter: false)
+
+    let page = try await client.fetchTransactions(planID: settings.planID)
+    XCTAssertEqual(page.transactions.count, 30, "every day from \(start) through today")
+  }
+
   /// Lost preferences with the ledger still on disk: starting again adopts
   /// that plan rather than creating an empty one beside it.
   func testLostPlanIDAdoptsThePlanAlreadyOnTheDevice() async throws {
