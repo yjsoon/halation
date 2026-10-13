@@ -1,0 +1,13 @@
+| Request | Expected | Observed |
+| --- | --- | --- |
+| PATCH transfer tx-1 account_id to its target acc-sav | 400 | 400 Transfer target must be a different account |
+| POST transaction id tx-q (plan q's) | 404 | 404 Transaction belongs to another plan |
+| POST bulk transaction id tx-q | 404 | 404 Transaction belongs to another plan |
+| POST import transaction id tx-q | 404 | 404 Transaction belongs to another plan |
+| POST account id acc-q (plan q's) | 400 | 400 Account belongs to another plan |
+| POST transaction on account acc-q | 400 | 400 Account not found |
+| POST transaction with payee payee-q | 400 | 400 Payee not found |
+
+Database after the run:
+transactions [{"id":"tx-1","plan_id":"p","account_id":"acc-chk","amount_milli":-1000,"memo":null,"transfer_account_id":"acc-sav","deleted":0},{"id":"tx-q","plan_id":"q","account_id":"acc-q","amount_milli":-1000,"memo":"q's","transfer_account_id":null,"deleted":0},{"id":"txn_24a815a5-8903-4f64-9cd3-a7e8bda394c8","plan_id":"p","account_id":"acc-sav","amount_milli":1000,"memo":null,"transfer_account_id":"acc-chk","deleted":0}]
+accounts [{"id":"acc-chk","plan_id":"p","name":"Chk","balance_milli":-1000},{"id":"acc-q","plan_id":"q","name":"Q","balance_milli":-1000},{"id":"acc-sav","plan_id":"p","name":"Sav","balance_milli":1000}]
