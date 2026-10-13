@@ -1621,7 +1621,7 @@ export class LedgerRepository {
     };
   }
 
-  protected async resolveTransactionLookup(planId: string, lookup: TransactionLookup): Promise<string> {
+  async resolveTransactionLookup(planId: string, lookup: TransactionLookup): Promise<string> {
     if (lookup.kind === "id") {
       const row = await this.getTransactionRow(planId, lookup.id);
       if (!row) throw new NotFoundError("Transaction not found");

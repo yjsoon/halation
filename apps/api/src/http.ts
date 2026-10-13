@@ -517,13 +517,24 @@ async function handleV1(
       return transactionListResponse(repo, planId, queryFilters(url));
     }
     if (segments.length === 4 && method === "PATCH") {
-      const result = await repo.updateTransactions(planId, parseTransactionUpdates(await readJson(request)));
+      const edits = parseTransactionUpdates(await readJson(request));
+      // A bulk recolour takes the card's name for the new colour, as a single
+      // edit does; otherwise the row keeps the old colour's name.
+      for (const edit of edits) {
+        if (!Object.prototype.hasOwnProperty.call(edit.patch, "flag_color") || Object.prototype.hasOwnProperty.call(edit.patch, "flag_name")) continue;
+        const accountId = typeof edit.patch.account_id === "string" && edit.patch.account_id
+          ? edit.patch.account_id
+          : (await repo.getTransaction(planId, await repo.resolveTransactionLookup(planId, edit.lookup))).account_id;
+        await stampTransactionFlagName(repo, planId, accountId, edit.patch);
+      }
+      const result = await repo.updateTransactions(planId, edits);
       return json({ data: result });
     }
     if (segments.length === 4 && method === "POST") {
       const body = await readJson(request);
       if (collectionPostIntent(body) === "many") {
         const inputs = parseTransactionCreates(body.transactions);
+        for (const input of inputs) await stampTransactionFlagName(repo, planId, input.account_id, input);
         await autoCategorise(repo, planId, inputs, categoriser);
         const result = await repo.createTransactions(planId, inputs);
         return json({ data: result }, 201);
