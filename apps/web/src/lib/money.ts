@@ -3,6 +3,7 @@ import type { CurrencyFormat } from "../api/types";
 let formatter = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let decimalSeparator = ".";
 let groupSeparator = ",";
+let decimalDigits = 2;
 let symbol = "";
 let symbolFirst = true;
 let currencyFormat: CurrencyFormat | undefined;
@@ -15,6 +16,7 @@ export function currentCurrencyFormat(): CurrencyFormat | undefined {
 export function configureMoney(format?: CurrencyFormat): void {
   currencyFormat = format;
   const digits = format?.decimal_digits ?? 2;
+  decimalDigits = digits;
   formatter = new Intl.NumberFormat("en-GB", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
@@ -41,6 +43,11 @@ export function parseMilliunits(value: string): number | null {
       text = text.split(groupSeparator).join("");
     }
     text = text.replace(/,/g, ".");
+  }
+  // A plan with no minor unit shows 1,234 units as "1.234" (group "."), and a
+  // dot followed by exactly three digits per group cannot be a decimal there.
+  if (decimalSeparator === "," && groupSeparator === "." && decimalDigits === 0 && /^[+-]?\d{1,3}(\.\d{3})+$/.test(text)) {
+    text = text.replace(/\./g, "");
   }
   const match = text.replace(/,/g, "").match(/^([+-]?)(?:(\d+)(?:\.(\d{0,3}))?|\.(\d{1,3}))$/);
   if (!match) {
