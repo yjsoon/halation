@@ -1146,6 +1146,11 @@ export class LedgerRepository {
           createLinkedSide = true;
         }
       }
+      // Moving a linked row into the account it transfers to made both sides
+      // land in that account, and the source lost its side of the money.
+      if (autoLink && transferTransactionId && transferAccountId === input.account_id) {
+        throw new ValidationError("Transfer target must be a different account");
+      }
       if (autoLink && transferAccountId && await this.accountsBothOnBudget(planId, input.account_id, transferAccountId)) {
         // Transfers between two budget accounts carry no category in YNAB;
         // only transfers to tracking accounts count as categorised spending.
