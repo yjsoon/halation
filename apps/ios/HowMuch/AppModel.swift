@@ -1958,10 +1958,21 @@ final class AppModel {
     guard settings.isLocal, settings.isAuthenticated else {
       return
     }
-    guard let summary = try? await LocalEngine.shared.runScheduledMaterialization(config: settings.localEngineConfig),
-          summary.occurrenceCount > 0,
-          refreshAfter
-    else {
+    // One run enters at most 25 occurrences, as the Worker's daily cron does,
+    // and says when more are due. A phone has no next-day cron to finish the
+    // rest, so keep going while a run makes progress (bounded, in case a
+    // schedule keeps failing).
+    var entered = 0
+    for _ in 0 ..< 40 {
+      guard let summary = try? await LocalEngine.shared.runScheduledMaterialization(config: settings.localEngineConfig) else {
+        break
+      }
+      entered += summary.occurrenceCount
+      guard summary.hasMore, summary.occurrenceCount > 0 else {
+        break
+      }
+    }
+    guard entered > 0, refreshAfter else {
       return
     }
     await refresh(slices: [.accounts, .payees, .ledger, .schedules])
