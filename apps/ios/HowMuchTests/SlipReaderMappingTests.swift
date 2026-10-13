@@ -77,6 +77,35 @@ final class SlipReaderMappingTests: XCTestCase {
     XCTAssertNil(TypedNumber.double(from: "", decimalSeparator: ","))
   }
 
+  /// A plan's currency format says where its symbol goes and whether it shows
+  /// at all (a YNAB euro plan is "123.456,78€"), as the web app draws it. The
+  /// device's region pattern put the symbol first and showed a hidden one.
+  func testDisplayFollowsThePlanSymbolPlacement() {
+    let euro = CurrencyFormat(
+      isoCode: "EUR",
+      exampleFormat: "123.456,78€",
+      decimalDigits: 2,
+      decimalSeparator: ",",
+      groupSeparator: ".",
+      symbolFirst: false,
+      currencySymbol: "€"
+    )
+    XCTAssertEqual(MoneyCodec.displayString(for: 1_234_560, currencyFormat: euro), "1.234,56€")
+    XCTAssertEqual(MoneyCodec.displayString(for: -1_234_560, currencyFormat: euro), "-1.234,56€")
+
+    let hidden = CurrencyFormat(
+      isoCode: "SGD",
+      exampleFormat: "123,456.78",
+      decimalDigits: 2,
+      decimalSeparator: ".",
+      groupSeparator: ",",
+      symbolFirst: true,
+      currencySymbol: "$",
+      displaySymbol: false
+    )
+    XCTAssertEqual(MoneyCodec.displayString(for: 1_234_560, currencyFormat: hidden), "1,234.56")
+  }
+
   func testUnambiguousNameMapsToID() {
     let mapped = SlipReaderMapping.map(
       [.init(amount: "5", category: "Groceries", account: "Everyday Account")],
