@@ -32,7 +32,17 @@ export function configureMoney(format?: CurrencyFormat): void {
  * values such as 1.135 cannot be represented in binary floating point.
  */
 export function parseMilliunits(value: string): number | null {
-  const match = value.trim().replace(/,/g, "").match(/^([+-]?)(?:(\d+)(?:\.(\d{0,3}))?|\.(\d{1,3}))$/);
+  let text = value.trim();
+  // A comma-decimal plan shows "1.234,50" (formatMoney), so a typed comma is
+  // its decimal mark. Text without a comma keeps the dot reading the fields
+  // are prefilled with (formatMilliunitsInput).
+  if (decimalSeparator === "," && text.includes(",")) {
+    if (groupSeparator && groupSeparator !== ",") {
+      text = text.split(groupSeparator).join("");
+    }
+    text = text.replace(/,/g, ".");
+  }
+  const match = text.replace(/,/g, "").match(/^([+-]?)(?:(\d+)(?:\.(\d{0,3}))?|\.(\d{1,3}))$/);
   if (!match) {
     return null;
   }

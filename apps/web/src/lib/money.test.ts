@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatMilliunitsInput, formatSavingsRate, parseMilliunits } from "./money";
+import { configureMoney, formatMilliunitsInput, formatMoney, formatSavingsRate, parseMilliunits } from "./money";
 
 describe("parseMilliunits", () => {
   test("parses whole numbers and up to three decimal places exactly", () => {
@@ -22,6 +22,25 @@ describe("parseMilliunits", () => {
     expect(parseMilliunits("1.2345")).toBeNull();
     expect(parseMilliunits("1e3")).toBeNull();
     expect(parseMilliunits("12.34.5")).toBeNull();
+  });
+
+  // Failure mode: formatMoney shows an imported comma-decimal plan's amounts
+  // as "12,50", and the amount fields read that comma as a group mark, so
+  // typing what the page shows stores a hundred times the amount. The fields
+  // are still prefilled with a dot ("12.5"), so a dot must keep reading.
+  test("reads the plan's comma decimal mark as the page shows it", () => {
+    try {
+      configureMoney({ iso_code: "EUR", example_format: "123.456,78", decimal_digits: 2, decimal_separator: ",", symbol_first: false, group_separator: ".", currency_symbol: "€", display_symbol: true });
+      expect(formatMoney(12_500)).toBe("12,50€");
+      expect(parseMilliunits("12,50")).toBe(12_500);
+      expect(parseMilliunits("-12,5")).toBe(-12_500);
+      expect(parseMilliunits("1.234,50")).toBe(1_234_500);
+      expect(parseMilliunits("12.5")).toBe(12_500);
+      expect(parseMilliunits("1,2,3")).toBeNull();
+    } finally {
+      configureMoney(undefined);
+    }
+    expect(parseMilliunits("12,50")).toBe(1_250_000);
   });
 });
 
