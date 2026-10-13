@@ -322,6 +322,11 @@ export class LedgerRepository {
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(accountId, planId, name ?? `Imported account ${accountId.slice(0, 8)}`, accountId);
+    // The insert skips an id that exists anywhere: another plan's account id
+    // booked this plan's transaction against that plan's balance.
+    if (await this.db.query("SELECT 1 FROM accounts WHERE id = ? AND plan_id <> ?").get(accountId, planId)) {
+      throw new ValidationError("Account not found");
+    }
     await this.ensureTransferPayee(planId, accountId);
   }
 
@@ -724,6 +729,10 @@ export class LedgerRepository {
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(payeeId, planId, name ?? `Imported payee ${payeeId.slice(0, 8)}`, payeeId);
+    // As ensureCategory: another plan's payee must not be linked from this one.
+    if (await this.db.query("SELECT 1 FROM payees WHERE id = ? AND plan_id <> ?").get(payeeId, planId)) {
+      throw new ValidationError("Payee not found");
+    }
   }
 
   async upsertPayee(planId: string, payee: any): Promise<void> {
