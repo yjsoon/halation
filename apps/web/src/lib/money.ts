@@ -65,6 +65,25 @@ export function formatMilliunitsInput(milliunits: number): string {
   return `${sign}${whole}.${String(fraction).padStart(3, "0").replace(/0+$/, "")}`;
 }
 
+/**
+ * Puts the plan's decimal mark into a plain dot-decimal number the page shows
+ * (an amount field after blur, a chart axis, a percentage). Only a comma is
+ * swapped in, as that is the only other mark `parseMilliunits` reads.
+ */
+export function withPlanDecimal(text: string): string {
+  return planDecimalIsComma() ? text.replace(".", ",") : text;
+}
+
+/** True when `parseMilliunits` reads a typed comma as the decimal mark. */
+export function planDecimalIsComma(): boolean {
+  return decimalSeparator === ",";
+}
+
+/** `formatMilliunitsInput` with the plan's decimal mark, for a field's text. */
+export function formatMilliunitsField(milliunits: number): string {
+  return withPlanDecimal(formatMilliunitsInput(milliunits));
+}
+
 /** Formats integer milliunits for display, e.g. -12340 -> "−£12.34". */
 export function formatMoney(milliunits: number, options?: { sign?: boolean }): string {
   const absolute = formatter
@@ -83,7 +102,7 @@ export function formatAmount(milliunits: number): string {
 }
 
 export function formatShare(share: number): string {
-  return `${(share * 100).toFixed(1)}%`;
+  return withPlanDecimal(`${(share * 100).toFixed(1)}%`);
 }
 
 /** Net over income. Zero income or a rate below -100% is an em dash. */
@@ -95,5 +114,5 @@ export function formatSavingsRate(net: number, income: number): string {
   if (rate < -1) {
     return "—";
   }
-  return `${rate < 0 ? "−" : ""}${((Math.abs(net) / income) * 100).toFixed(1)}%`;
+  return withPlanDecimal(`${rate < 0 ? "−" : ""}${((Math.abs(net) / income) * 100).toFixed(1)}%`);
 }
