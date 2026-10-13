@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api, useApi } from "../api/client";
 import type { Account, CategoryGroup, Payee, ScheduledSubtransaction, ScheduledTransaction, ScheduledTransactionInput } from "../api/types";
 import { CategorySelect } from "../components/CategorySelect";
@@ -8,6 +8,7 @@ import { formatDate, todayIso } from "../lib/dates";
 import { stableHash } from "../lib/hash";
 import { formatMilliunitsInput, formatMoney, parseMilliunits } from "../lib/money";
 import { scheduleRecurrence } from "../lib/schedules";
+import { useConfirmationFocus } from "../lib/use-confirmation-focus";
 import { colourNamesByAccount, ledgerFlagNames } from "../lib/reward-flag-names";
 import { usePlan } from "../state/plan";
 import { isCachedPayees, isCachedScheduled } from "../state/cache-shapes";
@@ -26,6 +27,11 @@ export function ScheduledTransactionsPage() {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
   const [pendingEntry, setPendingEntry] = useState<PendingEntry | null>(null);
+  // Both confirmations render above the list, behind the row's buttons in tab order.
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  const entryCancelRef = useRef<HTMLButtonElement>(null);
+  useConfirmationFocus(pendingDeletion?.schedule.id, deleteCancelRef);
+  useConfirmationFocus(pendingEntry?.schedule.id, entryCancelRef);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [mutationSuccess, setMutationSuccess] = useState<string | null>(null);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
@@ -168,7 +174,7 @@ export function ScheduledTransactionsPage() {
           <div className="section-heading"><div><span className="section-title" id="delete-schedule-heading">Delete scheduled transaction?</span><span className="section-meta">This stops future repeats.</span></div></div>
           <p>{scheduleLabel(pendingDeletion.schedule, payeeNames, accountNames)} is due next on {pendingDeletion.schedule.date_next ? formatDate(pendingDeletion.schedule.date_next) : "its configured date"}.</p>
           <div className="transaction-editor-actions">
-            <button type="button" className="text-button" onClick={() => setPendingDeletion(null)} disabled={mutatingId === pendingDeletion.schedule.id}>Cancel</button>
+            <button type="button" ref={deleteCancelRef} className="text-button" onClick={() => setPendingDeletion(null)} disabled={mutatingId === pendingDeletion.schedule.id}>Cancel</button>
             <button type="button" className="save-button schedule-delete-button" onClick={() => void deleteSchedule(pendingDeletion)} disabled={mutatingId === pendingDeletion.schedule.id}>{mutatingId === pendingDeletion.schedule.id ? "Deleting…" : "Delete schedule"}</button>
           </div>
         </section>
@@ -192,7 +198,7 @@ export function ScheduledTransactionsPage() {
             <span className="field-note">Defaults to today. The schedule still moves forward from {formatDate(pendingEntry.occurrenceDate)}.</span>
           </label>
           <div className="transaction-editor-actions">
-            <button type="button" className="text-button" onClick={() => setPendingEntry(null)} disabled={mutatingId === pendingEntry.schedule.id}>Cancel</button>
+            <button type="button" ref={entryCancelRef} className="text-button" onClick={() => setPendingEntry(null)} disabled={mutatingId === pendingEntry.schedule.id}>Cancel</button>
             <button type="button" className="save-button" onClick={() => void enterScheduleNow(pendingEntry)} disabled={mutatingId === pendingEntry.schedule.id || !pendingEntry.enteredDate}>{mutatingId === pendingEntry.schedule.id ? "Entering…" : "Enter now"}</button>
           </div>
         </section>
