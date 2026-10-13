@@ -223,6 +223,27 @@ export function TransactionsPage() {
   const searchVersionRef = useRef(0);
   const [pendingDeletion, setPendingDeletion] = useState<Transaction | null>(null);
   const [pendingBulkDeletion, setPendingBulkDeletion] = useState<readonly Transaction[] | null>(null);
+  // The confirmation renders above the register, behind the row that asked
+  // for it in tab order, so a keyboard user is taken to its Cancel button.
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  const bulkDeleteCancelRef = useRef<HTMLButtonElement>(null);
+  const deletionRowDomId = useRef<string | null>(null);
+  useEffect(() => {
+    if (pendingDeletion) {
+      deletionRowDomId.current = registerRowDomId({ kind: "posted", transaction: pendingDeletion });
+      deleteCancelRef.current?.focus();
+      return;
+    }
+    // Cancelled (or deleted): back to the row when it is still there.
+    const rowElement = deletionRowDomId.current ? document.getElementById(deletionRowDomId.current) : null;
+    deletionRowDomId.current = null;
+    if (rowElement && (document.activeElement === null || document.activeElement === document.body)) {
+      rowElement.focus({ preventScroll: true });
+    }
+  }, [pendingDeletion?.id]);
+  useEffect(() => {
+    if (pendingBulkDeletion) bulkDeleteCancelRef.current?.focus();
+  }, [pendingBulkDeletion]);
   const [suggestionReview, setSuggestionReview] = useState<SuggestionReviewRow[] | null>(null);
   const [suggesting, setSuggesting] = useState(false);
   const [reconcileDraft, setReconcileDraft] = useState<ReconcileDraft | null>(null);
@@ -1889,7 +1910,7 @@ export function TransactionsPage() {
             </p>
           </div>
           <div className="transaction-delete-confirm-actions">
-            <button type="button" className="text-button" onClick={() => setPendingDeletion(null)} disabled={writeLocked || mutatingId === pendingDeletion.id}>Cancel</button>
+            <button type="button" ref={deleteCancelRef} className="text-button" onClick={() => setPendingDeletion(null)} disabled={writeLocked || mutatingId === pendingDeletion.id}>Cancel</button>
             <button type="button" className="transaction-delete-button" onClick={() => void deleteTransaction(pendingDeletion)} disabled={writeLocked || mutatingId === pendingDeletion.id}>
               {mutatingId === pendingDeletion.id ? "Removing..." : pendingDeletion.approved ? "Delete transaction" : "Reject transaction"}
             </button>
@@ -1917,7 +1938,7 @@ export function TransactionsPage() {
             <p>Linked transfer entries are removed with them. Split lines on other accounts stay and lose their transfer link.</p>
           </div>
           <div className="transaction-delete-confirm-actions">
-            <button type="button" className="text-button" onClick={() => setPendingBulkDeletion(null)} disabled={mutationBusy}>Cancel</button>
+            <button type="button" ref={bulkDeleteCancelRef} className="text-button" onClick={() => setPendingBulkDeletion(null)} disabled={mutationBusy}>Cancel</button>
             <button type="button" className="transaction-delete-button" onClick={() => void deleteMany(pendingBulkDeletion)} disabled={mutationBusy}>
               {mutationBusy ? "Removing…" : pendingBulkDeletion.every((txn) => !txn.approved) ? "Reject transactions" : "Delete transactions"}
             </button>
