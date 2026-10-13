@@ -1746,7 +1746,11 @@ export function TransactionsPage() {
       {mutationSuccess && (
         <div className="status-panel status-panel-success compact-panel register-toast" role="status">
           <p className="status-title">{mutationSuccess}</p>
-          <button type="button" className="register-toast-dismiss" aria-label="Dismiss" onClick={() => setMutationSuccess(null)}>×</button>
+          <button type="button" className="register-toast-dismiss" aria-label="Dismiss" onClick={() => {
+            // The toast goes with its message; keep focus in the register.
+            addTransactionRef.current?.focus();
+            setMutationSuccess(null);
+          }}>×</button>
         </div>
       )}
       {reconcileDraft && (
