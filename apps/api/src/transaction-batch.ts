@@ -119,6 +119,49 @@ function parseLookup(item: Record<string, unknown>, index: number): TransactionL
   throw new ValidationError(`transactions[${index}] requires id or import_id`);
 }
 
+const TRANSACTION_STRING_FIELDS = [
+  "id", "account_id", "date", "payee_id", "payee_name", "category_id", "memo", "cleared", "flag_color", "flag_name",
+  "transfer_account_id", "transfer_transaction_id", "matched_transaction_id", "import_id", "import_payee_name",
+  "import_payee_name_original", "source_kind", "source_ref", "external_ynab_id",
+] as const;
+const SUBTRANSACTION_STRING_FIELDS = [
+  "id", "payee_id", "payee_name", "category_id", "memo", "transfer_account_id", "transfer_transaction_id", "external_ynab_id",
+] as const;
+
+/**
+ * Type checks for the single-item transaction writes, which hand the body to
+ * the repository as it came. Looser than the batch parser (an empty string
+ * stays allowed, as clients clear a memo with one) but an object or array id
+ * failed as a 500, and a number, boolean or object memo, flag or payee name
+ * was stored as its string form ("1", "[object Object]").
+ */
+export function assertTransactionFieldTypes(value: unknown, label = "transaction"): void {
+  if (!isPlainObject(value)) throw new ValidationError(`${label} must be an object`);
+  for (const field of TRANSACTION_STRING_FIELDS) {
+    if (value[field] != null && typeof value[field] !== "string") throw new ValidationError(`${label}.${field} must be a string or null`);
+  }
+  // An empty id skipped the existence check and failed the foreign key as a 500.
+  for (const field of ["payee_id", "category_id"] as const) {
+    if (value[field] === "") throw new ValidationError(`${label}.${field} must be a non-empty string or null`);
+  }
+  for (const field of ["approved", "deleted"] as const) {
+    if (value[field] != null && typeof value[field] !== "boolean") throw new ValidationError(`${label}.${field} must be a boolean or null`);
+  }
+  if (value.subtransactions == null) return;
+  if (!Array.isArray(value.subtransactions)) throw new ValidationError(`${label}.subtransactions must be an array`);
+  value.subtransactions.forEach((sub, index) => {
+    if (!isPlainObject(sub)) throw new ValidationError(`${label}.subtransactions[${index}] must be an object`);
+    for (const field of SUBTRANSACTION_STRING_FIELDS) {
+      if (sub[field] != null && typeof sub[field] !== "string") {
+        throw new ValidationError(`${label}.subtransactions[${index}].${field} must be a string or null`);
+      }
+    }
+    for (const field of ["payee_id", "category_id"] as const) {
+      if (sub[field] === "") throw new ValidationError(`${label}.subtransactions[${index}].${field} must be a non-empty string or null`);
+    }
+  });
+}
+
 function parseFieldPatch(item: Record<string, unknown>): TransactionFieldPatch {
   const patch = { ...item };
   delete patch.id;

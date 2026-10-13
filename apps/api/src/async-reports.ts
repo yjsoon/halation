@@ -438,12 +438,21 @@ function appendCategoryFilter(clauses: string[], params: any[], values?: string[
   const ids = values.filter((value) => value !== UNCATEGORISED_ID);
   if (ids.length === values.length) appendInFilter(clauses, params, "lines.category_id", ids);
   else if (!ids.length) clauses.push("lines.category_id IS NULL");
-  else clauses.push(`(lines.category_id IN (${ids.map((id) => bind(params, id)).join(", ")}) OR lines.category_id IS NULL)`);
+  else clauses.push(`(lines.category_id IN (${idList(params, ids)}) OR lines.category_id IS NULL)`);
 }
 
 function appendInFilter(clauses: string[], params: any[], column: string, values?: string[]): void {
   if (!values?.length) return;
-  clauses.push(`${column} IN (${values.map((value) => bind(params, value)).join(", ")})`);
+  clauses.push(`${column} IN (${idList(params, values)})`);
+}
+
+/**
+ * D1 takes at most 100 bound parameters per statement, and the web filter's
+ * group toggle can select more categories than that, so a list binds as one
+ * JSON array.
+ */
+function idList(params: any[], values: string[]): string {
+  return `SELECT value FROM json_each(${bind(params, JSON.stringify(values))})`;
 }
 
 function bind(params: any[], value: any): string {
