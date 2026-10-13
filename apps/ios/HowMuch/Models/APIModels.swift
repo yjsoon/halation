@@ -1200,6 +1200,7 @@ struct CurrencyFormat: Codable, Equatable {
   let groupSeparator: String?
   let symbolFirst: Bool?
   let currencySymbol: String?
+  var displaySymbol: Bool? = nil
 }
 
 struct DisplaySettings: Codable, Equatable {

@@ -129,6 +129,8 @@ enum MoneyCodec {
       currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$",
       currencyFormat?.decimalSeparator ?? "",
       currencyFormat?.groupSeparator ?? "",
+      currencyFormat?.symbolFirst.map { $0 ? "first" : "last" } ?? "",
+      currencyFormat?.displaySymbol == false ? "hidden" : "",
     ].joined(separator: "\u{1f}")
 
     formatterLock.lock()
@@ -140,9 +142,21 @@ enum MoneyCodec {
 
     let formatter = NumberFormatter()
     formatter.numberStyle = .currency
+    let showsSymbol = currencyFormat?.displaySymbol ?? true
+    if currencyFormat?.symbolFirst != nil || !showsSymbol {
+      // The plan says where its symbol goes, or that it is hidden, as the web
+      // app draws it; the device region's own pattern must not move it. Set
+      // before the digits and separators, which a pattern would reset.
+      let symbolFirst = currencyFormat?.symbolFirst ?? true
+      let pattern = showsSymbol ? (symbolFirst ? "¤#,##0.00" : "#,##0.00¤") : "#,##0.00"
+      formatter.positiveFormat = pattern
+      formatter.negativeFormat = "-\(pattern)"
+    }
     formatter.minimumFractionDigits = currencyFormat?.decimalDigits ?? 2
     formatter.maximumFractionDigits = currencyFormat?.decimalDigits ?? 2
-    formatter.currencySymbol = currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$"
+    formatter.currencySymbol = showsSymbol
+      ? (currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$")
+      : ""
     if let decimalSeparator = currencyFormat?.decimalSeparator {
       formatter.decimalSeparator = decimalSeparator
     }
