@@ -435,7 +435,11 @@ async function handleV1(
     }
     if (segments.length === 4 && method === "POST") {
       const body = await readJson(request);
-      const payee = await repo.createPayee(planId, body.payee?.name ?? body.name);
+      const name = body.payee?.name ?? body.name;
+      // A missing name reached the NOT NULL column as a 500; a blank one made
+      // a payee nobody can see or pick.
+      if (typeof name !== "string" || !name.trim()) throw new ValidationError("payee.name is required");
+      const payee = await repo.createPayee(planId, name.trim());
       return json({ data: { payee, server_knowledge: await repo.getServerKnowledge(planId) } }, 201);
     }
     const payeeId = segments[4];
