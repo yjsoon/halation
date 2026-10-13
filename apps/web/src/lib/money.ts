@@ -51,6 +51,11 @@ export function parseMilliunits(value: string): number | null {
       text = text.replace(/\./g, "");
     }
   }
+  // A dot-decimal plan can group with a space or an apostrophe (1 234.50,
+  // 1’234.50): the page shows it, so a field must accept it back.
+  if (decimalSeparator === "." && groupSeparator && groupSeparator !== "," && groupSeparator !== ".") {
+    text = /^\s+$/.test(groupSeparator) ? text.replace(/[\s\u00a0\u202f]/g, "") : text.split(groupSeparator).join("");
+  }
   const match = text.replace(/,/g, "").match(/^([+-]?)(?:(\d+)(?:\.(\d{0,3}))?|\.(\d{1,3}))$/);
   if (!match) {
     return null;

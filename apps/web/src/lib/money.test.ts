@@ -66,6 +66,25 @@ describe("parseMilliunits with a zero-decimal comma plan", () => {
   });
 });
 
+// Imported dot-decimal plans can group with a space or an apostrophe: the page
+// shows 1 234.50 or 1’234.50, and copying that into a field must be accepted.
+describe("parseMilliunits with a non-comma group mark in a dot-decimal plan", () => {
+  for (const group of [" ", "’", "'", "\u00a0", "\u202f"]) {
+    test(`reads back what the page shows with group ${JSON.stringify(group)}`, () => {
+      try {
+        configureMoney({ iso_code: "CHF", example_format: "1’234.56", decimal_digits: 2, decimal_separator: ".", symbol_first: true, group_separator: group, currency_symbol: "", display_symbol: false });
+        const shown = formatMoney(1_234_500);
+        expect(shown).toContain(group);
+        expect(parseMilliunits(shown)).toBe(1_234_500);
+        expect(parseMilliunits("12.5")).toBe(12_500);
+        expect(parseMilliunits("1,234.50")).toBe(1_234_500);
+      } finally {
+        configureMoney(undefined);
+      }
+    });
+  }
+});
+
 describe("formatMilliunitsInput", () => {
   test("round-trips integer milliunits without float residue", () => {
     expect(formatMilliunitsInput(12_345)).toBe("12.345");
