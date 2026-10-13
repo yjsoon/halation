@@ -190,7 +190,7 @@ enum IncomeVsSpendingMaths {
   static func txnShareLabel(count: Int, share: Double) -> String {
     let percent = share * 100
     let shareText = percent > 0 && percent < 1 ? "< 1%" : "\(Int(percent.rounded()))%"
-    return "\(count) txns · \(shareText)"
+    return "\(count == 1 ? "1 txn" : "\(count) txns") · \(shareText)"
   }
 
   static func voiceOverRowLabel(

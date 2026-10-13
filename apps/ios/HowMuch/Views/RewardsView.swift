@@ -341,7 +341,7 @@ struct RewardsView: View {
       .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 0, trailing: 20))
       .listRowBackground(Color.clear)
       .listRowSeparator(.hidden)
-      .accessibilityLabel("\(title), \(matching.count) cards")
+      .accessibilityLabel("\(title), \(matching.count == 1 ? "1 card" : "\(matching.count) cards")")
       .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
       if isExpanded {
         ForEach(Array(matching.enumerated()), id: \.element.cardID) { index, projection in
