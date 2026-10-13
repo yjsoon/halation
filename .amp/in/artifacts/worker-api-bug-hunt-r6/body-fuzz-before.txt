@@ -1,0 +1,177 @@
+[SQLite] 500 POST /v1/plans/p/accounts body=null
+[SQLite] 500 POST /v1/plans/p/accounts account.type={}
+[SQLite] 500 POST /v1/plans/p/accounts account.type=[]
+[SQLite] 500 POST /v1/plans/p/accounts account.type={"a":1}
+[SQLite] 500 POST /v1/plans/p/accounts account.type=[1]
+[SQLite] baseline PATCH /v1/plans/p/accounts/acct_bc1f626b-16d7-4e32-9d1d-50271586a175 -> 400 {"error":{"id":"400","name":"bad_request","detail":"icon must be a single emoji"}}
+[SQLite] 500 PATCH /v1/plans/p/accounts/acct_:id body=null
+[SQLite] baseline POST /v1/plans/p/accounts/acct_bc1f626b-16d7-4e32-9d1d-50271586a175/reconcile -> 409 {"error":{"id":"409","name":"reconciliation_mismatch","detail":"Statement balance does not match the projected reconciled balance","current_reconciled_balance":100000,"projected_reconciled_balance":10
+[SQLite] 500 POST /v1/plans/p/payees body=null
+[SQLite] baseline POST /v1/plans/p/scheduled_transactions -> 400 {"error":{"id":"400","name":"bad_request","detail":"payee_name cannot be changed on a scheduled transaction"}}
+[SQLite] 500 POST /v1/plans/p/scheduled_transactions body=null
+[SQLite] baseline PATCH /v1/plans/p/scheduled_transactions/scheduled_7989cded-c54d-46e8-9ab4-f94748363d3a -> 400 {"error":{"id":"400","name":"bad_request","detail":"date_next cannot precede date_first"}}
+[SQLite] 500 PATCH /v1/plans/p/scheduled_transactions/scheduled_:id body=null
+[SQLite] baseline POST /v1/plans/p/scheduled_transactions/scheduled_7989cded-c54d-46e8-9ab4-f94748363d3a/materialize -> 400 {"error":{"id":"400","name":"bad_request","detail":"occurrence_date must equal the schedule's current date_next"}}
+[SQLite] baseline POST /v1/plans/p/transactions -> 400 {"error":{"id":"400","name":"bad_request","detail":"split transactions need at least two subtransactions"}}
+[SQLite] 500 POST /v1/plans/p/transactions transaction.import_id={}
+[SQLite] 500 POST /v1/plans/p/transactions transaction.import_id=[]
+[SQLite] 500 POST /v1/plans/p/transactions transaction.import_id={"a":1}
+[SQLite] 500 POST /v1/plans/p/transactions transaction.import_id=[1]
+[SQLite] 500 POST /v1/plans/p/transactions transaction.subtransactions={}
+[SQLite] 500 POST /v1/plans/p/transactions transaction.subtransactions={"a":1}
+[SQLite] 500 POST /v1/plans/p/transactions transaction.subtransactions=1.5
+[SQLite] 500 POST /v1/plans/p/transactions transaction.subtransactions=-7
+[SQLite] 500 POST /v1/plans/p/transactions transaction.subtransactions=100000000000000000000
+[SQLite] 500 POST /v1/plans/p/transactions transaction.subtransactions=true
+[SQLite] 500 POST /v1/plans/p/transactions transaction.subtransactions=false
+[SQLite] 500 POST /v1/plans/p/transactions/import body=null
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions={}
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions={"a":1}
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions=1.5
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions=-7
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions=100000000000000000000
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions=true
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions=false
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions=""
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions="x"
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions="2026-13-45"
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions.0=null
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions.0.account_id={}
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions.0.account_id=[]
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions.0.account_id={"a":1}
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions.0.account_id=[1]
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions.0.import_id={}
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions.0.import_id=[]
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions.0.import_id={"a":1}
+[SQLite] 500 POST /v1/plans/p/transactions/import transactions.0.import_id=[1]
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id body=null
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.memo={}
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.memo=[]
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.memo={"a":1}
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.memo=[1]
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.payee_id={}
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.payee_id=[]
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.payee_id={"a":1}
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.payee_id=[1]
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id={}
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=[]
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id={"a":1}
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=[1]
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=1.5
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=-7
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=100000000000000000000
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=true
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=false
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=""
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.flag_color={}
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.flag_color=[]
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.flag_color={"a":1}
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.flag_color=[1]
+[SQLite] baseline PATCH /v1/plans/p/transactions/txn_16fd9d40-c92b-41ed-8b92-813c37c5a37f/cleared -> 409 {"error":{"id":"409","name":"transaction_state_conflict","detail":"Transaction cleared status changed; refresh and try again"}}
+[SQLite] 500 PATCH /v1/plans/p/transactions/txn_:id/cleared body=null
+[SQLite] baseline POST /api/tools/categorise -> 400 {"error":{"id":"400","name":"bad_request","detail":"transactions must be a non-empty array"}}
+[SQLite] baseline POST /api/mobile/quick-entry -> 400 {"error":{"id":"400","name":"bad_request","detail":"split transactions need at least two subtransactions"}}
+[SQLite] 500 POST /api/mobile/quick-entry body=null
+[SQLite] 500 POST /api/mobile/quick-entry subtransactions.0=null
+[SQLite] 500 POST /api/import/csv body=null
+[SQLite] 500 POST /api/import/csv rows={}
+[SQLite] 500 POST /api/import/csv rows={"a":1}
+[SQLite] 500 POST /api/import/csv rows=1.5
+[SQLite] 500 POST /api/import/csv rows=-7
+[SQLite] 500 POST /api/import/csv rows=100000000000000000000
+[SQLite] 500 POST /api/import/csv rows=true
+[SQLite] 500 POST /api/import/csv rows=false
+[SQLite] 500 POST /api/import/csv rows=""
+[SQLite] 500 POST /api/import/csv rows="x"
+[SQLite] 500 POST /api/import/csv rows="2026-13-45"
+[SQLite] 500 POST /api/rewards/cards body=null
+[SQLite] 500 PATCH /api/rewards/cards/card-1 body=null
+[SQLite] 500 PATCH /api/rewards/settings body=null
+[SQLite] baseline PUT /api/rewards/accounts/acct_20eed39e-5501-407c-b736-3a8fb94414b8/config -> 400 {"error":{"id":"400","name":"bad_request","detail":"Choose a rewards-account-config version 1 file, not a whole-app settings export"}}
+[SQLite] 500 PUT /api/rewards/accounts/acct_:id/config body=null
+[SQLite] 500 POST /api/import/rewards-tracker body=null
+[D1] 500 POST /v1/plans/p/accounts body=null
+[D1] 500 POST /v1/plans/p/accounts account.type={}
+[D1] 500 POST /v1/plans/p/accounts account.type=[]
+[D1] 500 POST /v1/plans/p/accounts account.type={"a":1}
+[D1] 500 POST /v1/plans/p/accounts account.type=[1]
+[D1] baseline PATCH /v1/plans/p/accounts/acct_69dd671d-e9f6-4733-8ec2-7e6ed143431b -> 400 {"error":{"id":"400","name":"bad_request","detail":"icon must be a single emoji"}}
+[D1] 500 PATCH /v1/plans/p/accounts/acct_:id body=null
+[D1] baseline POST /v1/plans/p/accounts/acct_69dd671d-e9f6-4733-8ec2-7e6ed143431b/reconcile -> 409 {"error":{"id":"409","name":"reconciliation_mismatch","detail":"Statement balance does not match the projected reconciled balance","current_reconciled_balance":100000,"projected_reconciled_balance":10
+[D1] 500 POST /v1/plans/p/payees body=null
+[D1] baseline POST /v1/plans/p/scheduled_transactions -> 400 {"error":{"id":"400","name":"bad_request","detail":"payee_name cannot be changed on a scheduled transaction"}}
+[D1] 500 POST /v1/plans/p/scheduled_transactions body=null
+[D1] baseline PATCH /v1/plans/p/scheduled_transactions/scheduled_c2234831-a3b7-4e80-8c39-47fb34cc0d75 -> 400 {"error":{"id":"400","name":"bad_request","detail":"date_next cannot precede date_first"}}
+[D1] 500 PATCH /v1/plans/p/scheduled_transactions/scheduled_:id body=null
+[D1] baseline POST /v1/plans/p/scheduled_transactions/scheduled_c2234831-a3b7-4e80-8c39-47fb34cc0d75/materialize -> 400 {"error":{"id":"400","name":"bad_request","detail":"occurrence_date must equal the schedule's current date_next"}}
+[D1] baseline POST /v1/plans/p/transactions -> 400 {"error":{"id":"400","name":"bad_request","detail":"split transactions need at least two subtransactions"}}
+[D1] 500 POST /v1/plans/p/transactions transaction.import_id={}
+[D1] 500 POST /v1/plans/p/transactions transaction.import_id=[]
+[D1] 500 POST /v1/plans/p/transactions transaction.import_id={"a":1}
+[D1] 500 POST /v1/plans/p/transactions transaction.import_id=[1]
+[D1] 500 POST /v1/plans/p/transactions transaction.subtransactions="2026-13-45"
+[D1] 500 POST /v1/plans/p/transactions/import body=null
+[D1] 500 POST /v1/plans/p/transactions/import transactions={}
+[D1] 500 POST /v1/plans/p/transactions/import transactions={"a":1}
+[D1] 500 POST /v1/plans/p/transactions/import transactions=1.5
+[D1] 500 POST /v1/plans/p/transactions/import transactions=-7
+[D1] 500 POST /v1/plans/p/transactions/import transactions=100000000000000000000
+[D1] 500 POST /v1/plans/p/transactions/import transactions=true
+[D1] 500 POST /v1/plans/p/transactions/import transactions=false
+[D1] 500 POST /v1/plans/p/transactions/import transactions=""
+[D1] 500 POST /v1/plans/p/transactions/import transactions="x"
+[D1] 500 POST /v1/plans/p/transactions/import transactions="2026-13-45"
+[D1] 500 POST /v1/plans/p/transactions/import transactions.0=null
+[D1] 500 POST /v1/plans/p/transactions/import transactions.0.account_id={}
+[D1] 500 POST /v1/plans/p/transactions/import transactions.0.account_id=[]
+[D1] 500 POST /v1/plans/p/transactions/import transactions.0.account_id={"a":1}
+[D1] 500 POST /v1/plans/p/transactions/import transactions.0.account_id=[1]
+[D1] 500 POST /v1/plans/p/transactions/import transactions.0.import_id={}
+[D1] 500 POST /v1/plans/p/transactions/import transactions.0.import_id=[]
+[D1] 500 POST /v1/plans/p/transactions/import transactions.0.import_id={"a":1}
+[D1] 500 POST /v1/plans/p/transactions/import transactions.0.import_id=[1]
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id body=null
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.memo={}
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.memo=[]
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.memo={"a":1}
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.memo=[1]
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.payee_id={}
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.payee_id={"a":1}
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.payee_id=[1]
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.payee_id=false
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.payee_id=""
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id={}
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id={"a":1}
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=[1]
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=false
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.category_id=""
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.flag_color={}
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.flag_color=[]
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.flag_color={"a":1}
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id transaction.flag_color=[1]
+[D1] baseline PATCH /v1/plans/p/transactions/txn_7245b4fb-cc64-486f-a964-3d7888e1a8d1/cleared -> 409 {"error":{"id":"409","name":"transaction_state_conflict","detail":"Transaction cleared status changed; refresh and try again"}}
+[D1] 500 PATCH /v1/plans/p/transactions/txn_:id/cleared body=null
+[D1] baseline POST /api/tools/categorise -> 400 {"error":{"id":"400","name":"bad_request","detail":"transactions must be a non-empty array"}}
+[D1] baseline POST /api/mobile/quick-entry -> 400 {"error":{"id":"400","name":"bad_request","detail":"split transactions need at least two subtransactions"}}
+[D1] 500 POST /api/mobile/quick-entry body=null
+[D1] 500 POST /api/mobile/quick-entry client_id={}
+[D1] 500 POST /api/mobile/quick-entry client_id={"a":1}
+[D1] 500 POST /api/mobile/quick-entry client_id=[1]
+[D1] 500 POST /api/mobile/quick-entry subtransactions.0=null
+[D1] 500 POST /api/import/csv body=null
+[D1] 500 POST /api/import/csv rows={}
+[D1] 500 POST /api/import/csv rows={"a":1}
+[D1] 500 POST /api/import/csv rows=1.5
+[D1] 500 POST /api/import/csv rows=-7
+[D1] 500 POST /api/import/csv rows=100000000000000000000
+[D1] 500 POST /api/import/csv rows=true
+[D1] 500 POST /api/import/csv rows=false
+[D1] 500 POST /api/import/csv rows=""
+[D1] 500 POST /api/import/csv rows="x"
+[D1] 500 POST /api/import/csv rows="2026-13-45"
+[D1] 500 POST /api/rewards/cards body=null
+[D1] 500 PATCH /api/rewards/cards/card-1 body=null
+[D1] 500 PATCH /api/rewards/settings body=null
+[D1] baseline PUT /api/rewards/accounts/acct_437ce02f-7b1f-4eab-bedb-351388c28970/config -> 400 {"error":{"id":"400","name":"bad_request","detail":"Choose a rewards-account-config version 1 file, not a whole-app settings export"}}
+[D1] 500 PUT /api/rewards/accounts/acct_:id/config body=null
+[D1] 500 POST /api/import/rewards-tracker body=null
