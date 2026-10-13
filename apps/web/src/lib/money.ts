@@ -36,18 +36,20 @@ export function configureMoney(format?: CurrencyFormat): void {
 export function parseMilliunits(value: string): number | null {
   let text = value.trim();
   // A comma-decimal plan shows "1.234,50" (formatMoney), so a typed comma is
-  // its decimal mark. Text without a comma keeps the dot reading the fields
-  // are prefilled with (formatMilliunitsInput).
-  if (decimalSeparator === "," && text.includes(",")) {
-    if (groupSeparator && groupSeparator !== ",") {
-      text = text.split(groupSeparator).join("");
+  // its decimal mark, whatever digits follow it. Text without a comma keeps
+  // the dot reading the fields are prefilled with (formatMilliunitsInput),
+  // except that a plan with no minor unit shows 1,234 units as "1.234": dots
+  // grouped in threes cannot be a decimal there. Judged on the text as typed,
+  // before any comma becomes a dot.
+  if (decimalSeparator === ",") {
+    if (text.includes(",")) {
+      if (groupSeparator && groupSeparator !== ",") {
+        text = text.split(groupSeparator).join("");
+      }
+      text = text.replace(/,/g, ".");
+    } else if (groupSeparator === "." && decimalDigits === 0 && /^[+-]?\d{1,3}(\.\d{3})+$/.test(text)) {
+      text = text.replace(/\./g, "");
     }
-    text = text.replace(/,/g, ".");
-  }
-  // A plan with no minor unit shows 1,234 units as "1.234" (group "."), and a
-  // dot followed by exactly three digits per group cannot be a decimal there.
-  if (decimalSeparator === "," && groupSeparator === "." && decimalDigits === 0 && /^[+-]?\d{1,3}(\.\d{3})+$/.test(text)) {
-    text = text.replace(/\./g, "");
   }
   const match = text.replace(/,/g, "").match(/^([+-]?)(?:(\d+)(?:\.(\d{0,3}))?|\.(\d{1,3}))$/);
   if (!match) {

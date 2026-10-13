@@ -1,6 +1,6 @@
 import type { Payee, Subtransaction, Transaction, TransactionUpdateInput } from "../api/types";
-import { formatMilliunitsInput, parseMilliunits, planDecimalIsComma } from "./money";
-import { canonicalPayeeName, findTransferPayee, formatComposeAmount } from "./register-compose";
+import { parseMilliunits, planDecimalIsComma } from "./money";
+import { canonicalPayeeName, findTransferPayee, formatMilliunitsPadded } from "./register-compose";
 
 export type RegisterRowDraft = {
   readonly date: string;
@@ -384,7 +384,7 @@ function splitDraft(parent: Transaction, line: Subtransaction): RegisterRowDraft
 }
 
 function amountDraft(amount: number): Pick<RegisterRowDraft, "outflow" | "inflow"> {
-  const formatted = formatComposeAmount(formatMilliunitsInput(Math.abs(amount)));
+  const formatted = formatMilliunitsPadded(Math.abs(amount));
   if (amount < 0) {
     return { outflow: formatted, inflow: "" };
   }

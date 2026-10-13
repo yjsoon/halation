@@ -56,6 +56,10 @@ describe("parseMilliunits with a zero-decimal comma plan", () => {
       expect(parseMilliunits("-12.345")).toBe(-12_345_000);
       expect(parseMilliunits("1234")).toBe(1_234_000);
       expect(parseMilliunits("1.5")).toBe(1_500);
+      // An explicit comma is always the decimal mark, whatever the digits.
+      expect(parseMilliunits("1,234")).toBe(1_234);
+      expect(parseMilliunits("-1,234")).toBe(-1_234);
+      expect(parseMilliunits("1.234,5")).toBe(1_234_500);
     } finally {
       configureMoney(undefined);
     }
