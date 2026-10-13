@@ -284,6 +284,13 @@ export class D1TransactionRepository {
       const sourcePayee = await this.db.get<Record<string, any>>("SELECT id,name FROM payees WHERE id=$1 AND plan_id=$2 AND deleted=0", [account.transfer_payee_id, planId]);
       if (!sourcePayee) throw new Error("Source account transfer payee not found");
       if (input.payee_id) body.push(assertion(stable.commandId, "transfer_payee", input.payee_id, planId));
+      // A transfer named only by its account (the web schedule editor saves
+      // one so) takes the target's transfer payee, as on SQLite.
+      const targetPayee = input.payee_id ? null : await this.transferPayee(target, planId);
+      if (targetPayee) {
+        parentPayeeId = targetPayee.id; parentPayeeName = targetPayee.name;
+        body.push(assertion(stable.commandId, "transfer_payee", targetPayee.id, planId));
+      }
       body.push(assertion(stable.commandId, "upsert_transaction", transferId, planId));
       body.push(assertion(stable.commandId, "mirror_transaction", transferId, input.id!));
       const existingMirror = snapshot.mirrors.find((row) => row.id === transferId);
@@ -303,9 +310,9 @@ export class D1TransactionRepository {
 
     const keptSubs = new Set<string>(); const keptMirrors = new Set<string>();
     for (let index = 0; index < (input.subtransactions?.length ?? 0); index++) {
-      const sub = input.subtransactions![index]!;
+      let sub = input.subtransactions![index]!;
       const id = sub.id ?? stableId(stable.commandId, "sub", String(index)); keptSubs.add(id);
-      const subPayee = sub.payee_id ? await this.db.get<Record<string, any>>("SELECT id,name,transfer_account_id FROM payees WHERE id=$1 AND plan_id=$2 AND deleted=0", [sub.payee_id, planId]) : null;
+      let subPayee = sub.payee_id ? await this.db.get<Record<string, any>>("SELECT id,name,transfer_account_id FROM payees WHERE id=$1 AND plan_id=$2 AND deleted=0", [sub.payee_id, planId]) : null;
       if (sub.payee_id && !subPayee) throw new ValidationError("Payee not found");
       const subCategory = sub.category_id ? await this.db.get<Record<string, any>>("SELECT id,name FROM categories WHERE id=$1 AND plan_id=$2 AND deleted=0", [sub.category_id, planId]) : null;
       if (sub.category_id && !subCategory) throw new ValidationError("Category not found");
@@ -327,6 +334,11 @@ export class D1TransactionRepository {
         subTransferDropsCategory = bothOnBudget(account, target);
         body.push(assertion(stable.commandId, "account", subTarget, planId));
         if (sub.payee_id) body.push(assertion(stable.commandId, "transfer_payee", sub.payee_id, planId));
+        const targetPayee = sub.payee_id ? null : await this.transferPayee(target, planId);
+        if (targetPayee) {
+          sub = { ...sub, payee_id: targetPayee.id, payee_name: targetPayee.name }; subPayee = targetPayee;
+          body.push(assertion(stable.commandId, "transfer_payee", targetPayee.id, planId));
+        }
         accounts.add(subTarget);
         if (!subMirror) subMirror = stableId(stable.commandId, "submirror", id);
         const sourcePayee = await this.db.get<Record<string, any>>("SELECT id,name FROM payees WHERE id=$1 AND plan_id=$2 AND deleted=0", [account.transfer_payee_id, planId]);
@@ -355,6 +367,11 @@ export class D1TransactionRepository {
     for (const accountId of accounts) body.push(recalculate(accountId));
     for (const id of touched) body.push(knowledge(planId, id));
     return makePlan(stable.commandId, snapshot.writeVersion, input.id!, planId, kind, fingerprint, context, body);
+  }
+
+  private async transferPayee(target: Record<string, any>, planId: string): Promise<Record<string, any> | null> {
+    if (!target.transfer_payee_id) return null;
+    return await this.db.get<Record<string, any>>("SELECT id,name,transfer_account_id FROM payees WHERE id=$1 AND plan_id=$2 AND deleted=0", [target.transfer_payee_id, planId]) ?? null;
   }
 
   private assertInput(input: Partial<TransactionInput>): void {
