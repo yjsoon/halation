@@ -1663,7 +1663,12 @@ export function TransactionsPage() {
 
       {selectedRowIds.length > 0 && (
         <div className="register-bulk-bar" role="group" aria-label="Selected transaction actions">
-          <button type="button" className="register-bulk-action register-bulk-clear" onClick={() => dispatchSelection({ kind: "none" })} disabled={mutationBusy} aria-label="Clear selection">
+          <button type="button" className="register-bulk-action register-bulk-clear" onClick={() => {
+            // The bar goes with the selection; keep keyboard focus on the
+            // register's select-all box rather than letting it fall to <body>.
+            document.querySelector<HTMLInputElement>("input[aria-label='Select all visible transactions']")?.focus();
+            dispatchSelection({ kind: "none" });
+          }} disabled={mutationBusy} aria-label="Clear selection">
             × {selectedRowIds.length} selected
           </button>
           <span className="register-bulk-sep" aria-hidden="true" />
