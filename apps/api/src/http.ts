@@ -3,7 +3,7 @@ import { isLoopbackHost, type ApiConfig } from "./config";
 import { AccountPreferencesConflictError, LedgerRepository, NotFoundError, ReconciliationMismatchError, TransactionStateConflictError, ValidationError } from "./repository";
 import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
-import { collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
+import { assertTransactionFieldTypes, collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
 import { ReportService } from "./reports";
 import { decimalToMilliunits } from "./money";
 import { importCsvRows } from "./importers/csv";
@@ -266,6 +266,18 @@ async function handleV1(
       const payload = body.account ?? body;
       if (!payload || (!payload.id && !payload.name)) {
         return apiError(400, "bad_request", "account requires a name");
+      }
+      // An object name was stored as "[object Object]", an object type failed
+      // as a 500, and a string flag read as true on D1 but false on SQLite.
+      for (const field of ["id", "name", "type", "icon", "note"]) {
+        if (payload[field] != null && typeof payload[field] !== "string") {
+          throw new ValidationError(`account.${field} must be a string`);
+        }
+      }
+      for (const field of ["on_budget", "closed", "deleted"]) {
+        if (payload[field] != null && typeof payload[field] !== "boolean") {
+          throw new ValidationError(`account.${field} must be true or false`);
+        }
       }
       // Balances feed integer milliunit arithmetic; a decimal string or an
       // object would be stored verbatim and corrupt every later balance.
@@ -547,6 +559,7 @@ async function handleV1(
       if (!input) {
         return apiError(400, "bad_request", "transaction is required");
       }
+      assertTransactionFieldTypes(input);
       const existing = input?.import_id && input?.account_id
         ? await repo.findTransactionByImportId(planId, input.import_id, input.account_id)
         : null;
@@ -584,10 +597,10 @@ async function handleV1(
     }
     if (segments.length === 5 && segments[4] === "import" && method === "POST") {
       const body = await readJson(request);
-      const result = await repo.importTransactions(
-        planId,
-        (body.transactions ?? []).map((transaction: any) => transaction.transaction ?? transaction),
-      );
+      if (body.transactions != null && !Array.isArray(body.transactions)) throw new ValidationError("transactions must be an array");
+      const items = (body.transactions ?? []).map((transaction: any) => transaction?.transaction ?? transaction);
+      items.forEach((item: unknown, index: number) => assertTransactionFieldTypes(item, `transactions[${index}]`));
+      const result = await repo.importTransactions(planId, items);
       return json({ data: result }, 201);
     }
 
@@ -625,6 +638,7 @@ async function handleV1(
     if (segments.length === 5 && (method === "PUT" || method === "PATCH")) {
       const body = await readJson(request);
       const patch = body.transaction ?? body;
+      assertTransactionFieldTypes(patch);
       if (Object.prototype.hasOwnProperty.call(patch, "flag_color") && !Object.prototype.hasOwnProperty.call(patch, "flag_name")) {
         // A move and a flag in one edit take the destination card's names.
         const accountId = typeof patch.account_id === "string" && patch.account_id
@@ -819,6 +833,9 @@ async function handleNative(
     if (denied) return denied;
     await repo.ensurePlan(targetPlanId);
     const amount = quickEntryMilliunits(body.amount_milli, body.amount, "amount");
+    if (Array.isArray(body.subtransactions) && body.subtransactions.some((sub: unknown) => !sub || typeof sub !== "object" || Array.isArray(sub))) {
+      throw new ValidationError("subtransactions must be objects");
+    }
     const subtransactions = Array.isArray(body.subtransactions)
       ? body.subtransactions.map((sub: any) => ({
           amount: quickEntryMilliunits(sub.amount_milli, sub.amount, "subtransaction amount"),
@@ -843,6 +860,7 @@ async function handleNative(
       source_ref: body.client_id ?? null,
       subtransactions,
     };
+    assertTransactionFieldTypes(input);
     await stampTransactionFlagName(repo, targetPlanId, input.account_id, input);
     await autoCategorise(repo, targetPlanId, [input], categoriser);
     const transaction = await repo.createTransaction(targetPlanId, input);
@@ -1083,11 +1101,18 @@ async function readJson(request: Request): Promise<any> {
   if (!text) {
     return {};
   }
+  let body: unknown;
   try {
-    return JSON.parse(text);
+    body = JSON.parse(text);
   } catch {
     throw new ValidationError("Request body is not valid JSON");
   }
+  // Every route reads named fields; a bare null, array or scalar failed on the
+  // first property read as a 500.
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new ValidationError("Request body must be a JSON object");
+  }
+  return body;
 }
 
 function scheduledWriteOptions(request: Request): { operationId?: string } {
