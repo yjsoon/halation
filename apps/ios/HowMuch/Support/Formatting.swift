@@ -157,11 +157,15 @@ enum MoneyCodec {
     formatter.currencySymbol = showsSymbol
       ? (currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$")
       : ""
+    // A currency pattern draws with the currency separators, which follow
+    // the device region unless they are set too.
     if let decimalSeparator = currencyFormat?.decimalSeparator {
       formatter.decimalSeparator = decimalSeparator
+      formatter.currencyDecimalSeparator = decimalSeparator
     }
     if let groupSeparator = currencyFormat?.groupSeparator {
       formatter.groupingSeparator = groupSeparator
+      formatter.currencyGroupingSeparator = groupSeparator
     }
 
     formatterLock.lock()
