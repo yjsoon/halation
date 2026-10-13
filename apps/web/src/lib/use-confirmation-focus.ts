@@ -1,9 +1,10 @@
 import { useEffect, useRef, type RefObject } from "react";
 
 /**
- * Keyboard focus for an inline confirmation panel. When it opens (`openKey`
- * becomes truthy, or changes), focus moves to its Cancel button, since the
- * panel is often rendered away from the control that asked for it. When it
+ * Keyboard focus for an inline confirmation panel or editor. When it opens
+ * (`openKey` becomes truthy, or changes), focus moves to `cancel` (a
+ * confirmation's Cancel button, or an editor's first field), since the panel
+ * is often rendered away from the control that asked for it. When it
  * closes and focus fell to <body> with it, focus goes back to that control,
  * or to `restore()` when the control itself was replaced by the panel.
  */
