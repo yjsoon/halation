@@ -1,6 +1,8 @@
 import type { CurrencyFormat } from "../api/types";
 
 let formatter = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+let decimalSeparator = ".";
+let groupSeparator = ",";
 let symbol = "";
 let symbolFirst = true;
 let currencyFormat: CurrencyFormat | undefined;
@@ -17,6 +19,10 @@ export function configureMoney(format?: CurrencyFormat): void {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
+  // The plan's own separators, so an imported "12,50" plan shows what its
+  // register search (parsed with the same format) expects to be typed.
+  decimalSeparator = format?.decimal_separator || ".";
+  groupSeparator = format?.group_separator ?? ",";
   symbol = format?.display_symbol === false ? "" : (format?.currency_symbol ?? "");
   symbolFirst = format?.symbol_first ?? true;
 }
@@ -51,7 +57,9 @@ export function formatMilliunitsInput(milliunits: number): string {
 
 /** Formats integer milliunits for display, e.g. -12340 -> "−£12.34". */
 export function formatMoney(milliunits: number, options?: { sign?: boolean }): string {
-  const absolute = formatter.format(Math.abs(milliunits) / 1000);
+  const absolute = formatter
+    .format(Math.abs(milliunits) / 1000)
+    .replace(/[,.]/g, (mark) => (mark === "." ? decimalSeparator : groupSeparator));
   const withSymbol = symbolFirst ? `${symbol}${absolute}` : `${absolute}${symbol}`;
   if (milliunits < 0) {
     return `−${withSymbol}`;

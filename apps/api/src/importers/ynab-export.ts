@@ -38,6 +38,15 @@ export async function importYnabExport(
   repo: LedgerStore,
   options: YnabExportImportOptions,
 ): Promise<YnabExportImportResult> {
+  // Asked before the import session exists: creating the session creates the
+  // plan, which would make every first import look like an existing plan.
+  const planExists = await repo.getPlan(options.planId).then(
+    () => true,
+    (error: unknown) => {
+      if (error instanceof PlanNotFoundError) return false;
+      throw error;
+    },
+  );
   const sessionId = await repo.createImportSession(options.planId, "ynab-web-export");
   const dateFormat = options.dateFormat ?? "dmy";
   const registerRows = parseDelimited(options.registerCsv);
@@ -57,16 +66,9 @@ export async function importYnabExport(
   let failed = 0;
 
   try {
-    const months = planRows.map((row) => normaliseMonth(row.Month)).filter(Boolean) as string[];
     // The export carries no currency or flag names, so these defaults only seed
     // a new plan; an existing plan keeps its own settings and named flags.
-    const planExists = await repo.getPlan(options.planId).then(
-      () => true,
-      (error: unknown) => {
-        if (error instanceof PlanNotFoundError) return false;
-        throw error;
-      },
-    );
+    const months = planRows.map((row) => normaliseMonth(row.Month)).filter(Boolean) as string[];
     await repo.upsertPlan(
       options.planId,
       {

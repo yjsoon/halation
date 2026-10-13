@@ -296,7 +296,7 @@ export class D1TransactionRepository {
       const existingMirror = snapshot.mirrors.find((row) => row.id === transferId);
       // A new other side is uncleared (as on SQLite and for split lines): the
       // source's cleared or reconciled state says nothing about the target's statement.
-      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: existingMirror?.category_id, categoryName: existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
+      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: transferDropsCategory ? null : existingMirror?.category_id, categoryName: transferDropsCategory ? null : existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
       touched.add(transferId);
     } else if (transferAccount) {
       const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [transferAccount, planId]);
@@ -346,7 +346,7 @@ export class D1TransactionRepository {
         body.push(assertion(stable.commandId, "upsert_transaction", subMirror, planId));
         body.push(assertion(stable.commandId, "mirror_transaction", subMirror, id));
         const existingMirror = snapshot.mirrors.find((row) => row.id === subMirror);
-        body.push(upsertTransaction({ id: subMirror, planId, accountId: subTarget, date: input.date, amount: -sub.amount, memo: sub.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: existingMirror?.category_id, categoryName: existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: id, extra: mirrorOwnFields(existingMirror) }));
+        body.push(upsertTransaction({ id: subMirror, planId, accountId: subTarget, date: input.date, amount: -sub.amount, memo: sub.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: subTransferDropsCategory ? null : existingMirror?.category_id, categoryName: subTransferDropsCategory ? null : existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: id, extra: mirrorOwnFields(existingMirror) }));
         keptMirrors.add(subMirror); touched.add(subMirror);
       } else if (subTarget) {
         const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [subTarget,planId]);
