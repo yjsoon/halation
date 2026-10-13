@@ -100,6 +100,15 @@ type ReconcileDraft = {
   mismatch: ReconciliationMismatchDetail | null;
 };
 
+/**
+ * The rows a Spending drill-down (`flow=outflow`) keeps, by the report's own
+ * rule: an outflow counts unless it is an uncategorised transfer leg, so a
+ * categorised transfer to a tracking account (a loan payment) stays in.
+ */
+function isSpendingOutflow(txn: Transaction): boolean {
+  return txn.amount < 0 && (!txn.transfer_account_id || txn.category_id !== null);
+}
+
 export function TransactionsPage() {
   const { filters, setFilters } = useFilters({ defaultRange: () => trailingMonthsRange(2) });
   const { accounts, categoryGroups, planId, planSelectionError, userId, ledgerKnowledge, knowledgeTrusted, cacheEpoch, reload } = usePlan();
@@ -1058,7 +1067,7 @@ export function TransactionsPage() {
     const outflowOnly = flow === "outflow" || wantsUncategorised;
     return inScope
       .filter((txn) => !unapprovedOnly || !txn.approved)
-      .filter((txn) => !outflowOnly || (txn.amount < 0 && !txn.transfer_account_id))
+      .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
           return true;
@@ -1107,7 +1116,7 @@ export function TransactionsPage() {
       .filter((txn) => registerAccountIds.has(txn.account_id))
       .filter((txn) => unapprovedOnly || dateInRegisterWindow(txn.date, filters.from, filters.to, today))
       .filter((txn) => !unapprovedOnly || !txn.approved)
-      .filter((txn) => !outflowOnly || (txn.amount < 0 && !txn.transfer_account_id))
+      .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
           return true;
