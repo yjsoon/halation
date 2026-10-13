@@ -32,6 +32,11 @@ export function ScheduledTransactionsPage() {
   const entryCancelRef = useRef<HTMLButtonElement>(null);
   useConfirmationFocus(pendingDeletion?.schedule.id, deleteCancelRef);
   useConfirmationFocus(pendingEntry?.schedule.id, entryCancelRef);
+  // The editor also renders above the list; Cancel or Save unmounts the
+  // focused control, so focus goes back to the Edit (or Add) that opened it.
+  const editorFirstFieldRef = useRef<HTMLSelectElement>(null);
+  const addScheduleRef = useRef<HTMLButtonElement>(null);
+  useConfirmationFocus(editor ? (editor.mode === "edit" ? `edit-${editor.schedule.id}` : "create") : null, editorFirstFieldRef, () => addScheduleRef.current);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [mutationSuccess, setMutationSuccess] = useState<string | null>(null);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
@@ -143,6 +148,7 @@ export function ScheduledTransactionsPage() {
           <Figure label="Next due" value={nextDate ? formatDate(nextDate) : "—"} />
           <button
             type="button"
+            ref={addScheduleRef}
             className="register-add-link"
             onClick={() => { setEditor({ mode: "create" }); setMutationError(null); setMutationSuccess(null); }}
             disabled={Boolean(mutatingId)}
@@ -165,6 +171,7 @@ export function ScheduledTransactionsPage() {
           categoryGroups={categoryGroups}
           payees={payees.data ?? []}
           saving={mutatingId === "creating" || (editor.mode === "edit" && mutatingId === editor.schedule.id)}
+          firstFieldRef={editorFirstFieldRef}
           onCancel={() => { setEditor(null); setMutationError(null); }}
           onSave={saveSchedule}
         />
@@ -242,7 +249,7 @@ function SplitScheduleRow({ line, accounts, categories, payees }: { line: Schedu
   return <tr className="split-line-row schedule-split-row"><td aria-hidden="true" /><td className="split-line-cell"><span className="schedule-split-mark">Split</span> {payee}{line.memo ? ` · ${line.memo}` : ""}<div className="schedule-mobile-detail">{category}</div></td><td aria-hidden="true" /><td>{category}</td><td aria-hidden="true" /><td className={line.amount < 0 ? "num amount-negative" : line.amount > 0 ? "num amount-positive" : "num"}>{formatMoney(line.amount, { sign: line.amount > 0 })}</td><td aria-hidden="true" /></tr>;
 }
 
-function ScheduleEditor({ schedule, accounts, categoryGroups, payees, saving, onCancel, onSave }: { schedule?: ScheduledTransaction; accounts: Account[]; categoryGroups: CategoryGroup[]; payees: Payee[]; saving: boolean; onCancel: () => void; onSave: (input: ScheduledTransactionInput, idempotencyKey: string) => Promise<void> }) {
+function ScheduleEditor({ schedule, accounts, categoryGroups, payees, saving, firstFieldRef, onCancel, onSave }: { schedule?: ScheduledTransaction; accounts: Account[]; categoryGroups: CategoryGroup[]; payees: Payee[]; saving: boolean; firstFieldRef: React.Ref<HTMLSelectElement>; onCancel: () => void; onSave: (input: ScheduledTransactionInput, idempotencyKey: string) => Promise<void> }) {
   const { planId } = usePlan();
   const rewardsSnapshot = useApi(`${planId}:reward-flag-names`, () => api.rewardsTrackerSnapshot(planId));
   const namesByAccount = useMemo(() => colourNamesByAccount(rewardsSnapshot.data?.cards), [rewardsSnapshot.data]);
@@ -298,7 +305,7 @@ function ScheduleEditor({ schedule, accounts, categoryGroups, payees, saving, on
   return <section className="transaction-editor schedule-editor" aria-labelledby="schedule-editor-heading">
     <div className="section-heading"><div><span className="section-title" id="schedule-editor-heading">{schedule ? "Edit scheduled transaction" : "Add scheduled transaction"}</span><span className="section-meta">{schedule ? "Changes apply to future repeats." : "Add a repeating transaction."}</span></div><button type="button" className="text-button" onClick={onCancel} disabled={saving}>Cancel</button></div>
     <form className="transaction-editor-form" onSubmit={(event) => void submit(event)}>
-      <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">Account</span><select value={accountId} onChange={(event) => setAccountId(event.target.value)} required><option value="">Choose account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.closed ? " (closed)" : ""}</option>)}</select></label><label className="field"><span className="field-label">Amount</span><input type="text" inputMode="decimal" value={isSplit ? formatMilliunitsInput(splitTotal) : amount} onChange={(event) => setAmount(event.target.value)} disabled={isSplit} required /><span className="field-note">Use a minus sign for outflow. Amounts use up to three decimal places.</span></label></div>
+      <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">Account</span><select ref={firstFieldRef} value={accountId} onChange={(event) => setAccountId(event.target.value)} required><option value="">Choose account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.closed ? " (closed)" : ""}</option>)}</select></label><label className="field"><span className="field-label">Amount</span><input type="text" inputMode="decimal" value={isSplit ? formatMilliunitsInput(splitTotal) : amount} onChange={(event) => setAmount(event.target.value)} disabled={isSplit} required /><span className="field-note">Use a minus sign for outflow. Amounts use up to three decimal places.</span></label></div>
       <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">First date</span><input type="date" value={firstDate} onChange={(event) => setFirstDate(event.target.value)} required /></label><label className="field"><span className="field-label">Next date</span><input type="date" value={nextDate} onChange={(event) => setNextDate(event.target.value)} required /></label><label className="field"><span className="field-label">Repeat</span><select value={frequency} onChange={(event) => setFrequency(event.target.value)}>{FREQUENCIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
       {!isSplit && <><label className="field"><span className="field-label">Transfer</span><select value={transferAccountId} onChange={(event) => setTransfer(event.target.value)}><option value="">Not a transfer</option>{accounts.filter((account) => account.id !== accountId).map((account) => <option key={account.id} value={account.id}>Transfer to {account.name}</option>)}</select></label>{!transferAccountId && <><label className="field"><span className="field-label">Payee</span><select value={payeeId} onChange={(event) => setPayeeId(event.target.value)}><option value="">No payee</option>{payees.filter((payee) => !payee.deleted && !payee.transfer_account_id).map((payee) => <option key={payee.id} value={payee.id}>{payee.name}</option>)}</select></label><label className="field"><span className="field-label">Category</span><CategorySelect value={categoryId} onChange={setCategoryId} groups={groups} /></label></>}</>}
       <label className="transaction-editor-checkbox"><input type="checkbox" checked={isSplit} onChange={toggleSplit} /> Split this schedule</label>

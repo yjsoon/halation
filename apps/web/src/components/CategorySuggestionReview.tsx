@@ -10,6 +10,7 @@ export function CategorySuggestionReview({
   onChange,
   onApply,
   onCancel,
+  headingRef,
 }: {
   rows: SuggestionReviewRow[];
   groups: ReturnType<typeof splitCategoryGroups>;
@@ -17,6 +18,8 @@ export function CategorySuggestionReview({
   onChange: (rows: SuggestionReviewRow[]) => void;
   onApply: () => void;
   onCancel: () => void;
+  /** Focused when the review opens, so Tab continues into its rows. */
+  headingRef?: React.Ref<HTMLHeadingElement>;
 }) {
   const applyCount = appliedReviewItems(rows).length;
   const update = (index: number, patch: Partial<SuggestionReviewRow>) =>
@@ -25,7 +28,7 @@ export function CategorySuggestionReview({
   return (
     <section className="category-suggestions" role="region" aria-labelledby="category-suggestions-heading">
       <div className="category-suggestions-head">
-        <h2 id="category-suggestions-heading">Suggested categories</h2>
+        <h2 id="category-suggestions-heading" ref={headingRef} tabIndex={-1}>Suggested categories</h2>
         <p>
           Suggested by Jev from each payee, memo and amount, and how similar past transactions were categorised. Ticked rows are confident
           suggestions; check them and change any before applying.

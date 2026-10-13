@@ -77,6 +77,7 @@ import {
 } from "../lib/register-selection";
 import { activeSchedulesForScope, scheduledAmount, scheduleRecurrence, transferScheduleLabel } from "../lib/schedules";
 import { useFilters } from "../state/filters";
+import { useConfirmationFocus } from "../lib/use-confirmation-focus";
 import { usePlan } from "../state/plan";
 import { isCachedPayees, isCachedRegisterPage, isCachedScheduled } from "../state/cache-shapes";
 import type { CachedRegisterPage } from "../state/cache-shapes";
@@ -241,12 +242,23 @@ export function TransactionsPage() {
       rowElement.focus({ preventScroll: true });
     }
   }, [pendingDeletion?.id]);
-  useEffect(() => {
-    if (pendingBulkDeletion) bulkDeleteCancelRef.current?.focus();
-  }, [pendingBulkDeletion]);
+  // The bulk bar's own button opened the bulk confirmation, the review and
+  // the reconcile editor; when that control is gone (the selection was
+  // cleared by the write), focus stays in the register at select-all.
+  const selectAllFallback = () =>
+    document.querySelector<HTMLInputElement>("input[aria-label='Select all visible transactions']") ?? addTransactionRef.current;
+  useConfirmationFocus(pendingBulkDeletion, bulkDeleteCancelRef, selectAllFallback);
   const [suggestionReview, setSuggestionReview] = useState<SuggestionReviewRow[] | null>(null);
   const [suggesting, setSuggesting] = useState(false);
+  // "Suggest categories" is disabled while Jev answers, which drops focus, so
+  // the review restores to that button rather than to whatever had focus.
+  const suggestButtonRef = useRef<HTMLButtonElement>(null);
+  const suggestionHeadingRef = useRef<HTMLHeadingElement>(null);
+  useConfirmationFocus(suggestionReview !== null, suggestionHeadingRef, () =>
+    suggestButtonRef.current?.isConnected ? suggestButtonRef.current : selectAllFallback());
   const [reconcileDraft, setReconcileDraft] = useState<ReconcileDraft | null>(null);
+  const reconcileFirstFieldRef = useRef<HTMLSelectElement>(null);
+  useConfirmationFocus(reconcileDraft?.operationSeed, reconcileFirstFieldRef, () => addTransactionRef.current);
   const [reconciliationPreviewGeneration, setReconciliationPreviewGeneration] = useState(0);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [mutationSuccess, setMutationSuccess] = useState<string | null>(null);
@@ -1696,6 +1708,7 @@ export function TransactionsPage() {
           />
           <button
             type="button"
+            ref={suggestButtonRef}
             className="register-bulk-action"
             onClick={() => void suggestCategories(selectedRows)}
             disabled={mutationBusy || suggesting || suggestionTargets(selectedRows).length === 0}
@@ -1779,6 +1792,7 @@ export function TransactionsPage() {
               <label className="field">
                 <span className="field-label">Account</span>
                 <select
+                  ref={reconcileFirstFieldRef}
                   value={reconcileDraft.accountId}
                   onChange={(event) => updateReconcile({ accountId: event.target.value })}
                   disabled={reconciliationBusy}
@@ -1934,6 +1948,7 @@ export function TransactionsPage() {
           onChange={setSuggestionReview}
           onApply={() => void applySuggestions(suggestionReview)}
           onCancel={() => setSuggestionReview(null)}
+          headingRef={suggestionHeadingRef}
         />
       )}
       {pendingBulkDeletion && (
