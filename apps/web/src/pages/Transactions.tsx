@@ -233,12 +233,20 @@ export function TransactionsPage() {
   // A committed edit refetches the first page, which empties the table for a
   // moment, so the bloom waits for the rows to land rather than firing at nothing.
   const [bloomIds, setBloomIds] = useState<string[]>([]);
+  // The row a keyboard save came from. The refetch remounts it, dropping focus
+  // to <body>, so focus goes back to it when it lands, as Esc already does.
+  const refocusRowIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!bloomIds.length) return;
     const onScreen = bloomIds.some((id) => document.getElementById(id));
     if (!onScreen && (page.loading || page.filling)) return;
     bloomRows(bloomIds);
     setBloomIds([]);
+    const refocus = refocusRowIdRef.current ? document.getElementById(refocusRowIdRef.current) : null;
+    refocusRowIdRef.current = null;
+    if (refocus && (document.activeElement === null || document.activeElement === document.body)) {
+      refocus.focus({ preventScroll: true });
+    }
   }, [bloomIds, page.filling, page.loading, page.transactions]);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [unapprovedOnly, setUnapprovedOnly] = useState(false);
@@ -807,6 +815,7 @@ export function TransactionsPage() {
           ? `${savedName} saved.`
           : `${savedName} saved. It is outside this date range.`,
       );
+      refocusRowIdRef.current = registerRowDomId(session.row);
       setBloomIds([registerRowDomId(session.row)]);
       dispatchRowEdit({ type: "committed" });
     } catch (cause) {
