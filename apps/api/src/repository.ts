@@ -63,6 +63,8 @@ import {
   type CategoryRow,
 } from "./category-management";
 import { requestHash } from "./d1-guarded-command";
+import { cardFlagNames, flagNameForColour } from "./rewards/flag-names";
+import type { CreditCard } from "./rewards/types";
 import {
   PLAN_NOT_EMPTY_CONDITION,
   PlanNotEmptyError,
@@ -2437,12 +2439,22 @@ export class LedgerRepository {
       cleared: sourceAccount.type === "cash" ? "cleared" : "uncleared",
       approved: false,
       flag_color: normalised.flag_color ?? null,
+      // Named from the account's rewards card, as a typed transaction is; a
+      // posted occurrence otherwise labels its flag group by colour alone.
+      ...await this.cardFlagName(planId, normalised.account_id, normalised.flag_color ?? null),
       transfer_account_id: parent.transferAccountId,
       import_id: `scheduled:${schedule.id}:${occurrenceDate}`,
       source_kind: "scheduled-transaction",
       source_ref: `${schedule.id}:${occurrenceDate}:${scheduledOccurrenceSnapshotHash(schedule)}:${scheduleDigest(requestOperationId ?? "direct").slice(0, 16)}`,
       subtransactions,
     };
+  }
+
+  private async cardFlagName(planId: string, accountId: string, flagColor: string | null): Promise<{ flag_name?: string | null }> {
+    const card = (await this.getRewardsTrackerSnapshot(planId)).cards.find((entry) =>
+      Boolean(entry && typeof entry === "object" && !Array.isArray(entry) && (entry as { ynabAccountId?: string }).ynabAccountId === accountId),
+    ) as CreditCard | undefined;
+    return card ? { flag_name: flagNameForColour(cardFlagNames(card), flagColor) } : {};
   }
 
   private async readMaterializedOccurrence(planId: string, transactionId: string, scheduleId: string, occurrenceDate: string): Promise<{ transaction: any; snapshotHash: string } | null> {
