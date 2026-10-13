@@ -194,7 +194,7 @@ function RewardsBoard({ planId }: { planId: string }) {
       }
     } catch (cause) {
       const updated = selected.length - remaining.length;
-      setSettingsError(`${updated} ${updated === 1 ? "card" : "cards"} updated.${cause instanceof Error ? cause.message : String(cause)}`);
+      setSettingsError(`${updated} ${updated === 1 ? "card" : "cards"} updated. ${cause instanceof Error ? cause.message : String(cause)}`);
     } finally {
       setSelected(remaining); setBatchBusy(false); setRefresh((value) => value + 1);
       setJustUpdated(selected.filter((id) => !remaining.includes(id)));
