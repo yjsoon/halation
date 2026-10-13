@@ -29,7 +29,7 @@ export async function patchRewardsCard(
 ): Promise<CreditCard> {
   const existing = findLiveCard((await repo.getRewardsTrackerSnapshot(planId)).cards, cardId);
   if (!existing) throw new NotFoundError("Rewards card not found");
-  const previousNames = parseCardFlagNames(existing.flagNames);
+  const previousNames = storedCardFlagNames(existing);
   const draft: Record<string, unknown> = { ...existing, ...asCardObject(raw), id: cardId };
   const accountId = requireLiveAccountId(draft.ynabAccountId);
   if (!await repo.findLiveAccountId(planId, accountId)) {
@@ -63,9 +63,11 @@ async function retitleAccountFlagNames(
   card: CreditCard,
   previousNames?: Record<string, string>,
 ): Promise<void> {
-  const nextNames = card.flagNames ?? {};
+  // The same names a new transaction is stamped with: subcategory names,
+  // overridden by explicit colour names. A subcategory rename must restamp
+  // the rows it named, or the report groups one flag under its old name.
+  const nextNames = cardFlagNames(card);
   const prior = previousNames ?? {};
-  if (!card.flagNames && Object.keys(prior).length === 0) return;
   const colours = new Set([...Object.keys(nextNames), ...Object.keys(prior)]);
   if (colours.size === 0) return;
   const rows = await repo.listTransactions(planId, { accountId: card.ynabAccountId });
@@ -109,6 +111,16 @@ export function parseSettingsWrite(body: Record<string, unknown>): { milesValuat
     throw new ValidationError("milesValuation must be nonnegative");
   }
   return { milesValuation: body.milesValuation };
+}
+
+/** Names the stored card stamped, read defensively from its raw stored form. */
+function storedCardFlagNames(card: Record<string, unknown>): Record<string, string> {
+  const subcategories = (Array.isArray(card.subcategories) ? card.subcategories : []).filter((entry) =>
+    Boolean(entry && typeof entry === "object" && typeof entry.name === "string" && typeof entry.flagColor === "string"));
+  return cardFlagNames({
+    flagNames: parseCardFlagNames(card.flagNames),
+    subcategories: subcategories as NonNullable<CreditCard["subcategories"]>,
+  });
 }
 
 function asCardObject(value: unknown): Record<string, unknown> {
