@@ -37,7 +37,7 @@ export function StatementFormatterPage() {
         if (active.signal.aborted) break;
         extracted.push(...data.rows); setRows([...initial, ...extracted]);
       }
-      if (!active.signal.aborted) setStatus(`Extraction complete: ${extracted.length} rows. Review dates and amounts before exporting.`);
+      if (!active.signal.aborted) setStatus(`Extraction complete: ${extracted.length} ${extracted.length === 1 ? "row" : "rows"}.Review dates and amounts before exporting.`);
     } catch (cause) { if (!active.signal.aborted) setError((cause as Error).message); }
     finally { setBusy(false); }
   };

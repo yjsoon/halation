@@ -193,7 +193,8 @@ function RewardsBoard({ planId }: { planId: string }) {
         remaining.splice(remaining.indexOf(id), 1);
       }
     } catch (cause) {
-      setSettingsError(`${selected.length - remaining.length} cards updated. ${cause instanceof Error ? cause.message : String(cause)}`);
+      const updated = selected.length - remaining.length;
+      setSettingsError(`${updated} ${updated === 1 ? "card" : "cards"} updated.${cause instanceof Error ? cause.message : String(cause)}`);
     } finally {
       setSelected(remaining); setBatchBusy(false); setRefresh((value) => value + 1);
       setJustUpdated(selected.filter((id) => !remaining.includes(id)));
@@ -427,7 +428,7 @@ function RewardsBoard({ planId }: { planId: string }) {
           <div className="section-heading">
             <div>
               <span className="section-title" id="rewards-groups-heading">By {GROUP_LABEL[filters.groupBy].toLowerCase()}</span>
-              <span className="section-meta">{shown.groups.length} groups</span>
+              <span className="section-meta">{shown.groups.length} {shown.groups.length === 1 ? "group" : "groups"}</span>
             </div>
             {!range && (
               <div className="segmented" role="group" aria-label="Report grouping">

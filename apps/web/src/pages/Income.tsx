@@ -91,7 +91,7 @@ export function IncomePage() {
                 <div className="section-heading">
                   <div>
                     <span className="section-title">Trend</span>
-                    <span className="section-meta">{periods.length} periods in view</span>
+                    <span className="section-meta">{periods.length} {periods.length === 1 ? "period" : "periods"} in view</span>
                   </div>
                   <ul className="chart-legend" aria-label="Chart key">
                     <li><span className="chart-swatch chart-swatch-income" aria-hidden="true" />Income</li>

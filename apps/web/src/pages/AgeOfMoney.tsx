@@ -12,6 +12,8 @@ import { useFilters } from "../state/filters";
 const ALL_TIME = () => ({});
 const INTERVALS: Interval[] = ["week", "month"];
 
+const days = (count: number) => `${count} ${Math.abs(count) === 1 ? "day" : "days"}`;
+
 export function AgeOfMoneyPage() {
   const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ALL_TIME, intervals: INTERVALS });
   const query = { ...reportQuery, category_ids: undefined };
@@ -25,7 +27,7 @@ export function AgeOfMoneyPage() {
     latest && previous ? Math.round(latest.age_of_money_days! - previous.age_of_money_days!) : null;
   const unmatchedTotal = periods.reduce((sum, period) => sum + period.unmatched_spending, 0);
   const matchedTotal = periods.reduce((sum, period) => sum + period.spent, 0);
-  const latestDays = latest?.age_of_money_days != null ? `${Math.round(latest.age_of_money_days)} days` : "—";
+  const latestDays = latest?.age_of_money_days != null ? days(Math.round(latest.age_of_money_days)) : "—";
   const isPhone = useIsPhone();
 
   return (
@@ -52,7 +54,7 @@ export function AgeOfMoneyPage() {
           <div className="headline-figure">
             <span className="figure-label">Change on previous period</span>
             <span key={delta ?? "none"} className={delta === null || delta >= 0 ? "figure-value figure-settle figure-positive" : "figure-value figure-settle figure-negative"}>
-              {delta === null ? "—" : `${delta > 0 ? "+" : ""}${delta} days`}
+              {delta === null ? "—" : `${delta > 0 ? "+" : ""}${days(delta)}`}
             </span>
           </div>
           <div className="headline-figure">
@@ -81,7 +83,7 @@ export function AgeOfMoneyPage() {
               <section className="report-section">
                 <div className="section-heading">
                   <span className="section-title">Trend</span>
-                  <span className="section-meta">{measuredPeriods.length} measured periods</span>
+                  <span className="section-meta">{measuredPeriods.length} measured {measuredPeriods.length === 1 ? "period" : "periods"}</span>
                 </div>
                 <DottedLine
                   periods={periods.map((period) => ({
@@ -116,7 +118,7 @@ export function AgeOfMoneyPage() {
                         <tr key={period.period}>
                           <td>{formatPeriod(period.period)}</td>
                           <td className="num strong">
-                            {period.age_of_money_days != null ? `${Math.round(period.age_of_money_days)} days` : "—"}
+                            {period.age_of_money_days != null ? days(Math.round(period.age_of_money_days)) : "—"}
                           </td>
                           <td className="num">{formatAmount(period.spent)}</td>
                           <td className="num muted">
