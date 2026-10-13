@@ -416,7 +416,10 @@ export class LedgerRepository {
 
   async upsertAccount(planId: string, account: any): Promise<void> {
     await this.ensurePlan(planId);
-    const existing = await this.db.query("SELECT icon FROM accounts WHERE id = ?").get(account.id) as Row | null;
+    const existing = await this.db.query("SELECT icon, plan_id FROM accounts WHERE id = ?").get(account.id) as Row | null;
+    // The upsert matches on id alone: another plan's account id renamed and
+    // retyped that plan's account.
+    if (existing && existing.plan_id !== planId) throw new ValidationError("Account belongs to another plan");
     const presentation = resolveAccountPresentation({
       name: account.name ?? `Account ${account.id}`,
       icon: account.icon,
@@ -1105,6 +1108,11 @@ export class LedgerRepository {
       const existingRow = await this.db
         .query("SELECT * FROM transactions WHERE id = ? AND plan_id = ?")
         .get(transactionId, planId) as Row | null;
+      // The upsert below matches on id alone, so a write naming another plan's
+      // transaction id moved that row into this plan's account, as on D1 refused.
+      if (!existingRow && await this.db.query("SELECT 1 FROM transactions WHERE id = ? AND plan_id <> ?").get(transactionId, planId)) {
+        throw new NotFoundError("Transaction belongs to another plan");
+      }
       const refs = await this.resolveTransactionRefs(planId, input);
 
       let payeeId = refs.payeeId;
