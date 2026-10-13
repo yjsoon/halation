@@ -92,6 +92,7 @@ function RewardsBoard({ planId }: { planId: string }) {
   const [batchValue, setBatchValue] = useState("true");
   const [batchBusy, setBatchBusy] = useState(false);
   const [selecting, setSelecting] = useState(false);
+  const selectToggleRef = useRef<HTMLButtonElement>(null);
   // Cards a batch apply just wrote: each pulses once, then the list clears.
   const [justUpdated, setJustUpdated] = useState<string[]>([]);
   // Functional, so a patch queued behind a running board transition merges into
@@ -194,7 +195,7 @@ function RewardsBoard({ planId }: { planId: string }) {
       }
     } catch (cause) {
       const updated = selected.length - remaining.length;
-      setSettingsError(`${updated} ${updated === 1 ? "card" : "cards"} updated.${cause instanceof Error ? cause.message : String(cause)}`);
+      setSettingsError(`${updated} ${updated === 1 ? "card" : "cards"} updated. ${cause instanceof Error ? cause.message : String(cause)}`);
     } finally {
       setSelected(remaining); setBatchBusy(false); setRefresh((value) => value + 1);
       setJustUpdated(selected.filter((id) => !remaining.includes(id)));
@@ -287,7 +288,7 @@ function RewardsBoard({ planId }: { planId: string }) {
         </div>
         <div className="rw-toolbar-end">
           <ArrangeMenu preferences={preferences} hiddenCount={hiddenCount} onChange={arrange} />
-          <button type="button" className="rw-tool-button" aria-pressed={selecting}
+          <button type="button" ref={selectToggleRef} className="rw-tool-button" aria-pressed={selecting}
             onClick={() => { if (selecting) setSelected([]); setSelecting(!selecting); }}>{selecting ? "Done" : "Select"}</button>
         </div>
       </section>
@@ -417,7 +418,13 @@ function RewardsBoard({ planId }: { planId: string }) {
                   {batchField === "featured" ? <><option value="true">Featured</option><option value="false">Not featured</option></> : <><option value="cashback">Cashback</option><option value="miles">Miles</option></>}
                 </select>}
               <button type="button" className="rw-bulk-apply" disabled={!selected.length || batchBusy} onClick={() => void applyBatch()}>{batchBusy ? "Applying…" : "Apply to selected"}</button>
-              <button type="button" onClick={() => { setSelected([]); setSelecting(false); }}>Done</button>
+              <button type="button" onClick={() => {
+                // The bar goes with selection mode; hand focus to the toolbar's
+                // Select button rather than letting it fall to <body>.
+                selectToggleRef.current?.focus();
+                setSelected([]);
+                setSelecting(false);
+              }}>Done</button>
             </div>
           )}
         </div>

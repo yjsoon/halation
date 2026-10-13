@@ -19,12 +19,15 @@ if lsof -nP -iTCP:"$API_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
   exit 1
 fi
 
-tmux new-session -d -s "$SESSION_NAME" -c "$ROOT_DIR" "bun run api:dev"
+# Pass the port to both windows explicitly: a tmux server that is already
+# running does not hand this shell's environment to new sessions, and Vite
+# otherwise proxies to :8787, which is the very port found busy above.
+tmux new-session -d -s "$SESSION_NAME" -c "$ROOT_DIR" "PORT=$API_PORT HOWMUCH_PORT=$API_PORT bun run api:dev"
 tmux rename-window -t "$SESSION_NAME" api
 tmux set-option -t "$SESSION_NAME" -g remain-on-exit on >/dev/null
 
 if [ -f "$ROOT_DIR/apps/web/package.json" ]; then
-  tmux new-window -t "$SESSION_NAME" -n web -c "$ROOT_DIR/apps/web" "bun run dev"
+  tmux new-window -t "$SESSION_NAME" -n web -c "$ROOT_DIR/apps/web" "HOWMUCH_API_URL=${HOWMUCH_API_URL:-http://127.0.0.1:$API_PORT} bun run dev"
 else
   tmux new-window -t "$SESSION_NAME" -n web-status -c "$ROOT_DIR" "zsh -lc 'printf \"apps/web is not present in this checkout yet.\nMerge the web track, then rerun bun run dev:stack in a fresh session if needed.\n\"; exec zsh'"
 fi

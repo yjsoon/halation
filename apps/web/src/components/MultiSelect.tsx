@@ -116,7 +116,18 @@ export function MultiSelect({ label, options, selected, onChange }: Props) {
             </div>
           )}
           {selected.length > 0 && (
-            <button type="button" className="menu-clear" onClick={() => onChange([])}>
+            <button
+              type="button"
+              className="menu-clear"
+              onClick={(event) => {
+                // This button goes once nothing is selected; keep focus in the
+                // menu rather than letting it fall to <body>.
+                const menu = event.currentTarget.closest(".multi-select-menu");
+                const next = searchRef.current ?? menu?.querySelector<HTMLInputElement>("input[type=checkbox]");
+                next?.focus();
+                onChange([]);
+              }}
+            >
               Clear selection
             </button>
           )}
