@@ -57,6 +57,7 @@ final class IntakeCoordinator {
   /// "Likely" is 0.75 up to 0.9; lines read by the fallback never reach "Sure".
   static let fallbackConfidenceCap = 0.85
   static let fallbackReason = "Read without Apple Intelligence"
+  static let transferReason = "Read as a scheduled transfer to your own account"
 
   init(
     inbox: InboxStore = IntakeJobStore.isUnitTestHost
@@ -383,6 +384,18 @@ final class IntakeCoordinator {
     return task
   }
 
+  /// What the model reader is told: the note typed on this share, then the skill's notes.
+  static func guidance(note: String?, skill: String?) -> String? {
+    var parts: [String] = []
+    if let note = note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+      parts.append("About this share: " + String(note.prefix(500)))
+    }
+    if let skill {
+      parts.append(skill)
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+  }
+
   static func isFromAnotherBudget(_ job: IntakeJob, model: AppModel) -> Bool {
     let planID = model.settings.planID
     guard let jobPlan = job.planID, !planID.isEmpty else {
@@ -466,12 +479,17 @@ final class IntakeCoordinator {
 
     let accounts = model.openAccounts
     // The owner's notes go to the model reader only; the line parser reads none.
-    let guidance = IntakeSkillStore.shared.skill.promptGuidance(
-      accountID: reading.decideAccount ? nil : reading.accountID
+    // The note typed on this share comes first: it is about this batch alone.
+    let guidance = Self.guidance(
+      note: reading.note,
+      skill: IntakeSkillStore.shared.skill.promptGuidance(
+        accountID: reading.decideAccount ? nil : reading.accountID
+      )
     )
     var extracted: [SlipMappedDraft] = []
     var sourceIndexes: [Int] = []
     var fallbackIndexes: [Int] = []
+    var transferIndexes: [Int] = []
     var readAnyText = false
     for (index, file) in reading.sourceFiles.enumerated() {
       guard readable(id) != nil else {
@@ -496,23 +514,34 @@ final class IntakeCoordinator {
       if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         readAnyText = true
       }
-      var drafts: [SlipMappedDraft]
-      do {
-        drafts = try await SlipReader.shared.interpretOrThrow(
-          text: text,
-          accounts: accounts,
-          categoryGroups: model.categoryGroups,
-          payees: model.payees,
-          guidance: guidance
-        )
-      } catch {
-        if background, readable(id) != nil {
-          // The model failed (not "returned no spends"). Don't settle for the
-          // line parser in the background: wait for a foreground read.
-          leaveForForeground(id)
-          return
+      // A transfers screen is read from its text first: the model and the line
+      // parser take its subtitle as the payee and miss the destination account.
+      var drafts = IntakeTransferReader.read(
+        text: text,
+        note: reading.note,
+        accounts: accounts,
+        payees: model.payees
+      )
+      if !drafts.isEmpty {
+        transferIndexes.append(contentsOf: (extracted.count..<(extracted.count + drafts.count)))
+      } else {
+        do {
+          drafts = try await SlipReader.shared.interpretOrThrow(
+            text: text,
+            accounts: accounts,
+            categoryGroups: model.categoryGroups,
+            payees: model.payees,
+            guidance: guidance
+          )
+        } catch {
+          if background, readable(id) != nil {
+            // The model failed (not "returned no spends"). Don't settle for the
+            // line parser in the background: wait for a foreground read.
+            leaveForForeground(id)
+            return
+          }
+          drafts = []
         }
-        drafts = []
       }
       guard readable(id) != nil else {
         return
@@ -578,6 +607,7 @@ final class IntakeCoordinator {
       extracted,
       sourceIndexes: sourceIndexes,
       fallbackIndexes: fallbackIndexes,
+      transferIndexes: transferIndexes,
       hint: reading.hint,
       model: model
     )
@@ -598,6 +628,7 @@ final class IntakeCoordinator {
     _ extracted: [SlipMappedDraft],
     sourceIndexes: [Int],
     fallbackIndexes: [Int] = [],
+    transferIndexes: [Int] = [],
     hint: IntakeHint,
     model: AppModel
   ) async -> (proposals: [IntakeProposal], limited: Bool) {
@@ -630,6 +661,9 @@ final class IntakeCoordinator {
       }
       if let target = proposals[index].targetTransactionID {
         proposals[index].targetSnapshot = set.transactions[target]
+      }
+      if transferIndexes.contains(index) {
+        proposals[index].reasons.append(Self.transferReason)
       }
       if fallbackIndexes.contains(index) {
         // Read by line rules, not the model: at most Likely.
