@@ -50,6 +50,11 @@ enum IntakeTransferReader {
         return []
       }
       let account = found
+      let rowDate = date(in: block, headerYear: headerYear, calendar: calendar, now: now)
+      if case .impossible = rowDate {
+        // "Nov 31": a day that is not in its month cannot be filed on any date.
+        return []
+      }
       let rowTitle = title(in: block)
       if account == nil, let rowTitle, isSummaryTitle(rowTitle) {
         // "Total" / "Balance": a figure about the list, not a transfer in it.
@@ -59,7 +64,7 @@ enum IntakeTransferReader {
       extractions.append(SlipReaderMapping.Extraction(
         amount: amount,
         payee: payee,
-        date: date(in: block, headerYear: headerYear, calendar: calendar, now: now) ?? "",
+        date: rowDate.iso ?? "",
         direction: "outflow"
       ))
       destinations.append(account)
@@ -97,6 +102,11 @@ enum IntakeTransferReader {
     payees.first { $0.transferAccountId == account.id && $0.deleted != true }
   }
 
+  /// "Total 2,714.75 SGD": a footer figure about the list, never a row.
+  private static func isSummaryLine(_ line: String) -> Bool {
+    line.range(of: #"^(?:grand\s+|sub)?total\b|^balance\b"#, options: [.regularExpression, .caseInsensitive]) != nil
+  }
+
   private static func isSummaryTitle(_ title: String) -> Bool {
     ["total", "subtotal", "grand total", "balance", "total amount"].contains(title.lowercased())
   }
@@ -131,7 +141,7 @@ enum IntakeTransferReader {
 
   private static func hasUnreadAmount(_ lines: [String]) -> Bool {
     lines.contains { line in
-      amount(in: line) == nil
+      amount(in: line) == nil && !isSummaryLine(line)
         && [moneyFigure, currencyFigure].contains {
           $0.firstMatch(in: line, options: [], range: NSRange(line.startIndex..., in: line)) != nil
         }
@@ -223,9 +233,20 @@ enum IntakeTransferReader {
   }
 
   /// The date tile ("Oct" over "16", "Oct 16" or "16 Oct") as yyyy-MM-dd.
+  private enum DateRead {
+    case none
+    case found(String)
+    case impossible
+
+    var iso: String? {
+      if case .found(let value) = self { return value }
+      return nil
+    }
+  }
+
   private static func date(
     in block: ArraySlice<String>, headerYear: Int?, calendar: Calendar, now: Date
-  ) -> String? {
+  ) -> DateRead {
     let lines = Array(block)
     for (index, line) in lines.enumerated() {
       let words = line.split(separator: " ").map(String.init)
@@ -252,9 +273,17 @@ enum IntakeTransferReader {
             year += 1
           }
         }
-        return String(format: "%04d-%02d-%02d", year, month, day)
+        var parts = DateComponents()
+        parts.year = year
+        parts.month = month
+        parts.day = day
+        guard let made = calendar.date(from: parts), calendar.component(.day, from: made) == day,
+              calendar.component(.month, from: made) == month else {
+          return .impossible
+        }
+        return .found(String(format: "%04d-%02d-%02d", year, month, day))
       }
     }
-    return nil
+    return .none
   }
 }

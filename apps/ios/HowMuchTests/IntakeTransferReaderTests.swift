@@ -153,6 +153,23 @@ final class IntakeTransferReaderTests: XCTestCase {
     XCTAssertEqual(rows.map { Self.calendar.component(.month, from: $0.draft.date) }, [1])
   }
 
+  func testAOneLineTotalIsIgnoredNotAReasonToDeclineTheScreen() {
+    let rows = IntakeTransferReader.read(
+      text: Self.ocr + "\nTotal 2,714.75 SGD",
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows.map(\.draft.amountMagnitudeMilli), [669_540, 906_210, 1_139_000])
+  }
+
+  func testADayThatDoesNotExistInItsMonthDeclinesTheScreen() {
+    // Filing "Nov 31" as today would put a scheduled transfer on the wrong day.
+    let rows = IntakeTransferReader.read(
+      text: "Scheduled transfers\nNov\n31\nCiti Rewards\n100.00 SGD",
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
   func testAWholeNumberAmountDeclinesTheScreenRatherThanDroppingARow() {
     let rows = IntakeTransferReader.read(
       text: Self.ocr.replacingOccurrences(of: "1,139.00 SGD", with: "1,139 SGD"),
