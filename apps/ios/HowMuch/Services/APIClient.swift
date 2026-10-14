@@ -918,11 +918,8 @@ struct APIClient {
       throw APIClientError.invalidBaseURL
     }
 
-    // Dynamic IDs are opaque segments: a slash or percent sign belongs to the
-    // identifier, not the route. Match encodeURIComponent's ASCII allowlist.
-    let segmentCharacters = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()")
     let suffix = try appendedPathSegments.map { segment in
-      guard let encoded = segment.addingPercentEncoding(withAllowedCharacters: segmentCharacters) else {
+      guard let encoded = Self.encodeOpaqueIDSegment(segment) else {
         throw APIClientError.invalidBaseURL
       }
       return "/" + encoded
@@ -940,6 +937,14 @@ struct APIClient {
       throw APIClientError.invalidBaseURL
     }
     return url
+  }
+
+  private static let encodeURIComponentAllowed = CharacterSet(
+    charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()"
+  )
+
+  private static func encodeOpaqueIDSegment(_ segment: String) -> String? {
+    segment.addingPercentEncoding(withAllowedCharacters: encodeURIComponentAllowed)
   }
 
   /// Encodes path segments only. Put query in `queryItems`, not in `path` —
