@@ -166,6 +166,12 @@ enum IntakeTransferReader {
       guard best.count == 1 else {
         return nil
       }
+      // A line that also names an account the winner does not contain ("UOB One
+      // Savings to Citi Rewards") prints a source and a destination together.
+      let winnerWords = Set(tokens(best[0].name))
+      guard matching.allSatisfy({ Set(tokens($0.0.name)).isSubset(of: winnerWords) }) else {
+        return nil
+      }
       if !named.contains(where: { $0.id == best[0].id }) {
         named.append(best[0])
       }

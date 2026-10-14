@@ -96,6 +96,14 @@ final class IntakeTransferReaderTests: XCTestCase {
     XCTAssertEqual(rows, [])
   }
 
+  func testBothAccountsOnOneLineAreDeclined() {
+    let rows = IntakeTransferReader.read(
+      text: "Scheduled transfers\nOct\n16\nUOB One Savings to Citi Rewards\n669.54 SGD",
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
   func testAmountsWithAPrefixAndSpaceStillRead() {
     let rows = IntakeTransferReader.read(
       text: Self.ocr.replacingOccurrences(of: "906.21 SGD", with: "S$ 906.21"),

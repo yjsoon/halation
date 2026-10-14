@@ -57,7 +57,6 @@ final class IntakeCoordinator {
   /// "Likely" is 0.75 up to 0.9; lines read by the fallback never reach "Sure".
   static let fallbackConfidenceCap = 0.85
   static let fallbackReason = "Read without Apple Intelligence"
-  static let transferReason = "Read as a scheduled transfer to your own account"
 
   init(
     inbox: InboxStore = IntakeJobStore.isUnitTestHost
@@ -489,7 +488,6 @@ final class IntakeCoordinator {
     var extracted: [SlipMappedDraft] = []
     var sourceIndexes: [Int] = []
     var fallbackIndexes: [Int] = []
-    var transferIndexes: [Int] = []
     var readAnyText = false
     for (index, file) in reading.sourceFiles.enumerated() {
       guard readable(id) != nil else {
@@ -522,9 +520,7 @@ final class IntakeCoordinator {
         accounts: accounts,
         payees: model.payees
       )
-      if !drafts.isEmpty {
-        transferIndexes.append(contentsOf: (extracted.count..<(extracted.count + drafts.count)))
-      } else {
+      if drafts.isEmpty {
         do {
           drafts = try await SlipReader.shared.interpretOrThrow(
             text: text,
@@ -607,7 +603,6 @@ final class IntakeCoordinator {
       extracted,
       sourceIndexes: sourceIndexes,
       fallbackIndexes: fallbackIndexes,
-      transferIndexes: transferIndexes,
       hint: reading.hint,
       model: model
     )
@@ -628,7 +623,6 @@ final class IntakeCoordinator {
     _ extracted: [SlipMappedDraft],
     sourceIndexes: [Int],
     fallbackIndexes: [Int] = [],
-    transferIndexes: [Int] = [],
     hint: IntakeHint,
     model: AppModel
   ) async -> (proposals: [IntakeProposal], limited: Bool) {
@@ -661,9 +655,6 @@ final class IntakeCoordinator {
       }
       if let target = proposals[index].targetTransactionID {
         proposals[index].targetSnapshot = set.transactions[target]
-      }
-      if transferIndexes.contains(index) {
-        proposals[index].reasons.append(Self.transferReason)
       }
       if fallbackIndexes.contains(index) {
         // Read by line rules, not the model: at most Likely.
