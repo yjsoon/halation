@@ -1096,6 +1096,16 @@ function rewardsTrackerPayload(body: Record<string, unknown>): unknown {
   return exportBody;
 }
 
+/**
+ * Password changes count attempts per account, apart from sign-in, so anonymous
+ * failed sign-ins cannot lock the owner out of changing their password. The
+ * table's CHECK allows only 'username' and 'ip' scopes, so the key is
+ * prefixed to stay clear of any sign-in key.
+ */
+function passwordChangeRateKey(userId: string): ["username", string] {
+  return ["username", sha256(`pwchange:${userId}`)];
+}
+
 async function readJson(request: Request): Promise<any> {
   const text = await request.text();
   if (!text) {
@@ -1319,13 +1329,8 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
     if (body.new_password === body.current_password) {
       return authError(400, "bad_request", "The new password must differ from the current one");
     }
-    // Its own counter, keyed on the account rather than the username, so
-    // anonymous failed sign-ins cannot lock the owner out of changing their
-    // password, while guessing through this route stays at ten per window.
-    // (The table's CHECK allows only 'username' and 'ip' scopes; the prefix
-    // keeps this key apart from any sign-in key.)
     const windowStart = Math.floor(Date.now() / 1_000 / 900) * 900;
-    if (await store.rateAttempt("username", sha256(`pwchange:${principal.id}`), windowStart) > 10) {
+    if (await store.rateAttempt(...passwordChangeRateKey(principal.id), windowStart) > 10) {
       return authError(429, "rate_limited", "Too many password attempts", { "retry-after": "900" });
     }
     const credential = await store.credential(principal.username);
