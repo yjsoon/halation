@@ -231,7 +231,8 @@ private struct ExposurePainter {
       }
     } else if scene.bloomAlpha > 0 {
       var bloom = context
-      bloom.blendMode = exposure.miles ? .screen : .normal
+      // Screened for both prints, as the web does (--face-cashback-blend): the bloom adds light.
+      bloom.blendMode = .screen
       bloom.fill(Path(frame), with: .color(Theme.Face.bloom.opacity(scene.bloomAlpha)))
     }
   }
