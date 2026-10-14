@@ -313,7 +313,7 @@ private struct ExposurePainter {
     let crest: Double
     if increasedContrast {
       crest = 1
-    } else if scene.isMerged {
+    } else if scene.isMet {
       crest = 0.9 + 0.1 * pose.v
     } else {
       crest = 0.75

@@ -267,6 +267,7 @@ function paint(e: Record<string, SVGElement>, svg: SVGSVGElement, s: Scene, uid:
   set("crest", "d", s.lowerCrest);
   set("skyClip", "d", s.skyClip);
   set("groundClip", "d", s.backFill);
+  svg.toggleAttribute("data-met", s.met);
   svg.toggleAttribute("data-merged", s.merged);
   (e.crest as SVGElement).style.setProperty("--crest-k", n(s.v));
 

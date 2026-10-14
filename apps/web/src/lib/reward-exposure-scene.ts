@@ -89,7 +89,9 @@ export interface Scene {
   skyClip: string;
   /** The lowest point of the target horizon: where the lit sky's gradient ends. */
   skyBottom: number;
-  /** One merged ridge: the target horizon and the spend horizon coincide. */
+  /** The minimum is met: the spend horizon has reached the target, and its crest brightens. */
+  met: boolean;
+  /** One merged ridge: the two horizons coincide across the whole width, so the target crest is dropped. */
   merged: boolean;
   sun: { visible: boolean; x: number; y: number; r: number; rising: boolean };
   /** `soft`: one smooth glow of radius `rings[0]` in place of the posterised rings (the phone strip). */
@@ -169,7 +171,9 @@ export function exposureScene(layout: SceneLayout, ex: Exposure, pose: Pose, opt
     lowerPts.push([ux * w, strip ? stripLower(ux, up, fl) : fl + across * (up - fl)]);
   }
   const closed = (pts: Array<[number, number]>, edge: number) => `${polyline(pts)} L${w},${edge} L0,${edge} Z`;
-  const merged = across >= 1;
+  const met = across >= 1;
+  // On the strip the lines coincide only from the met day on, so the target keeps its crest to the left.
+  const merged = met && (!strip || metAt >= 1);
 
   // The sun.
   const column = sunX(pose);
@@ -219,6 +223,7 @@ export function exposureScene(layout: SceneLayout, ex: Exposure, pose: Pose, opt
     lowerCrest: polyline(lowerPts),
     skyClip: `M0,0 ${backPts.map(([x, y]) => `L${x.toFixed(1)},${y.toFixed(1)}`).join(" ")} L${w},0 Z`,
     skyBottom: Math.max(...backPts.map(([, y]) => y)),
+    met,
     merged,
     sun: { visible: sunOn, x: sunPx.x, y: sunPx.y, r, rising: gate },
     halo: { visible: sunOn, opacity: 0.4 + 0.6 * v, soft: strip, rings: [R * 0.92, R * 0.68, R * 0.46, R * 0.27], core: R * 0.15 },

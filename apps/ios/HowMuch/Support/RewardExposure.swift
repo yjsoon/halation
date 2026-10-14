@@ -245,8 +245,12 @@ struct ExposureScene {
     return floor - (floor - horizon) * ((1 - settle) * across * u + settle * metShare)
   }
 
-  /// Both ridges are one: the minimum is met, so the spend horizon has met the target.
-  var isMerged: Bool { across >= 0.999 }
+  /// The minimum is met: the spend horizon has reached the target, and its crest brightens.
+  var isMet: Bool { across >= 0.999 }
+
+  /// Both ridges are one line across the whole width, so the target crest is dropped. On the phone the
+  /// lines coincide only from the met day on, so a card met part-way through the period keeps it.
+  var isMerged: Bool { isMet && (exposure.metAt ?? 1) >= 1 }
 
   /// The sun's centre, nil when there is none. On the phone it sits exactly on the horizon, a clean
   /// half-sun, and lifts clear from there.

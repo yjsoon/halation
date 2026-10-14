@@ -598,12 +598,14 @@
   stroke-opacity: var(--face-crest-spend);
 }
 
-/* Merged: one crest, brightening to full with the climb (--crest-k, written by the painter). */
+/* Met: the spend crest brightens to full with the climb (--crest-k, written by the painter). Merged, the
+   two lines coincide end to end and the target crest is dropped; on the strip a card met part-way through
+   the period keeps it, since the lines only join from the met day on. */
 .rw-scene[data-merged] .rw-crest-target {
   display: none;
 }
 
-.rw-scene[data-merged] .rw-crest {
+.rw-scene[data-met] .rw-crest {
   stroke-opacity: calc(var(--face-crest-merged) + (1 - var(--face-crest-merged)) * var(--crest-k, 0));
 }
 
