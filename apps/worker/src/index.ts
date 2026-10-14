@@ -75,11 +75,7 @@ export default {
     const ynabSyncCron = explicitYnabCron ?? DEFAULT_YNAB_SYNC_CRON;
     assertCronMatchesMode(controller.cron, ynabSyncCron, config.transitionReadOnly);
 
-    // The default YNAB cron time is also a plausible materialisation time for a
-    // self-hoster, so it only means "YNAB sync" when YNAB is actually in play.
-    const ynabInPlay = explicitYnabCron !== undefined || config.transitionReadOnly
-      || config.ynabToken !== undefined || config.ynabPlanId !== undefined;
-    if (controller.cron === ynabSyncCron && ynabInPlay) {
+    if (controller.cron === ynabSyncCron && isYnabInPlay(explicitYnabCron, config)) {
       const result = await runD1ScheduledYnabSync({
         db: database,
         config,
@@ -126,6 +122,15 @@ function workerConfig(env: Env): ApiConfig & { timeZone: string } {
     typesafeModel: optional(env.TYPESAFE_MODEL),
     timeZone: required(env.HOWMUCH_TIME_ZONE, "HOWMUCH_TIME_ZONE"),
   };
+}
+
+/**
+ * The default YNAB cron time is also a plausible materialisation time for a
+ * self-hoster, so it only means "YNAB sync" when YNAB is actually in play.
+ */
+function isYnabInPlay(explicitCron: string | undefined, config: ApiConfig): boolean {
+  return explicitCron !== undefined || config.transitionReadOnly
+    || config.ynabToken !== undefined || config.ynabPlanId !== undefined;
 }
 
 function assertCronMatchesMode(cron: string | undefined, ynabSyncCron: string, transitionReadOnly: boolean): void {
