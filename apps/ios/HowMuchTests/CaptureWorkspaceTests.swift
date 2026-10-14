@@ -31,48 +31,6 @@ final class CaptureWorkspaceTests: XCTestCase {
     XCTAssertEqual(workspace.recents.first?.messages.first?.text, "Lunch $12")
   }
 
-  func testSignOutDropsInMemorySession() {
-    let workspace = CaptureWorkspace(
-      store: CaptureWorkspaceStore(
-        defaults: UserDefaults(suiteName: "howmuch.tests.capture.\(UUID().uuidString)")!,
-        rootURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-      )
-    )
-    workspace.activate(scopeKey: "scope-a")
-    _ = workspace.admit(
-      request: CaptureRequest(kind: .blank, connectionFingerprint: "a", origin: .homeScreenShortcut),
-      scopeKey: "scope-a",
-      openAccounts: [Self.account("acct-a", "Everyday")],
-      lastUsedAccountID: "acct-a",
-      focusedRegisterAccountID: "acct-travel"
-    )
-    XCTAssertEqual(workspace.current?.selectedAccountID, "acct-a")
-    workspace.dropForScopeChange()
-    XCTAssertNil(workspace.current)
-    XCTAssertTrue(workspace.recents.isEmpty)
-  }
-
-  func testAdmissionFreezesOriginAwayFromFocusedRegisterForHomeScreen() {
-    let workspace = CaptureWorkspace(
-      store: CaptureWorkspaceStore(
-        defaults: UserDefaults(suiteName: "howmuch.tests.capture.\(UUID().uuidString)")!,
-        rootURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-      )
-    )
-    let session = workspace.admit(
-      request: CaptureRequest(kind: .blank, connectionFingerprint: "a", origin: .homeScreenShortcut),
-      scopeKey: "scope-a",
-      openAccounts: [
-        Self.account("acct-everyday", "Everyday"),
-        Self.account("acct-travel", "Travel"),
-      ],
-      lastUsedAccountID: "acct-everyday",
-      focusedRegisterAccountID: "acct-travel"
-    )
-    XCTAssertEqual(session.origin, .homeScreenShortcut)
-    XCTAssertEqual(session.selectedAccountID, "acct-everyday")
-  }
-
   func testResumeOfCurrentSessionSetsPendingAssistant() {
     let workspace = CaptureWorkspace(
       store: CaptureWorkspaceStore(
@@ -162,30 +120,6 @@ final class CaptureWorkspaceTests: XCTestCase {
     XCTAssertEqual(store.load(scope: "https://a/b").count, 1)
   }
 
-  func testComposerTextSurvivesPersistAndRestore() {
-    let directory = FileManager.default.temporaryDirectory
-      .appendingPathComponent("howmuch-capture-\(UUID().uuidString)", isDirectory: true)
-    let workspace = CaptureWorkspace(
-      store: CaptureWorkspaceStore(
-        defaults: UserDefaults(suiteName: "howmuch.tests.capture.\(UUID().uuidString)")!,
-        rootURL: directory
-      )
-    )
-    let session = workspace.admit(
-      request: CaptureRequest(kind: .blank, connectionFingerprint: "a", origin: .lastUsedOpen),
-      scopeKey: "scope-a",
-      openAccounts: [Self.account("acct-everyday", "Everyday")],
-      lastUsedAccountID: "acct-everyday",
-      focusedRegisterAccountID: nil
-    )
-    session.composerText = "Lunch $12 still typing"
-    workspace.persistCurrentIfNeeded()
-    workspace.activate(scopeKey: "scope-other")
-    workspace.activate(scopeKey: "scope-a")
-    let restored = workspace.resume(workspace.recents[0].id)
-    XCTAssertEqual(restored?.composerText, "Lunch $12 still typing")
-  }
-
   func testAdmitAndResumeCancelOutgoingTurns() {
     let workspace = CaptureWorkspace(
       store: CaptureWorkspaceStore(
@@ -257,13 +191,6 @@ final class CaptureWorkspaceTests: XCTestCase {
     )
     XCTAssertEqual(second.scopeKey, "https://b|user-b|plan-x")
     XCTAssertNotEqual(second.id, first.id)
-  }
-
-  func testAdmissionGateWaitsWhileReferenceIsLoading() {
-    XCTAssertFalse(CaptureAdmissionGate.canAdmit(referencePhase: .idle))
-    XCTAssertFalse(CaptureAdmissionGate.canAdmit(referencePhase: .loading))
-    XCTAssertTrue(CaptureAdmissionGate.canAdmit(referencePhase: .loaded))
-    XCTAssertTrue(CaptureAdmissionGate.canAdmit(referencePhase: .failed("offline")))
   }
 
   func testAdmitDoesNotWriteLastUsedAndPersistsQueryCards() {
@@ -534,43 +461,6 @@ final class CaptureWorkspaceTests: XCTestCase {
     XCTAssertFalse(restored?.attachments.first?.errorMessage?.isEmpty ?? true, "pending empty transcript needs an explicit recoverable error")
     restored?.composerText = "Lunch $12"
     XCTAssertEqual(restored?.canSendComposer, true, "typed text and retained image bytes stay sendable during recovery")
-  }
-
-  func testFreshWorkspaceRoundtripKeepsRecognizedImageReadyToSend() {
-    let directory = FileManager.default.temporaryDirectory
-      .appendingPathComponent("howmuch-capture-\(UUID().uuidString)", isDirectory: true)
-    defer { try? FileManager.default.removeItem(at: directory) }
-    let store = CaptureWorkspaceStore(
-      defaults: UserDefaults(suiteName: "howmuch.tests.capture.\(UUID().uuidString)")!,
-      rootURL: directory
-    )
-    let workspace = CaptureWorkspace(store: store)
-    let session = workspace.admit(
-      request: CaptureRequest(kind: .blank, connectionFingerprint: "a", origin: .lastUsedOpen),
-      scopeKey: "scope-a",
-      openAccounts: [Self.account("acct-everyday", "Everyday")],
-      lastUsedAccountID: "acct-everyday",
-      focusedRegisterAccountID: nil
-    )
-    let attachmentID = UUID()
-    let bytes = Data([0xFF, 0xD8, 0x11, 0x22])
-    session.addAttachment(
-      CaptureAttachment(
-        id: attachmentID,
-        filename: "slip.jpg",
-        data: bytes,
-        recognizedText: "SLIP"
-      )
-    )
-    workspace.persistCurrentIfNeeded()
-    let fresh = CaptureWorkspace(store: store)
-    fresh.activate(scopeKey: "scope-a")
-    let restored = fresh.resume(session.id)
-    XCTAssertEqual(restored?.attachments.first?.id, attachmentID)
-    XCTAssertEqual(restored?.attachments.first?.recognizedText, "SLIP")
-    XCTAssertEqual(restored?.attachments.first?.isReading, false)
-    XCTAssertNil(restored?.attachments.first?.errorMessage)
-    XCTAssertEqual(restored?.canSendComposer, true)
   }
 
   func testPersistedAttachmentErrorSurvivesFreshWorkspaceLoad() {

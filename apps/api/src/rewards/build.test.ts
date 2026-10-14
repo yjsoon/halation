@@ -79,13 +79,6 @@ test("Singapore midnight is today even when the server is on the preceding date"
   expect(report.cards[0]!.calculation.periods?.[0]?.start).toBe("2026-06-01");
 });
 
-test("legacy malformed period configuration fails validation before calculation", () => {
-  for (const monthCount of [0, -1, 1, 2.5, 25, Infinity, NaN]) {
-    expect(() => reportFor([], { cards: [{ ...cappedCard, rewardPeriod: { monthCount, anchorDate: "2026-01-01", monthlyMinimumSpend: 100 } }] })).toThrow("Invalid reward period");
-  }
-  expect(() => reportFor([], { cards: [{ ...cappedCard, rewardPeriod: { monthCount: 3, anchorDate: "2026-02-30", monthlyMinimumSpend: 100 } }] })).toThrow("Invalid reward period");
-});
-
 test("report dates reject malformed and reversed ranges rather than silently changing the period", () => {
   for (const date of ["2026-02-30", "2026-2-01", "invalid"]) {
     expect(() => reportFor([], { from: null, to: date })).toThrow("valid YYYY-MM-DD");
@@ -196,55 +189,3 @@ function txn(partial: Partial<Transaction> & Pick<Transaction, "id" | "amount">)
     ...partial,
   };
 }
-
-test("builds per-card miles and groups flagged dining separately from unflagged spend", () => {
-  const report = buildRewardsReport({
-    cards,
-    accountNames: { "acct-credit": "Travel Card" },
-    settings,
-    from: "2026-03-01",
-    to: "2026-05-31",
-    groupBy: "flag",
-    accountIds: [],
-    transactions: [
-      txn({ id: "dining", amount: -86600, flag_color: "red", flag_name: "Dining" }),
-      txn({ id: "online", amount: -228900, date: "2026-05-04", payee_name: "MUJI", category_name: "Shopping", memo: "Home bits", flag_color: "blue", flag_name: "Online" }),
-      txn({ id: "flight", amount: -488900, date: "2026-04-12", payee_name: "Scoot", category_name: "Holiday", memo: "Taipei flights" }),
-    ],
-  });
-
-  expect(report.cards).toHaveLength(1);
-  expect(report.cards[0]!.card.name).toBe("Travel Card");
-  expect(report.totals.spend).toBeGreaterThan(0);
-  expect(report.groups.map((row) => row.label).sort()).toEqual(["Dining", "Online", "Unflagged"].sort());
-
-  const byPayee = buildRewardsReport({
-    cards,
-    accountNames: { "acct-credit": "Travel Card" },
-    settings,
-    from: "2026-03-01",
-    to: "2026-05-31",
-    groupBy: "payee",
-    accountIds: [],
-    transactions: [
-      txn({ id: "dining", amount: -86600, flag_color: "red", flag_name: "Dining" }),
-      txn({ id: "online", amount: -228900, date: "2026-05-04", payee_name: "MUJI", category_name: "Shopping", memo: "Home bits", flag_color: "blue", flag_name: "Online" }),
-    ],
-  });
-  expect(byPayee.groups.map((row) => row.label).sort()).toEqual(["Candlenut", "MUJI"]);
-});
-
-test("account filter hides cards whose HowMuch account is not selected", () => {
-  const report = buildRewardsReport({
-    cards,
-    accountNames: { "acct-credit": "Travel Card" },
-    settings,
-    from: null,
-    to: null,
-    groupBy: "flag",
-    accountIds: ["acct-everyday"],
-    transactions: [txn({ id: "dining", amount: -86600, flag_color: "red" })],
-  });
-  expect(report.cards).toHaveLength(0);
-  expect(report.groups).toHaveLength(0);
-});

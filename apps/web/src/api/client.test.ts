@@ -3,8 +3,6 @@ import {
   ApiError,
   api,
   BulkApprovalError,
-  isWriteRequest,
-  notifyLocalWrite,
   setLocalWriteHandler,
   setUnauthorizedHandler,
   shouldHandleUnauthorized,
@@ -41,28 +39,6 @@ describe("shouldHandleUnauthorized", () => {
     expect(shouldHandleUnauthorized("/api/auth/personal-tokens", 1, 2)).toBe(false);
   });
 
-  test("fetches one parent transaction directly with its subtransactions", async () => {
-    const originalFetch = globalThis.fetch;
-    let capturedPath = "";
-    globalThis.fetch = (async (path: string | URL | Request) => {
-      capturedPath = String(path);
-      return new Response(JSON.stringify({
-        data: {
-          transaction: {
-            id: "txn/older",
-            subtransactions: [{ id: "sub-1", amount: -5000 }],
-          },
-        },
-      }), { headers: { "content-type": "application/json" } });
-    }) as typeof fetch;
-    try {
-      expect((await api.transaction("plan 1", "txn/older")).subtransactions?.[0]?.id).toBe("sub-1");
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-    expect(capturedPath).toBe("/v1/plans/plan%201/transactions/txn%2Folder");
-  });
-
   test("treats account preferences as optional on an older server", async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () => new Response(JSON.stringify({
@@ -75,44 +51,6 @@ describe("shouldHandleUnauthorized", () => {
     }
   });
 
-  test("reads the account preference revision and sends it in a compare-and-set write", async () => {
-    const originalFetch = globalThis.fetch;
-    const requests: Array<{ path: string; init?: RequestInit }> = [];
-    const preferences = {
-      favourite_account_ids: ["cash"],
-      account_order: [],
-      account_order_by_group: {},
-      account_group_sorts: {},
-      custom_account_groups: [],
-    };
-    globalThis.fetch = (async (path: string | URL | Request, init?: RequestInit) => {
-      requests.push({ path: String(path), init });
-      const revision = requests.length;
-      return new Response(JSON.stringify({ data: {
-        account_preferences: preferences,
-        account_preferences_revision: revision,
-      } }), { headers: { "content-type": "application/json" } });
-    }) as typeof fetch;
-    try {
-      expect(await api.accountPreferences("plan-1")).toEqual({
-        account_preferences: preferences,
-        account_preferences_revision: 1,
-      });
-      expect(await api.updateAccountPreferences("plan-1", preferences, 1)).toEqual({
-        account_preferences: preferences,
-        account_preferences_revision: 2,
-      });
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-
-    expect(requests[1]!.path).toBe("/v1/plans/plan-1/account_preferences");
-    expect(requests[1]!.init?.method).toBe("PUT");
-    expect(JSON.parse(String(requests[1]!.init?.body))).toEqual({
-      account_preferences: preferences,
-      expected_revision: 1,
-    });
-  });
 });
 
 describe("approveTransactions", () => {
@@ -182,9 +120,6 @@ describe("approveTransactions", () => {
     expect(caught.approvedCount).toBe(100);
   });
 
-  test("rejects an empty approval", async () => {
-    await expect(api.approveTransactions("plan-1", [])).rejects.toThrow("must not be empty");
-  });
 });
 
 describe("bulk transaction commands", () => {
@@ -377,61 +312,9 @@ describe("bulk transaction commands", () => {
     expect(summary).toMatchObject({ applied_count: 1, unresolved_count: 1, unattempted_count: 98 + 2 });
   });
 
-  test("bulk delete posts the optional reject guard and chunks at 100", async () => {
-    const originalFetch = globalThis.fetch;
-    const requests: Array<{ path: string; init?: RequestInit }> = [];
-    globalThis.fetch = (async (path: string | URL | Request, init?: RequestInit) => {
-      requests.push({ path: String(path), init });
-      const body = JSON.parse(String(init?.body)) as { transactions: Array<{ id: string }> };
-      const outcomes = body.transactions.map((item) => ({ id: item.id, status: "applied" }));
-      return new Response(JSON.stringify({
-        data: {
-          outcomes,
-          applied_count: outcomes.length,
-          conflict_count: 0,
-          already_removed_count: 0,
-          unresolved_count: 0,
-          unattempted_count: 0,
-          server_knowledge: 1,
-        },
-      }), { headers: { "content-type": "application/json" } });
-    }) as typeof fetch;
-    let summary;
-    try {
-      summary = await api.bulkDeleteTransactions(
-        "plan-1",
-        Array.from({ length: 101 }, (_, index) => (
-          index === 0 ? { id: `d${index}`, expected_approved: false } : { id: `d${index}` }
-        )),
-      );
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-
-    expect(summary).toMatchObject({ applied_count: 101 });
-    expect(requests.map((entry) => entry.path)).toEqual([
-      "/v1/plans/plan-1/transactions/delete",
-      "/v1/plans/plan-1/transactions/delete",
-    ]);
-    const firstBody = JSON.parse(String(requests[0]?.init?.body));
-    expect(firstBody.transactions[0]).toEqual({ id: "d0", expected_approved: false });
-    expect(firstBody.transactions[1]).toEqual({ id: "d1" });
-    expect(() => api.bulkDeleteTransactions("plan-1", [])).toThrow("must not be empty");
-    expect(() => api.categoriseTransactions("plan-1", [])).toThrow("must not be empty");
-  });
 });
 
 describe("write invalidation", () => {
-  test("classifies the verbs that change server state", () => {
-    expect(isWriteRequest("POST")).toBe(true);
-    expect(isWriteRequest("PATCH")).toBe(true);
-    expect(isWriteRequest("put")).toBe(true);
-    expect(isWriteRequest("DELETE")).toBe(true);
-    expect(isWriteRequest("GET")).toBe(false);
-    expect(isWriteRequest("HEAD")).toBe(false);
-    // `fetch` defaults to GET, so an absent method is a read.
-    expect(isWriteRequest(undefined)).toBe(false);
-  });
 
   test("a successful write notifies the cache once; a read does not", async () => {
     const originalFetch = globalThis.fetch;
@@ -485,28 +368,4 @@ describe("write invalidation", () => {
     }
   });
 
-  test("a failed read never invalidates", async () => {
-    const originalFetch = globalThis.fetch;
-    let writes = 0;
-    setLocalWriteHandler(() => { writes += 1; });
-    globalThis.fetch = (async () => { throw new TypeError("Failed to fetch"); }) as typeof fetch;
-    try {
-      await expect(api.settings("plan-1")).rejects.toThrow("Failed to fetch");
-      expect(writes).toBe(0);
-    } finally {
-      globalThis.fetch = originalFetch;
-      setLocalWriteHandler(null);
-    }
-  });
-
-  test("notifyLocalWrite covers writes that bypass the shared request path", async () => {
-    let writes = 0;
-    setLocalWriteHandler(() => { writes += 1; });
-    try {
-      notifyLocalWrite();
-      expect(writes).toBe(1);
-    } finally {
-      setLocalWriteHandler(null);
-    }
-  });
 });

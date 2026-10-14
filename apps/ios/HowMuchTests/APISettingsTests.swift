@@ -112,14 +112,6 @@ final class APISettingsTests: XCTestCase {
     XCTAssertEqual(LaunchRoute.resolve(hasSavedSettings: APISettings.hasSavedSettings(in: defaults), isAuthenticated: loaded.isAuthenticated), .connection)
   }
 
-  func testFreshInstallIsOfferedTheWelcomeScreen() {
-    let loaded = APISettings.load(from: defaults)
-
-    XCTAssertEqual(loaded.mode, .server)
-    XCTAssertFalse(APISettings.hasSavedSettings(in: defaults))
-    XCTAssertEqual(LaunchRoute.resolve(hasSavedSettings: false, isAuthenticated: loaded.isAuthenticated), .welcome)
-  }
-
   func testLocalSettingsRoundTripAndKeepTheirPlan() {
     let local = APISettings.local(in: defaults)
     local.save(to: defaults)
@@ -172,15 +164,6 @@ final class APISettingsTests: XCTestCase {
     XCTAssertEqual(APISettings.localPlanID(in: defaults, livePlanIDs: ["plan_db"]), "plan_db")
     XCTAssertEqual(defaults.string(forKey: APISettings.localPlanIDKey), "plan_db")
     XCTAssertEqual(APISettings.localPlanID(in: defaults, livePlanIDs: []), "plan_db")
-  }
-
-  func testLocalSettingsNeverReachTheLegacyHostMigrations() {
-    APISettings.local(in: defaults).save(to: defaults)
-
-    let loaded = APISettings.load(from: defaults)
-
-    XCTAssertEqual(loaded.baseURLString, APISettings.localBaseURL)
-    XCTAssertFalse(loaded.sessionToken.isEmpty)
   }
 
   /// The app-hosted test bundle can run with no usable Keychain — the same

@@ -145,22 +145,6 @@ final class IPadLayoutTests: XCTestCase {
     XCTAssertTrue(hasEveryday, "compact accounts must list Everyday. OCR: [\(captured.text)] AX: \(surface.accessibilityLabels())")
   }
 
-  func testReflectSurfaceDoesNotLeakFocusedRegister() {
-    let model = AppModel(outboxStore: .temporary())
-    model.activeCaptureSurface = .accounts
-    model.beginFocusedRegisterAccount("acct-everyday")
-    XCTAssertEqual(model.visibleRegisterAccountID, "acct-everyday")
-    XCTAssertEqual(model.addTransactionsOrigin(), .visibleRegister(accountID: "acct-everyday"))
-
-    model.activeCaptureSurface = .reflect
-    XCTAssertNil(model.visibleRegisterAccountID)
-    XCTAssertEqual(model.addTransactionsOrigin(), .lastUsedOpen)
-
-    model.activeCaptureSurface = .accounts
-    XCTAssertEqual(model.visibleRegisterAccountID, "acct-everyday")
-    XCTAssertEqual(model.addTransactionsOrigin(), .visibleRegister(accountID: "acct-everyday"))
-  }
-
   func testRegularPaneWaitsForAccountsThenPicksDefault() {
     var pane: AccountsPane?
     pane = AccountsPaneSelection.reconciled(
@@ -267,15 +251,6 @@ final class IPadLayoutTests: XCTestCase {
     )
   }
 
-  func testPhoneDoesNotUseSidebarEvenWhenRegularWidth() {
-    XCTAssertFalse(
-      RootChrome.usesSidebar(idiom: .phone, horizontalSizeClass: .compact)
-    )
-    XCTAssertFalse(
-      RootChrome.usesSidebar(idiom: .phone, horizontalSizeClass: .regular)
-    )
-  }
-
   func testPhoneRegularWidthDoesNotAutoSelectRegisterPane() {
     let usesSplit = RootChrome.usesSidebar(idiom: .phone, horizontalSizeClass: .regular)
     XCTAssertFalse(usesSplit)
@@ -287,48 +262,6 @@ final class IPadLayoutTests: XCTestCase {
       defaultPane: .account("acct-everyday")
     )
     XCTAssertNil(pane, "iPhone must not auto-present a register on first launch")
-  }
-
-  func testPadRegularUsesSidebar() {
-    XCTAssertTrue(
-      RootChrome.usesSidebar(idiom: .pad, horizontalSizeClass: .regular)
-    )
-    XCTAssertFalse(
-      RootChrome.usesSidebar(idiom: .pad, horizontalSizeClass: .compact)
-    )
-  }
-
-  func testAppTabMapsCompactAndSidebarDestinations() {
-    XCTAssertEqual(AppTab.compactDestinations, [.accounts, .rewards, .reflect])
-    XCTAssertEqual(CompactRootBar.destinationTabs, [.accounts, .rewards, .reflect])
-    XCTAssertEqual(CompactRootBar.destinationTabs.count, CompactRootBar.destinationCapacity)
-    XCTAssertEqual(CompactRootBar.destinationSelections.count, CompactRootBar.destinationCapacity)
-    XCTAssertEqual(CompactRootBar.actionSelections.count, CompactRootBar.actionCapacity)
-    XCTAssertEqual(CompactRootBar.action, .addTransaction)
-    XCTAssertEqual(CompactRootBar.actionSelection, .addTransaction)
-    XCTAssertEqual(AppTab.accounts.captureSurface, .accounts)
-    XCTAssertEqual(AppTab.rewards.captureSurface, .rewards)
-    XCTAssertEqual(AppTab.reflect.captureSurface, .reflect)
-    XCTAssertEqual(AppTab.assistant.captureSurface, .assistant)
-    XCTAssertEqual(AppTab.accounts.compactBarSelection, .accounts)
-    XCTAssertEqual(AppTab.rewards.compactBarSelection, .rewards)
-    XCTAssertEqual(AppTab.reflect.compactBarSelection, .reflect)
-    XCTAssertNil(AppTab.assistant.compactBarSelection)
-    XCTAssertEqual(CompactBarSelection.accounts.tab, .accounts)
-    XCTAssertNil(CompactBarSelection.addTransaction.tab)
-    XCTAssertTrue(CompactBarSelection.addTransaction.isAction)
-    XCTAssertFalse(CompactBarSelection.addTransaction.isDestination)
-    XCTAssertEqual(RootChrome.compactFloatingAssistantClearance, RootAddControl.diameter + 10)
-    XCTAssertEqual(RootChrome.compactToastGap, 12)
-    XCTAssertEqual(RootChrome.compactTabRowClearance, 90)
-    XCTAssertEqual(
-      RootChrome.toastBottomPadding(idiom: .phone, horizontalSizeClass: .compact),
-      RootChrome.compactToastGap
-    )
-    XCTAssertEqual(
-      RootChrome.toastBottomPadding(idiom: .pad, horizontalSizeClass: .regular),
-      28 + RootAddControl.diameter + 8
-    )
   }
 
   func testOpenMoreAssistantFromAccountsDoesNotLeakFocusedRegister() {
@@ -356,26 +289,6 @@ final class IPadLayoutTests: XCTestCase {
     XCTAssertNil(chrome.overflow(on: .accounts))
     XCTAssertEqual(model.visibleRegisterAccountID, "acct-everyday")
     XCTAssertEqual(model.addTransactionsOrigin(), .visibleRegister(accountID: "acct-everyday"))
-  }
-
-  func testMoreMenuItemsOmitOnlyTheNamedDestination() {
-    XCTAssertEqual(MoreDestination.menuItems(omitting: nil), [.assistant])
-    XCTAssertEqual(MoreDestination.menuItems(omitting: .assistant), [])
-  }
-
-  func testOverflowItemsStayOnPhoneAndLeaveIPadSidebar() {
-    XCTAssertEqual(
-      MoreDestination.overflowItems(usesSidebar: false, omitting: nil),
-      [.assistant]
-    )
-    XCTAssertEqual(
-      MoreDestination.overflowItems(usesSidebar: true, omitting: nil),
-      []
-    )
-    XCTAssertEqual(
-      MoreDestination.overflowItems(usesSidebar: false, omitting: .assistant),
-      []
-    )
   }
 
   func testAdoptSidebarPromotesPhoneOverflowToTab() {

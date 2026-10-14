@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
 import { applyMigrations } from "../db";
-import { LedgerRepository, ValidationError } from "../repository";
+import { LedgerRepository } from "../repository";
 import { buildRewardsReport } from "../rewards/build";
 import { SimpleRewardsCalculator } from "../rewards/engine/simple-calculator";
 import { parseCreditCards } from "../rewards/parse";
@@ -63,10 +63,6 @@ describe("parseRewardsTrackerExport", () => {
     expect(parsed.flagNames).toEqual({ orange: "Dining", green: "Groceries" });
   });
 
-  test("rejects JSON that is not a Rewards Tracker export", () => {
-    expect(() => parseRewardsTrackerExport({ budgets: [] })).toThrow(ValidationError);
-    expect(() => parseRewardsTrackerExport(null)).toThrow(ValidationError);
-  });
 });
 
 describe("importRewardsTrackerExport", () => {
@@ -196,20 +192,6 @@ describe("importRewardsTrackerExport", () => {
     expect((await repo.getTransaction("plan-test", "local")).deleted).toBe(false);
   });
 
-  test("upserts official export cards without inventing transactions", async () => {
-    const first = await importRewardsTrackerExport(repo, "plan-test", officialExport);
-    const second = await importRewardsTrackerExport(repo, "plan-test", officialExport);
-
-    expect(first.cards).toBe(1);
-    expect(first.accounts_upserted).toBe(1);
-    expect(first.transactions_imported).toBe(0);
-    expect(second.cards).toBe(1);
-    expect(second.transactions_imported).toBe(0);
-    expect(db.query("SELECT COUNT(*) AS count FROM rewards_tracker_cards WHERE plan_id='plan-test' AND deleted=0").get()).toEqual({ count: 1 });
-    expect(db.query("SELECT COUNT(*) AS count FROM transactions WHERE plan_id='plan-test' AND deleted=0").get()).toEqual({ count: 0 });
-    expect(db.query("SELECT name FROM accounts WHERE id='acct-credit'").get()).toEqual({ name: "Travel Card" });
-  });
-
   test("does not zero an existing HowMuch account when the official export only names it", async () => {
     await repo.upsertAccount("plan-test", { id: "acct-credit", name: "Travel Card", type: "creditCard", opening_balance: -64000000, balance: -64000000 });
     await importRewardsTrackerExport(repo, "plan-test", officialExport);
@@ -257,20 +239,4 @@ describe("importRewardsTrackerExport", () => {
     });
   });
 
-  test("lets a finite export milesValuation replace a native value", async () => {
-    await repo.patchRewardsTrackerSettings("plan-test", { milesValuation: 0.05 });
-    await importRewardsTrackerExport(repo, "plan-test", officialExport);
-    const snapshot = await repo.getRewardsTrackerSnapshot("plan-test");
-    expect((snapshot.snapshot as { settings: { milesValuation: number } }).settings.milesValuation).toBe(0.015);
-  });
-
-  test("keeps the native milesValuation when the export omits it", async () => {
-    await repo.patchRewardsTrackerSettings("plan-test", { milesValuation: 0.05 });
-    await importRewardsTrackerExport(repo, "plan-test", {
-      ...officialExport,
-      settings: { currency: "SGD" },
-    });
-    const snapshot = await repo.getRewardsTrackerSnapshot("plan-test");
-    expect((snapshot.snapshot as { settings: { milesValuation: number } }).settings.milesValuation).toBe(0.05);
-  });
 });

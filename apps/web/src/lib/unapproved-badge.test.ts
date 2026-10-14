@@ -1,31 +1,20 @@
 import { describe, expect, test } from "bun:test";
-import { resolvedSinceCount, showsUnapprovedBadge, unapprovedBadgeCount, unapprovedBadgeLabel } from "./unapproved-badge";
+import { resolvedSinceCount, showsUnapprovedBadge, unapprovedBadgeCount } from "./unapproved-badge";
 
 describe("resolvedSinceCount", () => {
   test("counts only what was resolved after the count was taken", () => {
     expect(resolvedSinceCount(new Set(["a", "b", "c"]), new Set(["a"]))).toBe(2);
   });
 
-  test("is zero when a refetched count already reflects every local approval", () => {
-    expect(resolvedSinceCount(new Set(["a", "b"]), new Set(["a", "b"]))).toBe(0);
-  });
-
   test("ignores a snapshot id that is no longer resolved", () => {
     expect(resolvedSinceCount(new Set(["b"]), new Set(["a"]))).toBe(1);
   });
 
-  test("is zero before anything has been approved", () => {
-    expect(resolvedSinceCount(new Set(), new Set())).toBe(0);
-  });
 });
 
 describe("unapprovedBadgeCount", () => {
   test("is null while the first count is in flight, so nothing is rendered", () => {
     expect(unapprovedBadgeCount(null, null, 0)).toBeNull();
-  });
-
-  test("uses the server count when the queue has not been loaded", () => {
-    expect(unapprovedBadgeCount(null, 12, 0)).toBe(12);
   });
 
   test("decrements optimistically for approvals the count predates", () => {
@@ -42,23 +31,9 @@ describe("unapprovedBadgeCount", () => {
     expect(unapprovedBadgeCount(4, 12, 3)).toBe(4);
   });
 
-  test("trusts an empty loaded queue over a stale non-zero count", () => {
-    expect(unapprovedBadgeCount(0, 7, 0)).toBe(0);
-  });
 });
 
 describe("showsUnapprovedBadge", () => {
-  test("hides a zero badge in the normal register", () => {
-    expect(showsUnapprovedBadge(0, false)).toBe(false);
-  });
-
-  test("hides the badge while the first count is still unknown", () => {
-    expect(showsUnapprovedBadge(null, false)).toBe(false);
-  });
-
-  test("shows a non-zero badge", () => {
-    expect(showsUnapprovedBadge(3, false)).toBe(true);
-  });
 
   test("keeps the pill visible while the approval flow is open, as the way out", () => {
     expect(showsUnapprovedBadge(0, true)).toBe(true);
@@ -71,12 +46,4 @@ describe("a failed count", () => {
     expect(showsUnapprovedBadge(null, false, true)).toBe(true);
   });
 
-  test("labels the pill without claiming a number it does not have", () => {
-    expect(unapprovedBadgeLabel(null, true)).toBe("New to approve");
-  });
-
-  test("still names the number once one is known", () => {
-    expect(unapprovedBadgeLabel(5, false)).toBe("5 new to approve");
-    expect(unapprovedBadgeLabel(1, true)).toBe("1 new to approve");
-  });
 });

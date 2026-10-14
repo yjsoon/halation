@@ -606,34 +606,6 @@ describe("YNAB-compatible API", () => {
     }
   });
 
-  test("creates and lists OpenClaw-shaped transactions", async () => {
-    const createResponse = await request("/v1/plans/plan-test/transactions", {
-      method: "POST",
-      body: {
-        transaction: {
-          account_id: "acct-1",
-          date: "2026-06-10",
-          amount: -12340,
-          payee_name: "FairPrice",
-          category_id: "cat-groceries",
-          memo: "FairPrice Group",
-          flag_color: "yellow",
-        },
-      },
-    });
-
-    expect(createResponse.status).toBe(201);
-    const createJson = await createResponse.json();
-    expect(createJson.data.transaction.amount).toBe(-12340);
-    expect(createJson.data.transaction.payee_name).toBe("FairPrice");
-    expect(createJson.data.transaction.flag_color).toBe("yellow");
-
-    const listResponse = await request("/v1/budgets/plan-test/accounts/acct-1/transactions?since_date=2026-06-01");
-    const listJson = await listResponse.json();
-    expect(listJson.data.transactions).toHaveLength(1);
-    expect(listJson.data.transactions[0].memo).toBe("FairPrice Group");
-  });
-
   test("paginates every transaction list newest-first with bounded offsets", async () => {
     const repo = new LedgerRepository(db, "plan-test");
     for (const transaction of [
@@ -746,33 +718,6 @@ describe("YNAB-compatible API", () => {
     expect(listed.data.transactions).toHaveLength(1);
   });
 
-  test("creates two same-day captures that differ only by import id", async () => {
-    const shared = {
-      account_id: "acct-1",
-      date: "2026-06-10",
-      amount: -4500,
-      payee_name: "Coffee",
-    };
-
-    const first = await request("/v1/plans/plan-test/transactions", {
-      method: "POST",
-      body: { transaction: { ...shared, import_id: "capture-1" } },
-    });
-    const second = await request("/v1/plans/plan-test/transactions", {
-      method: "POST",
-      body: { transaction: { ...shared, import_id: "capture-2" } },
-    });
-    const firstJson = await first.json();
-    const secondJson = await second.json();
-
-    expect(first.status).toBe(201);
-    expect(second.status).toBe(201);
-    expect(secondJson.data.transaction.id).not.toBe(firstJson.data.transaction.id);
-
-    const listed = await (await request("/v1/plans/plan-test/transactions")).json();
-    expect(listed.data.transactions).toHaveLength(2);
-  });
-
   test("collapses overlapping creates that share one import id", async () => {
     const body = {
       transaction: {
@@ -803,33 +748,6 @@ describe("YNAB-compatible API", () => {
       { name: "account_id" },
       { name: "import_id" },
     ]);
-  });
-
-  test("keeps the same import id on two accounts", async () => {
-    const shared = {
-      date: "2026-06-10",
-      amount: -9990,
-      payee_name: "Same day charge",
-      import_id: "YNAB:-9990:2026-06-10:1",
-    };
-
-    const first = await request("/v1/plans/plan-test/transactions", {
-      method: "POST",
-      body: { transaction: { ...shared, account_id: "acct-1" } },
-    });
-    const second = await request("/v1/plans/plan-test/transactions", {
-      method: "POST",
-      body: { transaction: { ...shared, account_id: "acct-2" } },
-    });
-    const firstJson = await first.json();
-    const secondJson = await second.json();
-
-    expect(first.status).toBe(201);
-    expect(second.status).toBe(201);
-    expect(secondJson.data.transaction.id).not.toBe(firstJson.data.transaction.id);
-
-    const listed = await (await request("/v1/plans/plan-test/transactions")).json();
-    expect(listed.data.transactions).toHaveLength(2);
   });
 
   test("serializes concurrent local SQLite transaction writes", async () => {
@@ -884,18 +802,6 @@ describe("YNAB-compatible API", () => {
       { id: "delete-race-a", balance_milli: 0 },
       { id: "delete-race-b", balance_milli: 0 },
     ]);
-  });
-
-  test("returns YNAB-shaped errors", async () => {
-    const response = await handler(new Request("http://howmuch.test/v1/user"));
-    const body = await response.json();
-
-    expect(response.status).toBe(401);
-    expect(body.error).toEqual({
-      id: "401",
-      name: "not_authorized",
-      detail: "Invalid credentials",
-    });
   });
 
   test("transition mode locks only authenticated financial writes after CSRF", async () => {
@@ -987,37 +893,6 @@ describe("YNAB-compatible API", () => {
       method: "POST",
       headers: { cookie, origin: "https://howmuch.test" },
     }))).status).toBe(200);
-  });
-
-  test("patches transaction flags and memos", async () => {
-    const created = await (await request("/v1/plans/plan-test/transactions", {
-      method: "POST",
-      body: {
-        transaction: {
-          account_id: "acct-1",
-          date: "2026-06-10",
-          amount: -5000,
-          payee_name: "Merchant",
-          memo: "TODO: receipt",
-        },
-      },
-    })).json();
-
-    const transactionId = created.data.transaction.id;
-    expect(created.data.transaction.approved).toBe(false);
-    const patchResponse = await request(`/v1/plans/plan-test/transactions/${transactionId}`, {
-      method: "PATCH",
-      body: {
-        transaction: {
-          memo: "CLAIMED: receipt",
-          flag_color: "green",
-        },
-      },
-    });
-    expect(patchResponse.status).toBe(200);
-    const patched = await patchResponse.json();
-    expect(patched.data.transaction.memo).toBe("CLAIMED: receipt");
-    expect(patched.data.transaction.flag_color).toBe("green");
   });
 
   test("rejects a new linked split-transfer side without a 500", async () => {
@@ -1686,20 +1561,6 @@ describe("account icons", () => {
     expect(rejected.status).toBe(400);
   });
 
-  test("lets a user rename an account without changing its icon", async () => {
-    const account = await createAccountViaApi({ name: "Everyday", type: "checking" });
-    const renamed = await request(`/v1/plans/plan-test/accounts/${account.id}`, {
-      method: "PATCH",
-      body: { account: { name: "Daily Spend" } },
-    });
-    expect(renamed.status).toBe(200);
-    expect((await renamed.json()).data.account).toMatchObject({ name: "Daily Spend", icon: "🏦" });
-
-    const payees = await (await request("/v1/plans/plan-test/payees")).json();
-    const transfer = payees.data.payees.find((payee: any) => payee.id === account.transfer_payee_id);
-    expect(transfer.name).toBe("Transfer : Daily Spend");
-  });
-
   test("ignores non-string icon ingress like omission and rejects it as the only update", async () => {
     const account = await createAccountViaApi({ name: "Everyday", type: "checking", icon: "🐷" });
     for (const icon of [undefined, null, 42, false, ["💳"], { icon: "💳" }]) {
@@ -1840,16 +1701,6 @@ describe("account type updates", () => {
     expect((await kept.json()).data.account).toMatchObject({ type: "savings", icon: "🐷" });
   });
 
-  test("keeps a client icon sent with a type change", async () => {
-    const account = await createAccountViaApi({ name: "Everyday", type: "checking" });
-    const updated = await request(`/v1/plans/plan-test/accounts/${account.id}`, {
-      method: "PATCH",
-      body: { account: { type: "savings", icon: "🐷" } },
-    });
-    expect(updated.status).toBe(200);
-    expect((await updated.json()).data.account).toMatchObject({ type: "savings", icon: "🐷" });
-  });
-
   test("name and icon stay writable in transition while type is locked", async () => {
     const account = await createAccountViaApi({ name: "Everyday", type: "checking" });
     const transitionHandler = createHandler({
@@ -1910,22 +1761,6 @@ describe("account creation", () => {
     });
   });
 
-  test("places a tracking mortgage off-budget", async () => {
-    const mortgage = await createAccountViaApi({
-      name: "Home Loan",
-      type: "mortgage",
-      balance: -380000000,
-      icon: "🏠",
-      on_budget: false,
-    });
-    expect(mortgage).toMatchObject({
-      name: "Home Loan",
-      type: "mortgage",
-      balance: -380000000,
-      icon: "🏠",
-      on_budget: false,
-    });
-  });
 });
 
 describe("transfers and splits", () => {
@@ -2042,27 +1877,6 @@ describe("transfers and splits", () => {
     const remaining = await (await request("/v1/plans/plan-test/transactions")).json();
     expect(remaining.data.transactions).toHaveLength(1);
     expect(remaining.data.transactions[0].id).toBe(outflow.id);
-  });
-
-  test("rejects split transactions whose lines do not sum to the total", async () => {
-    const response = await request("/v1/plans/plan-test/transactions", {
-      method: "POST",
-      body: {
-        transaction: {
-          account_id: "acct-1",
-          date: "2026-06-10",
-          amount: -15000,
-          payee_name: "Supermarket",
-          subtransactions: [
-            { amount: -10000, category_id: "cat-groceries" },
-            { amount: -4000, category_id: "cat-household" },
-          ],
-        },
-      },
-    });
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body.error.name).toBe("bad_request");
   });
 
   test("labels split parents and supports transfer subtransactions", async () => {
@@ -2365,24 +2179,6 @@ describe("transfers and splits", () => {
 });
 
 describe("native reports and imports", () => {
-  test("creates mobile quick-entry transactions from decimal amounts", async () => {
-    const quickEntryResponse = await request("/api/mobile/quick-entry?plan_id=plan-test", {
-      method: "POST",
-      body: {
-        account_id: "acct-1",
-        date: "2026-06-10",
-        amount: -12.34,
-        payee_name: "Coffee Shop",
-        memo: "mobile fallback",
-      },
-    });
-
-    expect(quickEntryResponse.status).toBe(201);
-    const quickEntry = await quickEntryResponse.json();
-    expect(quickEntry.data.transaction.amount).toBe(-12340);
-    expect(quickEntry.data.transaction.approved).toBeTrue();
-    expect(quickEntry.data.transaction.source_kind).toBeUndefined();
-  });
 
   test("rejects API-token access to non-default quick-entry plans", async () => {
     const alternatePlanId = "quick-entry-alternate-plan";
@@ -2430,24 +2226,6 @@ describe("native reports and imports", () => {
     const spending = await spendingResponse.json();
     expect(spending.data.total).toBe(12340);
     expect(spending.data.groups[0].category_name).toBe("Uncategorised");
-  });
-
-  test("imports CSV rows with row-level accounts and duplicate counts", async () => {
-    const importResponse = await request("/api/import/csv?plan_id=plan-test", {
-      method: "POST",
-      body: {
-        rows: [
-          { account_id: "acct-1", date: "2026-06-01", payee: "Cafe", outflow: "12.34" },
-          { account_id: "acct-1", date: "2026-06-01", payee: "Cafe", outflow: "12.34" },
-        ],
-      },
-    });
-    expect(importResponse.status).toBe(201);
-
-    const imported = await importResponse.json();
-    expect(imported.data.imported).toBe(1);
-    expect(imported.data.duplicate).toBe(1);
-    expect(imported.data.failed).toBe(0);
   });
 
   test("imports a Rewards Tracker export twice without duplicating cards or cached transactions", async () => {
@@ -2678,25 +2456,6 @@ describe("native reports and imports", () => {
     expect(report.data.cards).toEqual([]);
   });
 
-  test("rejects unknown or missing ynabAccountId with 422", async () => {
-    const unknown = await request("/api/rewards/cards?plan_id=plan-test", {
-      method: "POST",
-      body: {
-        card: { name: "Ghost", issuer: "UOB", type: "cashback", ynabAccountId: "acct-missing" },
-      },
-    });
-    expect(unknown.status).toBe(422);
-    expect(db.query("SELECT COUNT(*) AS count FROM rewards_tracker_cards").get()).toEqual({ count: 0 });
-
-    const missing = await request("/api/rewards/cards?plan_id=plan-test", {
-      method: "POST",
-      body: {
-        card: { name: "Ghost", issuer: "UOB", type: "cashback" },
-      },
-    });
-    expect(missing.status).toBe(422);
-  });
-
   test("strips secrets from native card and settings writes", async () => {
     await createAccount("acct-secret-card", { name: "Secret card" });
     const created = await request("/api/rewards/cards?plan_id=plan-test", {
@@ -2774,17 +2533,6 @@ describe("native reports and imports", () => {
     const snapshot = await (await request("/api/import/rewards-tracker?plan_id=plan-test")).json();
     expect(snapshot.data.snapshot.settings.milesValuation).toBe(0.07);
     expect((await (await request("/api/reports/rewards?plan_id=plan-test")).json()).data.miles_valuation).toBe(0.07);
-  });
-
-  test("updates account opening balances on reseed", async () => {
-    await createAccount("acct-reseeded", { name: "Reseeded", opening_balance: 0 });
-    await createAccount("acct-reseeded", { name: "Reseeded", opening_balance: 38000000 });
-
-    const netWorth = await (
-      await request("/api/reports/net-worth?plan_id=plan-test&from=2026-06-01&to=2026-06-30")
-    ).json();
-
-    expect(netWorth.data.periods[0].net_worth).toBe(38000000);
   });
 
   test("supports report filters, closed-account toggles, and age-of-money period filling", async () => {

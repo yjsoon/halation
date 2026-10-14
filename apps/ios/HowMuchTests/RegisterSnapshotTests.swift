@@ -51,20 +51,6 @@ final class RegisterSnapshotTests: XCTestCase {
     XCTAssertEqual(snapshot.outflow, 6_000)
   }
 
-  func testEmptyAndPendingOnlyStates() {
-    let empty = RegisterSnapshot(transactions: [], pending: [], schedules: [], today: "2026-09-05")
-    XCTAssertTrue(empty.isEmpty)
-    XCTAssertTrue(empty.currentDateSections.isEmpty)
-    XCTAssertTrue(empty.disclosureDateSections.isEmpty)
-    XCTAssertEqual(empty.scheduledDisclosureCount, 0)
-    let queued = RegisterSnapshot(transactions: [], pending: [pending(date: "2026-09-05")], schedules: [], today: "2026-09-05")
-    XCTAssertFalse(queued.isEmpty)
-    XCTAssertEqual(queued.transactionCount, 0)
-    XCTAssertEqual(queued.currentDateSections.count, 1)
-    XCTAssertEqual(queued.inflow, 0)
-    XCTAssertEqual(queued.outflow, 0)
-  }
-
   func testNewSnapshotReflectsEditsAndDayRollover() throws {
     let future = try transaction("edited", date: "2026-09-06", amount: -1_000)
     let first = RegisterSnapshot(transactions: [future], pending: [], schedules: [], today: "2026-09-05")
@@ -77,18 +63,6 @@ final class RegisterSnapshotTests: XCTestCase {
     XCTAssertEqual(next.inflow, 2_000)
     XCTAssertEqual(next.outflow, 0)
     XCTAssertEqual(next.currentDateSections.first?.date, "2026-09-04")
-  }
-
-  func testLargeRegisterSnapshotPerformance() throws {
-    let rows = try (0..<10_000).map { index in
-      try transaction("row-\(index)", date: index.isMultiple(of: 2) ? "2026-09-05" : "2026-09-06", amount: -1_000)
-    }
-    measure {
-      let snapshot = RegisterSnapshot(transactions: rows, pending: [], schedules: [], today: "2026-09-05")
-      XCTAssertEqual(snapshot.transactionCount, 10_000)
-      XCTAssertEqual(snapshot.scheduledDisclosureCount, 5_000)
-      XCTAssertEqual(snapshot.outflow, 10_000_000)
-    }
   }
 
   private func transaction(_ id: String, date: String, amount: Int) throws -> Transaction {

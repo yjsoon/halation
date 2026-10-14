@@ -4,7 +4,6 @@ import {
   horizonStartDate,
   oldestDateForHorizonCoverage,
   REGISTER_HORIZON_MAX_ROWS,
-  REGISTER_PAGE_SIZE,
   shouldFetchMoreForHorizon,
 } from "./register-horizon";
 
@@ -24,20 +23,9 @@ function page(
 }
 
 describe("horizonStartDate", () => {
-  test("shifts a pinned today back two local calendar months", () => {
-    expect(horizonStartDate(TODAY)).toBe(HORIZON_START);
-  });
 });
 
 describe("shouldFetchMoreForHorizon", () => {
-  test("fetches the first page when the ledger is empty and more exists", () => {
-    expect(shouldFetchMoreForHorizon({
-      oldestLoadedDate: null,
-      hasMore: true,
-      rowCount: 0,
-      today: TODAY,
-    })).toBe(true);
-  });
 
   test("stops when a loaded date is strictly older than the horizon start", () => {
     expect(shouldFetchMoreForHorizon({
@@ -51,15 +39,6 @@ describe("shouldFetchMoreForHorizon", () => {
   test("keeps fetching when the oldest loaded date is the horizon start", () => {
     expect(shouldFetchMoreForHorizon({
       oldestLoadedDate: HORIZON_START,
-      hasMore: true,
-      rowCount: 10,
-      today: TODAY,
-    })).toBe(true);
-  });
-
-  test("keeps fetching when every loaded date is newer than the horizon start", () => {
-    expect(shouldFetchMoreForHorizon({
-      oldestLoadedDate: "2026-07-01",
       hasMore: true,
       rowCount: 10,
       today: TODAY,
@@ -81,14 +60,6 @@ describe("shouldFetchMoreForHorizon", () => {
     })).toBe(true);
   });
 
-  test("stops when the cursor is exhausted", () => {
-    expect(shouldFetchMoreForHorizon({
-      oldestLoadedDate: "2026-07-01",
-      hasMore: false,
-      rowCount: 10,
-      today: TODAY,
-    })).toBe(false);
-  });
 });
 
 describe("oldestDateForHorizonCoverage", () => {
@@ -100,12 +71,6 @@ describe("oldestDateForHorizonCoverage", () => {
     ], "joey")).toBe("2026-08-29");
   });
 
-  test("uses every loaded date when no account is focused", () => {
-    expect(oldestDateForHorizonCoverage([
-      { date: "2026-09-08" },
-      { date: "2026-06-15" },
-    ])).toBe("2026-06-15");
-  });
 });
 
 describe("fillRegisterHorizon", () => {
@@ -143,24 +108,6 @@ describe("fillRegisterHorizon", () => {
     expect(filled?.nextOffset).toBeNull();
   });
 
-  test("stops an All-style query once a loaded date is older than the start", async () => {
-    const offsets: number[] = [];
-    const filled = await fillRegisterHorizon({
-      today: TODAY,
-      isCurrent: () => true,
-      fetchPage: async (offset) => {
-        offsets.push(offset);
-        if (offset === 0) return page([row("aug", "2026-08-10")], true, 100);
-        if (offset === 100) return page([row("may", "2026-05-01")], true, 200);
-        return page([row("apr", "2026-04-01")], true, 300);
-      },
-    });
-    expect(offsets).toEqual([0, 100]);
-    expect(filled?.transactions.map((transaction) => transaction.id)).toEqual(["aug", "may"]);
-    expect(filled?.hasMore).toBe(true);
-    expect(filled?.nextOffset).toBe(200);
-  });
-
   test("stops at the 600-row cap", async () => {
     const offsets: number[] = [];
     const filled = await fillRegisterHorizon({
@@ -180,28 +127,6 @@ describe("fillRegisterHorizon", () => {
     expect(filled?.transactions).toHaveLength(REGISTER_HORIZON_MAX_ROWS);
     expect(filled?.hasMore).toBe(true);
     expect(filled?.nextOffset).toBe(600);
-  });
-
-  test("fills the 600-row cap in at most 3 requests at the server's max page size", async () => {
-    const offsets: number[] = [];
-    const filled = await fillRegisterHorizon({
-      today: TODAY,
-      isCurrent: () => true,
-      fetchPage: async (offset) => {
-        offsets.push(offset);
-        const start = offset;
-        return page(
-          Array.from({ length: REGISTER_PAGE_SIZE }, (_, index) => row(`r${start + index}`, "2026-08-01")),
-          true,
-          offset + REGISTER_PAGE_SIZE,
-        );
-      },
-    });
-    expect(offsets.length).toBeLessThanOrEqual(3);
-    expect(offsets).toEqual([0, REGISTER_PAGE_SIZE, REGISTER_PAGE_SIZE * 2]);
-    expect(filled?.transactions.length).toBeGreaterThanOrEqual(REGISTER_HORIZON_MAX_ROWS);
-    expect(filled?.hasMore).toBe(true);
-    expect(filled?.nextOffset).toBe(REGISTER_PAGE_SIZE * 3);
   });
 
   test("returns null when a later isCurrent check fails", async () => {

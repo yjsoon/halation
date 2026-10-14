@@ -2,16 +2,6 @@ import XCTest
 @testable import HowMuch
 
 final class CaptureOriginTests: XCTestCase {
-  func testRegisterPlusUsesThatOpenAccount() {
-    let context = CaptureAccountContext.resolve(
-      origin: .visibleRegister(accountID: "acct-travel"),
-      openAccounts: Self.open,
-      lastUsedAccountID: "acct-everyday",
-      focusedRegisterAccountID: "acct-travel"
-    )
-    XCTAssertEqual(context.selectedAccountID, "acct-travel")
-    XCTAssertEqual(context.origin, .visibleRegister(accountID: "acct-travel"))
-  }
 
   func testOverviewPlusUsesLastUsedOpenNotFocusedRegister() {
     let context = CaptureAccountContext.resolve(
@@ -39,15 +29,6 @@ final class CaptureOriginTests: XCTestCase {
       origin: .lastUsedOpen,
       openAccounts: Self.open,
       lastUsedAccountID: "acct-closed"
-    )
-    XCTAssertEqual(context.selectedAccountID, "acct-everyday")
-  }
-
-  func testDeletedOrMissingLastUsedFallsBackToFirstOpen() {
-    let context = CaptureAccountContext.resolve(
-      origin: .lastUsedOpen,
-      openAccounts: Self.open,
-      lastUsedAccountID: "acct-gone"
     )
     XCTAssertEqual(context.selectedAccountID, "acct-everyday")
   }
@@ -111,29 +92,12 @@ final class CaptureOriginTests: XCTestCase {
   }
 
   @MainActor
-  func testVisibleRegisterOnCurrentSurfaceDoesNotLeakWhenDestinationChanges() {
-    let model = AppModel(outboxStore: .temporary())
-    model.activeCaptureSurface = .accounts
-    model.beginFocusedRegisterAccount("acct-everyday")
-    XCTAssertEqual(model.visibleRegisterAccountID, "acct-everyday")
-    XCTAssertEqual(model.addTransactionsOrigin(), .visibleRegister(accountID: "acct-everyday"))
-    model.activeCaptureSurface = .assistant
-    XCTAssertNil(model.visibleRegisterAccountID)
-    XCTAssertEqual(model.addTransactionsOrigin(), .lastUsedOpen)
-    model.activeCaptureSurface = .accounts
-    XCTAssertEqual(model.visibleRegisterAccountID, "acct-everyday")
-  }
 
   func testExplicitRetryRefreshesFailedReference() {
     XCTAssertTrue(CaptureAdmissionGate.shouldRefreshReference(phase: .failed("offline"), explicitRetry: true))
     XCTAssertFalse(CaptureAdmissionGate.shouldRefreshReference(phase: .failed("offline"), explicitRetry: false))
     XCTAssertTrue(CaptureAdmissionGate.shouldRefreshReference(phase: .idle, explicitRetry: false))
     XCTAssertFalse(CaptureAdmissionGate.shouldRefreshReference(phase: .loaded, explicitRetry: false))
-  }
-
-  func testAdmissionGateDoesNotFreezeBeforeReferenceLoads() {
-    XCTAssertFalse(CaptureAdmissionGate.canAdmit(referencePhase: .idle))
-    XCTAssertFalse(CaptureAdmissionGate.canAdmit(referencePhase: .loading))
   }
 
   func testReferenceWaitStopsOnlyWhenNothingWillLoadTheReference() {

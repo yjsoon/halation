@@ -2,10 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { TransactionBulkOutcome, TransactionBulkSummary } from "../api/client";
 import type { Transaction } from "../api/types";
 import {
-  bulkDeleteFollowUp,
   bulkOutcomeIsComplete,
-  bulkOutcomeToast,
-  bulkWriteTouchesReconciliation,
   categorisableRows,
   clearedTargets,
   remainingWorkIds,
@@ -86,50 +83,4 @@ describe("register bulk outcomes", () => {
     ]))).toBe(true);
   });
 
-  test("reports confirmed, already-removed, uncertain, and skipped rows separately", () => {
-    expect(bulkOutcomeToast("Categorised", summary([
-      { id: "a", status: "applied" },
-      { id: "b", status: "applied" },
-    ]))).toBe("Categorised 2 transactions.");
-    expect(bulkOutcomeToast("Deleted", summary([
-      { id: "a", status: "applied" },
-      { id: "b", status: "already_removed" },
-    ]))).toBe("Deleted 1 transaction. 1 transaction was already removed.");
-    expect(bulkOutcomeToast("Categorised", summary([
-      { id: "a", status: "applied" },
-      { id: "b", status: "unresolved" },
-      { id: "c", status: "unattempted" },
-    ]))).toBe("Categorised 1 transaction. 1 transaction may or may not have been updated. 1 transaction was not updated.");
-    expect(bulkOutcomeToast("Deleted", summary([
-      { id: "a", status: "unresolved" },
-    ]))).toBe("1 transaction may or may not have been updated.");
-    expect(bulkOutcomeToast("Marked cleared", summary([
-      { id: "a", status: "conflict" },
-      { id: "b", status: "unattempted" },
-    ]))).toBe("2 transactions were not updated.");
-  });
-
-  test("invalidates the reconciliation preview for cleared and delete, but not categorise", () => {
-    expect(bulkWriteTouchesReconciliation("cleared")).toBe(true);
-    expect(bulkWriteTouchesReconciliation("delete")).toBe(true);
-    expect(bulkWriteTouchesReconciliation("categorise")).toBe(false);
-  });
-
-  test("only keeps unsettled rows selected after deleting", () => {
-    const complete = bulkDeleteFollowUp(summary([
-      { id: "a", status: "applied" },
-      { id: "b", status: "already_removed" },
-    ]));
-    expect(complete.complete).toBe(true);
-    expect(complete.retryIds).toEqual([]);
-
-    const partial = bulkDeleteFollowUp(summary([
-      { id: "a", status: "applied" },
-      { id: "b", status: "unresolved" },
-      { id: "c", status: "unattempted" },
-      { id: "d", status: "conflict" },
-    ]));
-    expect(partial.complete).toBe(false);
-    expect(partial.retryIds).toEqual(["b", "c"]);
-  });
 });

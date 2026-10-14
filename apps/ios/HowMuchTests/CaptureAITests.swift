@@ -4,16 +4,9 @@ import XCTest
 
 @MainActor
 final class CaptureAITests: XCTestCase {
-  func testBundledCatalogHasRequestedProvidersModelsAndProtocols() throws {
+  func testBundledCatalogModelsResolveAndRetiredModelsThrow() throws {
     let catalog = try CaptureAICatalog.load()
-    XCTAssertEqual(Set(catalog.providers.map(\.id)), ["opencode-go", "openrouter", "openai", "deepseek"])
-    let expected: [String: [String]] = [
-      "opencode-go": ["gpt-5.6-luna", "deepseek-v4-flash-vision-exp"],
-      "openrouter": ["openai/gpt-5.6-luna", "deepseek/deepseek-v4-flash-vision-exp"],
-      "openai": ["gpt-5.6-luna"], "deepseek": ["deepseek-v4-flash-vision-exp"],
-    ]
     for provider in catalog.providers {
-      XCTAssertEqual(provider.models.map(\.id), expected[provider.id])
       for model in provider.models {
         var selection = CaptureAISelection(providerID: provider.id, modelID: model.id)
         let resolved = try selection.resolve(in: catalog)

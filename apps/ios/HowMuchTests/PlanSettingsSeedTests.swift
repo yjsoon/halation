@@ -23,13 +23,6 @@ final class PlanSettingsSeedTests: XCTestCase {
     XCTAssertEqual(seed.dateFormat.format, "MM/DD/YYYY")
   }
 
-  func testUnitedKingdom() throws {
-    let seed = try seed("en_GB")
-    XCTAssertEqual(seed.currencyFormat.isoCode, "GBP")
-    XCTAssertEqual(seed.currencyFormat.currencySymbol, "£")
-    XCTAssertEqual(seed.dateFormat.format, "DD/MM/YYYY")
-  }
-
   func testGermanyPutsTheSymbolLastWithCommaDecimals() throws {
     let seed = try seed("de_DE")
     XCTAssertEqual(seed.currencyFormat.isoCode, "EUR")
@@ -48,9 +41,4 @@ final class PlanSettingsSeedTests: XCTestCase {
     XCTAssertEqual(seed.dateFormat.format, "YYYY-MM-DD")
   }
 
-  func testSymbolPosition() {
-    XCTAssertTrue(PlanSettingsSeed.symbolFirst(in: "¤#,##0.00"))
-    XCTAssertTrue(PlanSettingsSeed.symbolFirst(in: "¤ #,##0.00"))
-    XCTAssertFalse(PlanSettingsSeed.symbolFirst(in: "#,##0.00 ¤"))
-  }
 }

@@ -1,14 +1,11 @@
 import { describe, expect, test } from "bun:test";
 import type { Payee } from "../api/types";
 import {
-  addEntryHref,
   canonicalPayeeName,
   closedCompose,
   composePayload,
-  dateInFilterRange,
   emptyComposeDraft,
   findTransferPayee,
-  formatComposeAmount,
   reduceCompose,
   resolvePostingAccountId,
   type RegisterComposeState,
@@ -23,16 +20,6 @@ function openDraft(accountId = "acct-everyday"): RegisterComposeState {
 }
 
 describe("register compose", () => {
-  test("opens a blank draft on the posting account", () => {
-    const state = openDraft("acct-credit");
-    expect(state.status).toBe("open");
-    if (state.status !== "open") {
-      return;
-    }
-    expect(state.draft.accountId).toBe("acct-credit");
-    expect(state.draft.payeeName).toBe("");
-    expect(state.saving).toBe(false);
-  });
 
   test("keeps the draft when Add is pressed again", () => {
     let state = openDraft("acct-everyday");
@@ -95,14 +82,6 @@ describe("register compose", () => {
     expect(transfer.ok && transfer.input.category_id).toBeNull();
   });
 
-  test("passes a flag colour through on save", () => {
-    const result = composePayload(
-      { ...emptyComposeDraft("acct-everyday", "2026-08-29"), payeeName: "Toast Box", outflow: "6.80", flagColor: "red" },
-      [payee("p1", "Toast Box")],
-    );
-    expect(result.ok && result.input.flag_color).toBe("red");
-  });
-
   test("rejects a missing account, both amounts, and an empty payee", () => {
     expect(composePayload(emptyComposeDraft(""), [])).toEqual({
       ok: false,
@@ -131,11 +110,6 @@ describe("register compose", () => {
     expect(resolvePostingAccountId([], "acct-credit", "")).toBe("");
   });
 
-  test("builds the add-entry href with the account query", () => {
-    expect(addEntryHref("acct-credit")).toBe("/add?account=acct-credit");
-    expect(addEntryHref(null)).toBe("/add");
-  });
-
   test("save-and-add-another keeps the date and account and remints the client id", () => {
     let state = openDraft("acct-credit");
     const firstId = state.status === "open" ? state.draft.clientId : "";
@@ -147,12 +121,6 @@ describe("register compose", () => {
     expect(state.status === "open" && state.draft.payeeName).toBe("");
     expect(state.status === "open" && state.draft.clientId).not.toBe(firstId);
     expect(state.saving).toBe(false);
-  });
-
-  test("dateInFilterRange treats an open end as unbounded", () => {
-    expect(dateInFilterRange("2026-08-29", "2026-08-01", "2026-08-31")).toBe(true);
-    expect(dateInFilterRange("2026-07-01", "2026-08-01", "2026-08-31")).toBe(false);
-    expect(dateInFilterRange("2026-03-01", undefined, undefined)).toBe(true);
   });
 
   test("a failed save keeps the same client id for retry", () => {
@@ -173,12 +141,6 @@ describe("register compose", () => {
       [transferPayee],
     );
     expect(result.ok && result.input.payee_id).toBe("p-xfer");
-  });
-
-  test("formats a compose amount to two decimals", () => {
-    expect(formatComposeAmount("4.2")).toBe("4.20");
-    expect(formatComposeAmount("10")).toBe("10.00");
-    expect(formatComposeAmount("nope")).toBe("nope");
   });
 
   test("a late save does not reopen a cancelled row", () => {

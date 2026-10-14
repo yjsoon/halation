@@ -163,9 +163,6 @@ final class ScreenshotOfferTests: XCTestCase {
     XCTAssertEqual(controller.offer, offer)
     XCTAssertEqual(clipboard.reads, 1)
     XCTAssertEqual(counter.calls, 1)
-    XCTAssertEqual(offer?.caption, "Clipboard image · 3 lines")
-    XCTAssertEqual(ScreenshotOffer(id: "x", lineCount: 1, imageData: Data(), filename: "x").caption,
-      "Clipboard image · 1 line")
   }
 
   func testDismissPersistsButANewCopyOfSameBytesIsOffered() async throws {

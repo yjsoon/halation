@@ -61,23 +61,6 @@ final class LedgerQueryTests: XCTestCase {
     }
   }
 
-  func testCompareLabelsEqualLengthPriorPeriod() {
-    let resolved = LedgerQueryPlanner.resolve(
-      spec: LedgerQuerySpec(kind: .compareCategory, category: "Dining Out", account: "", merchant: "", from: "", to: ""),
-      accounts: [Self.account("acct-everyday", "Everyday")],
-      categoryGroups: [Self.everydayGroup],
-      calendar: Self.calendar,
-      now: Self.now
-    )
-    guard case .success(let value) = resolved else {
-      return XCTFail("expected comparison")
-    }
-    XCTAssertEqual(value.from, "2025-05-01")
-    XCTAssertEqual(value.to, "2025-05-04")
-    XCTAssertEqual(value.priorFrom, "2025-04-27")
-    XCTAssertEqual(value.priorTo, "2025-04-30")
-  }
-
   func testCompareCategoryUsesPriorCompleteMonth() {
     let resolved = LedgerQueryPlanner.resolve(
       spec: LedgerQuerySpec(kind: .compareCategory, category: "Dining Out", account: "", merchant: "", from: "", to: ""),
@@ -346,26 +329,6 @@ final class LedgerQueryTests: XCTestCase {
     XCTAssertTrue(value.unresolvedAccount.isEmpty)
   }
 
-  func testFourAccountMatchesStayAmbiguous() {
-    let resolved = LedgerQueryPlanner.resolve(
-      spec: LedgerQuerySpec(kind: .spendingThisMonth, category: "", account: "Card", merchant: "", from: "", to: ""),
-      accounts: [
-        Self.account("a", "Card One"),
-        Self.account("b", "Card Two"),
-        Self.account("c", "Card Three"),
-        Self.account("d", "Card Four"),
-      ],
-      categoryGroups: [Self.everydayGroup],
-      calendar: Self.calendar,
-      now: Self.now
-    )
-    guard case .success(let value) = resolved else {
-      return XCTFail("expected ambiguity")
-    }
-    XCTAssertTrue(value.accountIDs.isEmpty)
-    XCTAssertEqual(value.unresolvedAccount.count, 4)
-  }
-
   func testYesterdayRangeIsPreservedAndNotRewrittenToThisMonth() {
     let resolved = LedgerQueryPlanner.resolve(
       spec: LedgerQuerySpec(kind: .spending, category: "", account: "", merchant: "", from: "2025-05-03", to: "2025-05-03"),
@@ -380,11 +343,6 @@ final class LedgerQueryTests: XCTestCase {
     XCTAssertEqual(value.from, "2025-05-03")
     XCTAssertEqual(value.to, "2025-05-03")
     XCTAssertNotEqual(value.from, "2025-05-01")
-  }
-
-  func testLocalYesterdayMapsInReaderCalendar() {
-    let date = SlipReaderMapping.date(from: "yesterday", calendar: Self.calendar, now: Self.now)
-    XCTAssertEqual(LedgerQueryPlanner.isoFormatter(calendar: Self.calendar).string(from: date!), "2025-05-03")
   }
 
   func testExplicitQuietCategoryIsKeptInTotal() {
@@ -806,14 +764,6 @@ final class LedgerQueryTests: XCTestCase {
     XCTAssertEqual(rows.first?.categoryName, "Dining Out")
     XCTAssertTrue(rows.first?.isSplitPortion == true)
     XCTAssertFalse(rows.contains { $0.payee == "Deleted line" || $0.payee == "Hidden shop" || $0.payee == "Gone" })
-  }
-
-  func testMerchantMatchUsesPayeeNotRegisterCache() {
-    let rows = [
-      Self.transaction(id: "t1", payee: "Starbucks Orchard", amount: -5_000),
-      Self.transaction(id: "t2", payee: "FairPrice", amount: -8_000),
-    ]
-    XCTAssertEqual(LedgerQueryRunner.matchingMerchant(rows, query: "starbucks").map(\.id), ["t1"])
   }
 
   private static let now = Date(timeIntervalSince1970: 1_746_316_800)

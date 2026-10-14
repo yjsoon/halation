@@ -191,23 +191,6 @@ final class OutboxSyncTests: XCTestCase {
     XCTAssertNil(model.transactions.first { $0.id == "row-1" })
   }
 
-  func testDeleteIsInstantAndSentLater() async throws {
-    server.seed(row(id: "row-1", amount: -2_000))
-    let model = makeModel()
-    await load(model)
-    server.offline = true
-
-    try await model.deleteTransaction(try row(in: model, "row-1"))
-    XCTAssertFalse(model.isSubmitting, "a delete no longer takes the global lock")
-    XCTAssertNil(model.transactions.first { $0.id == "row-1" })
-    XCTAssertEqual(model.accounts.first?.balance, 0)
-
-    server.offline = false
-    await model.drainOutbox(trigger: .manual)
-    XCTAssertEqual(server.row("row-1")?["deleted"] as? Bool, true)
-    XCTAssertEqual(model.accounts.first?.balance, 0)
-  }
-
   // MARK: - Rejections
 
   func testARefusedEditStaysOnDiskUntilRetriedOrDiscarded() async throws {

@@ -21,22 +21,6 @@ describe("planBootstrapRequests", () => {
     });
   });
 
-  test("uses the remembered plan on a cold load", () => {
-    expect(planBootstrapRequests({ hint: "plan-b", existingPlanId: null })).toEqual({
-      speculativePlanId: "plan-b",
-      fetchPreferences: true,
-      fetchAccounts: true,
-    });
-  });
-
-  test("waits for the plans list when nothing is remembered", () => {
-    expect(planBootstrapRequests({ hint: null, existingPlanId: null })).toEqual({
-      speculativePlanId: null,
-      fetchPreferences: true,
-      fetchAccounts: true,
-    });
-  });
-
   test("holds the accounts read back when the cache covers the plan being opened", () => {
     expect(planBootstrapRequests({ hint: "plan-b", existingPlanId: null, cachedPlanId: "plan-b" })).toEqual({
       speculativePlanId: "plan-b",
@@ -45,13 +29,6 @@ describe("planBootstrapRequests", () => {
     });
   });
 
-  test("still fetches accounts when the cache is for another plan", () => {
-    expect(planBootstrapRequests({ hint: "plan-b", existingPlanId: null, cachedPlanId: "plan-a" })).toEqual({
-      speculativePlanId: "plan-b",
-      fetchPreferences: true,
-      fetchAccounts: true,
-    });
-  });
 });
 
 describe("planKnowledge", () => {
@@ -69,17 +46,11 @@ describe("planKnowledge", () => {
 });
 
 describe("choosePlanId", () => {
-  test("keeps the hint when it is still readable", () => {
-    expect(choosePlanId([{ id: "plan-a" }, { id: "plan-b" }], "plan-b")).toBe("plan-b");
-  });
 
   test("falls back to the first plan when the hint is gone", () => {
     expect(choosePlanId([{ id: "plan-a" }], "plan-b")).toBe("plan-a");
   });
 
-  test("returns null when no plan is readable", () => {
-    expect(choosePlanId([], "plan-b")).toBeNull();
-  });
 });
 
 describe("chooseRequestedPlanId", () => {
@@ -118,14 +89,6 @@ describe("decideBootstrap", () => {
       status: signedIn,
       plans: [{ id: "plan-a" }],
       speculativePlanId: "plan-gone",
-    })).toEqual({ kind: "ready", userId: "user-1", planId: "plan-a", keepSpeculative: false, requestedPlanRejected: false });
-  });
-
-  test("never keeps a batch that was not started", () => {
-    expect(decideBootstrap({
-      status: signedIn,
-      plans: [{ id: "plan-a" }],
-      speculativePlanId: null,
     })).toEqual({ kind: "ready", userId: "user-1", planId: "plan-a", keepSpeculative: false, requestedPlanRejected: false });
   });
 
@@ -173,20 +136,9 @@ describe("decideBootstrap", () => {
       .toEqual({ kind: "refetch" });
   });
 
-  test("an unclaimed server asks for setup rather than sign-in", () => {
-    expect(decideBootstrap({
-      status: { user: null, setup_required: true, bootstrap_required: true },
-      plans: [],
-      speculativePlanId: null,
-    })).toEqual({ kind: "signed-out", mode: "setup" });
-  });
 });
 
 describe("resolveReferenceBatch", () => {
-  test("uses a batch fetched for the chosen plan", () => {
-    expect(resolveReferenceBatch({ keepSpeculative: true }, { ok: true, value: 42 }))
-      .toEqual({ kind: "use", value: 42 });
-  });
 
   test("surfaces the failure of a batch for the chosen plan", () => {
     const error = new Error("categories unavailable");

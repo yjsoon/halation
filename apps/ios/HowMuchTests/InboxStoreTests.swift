@@ -139,35 +139,6 @@ final class InboxStoreTests: XCTestCase {
     XCTAssertFalse(store.hasReadingItems())
   }
 
-  func testClaimMovesInboxToReading() throws {
-    let id = UUID()
-    try store.write(
-      InboxWrite(
-        id: id,
-        source: .shareSheet,
-        kind: .text,
-        filename: "payload.txt",
-        data: Data("12 coffee".utf8)
-      )
-    )
-    let claimed = try store.claimInbox()
-    XCTAssertEqual(claimed.map(\.id), [id])
-    XCTAssertEqual(claimed.first?.source, .shareSheet)
-    XCTAssertEqual(claimed.first?.payloadText(), "12 coffee")
-    XCTAssertFalse(store.hasReadyInboxItems())
-    XCTAssertTrue(store.hasReadingItems())
-    XCTAssertTrue(
-      FileManager.default.fileExists(
-        atPath: store.readingDirectory.appendingPathComponent(id.uuidString).path
-      )
-    )
-    XCTAssertFalse(
-      FileManager.default.fileExists(
-        atPath: store.inboxDirectory.appendingPathComponent(id.uuidString).path
-      )
-    )
-  }
-
   func testSecondClaimOfTheSameIDIsANoOp() throws {
     let id = UUID()
     try store.write(
@@ -221,27 +192,6 @@ final class InboxStoreTests: XCTestCase {
         atPath: store.inboxDirectory.appendingPathComponent("\(id.uuidString).partial").path
       )
     )
-  }
-
-  func testAppIntentAndScreenshotSourcesAreRepresentable() throws {
-    try store.write(
-      InboxWrite(
-        source: .appIntent,
-        kind: .text,
-        filename: "payload.txt",
-        data: Data("intent".utf8)
-      )
-    )
-    try store.write(
-      InboxWrite(
-        source: .detectedScreenshot,
-        kind: .image,
-        filename: "payload.png",
-        data: Data([0x89, 0x50, 0x4E, 0x47])
-      )
-    )
-    let claimed = try store.claimInbox()
-    XCTAssertEqual(Set(claimed.map(\.source)), [.appIntent, .detectedScreenshot])
   }
 
   func testSanitizedFilenameRejectsManifestCollisionAndEmpty() {

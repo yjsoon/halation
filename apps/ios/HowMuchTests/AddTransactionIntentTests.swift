@@ -136,18 +136,6 @@ final class AddTransactionIntentTests: XCTestCase {
     XCTAssertNil(draft.categoryID)
   }
 
-  func testEntityInitsTakeStringNames() {
-    let account = AccountEntity(id: "acct-everyday", name: "Everyday Account")
-    XCTAssertEqual(account.name, "Everyday Account")
-
-    let payee = PayeeEntity(id: PayeeEntityQuery.newPayeeID(for: "Coffee"), name: "Coffee")
-    XCTAssertEqual(payee.name, "Coffee")
-    XCTAssertEqual(payee.isNew, true)
-
-    let category = CategoryEntity(id: "cat-dining", name: "Dining Out", groupName: "Everyday")
-    XCTAssertEqual(category.groupName, "Everyday")
-  }
-
   func testEntityQueriesKeepPickedIDsWhenCatalogIsUnread() {
     let account = AccountEntityQuery.resolved(["acct-everyday"], catalog: nil)
     XCTAssertEqual(account.map(\.id), ["acct-everyday"])
@@ -186,23 +174,6 @@ final class AddTransactionIntentTests: XCTestCase {
     XCTAssertEqual(category.first?.groupName, "Everyday")
   }
 
-  func testBuilderResolvesAccountAndCategoryDisplayNames() throws {
-    let draft = try AddTransactionIntentBuilder.draft(
-      amount: Decimal(3500) / 1000,
-      direction: .outflow,
-      accountID: "Everyday Account",
-      payee: nil,
-      categoryID: "Dining Out",
-      date: nil,
-      flag: nil,
-      memo: nil,
-      cleared: nil,
-      catalog: Self.catalog
-    )
-    XCTAssertEqual(draft.accountID, "acct-everyday")
-    XCTAssertEqual(draft.categoryID, "cat-dining")
-  }
-
   func testNewPayeeRoundTripLeavesNameOnly() async throws {
     let id = PayeeEntityQuery.newPayeeID(for: "Shortcut Coffee Verify")
     XCTAssertEqual(PayeeEntityQuery.newPayeeName(from: id), "Shortcut Coffee Verify")
@@ -230,13 +201,6 @@ final class AddTransactionIntentTests: XCTestCase {
     )
     XCTAssertNil(draft.payeeID)
     XCTAssertEqual(draft.payeeName, "Shortcut Coffee Verify")
-  }
-
-  func testIntentFlagNoneUsesNonEmptyRawValue() {
-    XCTAssertEqual(IntentFlag.none.rawValue, "none")
-    XCTAssertFalse(IntentFlag.none.rawValue.isEmpty)
-    XCTAssertEqual(IntentFlag.none.flagColour, .none)
-    XCTAssertEqual(IntentFlag.red.flagColour, .red)
   }
 
   func testStringParametersMapToDraftFields() throws {

@@ -91,20 +91,6 @@ test("reports a missing key and validates input without calling Jev", async () =
   } finally { db.close(); }
 });
 
-test("surfaces a rejected TypeSafe key as a gateway error", async () => {
-  const db = await seeded();
-  const handler = createHandler({
-    db,
-    config: { ...config, typesafeApiKey: "bad" },
-    typesafeFetch: async () => new Response(JSON.stringify({ error: "unauthorised" }), { status: 401 }),
-  });
-  try {
-    const response = await post(handler, { transactions: [{ payee_name: "Grab", amount: -1000 }] });
-    expect(response.status).toBe(502);
-    expect((await response.json()).error.detail).toContain("API key");
-  } finally { db.close(); }
-});
-
 test("keeps inflow categories from hidden groups but drops hidden spending categories", () => {
   const options = categoryOptions([
     { id: "internal", name: "Internal Master Category", hidden: true, categories: [

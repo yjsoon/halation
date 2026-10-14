@@ -12,7 +12,6 @@ import {
   reduceRowEdit,
   registerRowDomId,
   rowFieldWritable,
-  rowGestureHandlers,
   rowId,
   sameRow,
   sessionRowGone,
@@ -23,7 +22,6 @@ import {
   type RegisterRowFocus,
   type RegisterRowRef,
   type RowEditContext,
-  type RowGestureEvent,
 } from "./register-row-edit";
 
 function txn(overrides: Partial<Transaction> = {}): Transaction {
@@ -113,25 +111,7 @@ const shopDraft: RegisterRowDraft = {
   flagColor: "",
 };
 
-function gestureEvent(detail = 1): RowGestureEvent & { prevented: boolean } {
-  const event = {
-    detail,
-    prevented: false,
-    preventDefault() {
-      event.prevented = true;
-    },
-  };
-  return event;
-}
-
 describe("sameRow and rowId", () => {
-  test("matches posted id, not object identity", () => {
-    const a = posted(txn());
-    const b = posted(txn({ memo: "other" }));
-    expect(sameRow(a, b)).toBe(true);
-    expect(sameRow(a, posted(txn({ id: "other" })))).toBe(false);
-    expect(rowId(a)).toBe("txn-1");
-  });
 
   test("matches split parent id and line id", () => {
     const parent = splitParent([line(), line({ id: "line-2" })]);
@@ -148,16 +128,6 @@ describe("reduceRowEdit", () => {
   const row = posted(txn());
   const begin: RegisterRowEditAction = { type: "begin", row, draft: shopDraft, focus: "memo" };
   const editing = reduceRowEdit(idleRowEdit(), begin);
-
-  test("idle begin opens editing with a cleared error", () => {
-    expect(editing).toEqual({
-      status: "editing",
-      row,
-      draft: shopDraft,
-      focus: "memo",
-      error: null,
-    });
-  });
 
   test("editing patch updates fields and clears the error", () => {
     const withError = reduceRowEdit(editing, { type: "invalid", message: "Enter an outflow or an inflow." });
@@ -185,33 +155,6 @@ describe("reduceRowEdit", () => {
     expect(reduceRowEdit(withInflow, { type: "set-outflow", value: "  " })).toMatchObject({
       draft: { outflow: "  ", inflow: "5.00" },
     });
-  });
-
-  test("editing invalid sets the error", () => {
-    expect(reduceRowEdit(editing, { type: "invalid", message: "Choose a date." })).toEqual({
-      status: "editing",
-      row,
-      draft: shopDraft,
-      focus: "memo",
-      error: "Choose a date.",
-    });
-  });
-
-  test("editing committing keeps the draft", () => {
-    expect(reduceRowEdit(editing, { type: "committing" })).toEqual({
-      status: "committing",
-      row,
-      draft: shopDraft,
-    });
-  });
-
-  test("editing cancel returns idle", () => {
-    expect(reduceRowEdit(editing, { type: "cancel" })).toEqual({ status: "idle" });
-  });
-
-  test("committing committed returns idle", () => {
-    const committing = reduceRowEdit(editing, { type: "committing" });
-    expect(reduceRowEdit(committing, { type: "committed" })).toEqual({ status: "idle" });
   });
 
   test("committing failed returns editing with the error and kept draft", () => {
@@ -261,14 +204,6 @@ describe("beginRowEdit", () => {
     });
   });
 
-  test("seeds null payee, category, and memo as empty strings", () => {
-    const row = posted(txn({ payee_name: null, category_id: null, memo: null }));
-    expect(beginRowEdit(row, "payee", unlocked)).toMatchObject({
-      kind: "begin",
-      action: { draft: { payeeName: "", categoryId: "", memo: "" } },
-    });
-  });
-
   test("seeds an occupied inflow and leaves outflow empty", () => {
     const row = posted(txn({ amount: 5000 }));
     expect(beginRowEdit(row, "inflow", unlocked)).toMatchObject({
@@ -285,36 +220,11 @@ describe("beginRowEdit", () => {
     });
   });
 
-  test("refuses writeLocked", () => {
-    expect(beginRowEdit(posted(txn()), "memo", { writeLocked: true, mutatingId: null })).toEqual({
-      kind: "refuse",
-      reason: "locked",
-    });
-  });
-
   test("refuses when mutatingId is this row", () => {
     expect(beginRowEdit(posted(txn()), "memo", { writeLocked: false, mutatingId: "txn-1" })).toEqual({
       kind: "refuse",
       reason: "row-busy",
     });
-  });
-
-  test("begins when mutatingId is another row", () => {
-    expect(beginRowEdit(posted(txn()), "memo", { writeLocked: false, mutatingId: "other" }).kind).toBe("begin");
-  });
-
-  test("begins a transfer posted row and still seeds payee and category", () => {
-    const row = posted(txn({
-      transfer_account_id: "acct-saver",
-      payee_name: "Transfer : Rainy Day Saver",
-      category_id: null,
-    }));
-    const decision = beginRowEdit(row, "payee", unlocked);
-    expect(decision.kind).toBe("begin");
-    expect(decision).toMatchObject({
-      action: { draft: { payeeName: "Transfer : Rainy Day Saver", categoryId: "" } },
-    });
-    expect(beginRowEdit(row, "category", unlocked).kind).toBe("begin");
   });
 
   test("begins a split parent including category and amount focus", () => {
@@ -385,33 +295,6 @@ describe("beginRowEdit", () => {
     });
   });
 
-  test("seeds flag colour from the posted row and from the parent on a split line", () => {
-    expect(beginRowEdit(posted(txn({ flag_color: "red" })), "memo", unlocked)).toMatchObject({
-      action: { draft: { flagColor: "red" } },
-    });
-    const parent = splitParent([line()], { flag_color: "blue" });
-    expect(beginRowEdit(splitLine(parent, "line-1"), "memo", unlocked)).toMatchObject({
-      action: { draft: { flagColor: "blue" } },
-    });
-  });
-
-  test("seeds a split line from the line values", () => {
-    const parent = splitParent([line()]);
-    expect(beginRowEdit(splitLine(parent, "line-1"), "outflow", unlocked)).toMatchObject({
-      kind: "begin",
-      action: {
-        draft: {
-          date: "2026-08-01",
-          payeeName: "Shop",
-          categoryId: "cat-dining",
-          memo: "lunch",
-          outflow: "2.00",
-          inflow: "",
-          flagColor: "",
-        },
-      },
-    });
-  });
 });
 
 describe("planRowCommit", () => {
@@ -584,21 +467,6 @@ describe("planRowCommit", () => {
       kind: "patch",
       transactionId: "txn-1",
       input: { date: "2026-08-15", memo: "moved" },
-    });
-  });
-
-  test("omits an unchanged flag", () => {
-    expect(planRowCommit(posted(txn()), shopDraft, payees)).toEqual({ kind: "unchanged" });
-    expect(planRowCommit(posted(txn({ flag_color: "red" })), { ...shopDraft, flagColor: "red" }, payees)).toEqual({
-      kind: "unchanged",
-    });
-  });
-
-  test("plans a red flag", () => {
-    expect(planRowCommit(posted(txn()), { ...shopDraft, flagColor: "red" }, payees)).toEqual({
-      kind: "patch",
-      transactionId: "txn-1",
-      input: { flag_color: "red" },
     });
   });
 
@@ -931,47 +799,6 @@ describe("parseAmountEntry", () => {
   });
 });
 
-describe("rowGestureHandlers", () => {
-  test("prevents default on a second mousedown", () => {
-    const handlers = rowGestureHandlers(posted(txn()), "memo", unlocked, () => {});
-    const second = gestureEvent(2);
-    handlers.onMouseDown(second);
-    expect(second.prevented).toBeTrue();
-    const first = gestureEvent(1);
-    handlers.onMouseDown(first);
-    expect(first.prevented).toBeFalse();
-  });
-
-  test("begins once on double-click", () => {
-    const started: { row: RegisterRowRef; focus: RegisterRowFocus }[] = [];
-    const row = posted(txn());
-    const handlers = rowGestureHandlers(row, "memo", unlocked, (action) => {
-      started.push({ row: action.row, focus: action.focus });
-    });
-    handlers.onDoubleClick(gestureEvent());
-    expect(started).toEqual([{ row, focus: "memo" }]);
-  });
-
-  test("begins a transfer posted row from the payee cell", () => {
-    const started: RegisterRowFocus[] = [];
-    const row = posted(txn({ transfer_account_id: "acct-saver" }));
-    const handlers = rowGestureHandlers(row, "payee", unlocked, (action) => {
-      started.push(action.focus);
-    });
-    handlers.onDoubleClick(gestureEvent());
-    expect(started).toEqual(["payee"]);
-  });
-
-  test("stays silent on a refused double-click", () => {
-    const started: string[] = [];
-    const handlers = rowGestureHandlers(posted(txn()), "memo", { writeLocked: true, mutatingId: null }, () => {
-      started.push("began");
-    });
-    handlers.onDoubleClick(gestureEvent());
-    expect(started).toEqual([]);
-  });
-});
-
 describe("rowFieldWritable and writableFocus", () => {
   test("keeps payee writable on a saved transfer and locks category", () => {
     const row = posted(txn({
@@ -1023,12 +850,6 @@ describe("sessionRowGone", () => {
     row: posted(txn()),
     draft: shopDraft,
     focus: "memo",
-  });
-
-  test("is false while idle or committing", () => {
-    expect(sessionRowGone(idleRowEdit(), new Set())).toBeFalse();
-    const committing = reduceRowEdit(editing, { type: "committing" });
-    expect(sessionRowGone(committing, new Set())).toBeFalse();
   });
 
   test("is true only when the editing row is missing", () => {

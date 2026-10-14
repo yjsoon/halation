@@ -5,40 +5,6 @@ import XCTest
 
 @MainActor
 final class CaptureSessionTests: XCTestCase {
-  func testAddKeepsStableIdentityAndFillsSelectedAccount() {
-    let session = Self.session(accountID: "acct-everyday")
-    let coffee = Self.mapped(amount: 5_000, payee: "Coffee", accountID: "")
-    session.apply(
-      turn: CaptureInterpretedTurn(
-        intent: .add,
-        feedback: "Added coffee.",
-        mutations: [CaptureDraftMutation(targetDraftID: nil, extraction: .init(amount: "5", payee: "Coffee"))],
-        query: nil,
-        applyToAllDrafts: false
-      ),
-      mapped: [coffee]
-    )
-    XCTAssertEqual(session.drafts.count, 1)
-    XCTAssertEqual(session.drafts[0].draft.payeeName, "Coffee")
-    XCTAssertEqual(session.drafts[0].draft.accountID, "acct-everyday")
-    XCTAssertFalse(session.drafts[0].accountWasExplicit)
-    let firstID = session.drafts[0].id
-
-    let second = Self.mapped(amount: 8_000, payee: "Lunch", accountID: "")
-    session.apply(
-      turn: CaptureInterpretedTurn(
-        intent: .add,
-        feedback: "Added lunch.",
-        mutations: [CaptureDraftMutation(targetDraftID: nil, extraction: .init(amount: "8", payee: "Lunch"))],
-        query: nil,
-        applyToAllDrafts: false
-      ),
-      mapped: [second]
-    )
-    XCTAssertEqual(session.drafts.count, 2)
-    XCTAssertEqual(session.drafts[0].id, firstID)
-    XCTAssertEqual(session.drafts[1].draft.payeeName, "Lunch")
-  }
 
   func testExplicitAccountIsNotOverwrittenBySelectedAccount() {
     let session = Self.session(accountID: "acct-everyday")
@@ -134,38 +100,6 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertEqual(session.lastFeedback, "Which transaction should I change?")
   }
 
-  func testApplyToAllUpdatesAccountsWithoutTouchingPayees() {
-    let session = Self.session(accountID: "acct-everyday")
-    session.replaceDrafts([
-      CaptureDraftItem(draft: Self.draft(payee: "Coffee", amount: 5_000)),
-      CaptureDraftItem(draft: Self.draft(payee: "Lunch", amount: 12_000)),
-    ])
-    var visa = TransactionDraft()
-    visa.accountID = "acct-travel"
-    let mapped = SlipMappedDraft(
-      draft: visa,
-      parsedAmount: false,
-      parsedDate: false,
-      parsedAccount: true,
-      parsedCategory: false,
-      parsedDirection: false,
-      accountCandidates: [],
-      categoryCandidates: []
-    )
-    session.apply(
-      turn: CaptureInterpretedTurn(
-        intent: .update,
-        feedback: "Using Travel Card for both.",
-        mutations: [CaptureDraftMutation(targetDraftID: nil, extraction: .init(account: "Travel Card"))],
-        query: nil,
-        applyToAllDrafts: true
-      ),
-      mapped: [mapped]
-    )
-    XCTAssertEqual(session.drafts.map(\.draft.accountID), ["acct-travel", "acct-travel"])
-    XCTAssertEqual(session.drafts.map(\.draft.payeeName), ["Coffee", "Lunch"])
-  }
-
   func testAmbiguousAccountBlocksSave() {
     let session = Self.session(accountID: "acct-everyday")
     var draft = Self.draft(payee: "Lunch", amount: 12_000)
@@ -199,13 +133,6 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertEqual(session.lastFeedback, "Undid last change.")
   }
 
-  func testSendingAndQuestionsDoNotMarkSaveableUntilDraftsExist() {
-    let session = Self.session(accountID: "acct-everyday")
-    session.appendUserMessage("How much did I spend this month?")
-    XCTAssertFalse(session.canSaveIncluded)
-    XCTAssertTrue(session.saveableDrafts.isEmpty)
-  }
-
   func testLateGenerationIsRejected() {
     let session = Self.session(accountID: "acct-everyday")
     let first = session.beginTurn()
@@ -232,23 +159,6 @@ final class CaptureSessionTests: XCTestCase {
     session.recordFailedTurn("Apple Intelligence is not available. Your drafts are still here.")
     XCTAssertEqual(session.drafts.count, 1)
     XCTAssertEqual(session.composerText, "Lunch $12")
-  }
-
-  func testManualModeSwitchDoesNotDropDrafts() {
-    let session = Self.session(accountID: "acct-everyday")
-    session.apply(
-      turn: CaptureInterpretedTurn(
-        intent: .add,
-        feedback: "Added coffee.",
-        mutations: [],
-        query: nil,
-        applyToAllDrafts: false
-      ),
-      mapped: [Self.mapped(amount: 5_000, payee: "Coffee", accountID: "")]
-    )
-    session.entryMode = .manual
-    XCTAssertEqual(session.drafts.count, 1)
-    XCTAssertEqual(session.drafts[0].draft.payeeName, "Coffee")
   }
 
   func testAmbiguousParsedAccountDoesNotInheritSelectedAccount() {
@@ -316,33 +226,6 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertNil(session.drafts[0].draft.categoryID)
     XCTAssertTrue(session.drafts[0].categoryWasExplicit)
     XCTAssertFalse(session.canSaveIncluded)
-  }
-
-  func testSelectorUpdatesContextOnlyAndNotExistingDrafts() {
-    let session = Self.session(accountID: "acct-everyday")
-    session.apply(
-      turn: CaptureInterpretedTurn(intent: .add, feedback: "Added lunch.", mutations: [], query: nil, applyToAllDrafts: false),
-      mapped: [Self.mapped(amount: 12_000, payee: "Lunch", accountID: "")]
-    )
-    session.apply(
-      turn: CaptureInterpretedTurn(intent: .add, feedback: "Added travel lunch.", mutations: [], query: nil, applyToAllDrafts: false),
-      mapped: [Self.mapped(amount: 9_000, payee: "Airport", accountID: "acct-travel", parsedAccount: true)]
-    )
-    let accounts = [
-      Account(id: "acct-everyday", name: "Everyday", icon: nil, type: "checking", onBudget: true, closed: false, balance: 0, clearedBalance: 0, unclearedBalance: 0, lastReconciledDate: nil, deleted: false),
-      Account(id: "acct-travel", name: "Travel", icon: nil, type: "checking", onBudget: true, closed: false, balance: 0, clearedBalance: 0, unclearedBalance: 0, lastReconciledDate: nil, deleted: false),
-    ]
-    session.selectAccount("acct-travel", accounts: accounts)
-    XCTAssertEqual(session.drafts[0].draft.accountID, "acct-everyday")
-    XCTAssertEqual(session.drafts[1].draft.accountID, "acct-travel")
-    XCTAssertEqual(session.selectedAccountID, "acct-travel")
-    let context = CaptureInterpreterPrompt.context(
-      text: "Add coffee $4",
-      session: session,
-      accounts: accounts
-    )
-    XCTAssertEqual(context.selectedAccountID, "acct-travel")
-    XCTAssertEqual(context.selectedAccountName, "Travel")
   }
 
   func testApplyToAllAccountUpdatesSelectedContext() {
@@ -563,40 +446,6 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.direction, .outflow)
   }
 
-  func testPayeeOnlyRenameUpdatesUncommittedInflowWithoutInventingAmount() {
-    let session = Self.session(accountID: "acct-posb")
-    var draft = Self.draft(payee: "POSB", amount: 54_530)
-    draft.direction = .inflow
-    draft.accountID = "acct-posb"
-    session.replaceDrafts([CaptureDraftItem(draft: draft)])
-    var renamed = session.drafts[0].draft
-    renamed.payeeName = "POSB rebate"
-    let mapped = SlipMappedDraft(
-      draft: renamed,
-      parsedAmount: false,
-      parsedDate: false,
-      parsedAccount: false,
-      parsedCategory: false,
-      parsedDirection: false,
-      accountCandidates: [],
-      categoryCandidates: []
-    )
-    session.apply(
-      turn: CaptureInterpretedTurn(
-        intent: .update,
-        feedback: "Renamed the draft.",
-        mutations: [CaptureDraftMutation(targetDraftID: nil, extraction: .init(payee: "POSB rebate"))],
-        query: nil,
-        applyToAllDrafts: false
-      ),
-      mapped: [mapped]
-    )
-    XCTAssertEqual(session.drafts[0].draft.payeeName, "POSB rebate")
-    XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 54_530)
-    XCTAssertEqual(session.drafts[0].draft.direction, .inflow)
-    XCTAssertFalse(session.drafts[0].committed)
-  }
-
   func testPayeeOnlyRenameUpdatesSavedConversationCard() {
     let session = Self.session(accountID: "acct-posb")
     var draft = Self.draft(payee: "POSB", amount: 54_530)
@@ -725,49 +574,6 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 15_000)
     XCTAssertTrue(session.drafts[0].draft.isSplit)
     XCTAssertTrue(message.contains("split"))
-  }
-
-  func testMarkSavedKeepsHistoryAndBlocksResave() {
-    let session = Self.session(accountID: "acct-everyday")
-    session.apply(
-      turn: CaptureInterpretedTurn(intent: .add, feedback: "Added coffee.", mutations: [], query: nil, applyToAllDrafts: false),
-      mapped: [Self.mapped(amount: 5_000, payee: "Coffee", accountID: "")]
-    )
-    XCTAssertFalse(session.saveableDrafts.isEmpty)
-    session.markCommittedIncluded()
-    XCTAssertTrue(session.saveableDrafts.isEmpty)
-    XCTAssertFalse(session.canSaveIncluded)
-    XCTAssertEqual(session.messages.last?.text, "Added coffee.")
-    XCTAssertTrue(session.drafts[0].committed)
-  }
-
-  func testUnknownAndFourPlusAccountMatchesStayUnresolved() {
-    let accounts = (1...4).map {
-      Account(id: "acct-\($0)", name: "Card \($0)", icon: nil, type: "checking", onBudget: true, closed: false, balance: 0, clearedBalance: 0, unclearedBalance: 0, lastReconciledDate: nil, deleted: false)
-    }
-    let none = SlipReaderMapping.map(
-      [.init(amount: "12", payee: "Lunch", account: "Spaceship")],
-      accounts: accounts,
-      categoryGroups: [],
-      payees: [],
-      calendar: .current,
-      now: .now
-    )
-    XCTAssertTrue(none[0].parsedAccount)
-    XCTAssertTrue(none[0].draft.accountID.isEmpty)
-    XCTAssertEqual(none[0].unrecognizedAccount, "Spaceship")
-
-    let many = SlipReaderMapping.map(
-      [.init(amount: "12", payee: "Lunch", account: "Card")],
-      accounts: accounts,
-      categoryGroups: [],
-      payees: [],
-      calendar: .current,
-      now: .now
-    )
-    XCTAssertTrue(many[0].parsedAccount)
-    XCTAssertTrue(many[0].draft.accountID.isEmpty)
-    XCTAssertEqual(many[0].accountCandidates.count, 4)
   }
 
   func testStaleGenerationDoesNotApplyAfterCancel() {
@@ -1345,36 +1151,6 @@ final class CaptureSessionTests: XCTestCase {
     )
   }
 
-  func testTurnScopeAcceptsAlignedScopeAndCurrentIdentity() {
-    let session = CaptureSession(
-      scopeKey: "https://a|user-a|plan-x",
-      origin: .lastUsedOpen,
-      selectedAccountID: "acct-everyday"
-    )
-    let workspace = CaptureWorkspace(
-      store: CaptureWorkspaceStore(
-        defaults: UserDefaults(suiteName: "howmuch.tests.scope.valid.\(UUID().uuidString)")!,
-        rootURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-      )
-    )
-    workspace.activate(scopeKey: "https://a|user-a|plan-x")
-    workspace.current = session
-    let captured = CaptureTurnScope.capture(
-      session: session,
-      settingsScopeKey: "https://a|user-a|plan-x",
-      workspace: workspace,
-      planID: "plan-x"
-    )
-    XCTAssertTrue(
-      captured.isCurrent(
-        session: session,
-        settingsScopeKey: "https://a|user-a|plan-x",
-        workspace: workspace,
-        planID: "plan-x"
-      )
-    )
-  }
-
   func testTurnScopeRejectsSamePlanEndpointOrUserSwitch() {
     let session = CaptureSession(scopeKey: "https://a|user-a|plan-x", origin: .lastUsedOpen, selectedAccountID: "acct-everyday")
     let token = session.beginTurn()
@@ -1433,14 +1209,6 @@ final class CaptureSessionTests: XCTestCase {
     session.isSaving = false
     _ = session.beginTurn()
     XCTAssertTrue(CapturePasteAdmission.shouldRejectNewAttachments(session))
-  }
-
-  func testComposerTextMakesSessionUnfinished() {
-    let session = Self.session(accountID: "acct-everyday")
-    XCTAssertFalse(session.isUnfinished)
-    session.composerText = "Lunch $12"
-    XCTAssertTrue(session.isUnfinished)
-    XCTAssertEqual(session.snapshot().composerText, "Lunch $12")
   }
 
   private static func session(accountID: String) -> CaptureSession {

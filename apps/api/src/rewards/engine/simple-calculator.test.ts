@@ -11,7 +11,7 @@ const period: CalculationPeriod = {
 function createMilesCardWithSubcategories(): CreditCard {
   return {
     id: 'card-1',
-    name: 'UOB PPV 8193',
+    name: 'Synthetic Miles Card',
     issuer: 'UOB',
     type: 'miles',
     ynabAccountId: 'acc-1',

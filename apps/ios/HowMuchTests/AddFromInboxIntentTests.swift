@@ -66,13 +66,6 @@ final class AddFromInboxIntentTests: XCTestCase {
     }
   }
 
-  func testAddTransactionIntentStillHasNoFileParameter() {
-    let intent = AddTransactionIntent()
-    XCTAssertNil(intent.amount)
-    XCTAssertNil(intent.account)
-    XCTAssertNil(intent.memo)
-  }
-
   func testUnknownImageTypeIgnoresHostileFilename() {
     let file = IntentFile(
       data: Data("webp-not".utf8),

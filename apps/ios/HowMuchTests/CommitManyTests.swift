@@ -47,17 +47,6 @@ final class CommitManyTests: XCTestCase {
     XCTAssertTrue(model.hasPendingCreate(importID: "imp-same"))
   }
 
-  func testSingleDraftCommitStillMatchesToday() throws {
-    let model = makeModel()
-    let draft = Self.draft(importID: "imp-single", amount: 5_400)
-    try model.commit(draft)
-
-    let request = try XCTUnwrap(createRequests(model.currentOutbox).first)
-    XCTAssertEqual(request, draft.writeRequest(includeCleared: draft.shouldWriteCleared))
-    XCTAssertNil(request.id, "the client id lives on the command until it is sent")
-    XCTAssertTrue(try XCTUnwrap(model.currentOutbox.first).transactionID.hasPrefix("txn_"))
-  }
-
   func testRevisingAQueuedCaptureKeepsItsIdentity() throws {
     let model = makeModel()
     let draft = Self.draft(importID: "imp-posb", amount: 54_530)

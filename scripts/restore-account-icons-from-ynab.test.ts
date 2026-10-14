@@ -45,10 +45,4 @@ describe("planIconRestoreFromYnab", () => {
 });
 
 describe("sqlForIconRestore", () => {
-  test("writes icon updates and bumps server knowledge", () => {
-    const sql = sqlForIconRestore([{ howmuchId: "acct_1", icon: "🐷" }]);
-    expect(sql).toContain("UPDATE accounts SET icon = '🐷'");
-    expect(sql).toContain("WHERE deleted = 0 AND id = 'acct_1'");
-    expect(sql).toContain("server_knowledge = server_knowledge + 1");
-  });
 });

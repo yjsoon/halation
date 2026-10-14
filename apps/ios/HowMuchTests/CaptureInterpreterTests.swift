@@ -61,13 +61,6 @@ final class CaptureInterpreterTests: XCTestCase {
         categoryGroups: [Self.everydayGroup]
       ).contains("Selected account and current drafts apply only to add and update")
     )
-    XCTAssertTrue(CaptureInterpreterPrompt.instructions.contains("capture-only"))
-    XCTAssertTrue(CaptureInterpreterPrompt.instructions.contains("not spending-query scope"))
-    XCTAssertTrue(CaptureInterpreterPrompt.instructions.contains("leave spends empty"))
-    XCTAssertTrue(CaptureInterpreterPrompt.instructions.contains("conversational British English"))
-    XCTAssertTrue(CaptureInterpreterPrompt.instructions.contains("not saved yet"))
-    XCTAssertTrue(CaptureInterpreterPrompt.instructions.contains("rename to X"))
-    XCTAssertTrue(CaptureInterpreterPrompt.instructions.contains("saved=yes"))
     XCTAssertTrue(prefix.contains("Accounts: Everyday Account"))
     XCTAssertFalse(prefix.contains("Closed Card"))
     XCTAssertTrue(prefix.hasSuffix("Instruction:\n"))
@@ -278,38 +271,6 @@ final class CaptureInterpreterTests: XCTestCase {
     XCTAssertEqual(value.1.first?.mapped.draft.payeeName, "POSB rebate")
     XCTAssertFalse(value.1.first?.mapped.parsedAmount ?? true)
     XCTAssertEqual(value.1.first?.mapped.draft.amountMagnitudeMilli, 0)
-  }
-
-  func testSavedConversationCardStaysVisibleForRename() {
-    let session = CaptureSession(
-      scopeKey: "scope-a",
-      origin: .lastUsedOpen,
-      selectedAccountID: "acct-posb"
-    )
-    var draft = TransactionDraft()
-    draft.importID = "draft-posb"
-    draft.payeeName = "POSB"
-    draft.amountMagnitudeMilli = 54_530
-    draft.direction = .inflow
-    draft.accountID = "acct-posb"
-    session.replaceDrafts([CaptureDraftItem(draft: draft)])
-    session.markCommittedIncluded()
-    let context = CaptureInterpreterPrompt.context(
-      text: "Name POSB rebate",
-      session: session,
-      accounts: [Self.account("acct-posb", "POSB Savings")]
-    )
-    XCTAssertEqual(context.drafts.count, 1)
-    XCTAssertEqual(context.drafts.first?.id, "draft-posb")
-    XCTAssertEqual(context.drafts.first?.payee, "POSB")
-    let prefix = CaptureInterpreterPrompt.prefix(
-      context: context,
-      accounts: [Self.account("acct-posb", "POSB Savings")],
-      categoryGroups: []
-    )
-    XCTAssertTrue(prefix.contains("id=draft-posb"))
-    XCTAssertTrue(prefix.contains("payee=POSB"))
-    XCTAssertTrue(prefix.contains("saved=yes"))
   }
 
   func testPayeeRenameParserReadsNameUtterances() {

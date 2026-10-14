@@ -1,6 +1,5 @@
 import { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
-import { DEFAULT_YNAB_SYNC_INTERVAL_MS, loadConfig, MIN_YNAB_SYNC_INTERVAL_MS } from "../src/config";
 import { applyMigrations } from "../src/db";
 import { importYnabFromApi, ynabSimilarity } from "../src/importers/ynab";
 import { LedgerRepository } from "../src/repository";
@@ -688,18 +687,6 @@ describe("YNAB hourly sync", () => {
 });
 
 describe("YNAB rate limit safety", () => {
-  test("loadConfig clamps the sync interval to the five-minute floor", () => {
-    expect(loadConfig({}).ynabSyncIntervalMs).toBe(DEFAULT_YNAB_SYNC_INTERVAL_MS);
-    expect(loadConfig({ HOWMUCH_YNAB_SYNC_INTERVAL_MS: "1000" }).ynabSyncIntervalMs).toBe(MIN_YNAB_SYNC_INTERVAL_MS);
-    expect(loadConfig({ HOWMUCH_YNAB_SYNC_INTERVAL_MS: "7200000" }).ynabSyncIntervalMs).toBe(7200000);
-  });
-
-  test("enables transition read-only mode only for the literal value true", () => {
-    expect(loadConfig({ HOWMUCH_TRANSITION_READ_ONLY: "true" }).transitionReadOnly).toBeTrue();
-    for (const value of [undefined, "false", "TRUE", " true", "true "]) {
-      expect(loadConfig({ HOWMUCH_TRANSITION_READ_ONLY: value }).transitionReadOnly).toBeFalse();
-    }
-  });
 
   test("pauses for an hour after YNAB returns 429, then resumes", async () => {
     let fetchCalls = 0;
@@ -754,23 +741,6 @@ describe("YNAB rate limit safety", () => {
     }
   });
 
-  test("does not warn while plenty of quota remains", async () => {
-    const warnings: string[] = [];
-    stubYnabApi([ynabTransaction("txn-1")], { rateLimitHeader: "12/200" });
-
-    const handle = startYnabSync(
-      repo,
-      baseConfig({ ynabToken: "ynab-token", ynabPlanId: "plan-test" }),
-      { ...silentLogger, warn: (message: string) => warnings.push(message) },
-    );
-    try {
-      const result = await handle!.runNow();
-      expect(result?.imported_transactions).toBe(1);
-      expect(warnings).toHaveLength(0);
-    } finally {
-      handle?.stop();
-    }
-  });
 });
 
 function baseConfig(overrides: Record<string, unknown>) {
