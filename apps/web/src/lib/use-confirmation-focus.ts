@@ -6,15 +6,18 @@ import { useEffect, useRef, type RefObject } from "react";
  * confirmation's Cancel button, or an editor's first field), since the panel
  * is often rendered away from the control that asked for it. When it
  * closes and focus fell to <body> with it, focus goes back to that control,
- * or to `restore()` when the control itself was replaced by the panel.
+ * or to `restore(lastOpenKey)` when the control itself was replaced by the
+ * panel; `lastOpenKey` is the key the panel closed with, so a caller can find
+ * the control for that item again.
  */
 export function useConfirmationFocus(
   openKey: unknown,
   cancel: RefObject<HTMLElement | null>,
-  restore?: () => HTMLElement | null | undefined,
+  restore?: (lastOpenKey: unknown) => HTMLElement | null | undefined,
 ): void {
   const opener = useRef<HTMLElement | null>(null);
   const wasOpen = useRef(false);
+  const lastOpenKey = useRef<unknown>(null);
   const restoreRef = useRef(restore);
   restoreRef.current = restore;
   useEffect(() => {
@@ -22,6 +25,7 @@ export function useConfirmationFocus(
       const active = document.activeElement;
       opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
       wasOpen.current = true;
+      lastOpenKey.current = openKey;
       cancel.current?.focus();
       return;
     }
@@ -30,7 +34,7 @@ export function useConfirmationFocus(
     const previous = opener.current;
     opener.current = null;
     if (document.activeElement !== null && document.activeElement !== document.body) return;
-    const target = previous?.isConnected ? previous : restoreRef.current?.();
+    const target = previous?.isConnected ? previous : restoreRef.current?.(lastOpenKey.current);
     target?.focus({ preventScroll: true });
   }, [openKey, cancel]);
 }

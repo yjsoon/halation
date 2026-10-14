@@ -12,10 +12,8 @@ export function ApiTokensPage() {
   // The confirmation replaces the token's Revoke button, so focus moves into
   // it, and back to that token's Revoke button when it is cancelled.
   const revokeCancelRef = useRef<HTMLButtonElement>(null);
-  const lastRevokeId = useRef<string | null>(null);
-  if (pendingRevoke) lastRevokeId.current = pendingRevoke;
-  useConfirmationFocus(pendingRevoke, revokeCancelRef, () =>
-    document.querySelector<HTMLButtonElement>(`[data-token-id="${CSS.escape(lastRevokeId.current ?? "")}"] .api-token-revoke`));
+  useConfirmationFocus(pendingRevoke, revokeCancelRef, (tokenId) =>
+    document.querySelector<HTMLButtonElement>(`[data-token-id="${CSS.escape(String(tokenId))}"] .api-token-revoke`));
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const tokens = useApi(`personal-api-tokens:${generation}`, api.personalApiTokens);
