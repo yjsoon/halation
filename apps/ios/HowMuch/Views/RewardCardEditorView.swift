@@ -840,6 +840,7 @@ struct RewardCardEditorView: View {
         }
       }
     }
+    .contentMargins(.bottom, 24, for: .scrollContent)
   }
 
   private func ruleForm(_ rule: Rule) -> some View {
