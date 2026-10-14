@@ -170,6 +170,44 @@ final class IntakeTransferReaderTests: XCTestCase {
     XCTAssertEqual(rows, [])
   }
 
+  func testANoteAloneDoesNotTurnAnAccountOverviewIntoTransfers() {
+    // Names above balances, no heading and no date tile: only the note says "transfer".
+    let rows = IntakeTransferReader.read(
+      text: "Accounts\nCiti Rewards\n1,200.00 SGD\nCiti Cashback\n300.00 SGD",
+      note: "transfer these to savings",
+      accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
+  func testOneLineSourceAndDestinationLabelsDeclineTheReceipt() {
+    for label in ["From: UOB One Savings", "Sent to Citi Rewards", "Received from UOB One Savings"] {
+      let rows = IntakeTransferReader.read(
+        text: "Scheduled transfers\nOct\n16\n\(label)\nCiti Rewards\n669.54 SGD",
+        note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+      )
+      XCTAssertEqual(rows, [], label)
+    }
+  }
+
+  func testAnAccountNamedAfterTheLastAmountDeclinesTheScreen() {
+    // Amount printed before the name: pairing each name with the amount above it would cross-wire.
+    let rows = IntakeTransferReader.read(
+      text: "Scheduled transfers\nOct\n16\n669.54 SGD\nCiti Rewards\nOct\n16\n906.21 SGD\nCiti Cashback",
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
+  func testANoteSayingNonTransferDoesNotOpenTheReader() {
+    let rows = IntakeTransferReader.read(
+      text: "Oct\n16\nCiti Rewards\n669.54 SGD",
+      note: "this is a non-transfer purchase",
+      accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
   func testAWholeNumberAmountDeclinesTheScreenRatherThanDroppingARow() {
     let rows = IntakeTransferReader.read(
       text: Self.ocr.replacingOccurrences(of: "1,139.00 SGD", with: "1,139 SGD"),

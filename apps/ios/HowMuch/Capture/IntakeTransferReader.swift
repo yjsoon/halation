@@ -26,8 +26,8 @@ enum IntakeTransferReader {
     let lines = text.components(separatedBy: .newlines)
       .map { $0.trimmingCharacters(in: .whitespaces) }
       .filter { !$0.isEmpty }
-    guard looksLikeTransfers(lines: lines, note: note), !hasSourceAndDestination(lines),
-          !hasUnreadAmount(lines) else {
+    let headed = isHeadedAsTransfers(lines)
+    guard headed || noteSaysTransfer(note), !hasSourceAndDestination(lines), !hasUnreadAmount(lines) else {
       return []
     }
     let open = accounts.filter { !$0.closed && !$0.deleted }
@@ -35,6 +35,7 @@ enum IntakeTransferReader {
     var destinations: [Account?] = []
     var headerYear: Int?
     var previousAmount = -1
+    var sawDate = false
     for (index, line) in lines.enumerated() {
       if let header = monthHeaderYear(line) {
         headerYear = header
@@ -55,6 +56,9 @@ enum IntakeTransferReader {
         // "Nov 31": a day that is not in its month cannot be filed on any date.
         return []
       }
+      if case .found = rowDate {
+        sawDate = true
+      }
       let rowTitle = title(in: block)
       if account == nil, let rowTitle, isSummaryTitle(rowTitle) {
         // "Total" / "Balance": a figure about the list, not a transfer in it.
@@ -70,6 +74,17 @@ enum IntakeTransferReader {
       destinations.append(account)
     }
     guard destinations.contains(where: { $0 != nil }) else {
+      return []
+    }
+    // Only the note says "transfer": an account overview shared with that note has names over
+    // balances, but no date tile on any row.
+    guard headed || sawDate else {
+      return []
+    }
+    // An account named after the last amount belongs to an amount that is not there: the name
+    // came after its figure, so the pairing above would be wrong throughout.
+    if previousAmount >= 0,
+       case .some(.some(_)) = destinationResult(in: lines[(previousAmount + 1)...], accounts: open) {
       return []
     }
     // A destination with no transfer payee would stay a plain spend named for the
@@ -111,11 +126,13 @@ enum IntakeTransferReader {
     ["total", "subtotal", "grand total", "balance", "total amount"].contains(title.lowercased())
   }
 
-  private static func looksLikeTransfers(lines: [String], note: String?) -> Bool {
-    if note?.range(of: "transfer", options: .caseInsensitive) != nil {
-      return true
-    }
-    return lines.prefix(8).contains { $0.range(of: "transfers?\\b", options: [.regularExpression, .caseInsensitive]) != nil }
+  private static func isHeadedAsTransfers(_ lines: [String]) -> Bool {
+    lines.prefix(8).contains { $0.range(of: "transfers?\\b", options: [.regularExpression, .caseInsensitive]) != nil }
+  }
+
+  /// "transfer" as a word of its own: not "non-transfer", not "transferred".
+  private static func noteSaysTransfer(_ note: String?) -> Bool {
+    note?.range(of: #"(?<![\w-])transfers?\b"#, options: [.regularExpression, .caseInsensitive]) != nil
   }
 
   private static let amountLine = try! NSRegularExpression(
@@ -132,7 +149,8 @@ enum IntakeTransferReader {
   )
   /// "From" / "To" labels: a receipt names a source and a destination, not just a destination.
   private static let directionLabel = try! NSRegularExpression(
-    pattern: #"^(?:from|to)(?:\s+account)?:?$"#, options: [.caseInsensitive]
+    pattern: #"^(?:(?:from|to|sent\s+to|received\s+from|paid\s+to|transferred\s+(?:to|from))\b(?:\s+account)?\s*:?)"#,
+    options: [.caseInsensitive]
   )
 
   private static func hasSourceAndDestination(_ lines: [String]) -> Bool {
