@@ -1,0 +1,55 @@
+## default YNAB-time cron, no YNAB config (self-hoster materialisation)
+outcome: resolved
+logs: [{"event":"scheduled_materialization","through_date":"2026-08-22","occurrence_count":1,"skipped_closed_schedule_count":0,"failure_count":0,"has_more":false}]
+scheduled rows written: 1
+
+## production cron 5 16
+outcome: resolved
+logs: [{"event":"scheduled_materialization","through_date":"2026-08-22","occurrence_count":1,"skipped_closed_schedule_count":0,"failure_count":0,"has_more":false}]
+scheduled rows written: 1
+
+## custom cron, no YNAB config
+outcome: resolved
+logs: [{"event":"scheduled_materialization","through_date":"2026-08-22","occurrence_count":1,"skipped_closed_schedule_count":0,"failure_count":0,"has_more":false}]
+scheduled rows written: 1
+
+## default cron with only a YNAB token set (YNAB in play)
+outcome: rejected: Scheduled YNAB sync requires HOWMUCH_YNAB_TOKEN and HOWMUCH_YNAB_PLAN_ID
+logs: []
+scheduled rows written: 0
+
+## default cron with only a YNAB plan set (YNAB in play)
+outcome: rejected: Scheduled YNAB sync requires HOWMUCH_YNAB_TOKEN and HOWMUCH_YNAB_PLAN_ID
+logs: []
+scheduled rows written: 0
+
+## explicit YNAB cron matches (YNAB in play)
+outcome: rejected: Scheduled YNAB sync requires HOWMUCH_YNAB_TOKEN and HOWMUCH_YNAB_PLAN_ID
+logs: []
+scheduled rows written: 0
+
+## explicit YNAB cron set, default cron arrives (materialisation)
+outcome: resolved
+logs: [{"event":"scheduled_materialization","through_date":"2026-08-22","occurrence_count":1,"skipped_closed_schedule_count":0,"failure_count":0,"has_more":false}]
+scheduled rows written: 1
+
+## transition read-only, default cron (YNAB in play)
+outcome: rejected: Scheduled YNAB sync requires HOWMUCH_YNAB_TOKEN and HOWMUCH_YNAB_PLAN_ID
+logs: []
+scheduled rows written: 0
+
+## transition read-only, other cron (refused)
+outcome: rejected: Scheduled cron 5 16 * * * does not match transition read-only mode
+logs: []
+scheduled rows written: 0
+
+## missing cron (refused)
+outcome: rejected: Unknown scheduled cron: missing
+logs: []
+scheduled rows written: 0
+
+## one failing schedule beside a good one
+outcome: rejected: Scheduled materialisation completed with schedule failures
+logs: [{"event":"scheduled_materialization","through_date":"2026-08-22","occurrence_count":1,"skipped_closed_schedule_count":0,"failure_count":1,"has_more":true}]
+scheduled rows written: 1
+
