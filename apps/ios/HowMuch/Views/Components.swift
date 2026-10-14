@@ -586,9 +586,9 @@ enum RootChrome {
   static func hidesCompactTabBar(
     usesSidebar: Bool,
     hidesTabRowOverlay: Bool,
-    pendingAssistantSessionID: UUID?
+    assistantConversationPushed: Bool
   ) -> Bool {
-    !usesSidebar && (hidesTabRowOverlay || pendingAssistantSessionID != nil)
+    !usesSidebar && (hidesTabRowOverlay || assistantConversationPushed)
   }
 
   static func addControlInsets(
@@ -825,7 +825,9 @@ struct RootTabView: View {
         hidden: RootChrome.hidesCompactTabBar(
           usesSidebar: false,
           hidesTabRowOverlay: router.hidesTabRowOverlay,
-          pendingAssistantSessionID: workspace.pendingAssistantSessionID
+          // A stale pending session on another tab must not leave the bar hidden.
+          assistantConversationPushed: chrome.captureSurface == .assistant
+            && workspace.pendingAssistantSessionID != nil
         )
       ))
       .overlay {
@@ -1294,7 +1296,8 @@ struct RootTabHost<Content: View>: View {
     let hidesTabBar = RootChrome.hidesCompactTabBar(
       usesSidebar: usesSidebar,
       hidesTabRowOverlay: router.hidesTabRowOverlay,
-      pendingAssistantSessionID: workspace.pendingAssistantSessionID
+      assistantConversationPushed: chrome.captureSurface == .assistant
+        && workspace.pendingAssistantSessionID != nil
     )
     ZStack(alignment: .bottom) {
       ZStack {

@@ -103,6 +103,9 @@ struct CaptureBlockingPresentedModifier: ViewModifier {
       .onChange(of: isPresented, initial: true) { _, presented in
         sync(presented)
       }
+      // The presenting view can leave and come back (a tab switch) while its sheet
+      // stays up: count again on return.
+      .onAppear { sync(isPresented) }
       .onDisappear { sync(false) }
   }
 

@@ -840,7 +840,7 @@ struct RewardCardEditorView: View {
         }
       }
     }
-    .padding(.bottom, 24)
+    .contentMargins(.bottom, 24, for: .scrollContent)
   }
 
   private func ruleForm(_ rule: Rule) -> some View {
