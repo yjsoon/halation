@@ -107,8 +107,6 @@ struct RememberThisSheet: View {
     .tint(Theme.textPrimary)
   }
 
-  // MARK: Rule
-
   private func accountName(_ context: IntakeRuleContext) -> String {
     suggestion.accountID.flatMap { context.accountNames[$0] } ?? "This account"
   }
@@ -197,8 +195,6 @@ struct RememberThisSheet: View {
     return "Based on \(count) \(count == 1 ? "correction" : "corrections") today"
   }
 
-  // MARK: Also noticed
-
   /// The words, and the same for VoiceOver (no arrow).
   private func alsoNoticed(_ context: IntakeRuleContext) -> (text: String, spoken: String)? {
     guard let record = suggestion.alsoNoticed,
@@ -232,8 +228,6 @@ struct RememberThisSheet: View {
     .accessibilityElement(children: .ignore)
     .accessibilityLabel("Also noticed: \(noticed.spoken). Kept")
   }
-
-  // MARK: Actions
 
   private func remember() {
     _ = save(suggestion.rule(scope: scope))

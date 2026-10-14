@@ -100,13 +100,6 @@ export function applyFilterPatch(previous: URLSearchParams, patch: Partial<Filte
   return next;
 }
 
-/**
- * Explicit choices live in the URL search string so report views are linkable
- * and carry across tabs. When a param is absent, each report falls back to its
- * own sensible default range, and accounts/interval fall back to the
- * remembered preferences from the last visit. `range=all` and `accounts=all`
- * mark a deliberate "everything" so it is distinguishable from "no choice".
- */
 export function useFilters(options?: FilterOptions): {
   filters: Filters;
   setFilters: (patch: Partial<Filters>) => void;

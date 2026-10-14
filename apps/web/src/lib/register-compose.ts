@@ -141,11 +141,6 @@ export function formatComposeAmount(value: string): string {
   return formatMilliunitsPadded(parsed);
 }
 
-/**
- * A saved amount as an amount field shows it: at least two decimals, with the
- * plan's own decimal mark, as the register shows the saved amount. Takes
- * milliunits, so a saved value is never read back through the typed parser.
- */
 export function formatMilliunitsPadded(milliunits: number): string {
   const [whole, fraction = ""] = formatMilliunitsInput(milliunits).split(".");
   return withPlanDecimal(`${whole}.${fraction.padEnd(2, "0")}`);

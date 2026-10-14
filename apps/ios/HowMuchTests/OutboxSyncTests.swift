@@ -29,8 +29,6 @@ final class OutboxSyncTests: XCTestCase {
     super.tearDown()
   }
 
-  // MARK: - Offline, then online
-
   func testOfflineCreateEditAndDeleteOfTheSameRowSendsNothing() async throws {
     let model = makeModel()
     await load(model)
@@ -98,8 +96,6 @@ final class OutboxSyncTests: XCTestCase {
     XCTAssertEqual(try row(in: model, "row-1").memo, "second")
   }
 
-  // MARK: - Cleared
-
   func testClearedToggleRoundTrip() async throws {
     server.seed(row(id: "row-1", amount: -10_000, cleared: "uncleared"))
     let model = makeModel()
@@ -112,7 +108,6 @@ final class OutboxSyncTests: XCTestCase {
     XCTAssertEqual(model.accounts.first?.clearedBalance, -10_000, "the balance buckets move at once")
     XCTAssertEqual(model.accounts.first?.unclearedBalance, 0)
 
-    // Toggling back before anything is sent cancels the change outright.
     try await model.toggleTransactionCleared(try row(in: model, "row-1"))
     XCTAssertEqual(model.unsentChangeCount, 0)
     XCTAssertEqual(model.accounts.first?.unclearedBalance, -10_000)
@@ -137,7 +132,6 @@ final class OutboxSyncTests: XCTestCase {
     await load(model)
     server.offline = true
     try await model.toggleTransactionCleared(try row(in: model, "row-1"))
-    // The first send landed but its answer was lost.
     server.setField("row-1", "cleared", "cleared")
 
     server.offline = false
@@ -154,7 +148,6 @@ final class OutboxSyncTests: XCTestCase {
     await load(model)
     server.offline = true
     try await model.toggleTransactionCleared(try row(in: model, "row-1"))
-    // Reconciled on another device in the meantime.
     server.setField("row-1", "cleared", "reconciled")
 
     server.offline = false
@@ -171,8 +164,6 @@ final class OutboxSyncTests: XCTestCase {
     XCTAssertEqual(model.unsentChangeCount, 0)
     XCTAssertEqual(try row(in: model, "row-1").cleared, .reconciled, "discard shows what the server has")
   }
-
-  // MARK: - Delete
 
   func testADeleteThatFindsTheRowGoneIsDone() async throws {
     server.seed(row(id: "row-1", amount: -2_000))
@@ -208,8 +199,6 @@ final class OutboxSyncTests: XCTestCase {
     XCTAssertEqual(model.accounts.first?.balance, 0)
   }
 
-  // MARK: - Rejections
-
   func testARefusedEditStaysOnDiskUntilRetriedOrDiscarded() async throws {
     server.seed(row(id: "row-1", amount: -1_000, payee: "Cafe"))
     server.seed(row(id: "row-2", amount: -2_000, payee: "Shop"))
@@ -230,7 +219,6 @@ final class OutboxSyncTests: XCTestCase {
     XCTAssertEqual(model.syncStatus(forTransactionID: "row-1"), .rejected("Category not found"))
     XCTAssertEqual(model.outboxStorePeek()?.count, 2)
 
-    // A relaunch keeps them, still refused, and does not resend them.
     let relaunched = makeModel(store: model.outboxStoreForTesting)
     await relaunched.drainOutbox(trigger: .refresh)
     XCTAssertEqual(relaunched.outboxItems.count, 2)
@@ -252,8 +240,6 @@ final class OutboxSyncTests: XCTestCase {
     XCTAssertNil(server.row("row-2")?["memo"] as? String)
   }
 
-  // MARK: - Relaunch
-
   func testAKillMidFlightIsRetriedWithoutADuplicate() async throws {
     let store = OutboxStore.temporary()
     let settings = fixtureSettings()
@@ -271,7 +257,6 @@ final class OutboxSyncTests: XCTestCase {
         kind: .create(request), state: .inFlight, attempted: true, sentWithClientID: true
       ),
     ])
-    // The POST reached the server before the app was killed.
     var landed = row(id: transactionID, amount: -4_000, payee: "Taxi")
     landed["import_id"] = "imp-taxi"
     server.seed(landed)
@@ -479,8 +464,6 @@ final class OutboxSyncTests: XCTestCase {
     )
   }
 
-  // MARK: - Balances
-
   func testBalancesCountQueuedChangesAndDoNotJumpWhenTheyLand() async throws {
     server.seed(row(id: "row-1", amount: -10_000, cleared: "cleared"))
     let model = makeModel()
@@ -490,12 +473,8 @@ final class OutboxSyncTests: XCTestCase {
     server.offline = true
     try model.commit(newDraft(amount: 5_000, payee: "Snack"))
     XCTAssertEqual(model.accounts.first?.balance, -15_000, "a queued create moves the balance at once")
-    // Let the pass the commit scheduled finish offline, so it cannot still be
-    // running (and absorb the manual pass below) once the server is back.
     await model.waitForOutboxDrain()
 
-    // An accounts read that starts before the create lands answers with the
-    // old balance after it has landed.
     server.offline = false
     server.hold("GET /v1/plans/plan-1/accounts")
     let staleRead = Task { await model.refreshAccounts() }
@@ -512,8 +491,6 @@ final class OutboxSyncTests: XCTestCase {
     await model.refreshAccounts()
     XCTAssertEqual(model.accounts.first?.balance, -15_000, "a read from after the ack is not counted twice")
   }
-
-  // MARK: - Reconcile
 
   func testReconcileWaitsForThatAccountsChanges() async throws {
     server.seed(row(id: "row-1", amount: -1_000))
@@ -538,8 +515,6 @@ final class OutboxSyncTests: XCTestCase {
     await model.drainOutbox(trigger: .manual)
     XCTAssertNil(model.reconcileBlockReason(accountID: "acct-a"))
   }
-
-  // MARK: - Connection gate
 
   func testCommandsForAnotherConnectionAreNeverSent() async throws {
     let store = OutboxStore.temporary()
@@ -628,8 +603,6 @@ final class OutboxSyncTests: XCTestCase {
     )
   }
 
-  // MARK: - Approvals
-
   // Snapshot and outbox both survive a kill: pending approvals/deletes must
   // reduce the restored badge once, not once per durable file.
   func testSnapshotRelaunchDoesNotSubtractPendingApprovalOrDeleteTwice() async throws {
@@ -650,8 +623,6 @@ final class OutboxSyncTests: XCTestCase {
       else { model.approveTransaction(target) }
       await model.waitForOutboxDrain()
       XCTAssertEqual(model.unapprovedBadgeCount, 2)
-      // Refresh persists the badge but also schedules a drain. Keep that
-      // drain offline and settle it before the shared server is reset.
       model.outboxDebounce = .seconds(3_600)
       server.offline = false
       await model.refreshAccounts()
@@ -679,8 +650,6 @@ final class OutboxSyncTests: XCTestCase {
     XCTAssertEqual(model.unapprovedBadgeCount, 1)
     XCTAssertTrue(try row(in: model, "row-1").approved)
 
-    // Relaunch with the approval still queued: a fresh count from the
-    // server cannot include it, so the badge still subtracts it.
     let relaunched = makeModel(store: model.outboxStoreForTesting)
     relaunched.outboxDebounce = .seconds(3_600)
     server.offline = false
@@ -697,8 +666,6 @@ final class OutboxSyncTests: XCTestCase {
     await relaunched.refreshLedger(quiet: true)
     await eventually { relaunched.unapprovedBadgeCount == 1 }
   }
-
-  // MARK: - Attempted creates
 
   func testChangesAfterALostCreateResponseStillReachTheServer() async throws {
     let model = makeModel()
@@ -751,7 +718,6 @@ final class OutboxSyncTests: XCTestCase {
       .rejected("This may have been deleted on another device. Retry to add it again, or Discard it.")
     )
 
-    // Retry is the user saying "add it again": a new row, under a new id.
     model.retryPending(item.id)
     await eventually { model.unsentChangeCount == 0 }
     let recreated = server.rows(importID: importID)
@@ -786,7 +752,6 @@ final class OutboxSyncTests: XCTestCase {
     server.seed(row(id: "row-1", approved: false))
     let model = makeModel()
     await load(model)
-    // Approved on another device, so the guarded delete is refused.
     let before = try row(in: model, "row-1")
     server.setField("row-1", "approved", true)
     try await model.deleteTransaction(before)
@@ -835,8 +800,6 @@ final class OutboxSyncTests: XCTestCase {
     if case .create(let request) = command.kind { return request.importID }
     return nil
   }
-
-  // MARK: - Helpers
 
   private func fixtureSettings() -> APISettings {
     var settings = APISettings()
@@ -932,8 +895,6 @@ extension AppModel {
     outboxStoreForTesting.peek()
   }
 }
-
-// MARK: - The stub server
 
 struct OutboxLedgerRequest: Equatable, CustomStringConvertible {
   let method: String

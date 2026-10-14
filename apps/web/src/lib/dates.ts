@@ -28,7 +28,6 @@ function monthBounds(year: number, monthIndex: number): { from: string; to: stri
   };
 }
 
-/** The calendar month `offset` months away from today (0 = this month). */
 export function monthRange(offset = 0): { from: string; to: string } {
   const now = new Date();
   return monthBounds(now.getFullYear(), now.getMonth() + offset);
@@ -121,7 +120,6 @@ function formatFullDate(date: string): string {
   return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
 }
 
-/** Renders API period labels ("2026-06", "2026-W23", "2026-06-10", "2026") for humans; full dates follow the plan's date format. */
 export function formatPeriod(period: string): string {
   if (/^\d{4}-\d{2}-\d{2}$/.test(period)) {
     return formatFullDate(period);

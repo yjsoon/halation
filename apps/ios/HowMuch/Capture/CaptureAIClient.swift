@@ -209,13 +209,13 @@ struct CaptureAIStream {
           isComplete = true
         case "response.failed", "response.incomplete", "error", "response.refusal.delta", "response.refusal.done":
           throw CaptureAIError.incomplete
-        default: break // lifecycle, usage, and reasoning events aren't financial results
+        default: break
         }
       } else {
         guard let choices = value["choices"] as? [[String: Any]], choices.count <= 1 else {
           throw CaptureAIError.invalidResponse
         }
-        guard let choice = choices.first else { return } // optional usage-only event
+        guard let choice = choices.first else { return }
         guard (choice["index"] as? Int) == 0 else { throw CaptureAIError.invalidResponse }
         if let delta = choice["delta"] as? [String: Any] {
           try Self.rejectActionsOrRefusal(delta)

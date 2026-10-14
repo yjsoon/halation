@@ -8,16 +8,12 @@
 
 /** Words that identify a rail, processor, legal form or place rather than a merchant. */
 const NOISE_WORDS = new Set([
-  // Payment rails and statement boilerplate
   "pos", "nets", "qr", "fast", "payment", "payments", "pay", "paynow", "mobile", "via", "to", "from", "othr", "trf",
   "transfer", "ibg", "giro", "bill", "bills", "debit", "credit", "card", "visa", "mastercard", "amex", "purchase",
   "ref", "inv", "invoice", "online", "ecom", "recurring", "contactless", "wallet",
-  // Processor and wallet prefixes
   "sq", "tst", "paypal", "stripe", "sumup", "zettle", "adyen", "ipay", "eghl", "mktp", "mp", "krispay", "globale",
-  // Legal forms (Singapore and Malaysia) and web boilerplate
   "pte", "ltd", "limited", "inc", "llc", "corp", "co", "company", "group", "holdings", "the", "and", "sdn", "bhd",
   "restoran", "kedai", "www", "com", "net", "org", "http", "https",
-  // Places that appear on almost every local or cross-border statement line
   "sg", "sgp", "sin", "singapore", "spore", "intl", "international", "malaysia", "mys", "johor", "bahru",
 ]);
 

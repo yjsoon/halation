@@ -37,8 +37,6 @@ describe("unapprovedBadgeCount", () => {
   });
 
   test("prefers the row-exact queue count once the approval flow has loaded it", () => {
-    // The rows are the truth: they already exclude locally approved lines, so
-    // the optimistic adjustment must not be applied a second time.
     expect(unapprovedBadgeCount(4, 12, 3)).toBe(4);
   });
 

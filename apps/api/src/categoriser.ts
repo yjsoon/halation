@@ -416,7 +416,6 @@ async function similarTransactions(
     .sort((a, b) => b.similarity - a.similarity || a.id.localeCompare(b.id))
     .slice(0, SIMILAR_PAYEES)
     .map((payee) => payee.id)]));
-  // Fetch each selected payee only once even when a batch names it repeatedly.
   const payeeIds = [...new Set([...payeesFor.values()].flat())];
   const payeePools = new Map(await Promise.all(payeeIds.map(async (payeeId) => {
     const page = await repo.listTransactionsPage(planId, { payeeId, limit: PAYEE_HISTORY_LIMIT });

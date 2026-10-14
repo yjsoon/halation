@@ -1,4 +1,3 @@
--- Point lookups and paged register reads were scanning the live ledger.
 CREATE INDEX IF NOT EXISTS idx_transactions_transfer_transaction_id
   ON transactions(transfer_transaction_id)
   WHERE transfer_transaction_id IS NOT NULL;

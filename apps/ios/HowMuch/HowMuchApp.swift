@@ -50,7 +50,6 @@ enum QuickAction {
     )
   }
 
-  /// App Intent and clipboard entries (not share jobs) waiting for the conversation flow.
   static var hasConversationInboxEntries: Bool {
     let store = InboxStore.shared
     let conversationEntry: (InboxItem) -> Bool = { !$0.isIntakeJobSource }
@@ -234,7 +233,6 @@ private struct RootView: View {
       consumePendingCapture()
     }
     .onChange(of: IntakeNotifier.shared.pendingRoute, initial: true) { _, route in
-      // A notification tap or link: open the Inbox or that batch on Accounts.
       guard let route else {
         return
       }
@@ -276,7 +274,6 @@ private struct RootView: View {
       switch HowMuchDeepLink.parse(url) {
       case .inboxBatch(let id):
         drainIntakeInbox()
-        // A job that is gone (discarded, pruned) opens the list instead.
         IntakeNotifier.shared.pendingRoute = IntakeCoordinator.shared.job(id) != nil ? .batch(id) : .list
       case .inbox:
         drainIntakeInbox()
@@ -306,7 +303,6 @@ private struct RootView: View {
     )
   }
 
-  /// Share-sheet entries become Inbox jobs, read in the background.
   private func drainIntakeInbox() {
     IntakeCoordinator.shared.drain(model: model)
   }
@@ -517,7 +513,6 @@ struct CaptureIntakeHost: View {
           lastUsedAccountID: model.lastUsedOpenAccountID
         ).selectedAccountID ?? ""
       }
-      // Preserve an explicit transfer destination instead of inheriting it as the source.
       if draft.accountID == draft.transferAccountID {
         draft.accountID = ""
       }

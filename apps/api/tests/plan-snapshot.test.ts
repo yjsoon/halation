@@ -168,11 +168,9 @@ describe("snapshot core", () => {
     expect(broken((s) => { txn(s, "t-split-in").transfer_account_id = "b"; })).toThrow("counterpart s-move is in account a, not transfer_account_id b");
     expect(broken((s) => { sub(s, "s-move").transfer_account_id = "c"; })).toThrow("transactions[3].transfer_transaction_id: counterpart s-move must name account b");
     expect(broken((s) => {
-      // Only the split line is broken, so its own path reports.
       sub(s, "s-move").transfer_account_id = null;
     })).toThrow("transactions[2].subtransactions[1].transfer_transaction_id is set, so transfer_account_id is required");
     expect(broken((s) => {
-      // Two split lines pointing at each other are never produced by the server.
       s.transactions.push({ id: "t-split-2", account_id: "b", date: "2026-01-02", amount: 500, subtransactions: [
         { id: "s-back", amount: 500, transfer_account_id: "a", transfer_transaction_id: "s-move" },
       ] });

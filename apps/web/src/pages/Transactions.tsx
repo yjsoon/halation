@@ -902,7 +902,6 @@ export function TransactionsPage() {
         return { ...current, transactions: [transaction, ...current.transactions] };
       });
       setReconciliationPreviewGeneration((generation) => generation + 1);
-      // The server fills in a category Jev is confident about when none was chosen; say which.
       const savedName = !result.input.category_id && transaction.category_name
         ? `${transaction.payee_name ?? "Entry"} (categorised as ${transaction.category_name})`
         : transaction.payee_name ?? "Entry";
@@ -1510,8 +1509,6 @@ export function TransactionsPage() {
 
   const emptyMessage =
     page.loaded && page.transactions.length === 0
-      // The page is fetched for the date range, so an empty one only means an
-      // empty ledger when no range is set.
       ? filters.from || filters.to ? "No transactions in this date range." : "No transactions yet."
       : deferredSearch.trim()
         ? "No transactions match this search."
@@ -1542,8 +1539,6 @@ export function TransactionsPage() {
     cancel: () => dispatchRowEdit({ type: "cancel" }),
   };
   const lockedComposeAccount = selectedAccount && !selectedAccount.closed ? selectedAccount : null;
-  // Posted future-dated rows are already in the working balance; take them back
-  // out for the as-of-today figure. Single-account registers only.
   const todayBalance = useMemo(
     () => selectedAccount
       ? asOfTodayBalance(selectedAccount.balance, patchedPage, { accountId: selectedAccount.id, today })
@@ -2350,7 +2345,6 @@ function ClearedStatus({
   );
 }
 
-/** Zero is neutral: only a balance above or below it takes a colour. */
 function balanceTone(value: number): string {
   return value > 0 ? "figure-positive" : value < 0 ? "figure-negative" : "";
 }

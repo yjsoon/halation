@@ -82,7 +82,6 @@ final class InboxStoreTests: XCTestCase {
       _ = try await task.value
       XCTFail("A cancelled preview must not deliver an image")
     } catch is CancellationError {
-      // Expected.
     }
     XCTAssertEqual(store.loadReading().map(\.id), [item.id])
     XCTAssertEqual(try item.payloadData(), data)

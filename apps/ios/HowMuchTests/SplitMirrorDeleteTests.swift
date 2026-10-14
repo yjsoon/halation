@@ -86,9 +86,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     previousCredentialService = APISettings.useCredentialService(
       "HowMuch.SplitMirrorDeleteTests.\(UUID().uuidString)"
     )
-    // The model writes its connection straight into `UserDefaults.standard`
-    // under the app's real keys; save and restore them so this fixture host
-    // never leaks into another test or the installed app.
     previousAPISettings = UserDefaults.standard.object(forKey: APISettings.userDefaultsKey)
     previousScopedViewPrefs = UserDefaults.standard.object(
       forKey: ScopedViewPrefsStore.userDefaultsKey
@@ -111,8 +108,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     UserDefaults.standard.set(previousOutbox, forKey: OutboxStore.legacyDefaultsKey)
     super.tearDown()
   }
-
-  // MARK: - The local apply
 
   func testDeletingASplitMirrorKeepsTheParentAndClearsOnlyItsLine() async throws {
     let model = makeModel()
@@ -143,8 +138,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     XCTAssertFalse(model.unapprovedTransactions.contains { $0.id == SplitMirrorFixtureProtocol.mirrorID })
     XCTAssertTrue(model.transactions.contains { $0.id == SplitMirrorFixtureProtocol.siblingID })
 
-    // The delete is the server's own tombstone, not a cascade that could take
-    // the parent with it.
     let deletes = SplitMirrorFixtureProtocol.requests().filter { $0.method == "DELETE" }
     XCTAssertEqual(deletes.count, 1, "the delete must be one request, saw \(deletes)")
     XCTAssertEqual(
@@ -152,8 +145,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
       "/v1/plans/\(SplitMirrorFixtureProtocol.planID)/transactions/\(SplitMirrorFixtureProtocol.mirrorID)"
     )
 
-    // The editor draft is built from the row on screen, so it must not resend
-    // the link the server has already cleared.
     let draft = TransactionDraft(transaction: parent)
     let draftLine = try XCTUnwrap(
       draft.subtransactions.first { $0.id == SplitMirrorFixtureProtocol.subLinkID }
@@ -162,9 +153,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     XCTAssertNil(write.transferTransactionID)
     XCTAssertNil(write.transferAccountID)
 
-    // The snapshot is written from the first page as the network returned it,
-    // and the delete's own balance refresh persists it. A mirror this delete
-    // removed must not come back on the next cold launch.
     let refreshed = await waitUntil {
       model.accounts.first { $0.id == SplitMirrorFixtureProtocol.accountID }?.balance == 250
     }
@@ -199,7 +187,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     XCTAssertTrue(model.ledgerIsProvisional)
     let mirror = try XCTUnwrap(loadedMirror(in: model))
     SplitMirrorFixtureProtocol.failReadsAfterDelete()
-    // A queued pre-delete write must not recreate the invalidated file either.
     store.scheduleWrite(snapshot)
     try await model.deleteTransaction(mirror)
     await model.waitForOutboxDrain()
@@ -212,7 +199,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     })
     store.waitForPendingWrites()
 
-    // No network refresh runs on this new model: this is the offline first frame.
     let restored = AppModel(outboxStore: .temporary(), settings: model.settings, viewPrefs: ViewPrefs(), snapshotStore: store)
     XCTAssertFalse(restored.transactions.contains { $0.id == SplitMirrorFixtureProtocol.mirrorID })
     XCTAssertFalse(restored.transactions.flatMap(\.subtransactions).contains {
@@ -220,8 +206,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     })
     XCTAssertNil(store.load(), "failed follow-up reads must not leave the pre-delete snapshot")
   }
-
-  // MARK: - Reads that were already in flight
 
   func testADelayedFirstPageCannotResurrectTheDeletedMirrorOrItsLink() async throws {
     let model = makeModel()
@@ -242,8 +226,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
   }
 
   func testADelayedOlderPageCannotResurrectTheDeletedMirrorOrItsLink() async throws {
-    // The parent is not on the first page, so the older page is the only place
-    // it can arrive from -- the "missing parent" order.
     SplitMirrorFixtureProtocol.setFirstPage(omitsParent: true, hasMore: true)
     let model = makeModel()
     await loadLedger(model)
@@ -272,11 +254,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
   }
 
   func testARelinkThatLandsAfterTheDeleteSurvivesTheWalksNextPage() async throws {
-    // The walk's first page is asked for before the delete; its next page is
-    // asked for after it, by which time another client has relinked the
-    // surviving line to a new mirror. That page must be applied as it came.
-    // The first load stops at its first page (`hasMore: false`), so the parent
-    // and the relink stay unread until the walk's later page.
     SplitMirrorFixtureProtocol.setFirstPage(omitsParent: true, hasMore: false, recentRows: true)
     SplitMirrorFixtureProtocol.relinkOnDelete()
     let model = makeModel()
@@ -288,8 +265,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     XCTAssertFalse(model.hasMoreTransactions, "the first load must not consume the later page")
     let mirror = try XCTUnwrap(loadedMirror(in: model))
 
-    // The walk's own first page has more rows, and its rows are recent enough
-    // that the horizon fill goes on to ask for the next one.
     SplitMirrorFixtureProtocol.setFirstPage(omitsParent: true, hasMore: true, recentRows: true)
     SplitMirrorFixtureProtocol.hold(.firstPage)
     let walk = Task { await model.refreshLedger(quiet: false) }
@@ -406,8 +381,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     assertMirrorGoneAndParentUnlinked(model)
   }
 
-  // MARK: - Later reads and other scopes
-
   func testAReadThatStartsAfterTheDeleteStillApplies() async throws {
     let model = makeModel()
     await loadLedger(model)
@@ -427,9 +400,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
   }
 
   func testADeleteWithoutParentMetadataStillUnlinksTheMatchingLine() async throws {
-    // The tombstone and the row in hand both omit `parent_transaction_id`, as a
-    // legacy row can. The line that named the mirror is then the only way back
-    // to the parent, and it must still be unlinked.
     SplitMirrorFixtureProtocol.omitParentMetadata()
     let model = makeModel()
     await loadLedger(model)
@@ -447,8 +417,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     await loadLedger(model)
     let mirror = try XCTUnwrap(loadedMirror(in: model))
 
-    // A plan-one read is still in flight when the delete lands and when the
-    // plan switches, which is the order a slow network produces.
     SplitMirrorFixtureProtocol.hold(.firstPage)
     let stale = Task { await model.refreshLedger(quiet: true) }
     let parked = await waitUntil { SplitMirrorFixtureProtocol.parkedCount == 1 }
@@ -465,8 +433,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     await stale.value
 
     XCTAssertEqual(model.settings.planID, SplitMirrorFixtureProtocol.secondPlanID)
-    // The second plan's own row reuses the deleted id. Protection is scoped to
-    // one connection's read order, so it must not survive the switch.
     XCTAssertTrue(
       model.transactions.contains { $0.id == SplitMirrorFixtureProtocol.mirrorID },
       "a new scope must not inherit the old plan's delete protection"
@@ -477,8 +443,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
       "the previous plan's rows must be gone after the switch"
     )
   }
-
-  // MARK: - Fixture helpers
 
   private func makeModel() -> AppModel {
     var settings = APISettings()
@@ -550,8 +514,6 @@ final class SplitMirrorDeleteTests: XCTestCase {
     return condition()
   }
 }
-
-// MARK: - Fixture server
 
 /// Serves one split parent with a mirrored line on a second account, an
 /// unrelated sibling row, and the delete tombstone that clears the parent's
@@ -725,8 +687,6 @@ private final class SplitMirrorFixtureProtocol: URLProtocol {
     return relinkAfterDelete
   }
 
-  // MARK: URLProtocol
-
   override class func canInit(with request: URLRequest) -> Bool {
     request.url?.host?.lowercased() == fixtureHost
   }
@@ -820,8 +780,6 @@ private final class SplitMirrorFixtureProtocol: URLProtocol {
   private static func isPlanLedger(_ url: URL) -> Bool {
     url.path.hasSuffix("/transactions") && !url.path.contains("/accounts/")
   }
-
-  // MARK: Responses
 
   private static let encoder: JSONEncoder = {
     let encoder = JSONEncoder()
@@ -1265,8 +1223,6 @@ final class DeleteBalanceDeltaTests: XCTestCase {
     XCTAssertEqual(next[0].unclearedBalance, 3_000)
     XCTAssertEqual(next[1], accounts[1])
   }
-
-  // MARK: Fixtures
 
   private static func row(
     _ id: String,

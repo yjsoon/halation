@@ -140,7 +140,6 @@ test("finds past transactions under other spellings of the payee", async () => {
   } finally { db.close(); }
 });
 
-
 function scriptedJev(sent: any[], confidence: number, choice = "Living: Transport") {
   return async (_url: string, init?: RequestInit) => {
     const body = JSON.parse(String(init?.body));
@@ -167,7 +166,6 @@ test("a create that names only a payee is categorised on the server when Jev is 
     const response = await createOne(handler, { payee_name: "grab", memo: "ride" });
     expect(response.status).toBe(201);
     expect((await response.json()).data.transaction).toMatchObject({ payee_name: "Grab", category_id: "transport", category_name: "Transport" });
-    // The name resolved to the known payee, so its history went along.
     expect(sent[0].state.transactions[0].payee_history).toEqual([{ category: "Living: Transport", times: 2 }, { category: "Living: Food", times: 1 }]);
 
     const quick = await handler(new Request("https://howmuch.test/api/mobile/quick-entry", {
@@ -190,7 +188,6 @@ test("a create that names only a payee is categorised on the server when Jev is 
     const repo = new LedgerRepository(db, "test-plan");
     expect((await repo.getTransaction("test-plan", "b1")).category_id).toBe("transport");
     expect((await repo.getTransaction("test-plan", "b2")).category_id).toBe("food");
-    // One question for b1 only: an explicit category is never second-guessed.
     expect(Object.keys(sent.at(-1).questions)).toEqual(["t0"]);
   } finally { db.close(); }
 });
@@ -251,7 +248,6 @@ test("coded names of one merchant count as evidence; an unrecognisable name need
     const coded = await (await createOne(handler, { payee_name: "GRAB*D-7T3W2 SINGAPORE SG" })).json();
     expect(coded.data.transaction.category_id).toBe("transport");
     const examples = sent[0].state.transactions[0].similar_past_transactions;
-    // Three differently coded payees, one Food Grab row, collapse to two examples.
     expect(examples.map((row: any) => [row.category, row.times, row.name_similarity])).toEqual([
       ["Living: Transport", 5, 1],
       ["Living: Food", 1, 1],
@@ -281,7 +277,6 @@ test.each([1, 2])("a review of %i target rows cannot use those targets as indepe
     expect(data.suggestions.map((item: any) => item.evidence)).toEqual(rows.map(() => ({ same_payee: 0, similar_names: 0 })));
     expect(reviewRows(rows, data.suggestions).map((row) => row.include)).toEqual(rows.map(() => false));
 
-    // A different transaction for the very same payee is genuine evidence.
     await repo.createTransaction("test-plan", { id: "independent", account_id: "card", date: "2026-09-01", amount: -3_000, payee_id: "only", category_id: "transport" });
     const next = await (await post(handler, body)).json();
     expect(sent[1].state.transactions[0].payee_history).toEqual([{ category: "Living: Transport", times: 1 }]);
@@ -302,12 +297,12 @@ test.each([
   const repo = new LedgerRepository(db, "test-plan");
   await repo.upsertPayee("test-plan", { id: "merchant", name: historicalName });
   await repo.createTransaction("test-plan", { id: "history", account_id: "card", date: "2020-01-01", amount: -2_000, payee_id: "merchant", category_id: "food" });
-  // A recent-plan fallback alone cannot find the older known merchant.
   for (let index = 0; index < 151; index++) {
     await repo.createTransaction("test-plan", { id: `noise-${index}`, account_id: "card", date: "2026-09-24", amount: -1_000, payee_id: "grab", category_id: "transport" });
   }
   const sent: any[] = [];
   const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.7, "Living: Food") });
+  // A recent-plan fallback alone cannot find the older known merchant.
   try {
     const response = await createOne(handler, { payee_name: newName });
     expect(response.status).toBe(201);

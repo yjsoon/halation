@@ -53,7 +53,6 @@ LOCK_DIR="${HOWMUCH_XCODE_LOCK_DIR:-$PWD/build/xcode/ios-runner.lock}"
 # A detached exact revision needs an explicit containing origin branch or tag.
 BRANCH="$(git symbolic-ref --quiet --short HEAD || true)"
 COMMIT="$(git rev-parse HEAD)"
-# https form of origin, so the page can link the branch and commit.
 REPO_URL="$(git remote get-url origin 2>/dev/null | sed -E 's#^git@([^:]+):#https://\1/#; s#\.git$##')"
 case "$REPO_URL" in https://*) ;; *) REPO_URL="" ;; esac
 if [[ -n "$(git status --porcelain)" ]]; then
@@ -69,9 +68,9 @@ if ! git check-ref-format "$SOURCE_REF"; then
   echo "publication prerequisite unmet: invalid origin branch or tag" >&2
   exit 1
 fi
+if ! git fetch --no-tags origin "$SOURCE_REF"; then
 # Fetch exactly the selected ref; cached tracking refs are not publication proof.
 # This does not check out, merge, rebase, commit, or push anything.
-if ! git fetch --no-tags origin "$SOURCE_REF"; then
   echo "publication prerequisite unmet: could not fetch the selected origin branch or tag" >&2
   exit 1
 fi
@@ -143,7 +142,6 @@ xcodebuild -exportArchive \
   2>&1 | tee "$EXPORT_LOG" "$OUT/export.log"
 mv "$OUT"/export/*.ipa "$OUT/signed.ipa"
 
-# 1. Register the build with its metadata. The server answers with the ids.
 META="$(jq -n \
   --arg title "$TITLE" --arg notes "$NOTES" \
   --arg deepLink "$SPEEDFLIGHT_DEEP_LINK" \
@@ -161,17 +159,15 @@ CREATED="$(create "$BASE" || create "$FALLBACK_BASE")"
 BUILD_ID="$(jq -r .buildId <<<"$CREATED")"
 PAGE_URL="$(jq -r .pageUrl <<<"$CREATED")"
 
-# 2. Upload the IPA. The server reads name, version, and build number from
-#    its Info.plist and rejects it if the bundle id does not match.
 upload() {
   curl -sfS --http1.1 --retry 5 --retry-all-errors --retry-delay 5 \
+# 2. Upload the IPA. The server reads name, version, and build number from
+#    its Info.plist and rejects it if the bundle id does not match.
     -X PUT "$1/api/apps/$SPEEDFLIGHT_SECRET/$BUNDLE_ID/builds/$BUILD_ID/app.ipa" \
     --data-binary @"$OUT/signed.ipa" >/dev/null
 }
 upload "$BASE" || upload "$FALLBACK_BASE"
 
-# 3. Screenshots, if given: what changed, as pictures. Named 01-, 02-, ...
-#    so the page keeps the order you passed them in.
 # The guarded expansion keeps macOS bash 3.2's set -u happy when no
 # screenshots were passed; a bare "${SCREENSHOTS[@]}" aborts the script.
 n=0
@@ -186,7 +182,6 @@ for shot in ${SCREENSHOTS[@]+"${SCREENSHOTS[@]}"}; do
     -H "Content-Type: $type" --data-binary @"$shot" >/dev/null || echo "screenshot upload failed: $shot" >&2
 done
 
-# 4. Icon, if configured. Best effort.
 if [[ -n "${SPEEDFLIGHT_ICON:-}" && -f "$SPEEDFLIGHT_ICON" ]]; then
   curl -sS -X PUT "$BASE/api/apps/$SPEEDFLIGHT_SECRET/$BUNDLE_ID/icon" \
     -H "Content-Type: image/png" --data-binary @"$SPEEDFLIGHT_ICON" >/dev/null || true

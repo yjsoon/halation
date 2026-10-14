@@ -1,8 +1,6 @@
 import XCTest
 @testable import HowMuch
 
-// MARK: - Fixtures
-
 /// Every value here is invented. No real ledger row, payee or memo appears in
 /// these tests.
 private enum SnapshotFixture {
@@ -164,8 +162,6 @@ private enum SnapshotFixture {
     return SnapshotStore(directory: directory)
   }
 }
-
-// MARK: - Store and policy (pure)
 
 /// #176: load/save/delete and the pure admission rules. Nothing here touches
 /// the network or the real container.
@@ -398,8 +394,6 @@ final class ReferenceSnapshotStoreTests: XCTestCase {
   }
 }
 
-// MARK: - Launch behaviour
-
 /// #176 end to end: a warm launch renders from the snapshot before the network
 /// answers, the network then replaces it, and nothing older than the current
 /// `server_knowledge` is left behind (#144).
@@ -416,9 +410,6 @@ final class ReferenceSnapshotLaunchTests: XCTestCase {
     previousCredentialService = APISettings.useCredentialService(
       "HowMuch.ReferenceSnapshotTests.\(UUID().uuidString)"
     )
-    // The model writes its connection into `UserDefaults.standard` under the
-    // app's real keys; save and restore them so this fixture host never leaks
-    // into another test or the installed app.
     previousAPISettings = UserDefaults.standard.object(forKey: APISettings.userDefaultsKey)
     previousScopedViewPrefs = UserDefaults.standard.object(forKey: ScopedViewPrefsStore.userDefaultsKey)
     previousOutbox = UserDefaults.standard.object(forKey: OutboxStore.legacyDefaultsKey)
@@ -448,8 +439,6 @@ final class ReferenceSnapshotLaunchTests: XCTestCase {
   /// must not replace it with a spinner.
   func testWarmLaunchIsLoadedBeforeAnyResponseArrives() async {
     let settings = fixtureSettings()
-    // A cursor behind the server's, so this launch's response is known to
-    // describe different rows and must replace what the snapshot put up.
     XCTAssertTrue(
       store.save(
         SnapshotFixture.snapshot(
@@ -745,7 +734,6 @@ final class ReferenceSnapshotLaunchTests: XCTestCase {
       "the server's count must replace the stored one, saw \(model.unapprovedBadgeCount)"
     )
 
-    // …and the fresh number is what the next launch would restore.
     store.waitForPendingWrites()
     XCTAssertEqual(store.load()?.unapprovedCount, SnapshotRefreshProtocol.networkUnapprovedCount)
   }
@@ -755,7 +743,6 @@ final class ReferenceSnapshotLaunchTests: XCTestCase {
   /// gone from it, and a row rejected from the "New" queue is off the stored
   /// count, even when every follow-up read fails.
   func testDeletePersistsTheRepairedSnapshotWhenFollowUpReadsFail() async throws {
-    // The row rejected below is one the server has awaiting approval.
     SnapshotRefreshProtocol.serveNetworkRowUnapproved()
     let settings = fixtureSettings()
     XCTAssertTrue(
@@ -775,8 +762,6 @@ final class ReferenceSnapshotLaunchTests: XCTestCase {
     XCTAssertFalse(model.isProvisional, "the launch refresh must own the screen before the delete")
     XCTAssertEqual(model.transactions.map(\.id), [SnapshotRefreshProtocol.networkTransactionID])
 
-    // Every read after the delete fails, as it would if the connection
-    // dropped straight after the write.
     SnapshotRefreshProtocol.goOfflineAfterDelete()
     let row = SnapshotFixture.transaction(
       id: SnapshotRefreshProtocol.networkTransactionID,
@@ -791,7 +776,6 @@ final class ReferenceSnapshotLaunchTests: XCTestCase {
     store.waitForPendingWrites()
     let persisted = try XCTUnwrap(store.load(), "a delete must not leave the next launch cold")
     XCTAssertEqual(persisted.ledgerPage?.transactions.map(\.id), [])
-    // The network row (-4560, uncleared) comes off its account's balances.
     let persistedAccount = try XCTUnwrap(persisted.accounts.first)
     XCTAssertEqual(persistedAccount.balance, 999 + 4_560, "the saved balance must not still count the deleted row")
     XCTAssertEqual(persistedAccount.clearedBalance, 999)
@@ -859,8 +843,6 @@ final class ReferenceSnapshotLaunchTests: XCTestCase {
     return condition()
   }
 }
-
-// MARK: - Reports cache (stale-while-revalidate)
 
 /// The Reflect overview and the default Rewards board are cached beside the
 /// reference snapshot, under the same identity rules, so both render at once
@@ -943,7 +925,6 @@ final class ReportsSnapshotTests: XCTestCase {
       model.rewardsReport(for: .overview(planID: settings.planID))?.cards.map(\.accountId),
       ["acct-card"]
     )
-    // The cached board is the overview; it must not appear under a filter.
     var filtered = RewardsRequest.overview(planID: settings.planID)
     filtered.accountIDs = ["acct-card"]
     XCTAssertNil(model.rewardsReport(for: filtered), "a report must only show under the request that produced it")
@@ -1058,8 +1039,6 @@ final class ReportsSnapshotTests: XCTestCase {
     XCTAssertFalse(request(accountIDs: ["acct-card"]).isOverview)
   }
 
-  // MARK: Fixtures
-
   /// Decoded the way the API client decodes, so the cache is proven to
   /// round-trip what the server actually sends.
   private static func decode<T: Decodable>(_ type: T.Type, _ json: String) throws -> T {
@@ -1165,8 +1144,6 @@ final class ReportsSnapshotTests: XCTestCase {
     return condition()
   }
 }
-
-// MARK: - Stub server
 
 private final class SnapshotRefreshLog: @unchecked Sendable {
   static let shared = SnapshotRefreshLog()

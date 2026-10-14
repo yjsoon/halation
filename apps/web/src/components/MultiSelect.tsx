@@ -4,7 +4,6 @@ export interface MultiSelectOption {
   id: string;
   label: string;
   group?: string;
-  /** Rendered below a "Rarely used" divider: hidden/bookkeeping categories. */
   muted?: boolean;
 }
 
@@ -15,7 +14,6 @@ interface Props {
   onChange: (ids: string[]) => void;
 }
 
-/** Compact dropdown multi-select; the trigger summarises the selection. */
 export function MultiSelect({ label, options, selected, onChange }: Props) {
   const [open, setOpen] = useState(false);
   const [needle, setNeedle] = useState("");

@@ -410,8 +410,6 @@ struct IntakeJob: Codable, Equatable, Identifiable, Sendable {
     updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? createdAt
   }
 
-  // MARK: Display
-
   var counts: IntakeProposalCounts {
     var counts = IntakeProposalCounts()
     for proposal in proposals {

@@ -155,7 +155,6 @@ LOCAL_TABLES="$(jq -r '.table_count' <<<"$LOCAL_ROW")"
 [ "$PROD_TABLES" = "$LOCAL_TABLES" ] \
   || fail "table count mismatch: dump=$LOCAL_TABLES live=$PROD_TABLES"
 
-# Validation passed: publish the dump atomically and record its checksum.
 mv -f "$PARTIAL" "$DUMP"
 shasum -a 256 "$DUMP" >"$DUMP.sha256"
 SHA="$(cut -d' ' -f1 <"$DUMP.sha256")"

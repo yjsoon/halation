@@ -1,6 +1,5 @@
 import type { Account, AccountPreferences } from "../api/types";
 
-/** User-owned overlays versus type/status partitions. */
 export type AccountGroupKind = "collection" | "index";
 
 export type AccountGroup = {

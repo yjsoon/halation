@@ -19,8 +19,6 @@ final class IntakeMatcherTests: XCTestCase {
   private lazy var openIDs: Set<String> = [everyday, travel]
   private let matcher = IntakeMatcher()
 
-  // MARK: Window
-
   func testDayWindowIsInclusiveAcrossMonthEnd() {
     let read = line(8_900, date: "2026-06-30", payee: "Grab")
     for date in ["2026-06-27", "2026-06-30", "2026-07-01", "2026-07-03"] {
@@ -43,8 +41,6 @@ final class IntakeMatcherTests: XCTestCase {
     XCTAssertEqual(IntakeMatcher(dayWindow: 3).match([read], openAccountIDs: openIDs, candidates: candidates)
       .first?.kind, .add)
   }
-
-  // MARK: Direction and amount
 
   func testSameAmountOppositeDirectionIsAPossibleDuplicateNeverAFix() {
     // A refund of the same amount: shown beside the original, never edited.
@@ -74,8 +70,6 @@ final class IntakeMatcherTests: XCTestCase {
     XCTAssertEqual(proposals.first?.kind, .add)
     XCTAssertEqual(proposals.first?.candidateIDs, [])
   }
-
-  // MARK: Strong, weak, none
 
   func testIdenticalStrongMatchIsAlreadyIn() {
     let proposals = matcher.match(
@@ -213,8 +207,6 @@ final class IntakeMatcherTests: XCTestCase {
     XCTAssertTrue(proposals[0].appliesOnApproval)
   }
 
-  // MARK: Ambiguity
-
   func testEqualScoreTieIsAPossibleDuplicateAndNeverEdits() {
     // Two identical rows. The matcher cannot know which one the document means,
     // so it must not edit either, even though the payee differs.
@@ -248,8 +240,6 @@ final class IntakeMatcherTests: XCTestCase {
     XCTAssertEqual(proposals[0].kind, .alreadyIn)
     XCTAssertEqual(proposals[0].targetTransactionID, "near")
   }
-
-  // MARK: Account widening
 
   func testWidensToOtherOpenAccountsOnlyWhenChosenAccountHasNone() {
     let read = line(8_900, payee: "Grab", account: everyday)
@@ -287,8 +277,6 @@ final class IntakeMatcherTests: XCTestCase {
     )
     XCTAssertEqual(proposals[0].targetTransactionID, "t")
   }
-
-  // MARK: Invariants
 
   func testTargetAndCandidateIDsAreAlwaysFromTheSuppliedRows() {
     let candidates = [
@@ -328,8 +316,6 @@ final class IntakeMatcherTests: XCTestCase {
     let proposals = matcher.match(reads, openAccountIDs: openIDs, candidates: [])
     XCTAssertEqual(proposals.map(\.draft.amountMagnitudeMilli), [1_000, 2_000, 3_000])
   }
-
-  // MARK: Helpers
 
   private func line(
     _ magnitude: Int,

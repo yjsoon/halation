@@ -58,13 +58,11 @@ async function syntheticLedger(): Promise<{ db: Database; repo: D1LedgerReposito
   await repo.createTransaction(PLAN, { id: "shop-jan", account_id: "cash", date: "2026-01-18", amount: -32000, payee_id: "shop", category_id: "c" });
   await repo.createTransaction(PLAN, { id: "card-jan", account_id: "card", date: "2026-01-27", amount: -18000, payee_id: "shop", category_id: "c" });
 
-  // A transfer: one write, two ledger rows in two accounts.
   await repo.createTransaction(PLAN, { id: "move-feb", account_id: "cash", date: "2026-02-03", amount: -150000, payee_id: "to-savings" });
 
   await repo.createTransaction(PLAN, { id: "pay-feb", account_id: "cash", date: "2026-02-05", amount: 480000, payee_id: "employer", category_id: "c" });
   await repo.createTransaction(PLAN, { id: "shop-feb", account_id: "cash", date: "2026-02-22", amount: -41000, payee_id: "shop", category_id: "c" });
 
-  // A split whose second line is itself a transfer.
   await repo.createTransaction(PLAN, {
     id: "split-mar", account_id: "cash", date: "2026-03-04", amount: -60000,
     subtransactions: [
@@ -77,27 +75,22 @@ async function syntheticLedger(): Promise<{ db: Database; repo: D1LedgerReposito
   await repo.createTransaction(PLAN, { id: "shop-mar", account_id: "cash", date: "2026-03-19", amount: -27500, payee_id: "shop", category_id: "c" });
   await repo.createTransaction(PLAN, { id: "old-mar", account_id: "old", date: "2026-03-20", amount: -1500, payee_id: "shop" });
 
-  // Edits that move the amount, the date and the account.
   await repo.updateTransaction(PLAN, "shop-jan", { amount: -35500 });
   await repo.updateTransaction(PLAN, "shop-feb", { date: "2026-03-01" });
   await repo.updateTransaction(PLAN, "card-jan", { account_id: "cash" });
 
-  // A transfer edit: moving the parent moves the mirror's date too.
   await repo.updateTransaction(PLAN, "move-feb", { date: "2026-02-14", amount: -155000 });
 
-  // Deletes, including one that tears down a transfer pair.
   await repo.createTransaction(PLAN, { id: "typo-apr", account_id: "cash", date: "2026-04-02", amount: -9999, payee_id: "shop" });
   await repo.deleteTransaction(PLAN, "typo-apr");
   await repo.createTransaction(PLAN, { id: "move-apr", account_id: "savings", date: "2026-04-06", amount: -20000, payee_id: "to-cash" });
   await repo.deleteTransaction(PLAN, "move-apr");
 
-  // An import.
   await repo.importTransactions(PLAN, [
     { id: "import-apr-1", account_id: "card", date: "2026-04-11", amount: -7250, import_id: "imp-1", payee_name: "Shop" },
     { id: "import-apr-2", account_id: "card", date: "2026-04-12", amount: -3125, import_id: "imp-2", payee_name: "Shop" },
   ]);
 
-  // A materialised scheduled occurrence.
   const schedule = await repo.createScheduledTransaction(PLAN, {
     id: "rent", account_id: "cash", date_first: "2026-04-01", frequency: "monthly", amount: -120000, payee_id: "shop",
   });

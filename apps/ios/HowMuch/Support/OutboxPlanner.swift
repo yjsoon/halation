@@ -1,10 +1,3 @@
-// See docs/plans/offline-writes.md P1.
-//
-// The functional core of the offline outbox: how a new change folds into the
-// queue, what a replay pass sends and in which order, what each server answer
-// means for the command, and how queued changes move the balances on screen.
-// No IO, no clock, no ids minted here: callers pass them in.
-
 import Foundation
 
 enum OutboxPlanner {
@@ -19,16 +12,12 @@ enum OutboxPlanner {
     }
   }
 
-  // MARK: - Coalescing
-
   /// Adds `incoming` to `queue`, folding it into the transaction's queued
   /// command when there is one. Keeps at most one command per transaction
   /// that is not in flight, and never rewrites an in-flight command: a change
   /// made while one is on the wire queues behind it as a dependent.
   static func enqueue(_ incoming: OutboxCommand, onto queue: [OutboxCommand]) -> [OutboxCommand] {
     let sameRow = queue.filter { $0.rowKey == incoming.rowKey }
-    // A row on its way out takes no further changes, and a create for an id
-    // already in the outbox is a replay of the same capture.
     if sameRow.contains(where: { if case .delete = $0.kind { return true }; return false }) {
       return queue
     }
@@ -113,8 +102,6 @@ enum OutboxPlanner {
     }
   }
 
-  // MARK: - Replay
-
   enum Stage: Int, CaseIterable, Comparable {
     case create
     case update
@@ -189,8 +176,6 @@ enum OutboxPlanner {
     }
   }
 
-  // MARK: - Outcomes
-
   /// A server answer, reduced to what the outbox acts on.
   enum ServerResult: Equatable {
     case succeeded
@@ -236,8 +221,6 @@ enum OutboxPlanner {
       }
     }
   }
-
-  // MARK: - Balances
 
   /// How the queued commands move each account's cleared and uncleared
   /// balances, relative to `rowsByID` (the rows as the server last sent
@@ -294,7 +277,6 @@ enum OutboxPlanner {
           after = nil
         }
       }
-      // An edit to a row we have never seen has nothing to measure against.
       guard isKnown else { continue }
       add(before, sign: -1)
       add(after, sign: 1)

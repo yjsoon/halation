@@ -177,8 +177,6 @@ final class OutboxStore: @unchecked Sendable {
       .map { directory.appendingPathComponent($0) }
   }
 
-  // MARK: - Private
-
   private var encoder: JSONEncoder {
     let encoder = JSONEncoder()
     encoder.outputFormatting = [.sortedKeys]

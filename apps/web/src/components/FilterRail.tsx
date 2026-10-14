@@ -16,13 +16,10 @@ import { MultiSelect, type MultiSelectOption } from "./MultiSelect";
 interface Props {
   filters: Filters;
   setFilters: (patch: Partial<Filters>) => void;
-  /** Intervals this report supports; omit to hide the segmented control. */
   intervals?: Interval[];
   showCategories?: boolean;
   groups?: Array<"flag" | "payee" | "category" | "memo">;
-  /** Shows a quiet progress stripe along the rail while a report refetches. */
   busy?: boolean;
-  /** Collapses the rail behind a compact Filters line. Reports keep the full rail. */
   collapsible?: boolean;
 }
 
@@ -33,9 +30,6 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
   const activePreset = matchPreset(filters.from, filters.to);
   const month = calendarMonthOf(filters.from, filters.to);
 
-  // Closed accounts remain part of the migrated ledger. Keep them available
-  // for historical registers and report drill-downs without mixing them into
-  // the active-account presentation elsewhere in the shell.
   const accountOptions: MultiSelectOption[] = [
     ...accounts
       .filter((account) => !account.closed)

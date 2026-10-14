@@ -506,8 +506,6 @@ struct IntakeRuleEditorView: View {
     return live.filter { !$0.isQuiet } + live.filter(\.isQuiet)
   }
 
-  // MARK: Source
-
   private var sourceText: String {
     let when = original.origin.decidedAt.formatted(.dateTime.day().month(.abbreviated))
     guard let jobID = original.origin.jobID, let job = IntakeCoordinator.shared.job(jobID) else {
@@ -520,8 +518,6 @@ struct IntakeRuleEditorView: View {
   private var hasPayee: Bool {
     !payeeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
-
-  // MARK: Building the rule
 
   /// The rule the fields describe, or nil while they are incomplete or could
   /// match nothing sensible (a payee with no merchant word, no condition at all).

@@ -93,7 +93,6 @@ function RewardsBoard({ planId }: { planId: string }) {
   const [batchBusy, setBatchBusy] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const selectToggleRef = useRef<HTMLButtonElement>(null);
-  // Cards a batch apply just wrote: each pulses once, then the list clears.
   const [justUpdated, setJustUpdated] = useState<string[]>([]);
   // Functional, so a patch queued behind a running board transition merges into
   // the latest preferences rather than the ones captured at its render.
@@ -138,7 +137,6 @@ function RewardsBoard({ planId }: { planId: string }) {
   const milesValue = milesText ?? (shown ? String(shown.miles_valuation) : "");
   const hiddenCount = storedCards.filter((row) => isHidden(row.card.id)).length;
   const featuredCount = storedCards.filter((row) => row.card.featured).length;
-  // One projection per card, for the whole report: Featured and hidden choices never change the summary.
   const projections = new Map(storedCards.map((row) => [row.card.id, projectRow(row, shown?.as_of, range, today)]));
   const summary = shown ? boardSummary(shown, [...projections.values()]) : null;
   const scopeLabel = filters.accountIds.length === 0 ? "All accounts"
@@ -493,7 +491,6 @@ function Figure({ label, value, primary = false }: { label: string; value: strin
   return (
     <div className={primary ? "rw-figure rw-figure-primary" : "rw-figure"}>
       <span className="rw-figure-label">{label}</span>
-      {/* Keyed by value: a changed figure settles in place (no rolling digits). */}
       <span key={value} className="rw-figure-value figure-settle" data-zero={/[1-9]/.test(value) ? undefined : true}>{value}</span>
     </div>
   );
@@ -573,7 +570,6 @@ function RewardCard(p: RewardCardProps) {
   );
 }
 
-/** A disclosure, not role=menu: a trigger with aria-expanded and a plain list of links and buttons. */
 function CardMenu({ row, search, hidden, expiry, today, onToggleHidden, onHideUntil }: {
   row: Row;
   search: string;
@@ -616,7 +612,6 @@ function CardMenu({ row, search, hidden, expiry, today, onToggleHidden, onHideUn
   );
 }
 
-/** The Order radiogroup, Group by type, Show hidden and the import link, in one popover. */
 function ArrangeMenu({ preferences, hiddenCount, onChange }: {
   preferences: BoardPreferences;
   hiddenCount: number;
@@ -665,7 +660,6 @@ function ExposureMeter({ primary, tone, label, figure, value, ariaLabel }: {
   primary: boolean;
   tone: Tone;
   label: string;
-  /** One string so "167.00 / 100.00" stays contiguous in the markup. */
   figure: string;
   value: number;
   ariaLabel: string;
@@ -684,7 +678,6 @@ function ExposureMeter({ primary, tone, label, figure, value, ariaLabel }: {
   );
 }
 
-/** The headline and the basis line: under the face on desktop, on the spend ridge on a phone. */
 function Statement({ text }: { text: RowText }) {
   return (
     <>
@@ -698,7 +691,6 @@ function Statement({ text }: { text: RowText }) {
   );
 }
 
-/** At most two exceptions, then "+N more" (RewardRowText already folds them). */
 function Exceptions({ lines }: { lines: readonly string[] }) {
   if (!lines.length) return null;
   return <ul className="rw-exceptions">{lines.map((line) => <li key={line}>{line}</li>)}</ul>;
@@ -733,9 +725,7 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
   search: string;
   asOf?: string;
   hiddenUntil?: string;
-  /** The board builds one projection per card; a tile used alone builds its own. */
   projection?: RewardRowProjection;
-  /** Historical range mode. Defaults to what the row says: range rows are labelled `from:asOf`. */
   range?: boolean;
   index?: number;
   memoryKey?: string;
@@ -745,14 +735,12 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
   const phone = useIsPhone();
   const p = projection ?? projectRow(row, asOf, range ?? RANGE_PERIOD.test(calc.period));
   const text = rowText(p);
-  // A range row draws no picture: a still sky and the brand ridges, with no sun.
   const picture = exposure(p) ?? stillExposure(p.rewardType === "miles");
   // Historical amounts are range-attributed, while qualification belongs to the
   // cutoff period. An earlier promotion may sort after that calendar period.
   const fullPeriod = calc.periods?.filter((period) => asOf && period.start <= asOf && period.end >= asOf).at(-1)?.calculation;
   const min = calc.minimum_spend;
   const max = calc.maximum_spend ?? 0;
-  // The minimum leads until it is met, then the bonus cap.
   const minimumLeads = p.action.kind === "minimum" || p.action.kind === "monthlyMinimum";
   const capDone = p.action.kind === "capReached" && p.action.terminal;
   const caps = [row.card.issuer, row.card.type === "miles" ? "Miles" : "Cashback", !phone && row.card.featured ? "Featured" : null]
@@ -783,7 +771,6 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
             </>
           )}
         </ExposureFace>
-        {/* What a screen reader says in place of the picture, which is decorative: the same words as iOS's VoiceOver value. */}
         <span id={`${id}-value`} className="sr-only">{text.accessibilityValue}</span>
         {phone
           ? text.exceptionLines.length > 0 && <div className="rw-slip"><Exceptions lines={text.exceptionLines} /></div>

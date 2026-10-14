@@ -154,7 +154,6 @@ struct RewardsView: View {
   @State private var rewardAccountIDsByPlan: [String: Set<String>] = [:]
 
   init(filter: RewardsReportFilter = RewardsReportFilter()) {
-    // The board always shows current card periods; ranges live in Range Report.
     var board = filter
     board.mode = .current
     _filter = State(initialValue: board)
@@ -231,8 +230,6 @@ struct RewardsView: View {
       consumeCardRequest()
     }
   }
-
-  // MARK: Board
 
   /// The model holds the board's report, so the overview board (cached on
   /// disk) is on screen at launch while this view revalidates it. A report is
@@ -480,8 +477,6 @@ struct RewardsView: View {
     .listRowSeparator(.hidden)
   }
 
-  // MARK: Controls
-
   private func featuredMenu(_ board: RewardsBoard?) -> some View {
     let featuredOnly = board?.featuredOnly ?? (preferences.featuredOnly ?? true)
     let title = featuredOnly ? "Featured" : "All Cards"
@@ -597,8 +592,6 @@ struct RewardsView: View {
       Label("Import & Export…", systemImage: "square.and.arrow.up.on.square")
     }
   }
-
-  // MARK: Sheets
 
   @ViewBuilder
   private func sheetContent(_ sheet: RewardsSheet) -> some View {
@@ -718,8 +711,6 @@ struct RewardsView: View {
     }
   }
 
-  // MARK: State
-
   private var fetchKey: String {
     "\(model.settings.planID)|\(model.rewardsRefreshGeneration)|\(filter.key)"
   }
@@ -814,17 +805,6 @@ enum RewardCardEditorDestination: Identifiable {
   }
 }
 
-// MARK: - Filled row
-
-/// The Rewards Exposure card (docs/frontend/rewards-exposure-card.md): a small
-/// photograph, a sky, a pair of ridges and a sun, behind the same words the row
-/// always said. Spend exposes it from left to right until the minimum is met, and
-/// then lifts the sun until the cap is met. The picture is art only: the figures
-/// and the spoken value are the projection's.
-///
-/// Board and register rows are a strip. At accessibility sizes, and for rows with
-/// no picture (a range report), the words sit on paper, with a scene band above
-/// them where there is a picture.
 struct RewardFilledRow: View {
   let projection: RewardRowProjection
   var icon: String?
@@ -884,8 +864,6 @@ struct RewardFilledRow: View {
     .accessibilityLabel(projection.title)
     .accessibilityValue(text.accessibilityValue)
   }
-
-  // MARK: Layouts
 
   private func stripRow(_ text: RewardRowText, exposure: RewardExposure) -> some View {
     VStack(spacing: 0) {
@@ -987,8 +965,6 @@ struct RewardFilledRow: View {
     }
   }
 
-  // MARK: Words
-
   private func titleLine(surface: Surface) -> some View {
     HStack(alignment: .firstTextBaseline, spacing: 6) {
       if let icon {
@@ -1013,7 +989,6 @@ struct RewardFilledRow: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
-    // Figures change in place with a short crossfade, not a roll or a jump.
     .contentTransition(.opacity)
     .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: text.accessibilityValue)
   }
@@ -1085,7 +1060,6 @@ struct RewardFilledRow: View {
     if dynamicTypeSize.isAccessibilitySize {
       stacked
     } else {
-      // The deadline drops below rather than breaking the action mid-phrase.
       ViewThatFits(in: .horizontal) {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
           headline
@@ -1128,8 +1102,6 @@ struct LeadingFill: Shape {
     return Path(CGRect(x: x, y: rect.minY, width: width, height: rect.height))
   }
 }
-
-// MARK: - Detail sheet
 
 struct RewardCardDetailSheet: View {
   @Environment(\.dismiss) private var dismiss
@@ -1197,7 +1169,6 @@ struct RewardCardDetailSheet: View {
     }
     .presentationDetents([contentHeight > 0 ? .height(contentHeight) : .large])
     .presentationDragIndicator(.visible)
-    // Financial figures stay on an opaque surface, not the glass sheet.
     .presentationBackground(Color(.systemGroupedBackground))
   }
 
@@ -1394,8 +1365,6 @@ struct RewardCardDetailSheet: View {
   }
 }
 
-// MARK: - Category spending
-
 /// Actual spend is distinct from the rounded/capped amount eligible for rewards.
 struct RewardCategoryUsage: Identifiable {
   let flag: RewardsFlagRow
@@ -1548,8 +1517,6 @@ struct RewardCategoryBreakdown: View {
     return parts.joined(separator: ". ")
   }
 }
-
-// MARK: - Summary and range report
 
 /// Totals and the breakdown table for the board's scope, or for a historical
 /// range. A range never appears as progress rows.
@@ -1723,8 +1690,6 @@ struct RewardsReportScreen: View {
   }
 }
 
-// MARK: - Small sheets
-
 struct RewardsAsOfDateSheet: View {
   @Environment(\.dismiss) private var dismiss
   @Binding var filter: RewardsReportFilter
@@ -1843,8 +1808,6 @@ struct RewardsValuationSheet: View {
     }
   }
 }
-
-// MARK: - Register strip
 
 /// One reward row for an account, shown in its register so the limit is in
 /// view while adding transactions. Details and editing stay over the register.

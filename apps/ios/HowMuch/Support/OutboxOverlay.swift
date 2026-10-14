@@ -1,10 +1,3 @@
-// What the register shows while outbox commands wait. See
-// docs/plans/offline-writes.md P1.
-//
-// A pure projection: server rows in, the rows as they will be once every
-// queued, in-flight or rejected command lands. Nothing here is persisted; the
-// outbox is the record, and discarding a command simply drops its effect.
-
 import Foundation
 
 enum OutboxOverlay {

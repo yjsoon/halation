@@ -42,8 +42,7 @@ enum LocalDatabaseError: LocalizedError {
   }
 }
 
-/// The on-device SQLite database that stands in for D1. Not thread-safe: the
-/// `LocalEngine` queue is its only user.
+/// Not thread-safe: the `LocalEngine` queue is its only user.
 final class LocalDatabase {
   private static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
   private var handle: OpaquePointer?

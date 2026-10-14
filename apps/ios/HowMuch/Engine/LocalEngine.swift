@@ -199,8 +199,6 @@ final class LocalEngine: @unchecked Sendable {
     }
   }
 
-  // MARK: - Queue-confined
-
   private func ensureConfigured(_ config: LocalEngineConfig) throws {
     if context == nil {
       try start()

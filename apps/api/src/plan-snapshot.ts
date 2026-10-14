@@ -288,7 +288,6 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
     });
   }
 
-  // Transactions: collect ids first so transfer links can point either way.
   const rawTransactions = list(snapshot.transactions, "transactions")
     .map((item, index) => ({ input: object(item, `transactions[${index}]`), path: `transactions[${index}]` }))
     .filter(({ input }) => input.deleted !== true);

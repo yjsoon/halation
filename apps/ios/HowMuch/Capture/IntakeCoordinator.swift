@@ -73,8 +73,6 @@ final class IntakeCoordinator {
     reload()
   }
 
-  // MARK: Reading the list
-
   func job(_ id: UUID) -> IntakeJob? {
     jobs.first { $0.id == id }
   }
@@ -128,8 +126,6 @@ final class IntakeCoordinator {
   private func publishAttention() {
     IntakeNotifier.shared.updateBadge(badgeCount)
   }
-
-  // MARK: Draining the inbox
 
   /// Claims share-sheet entries, makes a job for each, and starts reading every
   /// job that still needs it (including one a killed app left half done). Safe
@@ -409,8 +405,6 @@ final class IntakeCoordinator {
     return false
   }
 
-  // MARK: Reading a job
-
   /// The job, only while it is still waiting to be read and this task has not
   /// been cancelled. Every step after an `await` goes through this.
   private func readable(_ id: UUID) -> IntakeJob? {
@@ -502,7 +496,6 @@ final class IntakeCoordinator {
       do {
         text = try await recognise(file, at: url, strict: background)
       } catch {
-        // Vision failed (not "found no text"). A foreground read can try again.
         leaveForForeground(id)
         return
       }
@@ -561,8 +554,6 @@ final class IntakeCoordinator {
 
     guard !extracted.isEmpty else {
       if !readAnyText, Self.isReadingInBackground {
-        // No text may only mean OCR failed quietly (a scanned PDF page). Let a
-        // foreground read decide before the batch is called failed.
         leaveForForeground(id)
         return
       }
@@ -631,7 +622,6 @@ final class IntakeCoordinator {
     let skill = IntakeSkillStore.shared.skill
     let matcher = IntakeMatcher(skill: skill)
     var set = IntakeCandidateSet(rows: [], transactions: [:], isComplete: true)
-    // "New" in the share sheet means add everything as new.
     if hint != .new, let first = extracted.map(\.draft.date).min(), let last = extracted.map(\.draft.date).max() {
       let calendar = Calendar.current
       let from = calendar.date(byAdding: .day, value: -matcher.widestWindow, to: first) ?? first
@@ -647,7 +637,6 @@ final class IntakeCoordinator {
       hint: hint,
       duplicateCheckLimited: !set.isComplete
     )
-    // Counting a use waits for Approve, so reading a job again never counts twice.
     IntakeRuleEngine.applyLearned(
       skill.rules, to: &proposals, reads: extracted, context: IntakeRuleContext.make(model: model)
     )
@@ -752,8 +741,6 @@ final class IntakeCoordinator {
       return await SlipPDFText.recognize(url).text
     }
   }
-
-  // MARK: Decisions
 
   private enum Plan {
     case apply(TransactionDraft)
@@ -927,8 +914,6 @@ final class IntakeCoordinator {
       model.showSaveMessage("Saved, but couldn’t update the Inbox. Open it again.", kind: .failure)
       return false
     }
-    // A rule counts a use once its row is saved (approving again after a failed
-    // save would count twice), and an override when the owner changed what it set.
     IntakeSkillStore.shared.record(ruleOutcomes)
 
     var toast = Self.appliedSummary(added: addedNow, fixed: fixedNow)
@@ -1038,8 +1023,6 @@ final class IntakeCoordinator {
     current.failureMessage = nil
     save(current)
   }
-
-  // MARK: Review edits
 
   /// What decides whether a New row must be matched again after an edit.
   private static func matchKey(_ draft: TransactionDraft) -> String {
@@ -1460,8 +1443,6 @@ final class IntakeCoordinator {
     reload()
     syncHashIndex()
   }
-
-  // MARK: Pure helpers
 
   /// The live row with only the proposal's changed fields applied. Approval is
   /// left as the row has it: a Fix never approves a row for the owner.

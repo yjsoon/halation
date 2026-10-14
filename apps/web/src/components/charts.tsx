@@ -85,7 +85,6 @@ function XLabels({ labels, frame }: { labels: string[]; frame: Frame }) {
   );
 }
 
-/** Paired income/spending columns per period. */
 export function PairedColumns({
   periods,
 }: {
@@ -136,7 +135,6 @@ export function PairedColumns({
   );
 }
 
-/** Stepped area for net worth over time. */
 export function SteppedArea({
   periods,
 }: {
@@ -175,7 +173,6 @@ export function SteppedArea({
   );
 }
 
-/** Dotted line for age of money in days. */
 export function DottedLine({
   periods,
 }: {
@@ -233,15 +230,10 @@ export function DottedLine({
   );
 }
 
-/**
- * Keys the chart marks by the period set, so their reveal (motion.css M9)
- * replays when the periods change and not when the same range refetches.
- */
 function plotKey(periods: ReadonlyArray<{ period: string }>): string {
   return `${periods[0]?.period}:${periods.length}`;
 }
 
-/** Stagger index for a mark's entrance, capped so a long series does not trail on. */
 const stagger = (index: number) => ({ "--i": Math.min(index, 24) }) as CSSProperties;
 
 function EmptyChart() {

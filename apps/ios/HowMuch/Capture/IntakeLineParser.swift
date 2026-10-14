@@ -70,8 +70,6 @@ enum IntakeLineParser {
     var rows: [SlipReaderMapping.Extraction] = []
     var currentDate: String?
     var pending: Pending?
-    // A statement that prints "Posting Date:" under each row: lines between a
-    // row's amount and that line are the rest of its descriptor.
     var continuing = false
 
     let lines = text.components(separatedBy: .newlines)
@@ -82,8 +80,6 @@ enum IntakeLineParser {
       guard !line.isEmpty else {
         continue
       }
-      // A posting date ends a row's descriptor. It is never a date or a payee,
-      // and a payee still waiting for its amount keeps waiting.
       if matches(postingDate, line) {
         continuing = false
         continue
@@ -126,7 +122,6 @@ enum IntakeLineParser {
         line = leading.rest
       }
       if matches(currencyName, line) {
-        // A foreign amount in words: the pending row keeps waiting for its SGD figure.
         continue
       }
       let amount: ParsedAmount
@@ -135,10 +130,6 @@ enum IntakeLineParser {
         if continuing {
           continue
         }
-        // The first text line of a block is the payee; later lines (the
-        // descriptor) do not replace it. A service line ("GrabFood order",
-        // "Ride to Changi") is not a merchant: it replaces only a category
-        // label, and only an "… order" line gives way to the merchant below it.
         let payee = cleanPayee(line)
         if let existing = pending {
           if matches(serviceDescriptor, payee) {
@@ -192,8 +183,6 @@ enum IntakeLineParser {
     }
     return rows
   }
-
-  // MARK: Patterns
 
   private static func regex(_ pattern: String) -> NSRegularExpression {
     do {
@@ -264,8 +253,6 @@ enum IntakeLineParser {
     #"^(.*?)(?:(?<![A-Za-z0-9,.])|(?=[\u20AC\u00A3\u00A5\u20A9\u0E3F\u20B9\u20B1\u20AB])|(?=(?:RM|Rp)\d))([-+\u2212\u2013])?\s*("# + currencyPrefix + #")?\s*([-+\u2212\u2013])?\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)\s*(CR|DR|"#
       + currencyCode + #")?$"#
   )
-
-  // MARK: Parsing
 
   private static func range(_ text: String) -> NSRange {
     NSRange(text.startIndex..., in: text)

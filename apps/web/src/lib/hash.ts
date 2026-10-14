@@ -1,4 +1,3 @@
-/** Stable non-cryptographic fingerprint for idempotency keys. */
 export function stableHash(value: string): string {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {

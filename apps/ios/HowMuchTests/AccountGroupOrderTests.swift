@@ -47,13 +47,10 @@ final class AccountGroupOrderTests: XCTestCase {
     ]
     model.rebuildLookups()
 
-    // 1. Establish a manual order: c, a, b.
     XCTAssertEqual(model.accounts(inGroupID: "cash").map(\.id), ["a", "b", "c"], "starts alphabetical/default")
     model.moveAccounts(in: model.accounts(inGroupID: "cash"), groupID: "cash", fromOffsets: [2], toOffset: 0)
     XCTAssertEqual(model.accounts(inGroupID: "cash").map(\.id), ["c", "a", "b"])
 
-    // 2. Sort the group by usage and run the refresh that used to snapshot
-    // the ranking into the manual-order storage.
     model.setSort(.mostUsedLast30Days, forAccountGroup: "cash")
     await model.refreshAccountUsageLast30Days()
 
@@ -63,8 +60,6 @@ final class AccountGroupOrderTests: XCTestCase {
       "the stub's usage counts should now rank the group differently from the manual order"
     )
 
-    // 3. Switching back to manual must restore the order from step 1
-    // untouched -- this is what the removed snapshot used to break.
     model.setSort(.manual, forAccountGroup: "cash")
     XCTAssertEqual(
       model.accounts(inGroupID: "cash").map(\.id), ["c", "a", "b"],

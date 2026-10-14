@@ -22,7 +22,6 @@ export function NetWorthPage() {
   const delta = latest && previous ? latest.net_worth - previous.net_worth : null;
   const trackedAccounts = latest?.accounts.length ?? 0;
 
-  // Accounts that never move in this window (long-closed cards etc.) only add noise.
   const activeAccountIds = new Set(
     periods.flatMap((period) =>
       period.accounts.filter((account) => account.balance !== 0).map((account) => account.account_id),

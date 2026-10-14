@@ -42,8 +42,6 @@ final class IntakeSkillTests: XCTestCase {
 
   private let now = Date(timeIntervalSince1970: 1_790_000_000)
 
-  // MARK: Precedence
-
   func testMoreSpecificRuleWinsAndLessSpecificOnesNeverFireUnderIt() {
     // Specificity: payee + account, then payee, then account (with a direction), then global (with a direction).
     let global = rule(scope: .global, when: .init(amountSign: .outflow), then: .setCategory(groceries))
@@ -131,8 +129,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertNil(read.draft.categoryID)
   }
 
-  // MARK: Saved transactions
-
   func testCategoryRuleNeverTurnsAnAlreadyInRowIntoAFix() {
     // The row is already in the register under another category. The line as
     // read matches it exactly, so it is Already in; a rule must not make it a Fix.
@@ -193,8 +189,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(category(after: [newer, older], payee: "DAISO"), household)
   }
 
-  // MARK: Enabled and valid
-
   func testDisabledRuleNeverAppliesAndTheNextEnabledRuleDoes() {
     let specificButOff = rule(
       when: .init(payeeToken: "kopitiam", accountID: altitude), then: .setCategory(transport), enabled: false
@@ -222,8 +216,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertNil(category(after: [broken], payee: "KOPITIAM"))
     XCTAssertNil(category(after: [broken], payee: "123"))
   }
-
-  // MARK: Payee token matching
 
   func testGrabRuleDoesNotHitGrabFoodAndGrabFoodRuleDoesNotHitGrab() {
     let grab = rule(when: .init(payeeToken: "GRAB"), then: .setCategory(transport))
@@ -264,8 +256,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertNil(IntakeRuleCondition.suggestedToken(from: ""))
   }
 
-  // MARK: Scope and direction
-
   func testAccountScopeAndDirectionAreEnforced() {
     let altitudeOnly = rule(
       scope: .account(altitude), when: .init(payeeToken: "shopee"), then: .setCategory(household)
@@ -277,8 +267,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(category(after: [refunds], payee: "SHOPEE", direction: .inflow), groceries)
     XCTAssertNil(category(after: [refunds], payee: "SHOPEE", direction: .outflow))
   }
-
-  // MARK: Actions
 
   func testRenameChangesThePayeeAndDropsTheStalePayeeID() {
     var read = line(payee: "KOPITIAM AMK SINGAPORE SG", account: altitude)
@@ -352,8 +340,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(outcomes.first?.reason, "Learned rule: KOPITIAM → Eating Out (from 1 correction)")
   }
 
-  // MARK: Overrides
-
   func testChangingAFieldARuleSetCountsAsAnOverrideAndOtherEditsDoNot() {
     var proposed = TransactionDraft()
     proposed.payeeName = "Kopitiam"
@@ -413,8 +399,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertTrue(skill.rules[0].enabled, "flagged for removal, never removed or switched off by itself")
   }
 
-  // MARK: Duplicate window
-
   func testDayWindowUsesTheAccountOverrideThenTheGlobalValueWithinOneToSeven() {
     var skill = IntakeSkill()
     skill.accounts = [
@@ -459,8 +443,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(inEveryday.first?.kind, .add, "Everyday keeps the global 3 days")
     XCTAssertNil(inEveryday.first?.targetTransactionID)
   }
-
-  // MARK: Decoding
 
   func testSkillFileWithUnknownRuleActionScopeAndSignLoadsAndKeepsTheRest() throws {
     let kept = UUID()
@@ -538,8 +520,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(skill.locale.dateOrder, .dmy)
     XCTAssertEqual(skill.dedupe.dayWindow, 3)
   }
-
-  // MARK: Store
 
   func testStoreRoundTripsAtomicallyAndRefusesToOverwriteAFileItCannotRead() throws {
     let container = FileManager.default.temporaryDirectory
@@ -681,8 +661,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertFalse(skill.isSuppressed("category|kopitiam|cat-groceries", at: now), "only that exact suggestion")
   }
 
-  // MARK: Summary
-
   func testSummaryIsTheCharacterCountOnly() {
     var skill = IntakeSkill()
     XCTAssertEqual(skill.summary, "No instructions yet")
@@ -691,8 +669,6 @@ final class IntakeSkillTests: XCTestCase {
     skill.notes = "Short"
     XCTAssertEqual(skill.summary, "5 characters")
   }
-
-  // MARK: Reading guidance
 
   func testPromptGuidanceCombinesGlobalAndAccountNotesWithinTheCap() {
     var skill = IntakeSkill()
@@ -707,8 +683,6 @@ final class IntakeSkillTests: XCTestCase {
     skill.notes = String(repeating: "x", count: IntakeSkill.notesLimit)
     XCTAssertLessThanOrEqual(skill.promptGuidance(accountID: nil)?.count ?? 0, IntakeSkill.promptGuidanceLimit)
   }
-
-  // MARK: Remember this?
 
   func testOffersAtMostOneRuleAndPrefersTheCategoryCorrectionSeenMostOften() throws {
     let jobID = UUID()
@@ -873,8 +847,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(suggestion.alsoNoticed?.ruleID, existing.id)
     XCTAssertEqual(suggestion.alsoNoticed?.count, 2)
   }
-
-  // MARK: Helpers
 
   private func rule(
     scope: IntakeRuleScope = .global,

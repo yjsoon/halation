@@ -966,8 +966,6 @@ struct APIClient {
   }
 }
 
-// MARK: - Outbox transport
-
 /// One answer to an outbox write. Unlike the rest of the client, a refusal is
 /// returned rather than thrown, with its status, so the outbox can tell "the
 /// server has it", "try again later" and "the server said no" apart. Only a

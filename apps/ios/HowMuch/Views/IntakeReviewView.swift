@@ -140,8 +140,6 @@ struct IntakeReviewView: View {
     }
   }
 
-  // MARK: Navigation bar
-
   private var titleView: some View {
     VStack(spacing: 0) {
       Text("Review")
@@ -223,8 +221,6 @@ struct IntakeReviewView: View {
       dismiss()
     }
   }
-
-  // MARK: States
 
   @ViewBuilder
   private func content(for job: IntakeJob) -> some View {
@@ -431,8 +427,6 @@ struct IntakeReviewView: View {
     }
   }
 
-  // MARK: Rows
-
   private func row(_ proposal: IntakeProposal, in job: IntakeJob) -> some View {
     let reviewable = job.state == .proposed && !isApproving
     let chips = candidateChips(for: proposal, in: job)
@@ -518,8 +512,6 @@ struct IntakeReviewView: View {
     }
     return (job.extractions[index].accountCandidates, job.extractions[index].categoryCandidates)
   }
-
-  // MARK: Viewer and rows stay in step
 
   private func pageIndex(for proposal: IntakeProposal) -> Int? {
     guard let source = proposal.sourceFileIndex else {
@@ -609,8 +601,6 @@ struct IntakeReviewView: View {
     }
   }
 
-  // MARK: Existing rows
-
   /// Candidate rows still to read: the one each Possible duplicate looks like.
   private var neededExistingIDs: [String] {
     guard let job = coordinator.job(jobID), job.state == .proposed || job.state == .needsYou else {
@@ -628,8 +618,6 @@ struct IntakeReviewView: View {
       }
     }
   }
-
-  // MARK: Bottom bar
 
   private func actionBar(for job: IntakeJob) -> some View {
     let actionable = job.proposals.filter { !$0.isApplied && $0.kind != .alreadyIn }
