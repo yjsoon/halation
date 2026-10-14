@@ -286,18 +286,14 @@ function ScheduleEditorForm({ schedule, accounts, categoryGroups, payees, saving
     if (nextDate < firstDate) { setValidationError("Next date cannot be earlier than the first date."); return; }
     if (parsedAmount === null) { setValidationError("Enter an amount with no more than three decimal places."); return; }
     if (isSplit && splitLines.some((line) => parseMilliunits(line.amount) === null)) { setValidationError("Every split line needs a valid signed amount."); return; }
-    const input: ScheduledTransactionInput = { account_id: accountId, date_first: firstDate, date_next: nextDate || null, frequency, amount: parsedAmount, memo: memo.trim() || null, flag_color: flagColor || null };
+    const input: ScheduledTransactionInput = { account_id: accountId, date_first: firstDate, date_next: nextDate || null, frequency, amount: parsedAmount, memo: memo.trim() || null, flag_color: flagColor || null, subtransactions: isSplit ? splitLines.map((line) => ({ ...(line.sourceId ? { id: line.sourceId } : {}), amount: parseMilliunits(line.amount)!, payee_id: line.payeeId || null, category_id: line.transferAccountId ? null : line.categoryId || null, transfer_account_id: line.transferAccountId || null, memo: line.memo.trim() || null })) : [] };
     if (isSplit) {
       input.category_id = null;
-      input.subtransactions = splitLines.map((line) => ({ ...(line.sourceId ? { id: line.sourceId } : {}), amount: parseMilliunits(line.amount)!, payee_id: line.payeeId || null, category_id: line.transferAccountId ? null : line.categoryId || null, transfer_account_id: line.transferAccountId || null, memo: line.memo.trim() || null }));
     } else if (transferAccountId) {
       input.payee_id = null; input.category_id = null; input.transfer_account_id = transferAccountId;
     } else {
       input.payee_id = payeeId || null; input.category_id = categoryId || null; input.transfer_account_id = null;
     }
-    // The PATCH keeps existing lines when `subtransactions` is absent, so an
-    // unsplit schedule must clear them explicitly.
-    if (!isSplit) input.subtransactions = [];
     setValidationError(null);
     await onSave(input, `scheduled-${operationSeed}-${stableHash(JSON.stringify(input))}`);
   };

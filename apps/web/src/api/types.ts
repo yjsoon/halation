@@ -132,7 +132,8 @@ export interface ScheduledTransactionInput {
   transfer_account_id?: string | null;
   memo?: string | null;
   flag_color?: string | null;
-  subtransactions?: Array<{
+  /** Required: the PATCH keeps existing lines when this is absent, so an unsplit schedule sends `[]`. */
+  subtransactions: Array<{
     id?: string;
     amount: number;
     payee_id?: string | null;
