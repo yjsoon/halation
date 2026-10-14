@@ -429,18 +429,19 @@ function emptyCounts(): Record<string, number> {
   return Object.fromEntries([...COPY_TABLES, "ynab_sync_state"].map((table) => [table, 0]));
 }
 
-/**
- * A clean target makes this a no-op. Any mismatched checkpoint emits two
- * identical singleton rows in one statement; the second row violates the
- * existing primary key, so the file fails before its data statements run.
- */
 function checkpointGuard(expectedCounts: Record<string, number>): string[] {
-  const mismatches = [
+  const dirty = [
     ...EMPTY_TABLES.map((table) => `(SELECT count(*) FROM ${table})<>${expectedCounts[table] ?? 0}`),
     "NOT EXISTS(SELECT 1 FROM write_state WHERE singleton=1 AND write_version=0 AND last_command_id IS NULL)",
     "(SELECT count(*) FROM write_state)<>1",
   ].join(" OR ");
-  return [`INSERT INTO write_state(singleton,write_version) SELECT 1,0 WHERE ${mismatches} UNION ALL SELECT 1,0 WHERE ${mismatches};`];
+  return [abortWhen(dirty)];
+}
+
+/** SQL has no assert: two identical rows in one INSERT violate the primary key, so the file stops before its data runs. */
+function abortWhen(condition: string): string {
+  const row = `SELECT 1,0 WHERE ${condition}`;
+  return `INSERT INTO write_state(singleton,write_version) ${row} UNION ALL ${row};`;
 }
 function literal(value: unknown): string { if (value === null) return "NULL"; if (typeof value === "number") { if (!Number.isSafeInteger(value)) throw new Error("Unsafe integer in source"); return String(value); } if (typeof value !== "string" || value.includes("\0")) throw new Error("Unsupported or NUL-containing source value"); return `'${value.replaceAll("'", "''")}'`; }
 function validateScalars(row: Row, table: string) { for (const [key, value] of Object.entries(row)) { if (typeof value === "number" && !Number.isSafeInteger(value)) throw new Error(`Unsafe integer in ${table}.${key}`); if (typeof value === "string" && value.includes("\0")) throw new Error(`NUL text in ${table}.${key}`); } }
