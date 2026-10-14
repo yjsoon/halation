@@ -1290,10 +1290,8 @@ struct CalculatorKeypad: View {
   let primaryAction: KeypadPrimaryAction
   let onPrimary: () -> Void
 
-  // Tap counters exist purely to trigger haptics: light ticks for digits,
-  // a firmer tap for operators and done, like a physical calculator.
-  @State private var digitTaps = 0
-  @State private var symbolTaps = 0
+  @State private var digitHapticTrigger = 0
+  @State private var symbolHapticTrigger = 0
 
   var body: some View {
     VStack(spacing: 4) {
@@ -1322,8 +1320,8 @@ struct CalculatorKeypad: View {
     .glassEffect(.regular, in: RoundedRectangle(cornerRadius: Theme.Radius.panel, style: .continuous))
     .padding(.horizontal, 8)
     .padding(.bottom, 4)
-    .sensoryFeedback(.impact(weight: .light), trigger: digitTaps)
-    .sensoryFeedback(.impact(weight: .medium), trigger: symbolTaps)
+    .sensoryFeedback(.impact(weight: .light), trigger: digitHapticTrigger)
+    .sensoryFeedback(.impact(weight: .medium), trigger: symbolHapticTrigger)
   }
 
   /// The plan currency's decimals, which the amount header draws with.
@@ -1339,7 +1337,7 @@ struct CalculatorKeypad: View {
 
   private func digitKey(_ digit: Int) -> some View {
     key {
-      digitTaps += 1
+      digitHapticTrigger += 1
       engine.tapDigit(digit, fractionDigits: fractionDigits)
     } label: {
       Text("\(digit)")
@@ -1357,7 +1355,7 @@ struct CalculatorKeypad: View {
     action: @escaping () -> Void
   ) -> some View {
     key {
-      symbolTaps += 1
+      symbolHapticTrigger += 1
       action()
     } label: {
       Image(systemName: systemName)
@@ -1369,7 +1367,7 @@ struct CalculatorKeypad: View {
 
   private var primaryKey: some View {
     Button {
-      symbolTaps += 1
+      symbolHapticTrigger += 1
       onPrimary()
     } label: {
       Text(primaryAction.title)
