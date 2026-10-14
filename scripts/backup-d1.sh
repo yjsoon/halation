@@ -187,10 +187,7 @@ prune() {
   printf '%s %s' "$kept" "$pruned"
 }
 
-# shellcheck disable=SC2046
-set -- $(prune)
-KEPT_FILES="$1"
-PRUNED_FILES="$2"
+read -r KEPT_FILES PRUNED_FILES <<<"$(prune)"
 
 HUMAN_SIZE="$(du -h "$DUMP" | cut -f1)"
 echo "backup-d1: OK"
