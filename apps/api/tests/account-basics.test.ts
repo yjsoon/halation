@@ -130,6 +130,8 @@ for (const backend of BACKENDS) {
       let armed = false;
       let db!: NativeHarness["db"];
       const harness = await open(backend, (store) => new Proxy(store, {
+      // Commits a password change between the login's password check and its
+      // session insert, with no timing involved: the hook runs inside createSession.
         get(target, property, receiver) {
           const value = Reflect.get(target, property, receiver);
           if (typeof value !== "function") return value;
@@ -159,6 +161,9 @@ for (const backend of BACKENDS) {
       let first: (() => Promise<Response>) | undefined;
       let firstResponse: Response | undefined;
       const harness = await open(backend, (store) => new Proxy(store, {
+      // Request 2 has already verified the old password when it reaches
+      // replaceCredential; request 1 runs to completion right there, so request 2
+      // writes against a credential that is no longer the one it checked.
         get(target, property, receiver) {
           const value = Reflect.get(target, property, receiver);
           if (typeof value !== "function") return value;
@@ -202,6 +207,7 @@ for (const backend of BACKENDS) {
       expect((await post(harness, "/api/auth/password", body)).status).toBe(401);
       const noOrigin = await harness.handle(new Request(`${ORIGIN}/api/auth/password`, {
         method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body),
+      // A cookie request with no Origin must fail the CSRF check, as logout does.
       }));
       expect(noOrigin.status).toBe(403);
       expect(await status(harness, { authorization: `Bearer ${tokenA}` })).toBe(200);
@@ -238,6 +244,7 @@ for (const backend of BACKENDS) {
 
     test("anonymous failed logins for the username do not block the owner changing their password", async () => {
       const harness = await open(backend);
+      // Signing in is a separate budget and is not starved by the route's guesses.
       const { cookie } = await ownerWithSessions(harness);
       const codes: number[] = [];
       for (let n = 0; n < 12; n++) {
@@ -263,6 +270,7 @@ for (const backend of BACKENDS) {
       const user = harness.db.query("SELECT id FROM users LIMIT 1").get() as { id: string };
       expect(harness.db.query("SELECT COUNT(*) AS n FROM login_rate_limits WHERE key_hash=?").get(sha256(`pwchange:${user.id}`))).toEqual({ n: 0 });
     });
+      // 300 bytes is over the limit login applies; it is refused before any hashing or rate-limit spend.
 
     test("only owners change plan formats, invalid seeds write nothing, and knowledge moves", async () => {
       const harness = await open(backend);
@@ -284,6 +292,7 @@ for (const backend of BACKENDS) {
       expect(await read()).toEqual(before);
       expect(await knowledge()).toBe(knowledgeBefore);
 
+      // Valid date but invalid currency: the valid half must not be applied.
       const ok = await patch(owner, { currency_format: GBP, date_format: { format: "YYYY-MM-DD" } });
       expect(ok.status).toBe(200);
       const after = await read();

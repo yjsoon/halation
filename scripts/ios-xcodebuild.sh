@@ -495,6 +495,10 @@ cmd_test() {
     echo "error: build-for-testing failed (exit $status); not running tests against the previous products" >&2
     exit "$status"
   fi
+  # Always rebuild: skipping when products exist ran tests against stale binaries
+  # (#166). Incremental builds are cheap and also catch project, package, and
+  # deleted-file changes that an mtime check would miss. Use
+  # test-without-building to reuse products deliberately.
   echo "runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked $(test_product_mtime))"
   xcode_invocation test-without-building test-without-building "$@"
 }

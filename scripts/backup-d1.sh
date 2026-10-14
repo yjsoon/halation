@@ -1,8 +1,29 @@
 #!/usr/bin/env bash
+# Backs up HowMuch production D1 (Tinkertanker account) to a local, gitignored
+# SQL dump, validates it against live count-only statistics, records a SHA-256
+# checksum, and prunes older archives.
+#
+#   scripts/backup-d1.sh
+#
+# Read-only against production: this script only runs `wrangler d1 export` and
+# count-only `wrangler d1 execute` queries. It never writes to D1, never runs
+# migrations, and never deploys. It never prints row contents, payees, memos,
+# or amounts — only counts, paths, and sizes.
+#
 # Restoring is NOT this script's job and is not a single command. Follow the
 # chunked schema/data/triggers procedure in docs/deployment.md ("Restoring or
 # bulk-loading D1 data"); budget roughly 30 minutes.
+#
+# Env overrides:
+#   HOWMUCH_BACKUP_DIR               default <repo>/data/backups
+#   HOWMUCH_BACKUP_RETENTION_MONTHS  default 6
+#   HOWMUCH_BACKUP_COUNT_TOLERANCE   default 50   (max abs diff vs live counts)
+#   HOWMUCH_BACKUP_MIN_BYTES         default 52428800   (50 MiB)
+#   HOWMUCH_BACKUP_EXPECTED_BYTES    default 209715200  (200 MiB, warn band)
+#   HOWMUCH_BACKUP_MAX_BYTES         default 1073741824 (1 GiB)
 set -euo pipefail
+# The dump is a complete, unencrypted ledger. Keep it and its checksum
+# owner-only (mode 600), like the other sensitive files under data/.
 umask 077
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -23,6 +44,9 @@ MIN_BYTES="${HOWMUCH_BACKUP_MIN_BYTES:-52428800}"
 EXPECTED_BYTES="${HOWMUCH_BACKUP_EXPECTED_BYTES:-209715200}"
 MAX_BYTES="${HOWMUCH_BACKUP_MAX_BYTES:-1073741824}"
 
+# Count-only comparison set. Schema-level table count is compared exactly;
+# these row counts are allowed to drift by COUNT_TOLERANCE because production
+# may accept a few writes during a backup run.
 COUNT_TABLES="plans accounts categories payees transactions subtransactions source_events ynab_raw_objects scheduled_transaction_edits scheduled_subtransaction_edits"
 
 fail() { echo "backup-d1: $*" >&2; exit 1; }
@@ -41,6 +65,8 @@ run_wrangler() { ( cd "$WORKER_DIR" && "$WRANGLER" "$@" ); }
 mkdir -p "$BACKUP_DIR"
 LOG_FILE="$BACKUP_DIR/.backup-d1.log"
 
+# The destination must never be committed. data/ is gitignored; refuse to write
+# a dump anywhere inside the repo that git does not ignore.
 case "$BACKUP_DIR" in
   "$ROOT_DIR"/*)
     git -C "$ROOT_DIR" check-ignore -q "$BACKUP_DIR" \
@@ -58,6 +84,7 @@ LOCK_DIR="$BACKUP_DIR/.backup-d1.lock"
 LOCK_HELD=0
 cleanup() {
   rm -rf "$WORK_DIR"
+  # Only release the lock if this run created it.
   if [ "$LOCK_HELD" = 1 ]; then rmdir "$LOCK_DIR" 2>/dev/null || true; fi
   rm -f "$PARTIAL"
 }

@@ -109,6 +109,11 @@ export function calculateCardPeriod(card: CreditCard, targetDate: Date = new Dat
     if (promoEnd) {
       let promoStart: Date | undefined;
       let startLabel: string | undefined;
+  // Check for promotional period override first
+  // Promotional periods override the normal billing cycle only when:
+  // 1. A valid promotional period is configured with a parseable end date
+  // 2. The current reference date falls within the promotional window
+  // If either condition fails, we fall through to normal billing cycle calculation
 
       if (card.promotionalPeriod.startDate) {
         const parsedStart = parseLocalDate(card.promotionalPeriod.startDate);
@@ -125,6 +130,7 @@ export function calculateCardPeriod(card: CreditCard, targetDate: Date = new Dat
 
           promoStart = reference < currentStart
             ? createCycleStart(year, month - 1, requestedDay)
+        // If parsedStart is null, promoStart/startLabel remain undefined and we fall through
             : currentStart;
         } else {
           promoStart = new Date(reference.getFullYear(), reference.getMonth(), 1);

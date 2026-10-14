@@ -181,6 +181,8 @@ final class SplitMirrorDeleteTests: XCTestCase {
       $0.id == SplitMirrorFixtureProtocol.mirrorID
     } == true)
 
+    // Delete from a warm launch, before its provisional references have been
+    // refreshed. Simply calling persistSnapshot would refuse to write here.
     let model = AppModel(outboxStore: .temporary(), settings: initial.settings, viewPrefs: ViewPrefs(), snapshotStore: store)
     XCTAssertTrue(model.ledgerIsProvisional)
     let mirror = try XCTUnwrap(loadedMirror(in: model))

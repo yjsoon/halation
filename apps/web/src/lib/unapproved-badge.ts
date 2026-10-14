@@ -1,3 +1,14 @@
+/**
+ * The "New to approve" badge, decoupled from the queue behind it.
+ *
+ * The register used to page the whole unapproved queue just to render this
+ * number. It now comes from `GET .../transactions/unapproved_count`, and the
+ * rows are fetched only when the user opens the approval flow. Two sources for
+ * one number need a rule for which wins, and a rule for the window between
+ * approving something and the next count landing. Both live here, as pure
+ * functions, so they can be tested without a server.
+ */
+
 /** Ids resolved locally: approved in this session, or deleted from the register. */
 export type ResolvedIds = ReadonlySet<string>;
 
@@ -46,9 +57,16 @@ export function showsUnapprovedBadge(
   approvalFlowOpen: boolean,
   countFailed = false,
 ): boolean {
+  // A failed count must not hide the pill: it is the only way into the approval
+  // flow, and the flow can still load its rows (and report its own errors).
   return approvalFlowOpen || countFailed || (count !== null && count > 0);
 }
 
+/**
+ * The pill's label. With the count unavailable the number is simply unknown --
+ * say so rather than claiming zero, since opening the flow will load the real
+ * rows anyway.
+ */
 export function unapprovedBadgeLabel(count: number | null, countFailed: boolean): string {
   if (count === null) return countFailed ? "New to approve" : "";
   return `${count} new to approve`;

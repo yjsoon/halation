@@ -247,6 +247,7 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
     setError(null);
     setDone(false);
     try {
+      // Only what changed is sent, so an untouched custom format stays as it is.
       const seed = buildPlanSeed(currency, dateFormat as DateFormatChoice);
       const updated = await api.updatePlanFormats(planId, {
         ...(currency !== savedCurrency ? { currency_format: seed.currency_format } : {}),

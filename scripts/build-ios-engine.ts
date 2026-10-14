@@ -49,6 +49,7 @@ async function buildBundle(): Promise<string> {
 
 function migrationFiles(): string[] {
   return readdirSync(migrationsSource).filter((name) => name.endsWith(".sql")).sort();
+  // Absolute paths would make the bundle differ between checkouts.
 }
 
 async function writeOutputs(target: string): Promise<void> {
@@ -104,6 +105,8 @@ if (mode === "build") {
   if (drift.length > 0) throw new Error(`The engine build is not deterministic: ${drift.join(", ")}`);
   const size = readFileSync(join(outputRoot, bundleName)).length;
   console.log(`Wrote ${bundleName} (${size} bytes) and ${migrationFiles().length} migrations to apps/ios/HowMuch/Engine`);
+  // Build twice and compare, so a nondeterministic build fails here rather
+  // than as a spurious check failure on another machine.
 } else if (mode === "check") {
   const fresh = mkdtempSync(join(tmpdir(), "howmuch-ios-engine-"));
   await writeOutputs(fresh);

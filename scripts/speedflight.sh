@@ -1,4 +1,17 @@
 #!/bin/bash
+# Cuts a signed ad hoc IPA, uploads it to Speedflight, and prints the page
+# link as the last line. Signs through the App Store Connect key in
+# .env.speedflight; the key must belong to DEVELOPMENT_TEAM.
+#
+#   scripts/speedflight.sh "<title>" "<notes>" [screenshot.png ...]
+#
+# The page link is the only auth for installing. The secret in
+# .env.speedflight is the only auth for uploading. Do not paste either
+# anywhere public. The page URL is derived from the secret + bundle id;
+# do not rotate the secret unless a new page was requested. Increment
+# CURRENT_PROJECT_VERSION in apps/ios/HowMuch.xcodeproj/project.pbxproj
+# before each cut so iOS replaces the previous IPA. Runbook:
+# docs/speedflight.md
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -30,11 +43,14 @@ BASE="${SPEEDFLIGHT_BASE:-https://speedflight.dev}"
 # page link stays on the custom domain.
 FALLBACK_BASE="https://speedflight.jake-7c3.workers.dev"
 OUT="build/share"
+# Separate from simulator/device iteration caches. Do not wipe this as a first response.
 DERIVED_DATA="${HOWMUCH_ARCHIVE_DERIVED:-$PWD/build/xcode/DerivedData-archive}"
 XCODE_JOBS="${HOWMUCH_XCODE_JOBS:-2}"
 XCODE_LOG_DIR="${HOWMUCH_XCODE_LOG_DIR:-$PWD/build/xcode/logs}"
 LOCK_DIR="${HOWMUCH_XCODE_LOCK_DIR:-$PWD/build/xcode/ios-runner.lock}"
 
+# Publication requires a clean, remote-backed revision, including in CI.
+# A detached exact revision needs an explicit containing origin branch or tag.
 BRANCH="$(git symbolic-ref --quiet --short HEAD || true)"
 COMMIT="$(git rev-parse HEAD)"
 REPO_URL="$(git remote get-url origin 2>/dev/null | sed -E 's#^git@([^:]+):#https://\1/#; s#\.git$##')"
@@ -53,6 +69,8 @@ if ! git check-ref-format "$SOURCE_REF"; then
   exit 1
 fi
 if ! git fetch --no-tags origin "$SOURCE_REF"; then
+# Fetch exactly the selected ref; cached tracking refs are not publication proof.
+# This does not check out, merge, rebase, commit, or push anything.
   echo "publication prerequisite unmet: could not fetch the selected origin branch or tag" >&2
   exit 1
 fi
@@ -143,6 +161,8 @@ PAGE_URL="$(jq -r .pageUrl <<<"$CREATED")"
 
 upload() {
   curl -sfS --http1.1 --retry 5 --retry-all-errors --retry-delay 5 \
+# 2. Upload the IPA. The server reads name, version, and build number from
+#    its Info.plist and rejects it if the bundle id does not match.
     -X PUT "$1/api/apps/$SPEEDFLIGHT_SECRET/$BUNDLE_ID/builds/$BUILD_ID/app.ipa" \
     --data-binary @"$OUT/signed.ipa" >/dev/null
 }

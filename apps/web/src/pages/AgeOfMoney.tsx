@@ -7,7 +7,9 @@ import { formatAmount } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
 
-const ALL_TIME = () => ({});
+// Age of money replays income lots from the start of the range, so a clipped
+// window distorts the figure — default to the full history.
+const ALL_TIME =() => ({});
 const INTERVALS: Interval[] = ["week", "month"];
 
 const days = (count: number) => `${count} ${Math.abs(count) === 1 ? "day" : "days"}`;

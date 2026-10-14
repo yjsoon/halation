@@ -130,6 +130,8 @@ test("finds past transactions under other spellings of the payee", async () => {
     expect(response.status).toBe(200);
     const sentItem = sent[0].body.state.transactions[0];
     expect(sentItem.payee_cleaned).toBe("grab rides");
+    // Grouped by cleaned name and category with counts, without the row being classified.
+    // GrabFood is a related but different merchant ("grab" only prefixes "grabfood"), so it is left out.
     expect(sentItem.similar_past_transactions.map((row: any) => [row.payee, row.category, row.times, row.name_similarity])).toEqual([
       ["Grab", "Living: Transport", 2, 0.83],
       ["Grab", "Living: Food", 1, 0.83],
@@ -300,6 +302,7 @@ test.each([
   }
   const sent: any[] = [];
   const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.7, "Living: Food") });
+  // A recent-plan fallback alone cannot find the older known merchant.
   try {
     const response = await createOne(handler, { payee_name: newName });
     expect(response.status).toBe(201);

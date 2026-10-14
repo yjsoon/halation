@@ -407,6 +407,8 @@ export class D1LedgerRepository extends LedgerRepository {
       await this.transactions.updateCleared(planId,id,expectedCleared,cleared,this.context("transaction.cleared",planId,id));
     } catch (error) {
       if (error instanceof Error && error.message.includes("cleared state conflict")) throw new TransactionStateConflictError();
+      // Match the SQLite path: a row that is gone is `already_removed`, not an
+      // infrastructure failure that stops the whole command.
       if (error instanceof Error && error.message === "Transaction not found") {
         throw new NotFoundError("Transaction not found");
       }

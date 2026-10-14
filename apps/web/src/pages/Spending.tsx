@@ -22,7 +22,8 @@ export function SpendingPage() {
     });
   };
 
-  const hideQuiet = !includeQuiet && filters.categoryIds.length === 0;
+  // An explicit category filter is a deliberate choice - never hide its results.
+  const hideQuiet =!includeQuiet && filters.categoryIds.length === 0;
 
   const { grouped, total, excluded, maxAmount, totalTransactions, topCategory, averageTransaction } = useMemo(() => {
     if (!report.data) {

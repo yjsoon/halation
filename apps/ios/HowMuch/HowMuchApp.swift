@@ -195,6 +195,8 @@ private struct RootView: View {
       }
     }
     .task(id: model.launchRefreshTaskID) {
+      // Local mode: finish any starter categories and enter due schedules
+      // first, so the launch refresh shows them.
       await model.completeStarterCategories()
       await model.runLocalScheduledTransactions(refreshAfter: false)
       await model.refreshAll()

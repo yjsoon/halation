@@ -509,6 +509,10 @@ final class AppModel {
           !settings.planID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
           !settings.authenticatedUserID.isEmpty,
           !accounts.isEmpty,
+          // Never write a mixture of this launch's data and the last one's:
+          // the file is tagged with a single cursor, so every part of it must
+          // have come from the network at that cursor. The slice that clears
+          // the final provisional flag is the one that writes.
           !isProvisional else {
       return false
     }
@@ -525,6 +529,8 @@ final class AppModel {
         accountPreferences: lastSyncedAccountPreferences,
         scheduledTransactions: scheduledTransactions,
         ledgerPage: lastLedgerFirstPage,
+        // Keep acknowledged-only adjustments, but undo durable pending ones:
+        // the restored outbox will subtract those again on the first frame.
         unapprovedCount: unapprovedBadgeCount + approvalSession.pending.union(queuedUnapprovedRejections.keys).count
       )
     )
@@ -1898,6 +1904,10 @@ final class AppModel {
     guard settings.isLocal, settings.isAuthenticated else {
       return
     }
+    // One run enters at most 25 occurrences, as the Worker's daily cron does,
+    // and says when more are due. A phone has no next-day cron to finish the
+    // rest, so keep going while a run makes progress (bounded, in case a
+    // schedule keeps failing).
     var entered = 0
     for _ in 0 ..< 40 {
       guard let summary = try? await LocalEngine.shared.runScheduledMaterialization(config: settings.localEngineConfig) else {
@@ -2051,6 +2061,9 @@ final class AppModel {
   }
 
   private func perform(_ request: RefreshRequest) async {
+    // A pull-to-refresh must still replay offline captures, as the launch
+    // refresh does. Quiet passes are the ones that follow a write, which
+    // already had its chance to send. An empty outbox issues no request.
     async let sent: Int = request.quiet ? 0 : drainOutbox(trigger: .refresh)
     async let accountsSlice: Void = run(.accounts, in: request)
     async let payeesSlice: Void = run(.payees, in: request)
@@ -2274,6 +2287,8 @@ final class AppModel {
       }
       pruneViewPrefs(using: reference.accounts)
       referencePhase = .loaded
+      // The network has replaced every reference row, so nothing older than
+      // this response is on screen any more (#144).
       referenceIsProvisional = false
       drainOutboxIfQueued()
       lastSyncedAccountPreferences = reference.accountPreferences
@@ -2315,6 +2330,10 @@ final class AppModel {
       if let knowledge = page.serverKnowledge {
         serverKnowledge = knowledge
       }
+      // #176: when the rows on screen came from a snapshot taken at this very
+      // cursor, the page just fetched is row-for-row what is already there, so
+      // the assignment (and the re-render it triggers) is skipped. A cursor
+      // that differs by even one always applies.
       let fetchedFirstPage = sortedUniqueTransactions(page.transactions)
       let applyIsRedundant = SnapshotPolicy.ledgerApplyIsRedundant(
         isProvisional: ledgerIsProvisional,
@@ -2413,6 +2432,10 @@ final class AppModel {
   }
 
   private func refreshUnapprovedCount(generation: Int, planID: String, accountID: String?) async {
+    // What the count can already reflect is what was resolved before it was
+    // asked for. A row approved or rejected while the request is out may land
+    // either side of the server's count, so it stays subtracted until the next
+    // count rather than being assumed counted.
     let resolvedAtRequest = unapprovedIDsTheServerMayReflect
     guard let count = try? await apiClient.fetchUnapprovedCount(planID: planID, accountID: accountID) else { return }
     guard generation == ledgerPageGeneration, planID == settings.planID else { return }
@@ -2617,6 +2640,8 @@ final class AppModel {
       guard generation == rewardsGeneration, request.planID == settings.planID else {
         return nil
       }
+      // Leaving the tab cancels the view's task. That is not a failure, and a
+      // phase stuck at `.loading` would spin forever: settle it as Reflect does.
       if Task.isCancelled || error is CancellationError || (error as? URLError)?.code == .cancelled {
         rewardsPhase = rewardsReport(for: request) == nil ? .idle : .loaded
         return nil
@@ -2885,6 +2910,10 @@ final class AppModel {
     }
     let horizon = RegisterHorizon.standard
     let startDate = horizon.startDate()
+    // A quiet account's rows all sit inside the horizon, so the loop below
+    // would refetch it on every appearance. Reuse its completed fill until a
+    // ledger or account-list refresh invalidates it; new balances may include
+    // external transactions that the register has not loaded yet.
     let fillKey = "\(generation)|\(planID)|\(startDate)"
     if completedAccountHorizonFills[accountID] == fillKey {
       olderTransactionsError = nil
@@ -3071,6 +3100,10 @@ final class AppModel {
       else {
         return false
       }
+      // The first fetch now runs from ReflectView's own task, so leaving the
+      // tab cancels it. That is not a failure the reader should be shown, and
+      // leaving the phase at `.loading` would lock the gate against ever
+      // retrying: return it to `.idle` so the next appearance fetches again.
       if Task.isCancelled {
         if reportsPhase == .loading {
           reportsPhase = .idle
@@ -3218,6 +3251,9 @@ final class AppModel {
       var next = outbox
       next[index].state = .queued
       if code == Self.deletedElsewhereCode, outbox[index].kind.isCreate {
+        // The user chose to add it again. The old id may belong to a row
+        // deleted on another device, so the new row gets a new one, and the
+        // changes queued behind it follow.
         let oldKey = outbox[index].rowKey
         let newID = OutboxCommand.mintTransactionID()
         for other in next.indices where next[other].rowKey == oldKey && !next[other].isInFlight {
@@ -3733,6 +3769,7 @@ final class AppModel {
           // Not this row: the plan is gone or out of reach. Not a success.
           return .refused(message: reply.message, code: 404)
         }
+        // Older servers answer a replayed delete of a removed row with a 500.
         if reply.status >= 500, try await fetchLive(command.transactionID, client: client, planID: planID) == nil {
           return .gone
         }
@@ -4191,6 +4228,10 @@ final class AppModel {
     )
     var removedIDs: Set<String> = [mirror.id, fallback.id]
     if mirror.parentTransactionID == nil {
+      // A split mirror's own transfer id names the parent's subtransaction, not
+      // a transaction, and the server removes only the mirror row: the parent
+      // and its other lines stay. Every other delete cascades to the ids the
+      // response names -- a transfer's other half, or a parent's mirrored lines.
       let links = Set(deleted.linkedTransferIDs)
       removedIDs.formUnion(links.isEmpty ? Set(fallback.linkedTransferIDs) : links)
     }
@@ -4489,6 +4530,8 @@ extension AppModel {
       }
       return overlaying([row]).first.map(IntakeLiveRow.found) ?? .gone
     } catch APIClientError.notFound(let detail) where detail == Self.transactionNotFoundDetail {
+      // The server answered and has no such row. A missing plan, a 404 with no
+      // JSON body (a proxy, a wrong address) or a 5xx is not that answer.
       return .gone
     } catch {
       return .unavailable

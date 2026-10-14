@@ -20,6 +20,7 @@ interface Env {
   HOWMUCH_YNAB_PLAN_ID?: string;
   HOWMUCH_YNAB_BASE_URL?: string;
   HOWMUCH_TRANSITION_READ_ONLY?: string;
+  /** Cron expression that runs the YNAB sync; any other cron runs scheduled-transaction materialisation. */
   HOWMUCH_YNAB_SYNC_CRON?: string;
   HOWMUCH_APPLE_APP_IDS?: string;
   HOWMUCH_REDIRECT_TARGET?: string;
@@ -58,6 +59,8 @@ export default {
     }
     if (!pathname.startsWith("/api/") && !pathname.startsWith("/v1/") && pathname !== "/health") {
       return withDocumentSecurityHeaders(await env.ASSETS.fetch(request));
+      // SPA documents are usually served by Assets directly. `_headers` in
+      // `apps/web/public` is the production policy; this wrap covers Worker-first fetches.
     }
 
     const config = workerConfig(env);

@@ -329,7 +329,9 @@ final class OutboxSyncTests: XCTestCase {
 
   // Failure mode: the old build kept a capture until the server said yes,
   // so any legacy item may have been created already -- without our id,
-  // under a server id we never learned.
+  // under a server id we never learned. If that row was later deleted on
+  // another device, a replayed POST passes the import-id check (it ignores
+  // deleted rows) and brings the capture back.
   func testALegacyCaptureDeletedElsewhereIsNotBroughtBackOnUpgrade() async throws {
     let (defaults, suite) = try legacyDefaults()
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -391,6 +393,8 @@ final class OutboxSyncTests: XCTestCase {
     )
   }
 
+  // A dropped lookup response is not an attempted POST. Keep resolving by
+  // import id, both in this process and after reopening the durable queue.
   func testInterruptedLegacyLookupResumesWithoutRejectingOrReposting() async throws {
     for relaunch in [false, true] {
       server.reset()
@@ -415,6 +419,8 @@ final class OutboxSyncTests: XCTestCase {
     }
   }
 
+  // Capture the file while the lookup is suspended: this is the state a
+  // killed process leaves, with no opportunity to restore attempt flags.
   func testRelaunchDuringLegacyLookupStillResolvesTheOriginalServerID() async throws {
     let (defaults, suite) = try legacyDefaults()
     defer { defaults.removePersistentDomain(forName: suite) }
@@ -597,6 +603,8 @@ final class OutboxSyncTests: XCTestCase {
     )
   }
 
+  // Snapshot and outbox both survive a kill: pending approvals/deletes must
+  // reduce the restored badge once, not once per durable file.
   func testSnapshotRelaunchDoesNotSubtractPendingApprovalOrDeleteTwice() async throws {
     for deleting in [false, true] {
       server.reset()

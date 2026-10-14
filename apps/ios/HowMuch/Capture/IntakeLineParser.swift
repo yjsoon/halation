@@ -154,6 +154,7 @@ enum IntakeLineParser {
       }
       let payee = cleanPayee(amount.text)
       if amount.isForeign {
+        // Wait for the SGD figure; never save a foreign amount as dollars.
         if hasWords(payee) {
           pending = Pending(payee: payee, date: rowDate)
         }

@@ -26,7 +26,8 @@ describe("parseMilliunits", () => {
 
   // Failure mode: formatMoney shows an imported comma-decimal plan's amounts
   // as "12,50", and the amount fields read that comma as a group mark, so
-  // typing what the page shows stores a hundred times the amount.
+  // typing what the page shows stores a hundred times the amount. The fields
+  // are still prefilled with a dot ("12.5"), so a dot must keep reading.
   test("reads the plan's comma decimal mark as the page shows it", () => {
     try {
       configureMoney({ iso_code: "EUR", example_format: "123.456,78", decimal_digits: 2, decimal_separator: ",", symbol_first: false, group_separator: ".", currency_symbol: "€", display_symbol: true });

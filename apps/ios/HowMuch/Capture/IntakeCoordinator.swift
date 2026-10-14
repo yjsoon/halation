@@ -141,6 +141,8 @@ final class IntakeCoordinator {
       redrainRequested = true
       return
     }
+    // A cancelled drain may still be winding down: the new one waits for it,
+    // so two never read the same job at once.
     let previous = drainTask
     let epoch = drainEpoch
     let token = UUID()
@@ -626,6 +628,8 @@ final class IntakeCoordinator {
       let to = calendar.date(byAdding: .day, value: matcher.widestWindow, to: last) ?? last
       set = await model.intakeCandidates(accountIDs: nil, from: from, to: to)
     }
+    // Match the lines as read, so a learned rule can never turn a row that is
+    // already in the register into a Fix. Rules then apply to New rows only.
     var proposals = matcher.match(
       extracted,
       openAccountIDs: Set(model.openAccounts.map(\.id)),

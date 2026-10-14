@@ -719,6 +719,7 @@ function FlagList({ calc }: { calc: Row["calculation"] }) {
   );
 }
 
+// Signature stays compatible with lib/rewards-tile.test.ts: ({ row, search, asOf }) still works.
 export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, index = 0, memoryKey }: {
   row: Row;
   search: string;

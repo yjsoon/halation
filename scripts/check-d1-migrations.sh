@@ -1,8 +1,24 @@
 #!/usr/bin/env bash
+# Exits non-zero when the target D1 database has not applied every migration
+# in apps/api/d1-migrations. The deploy workflow runs it before
+# `wrangler deploy --env tk` so a release cannot go out against an
+# unmigrated database. It never applies migrations.
+#
+#   scripts/check-d1-migrations.sh --env tk --remote        # CI (production)
+#   scripts/check-d1-migrations.sh --env tk --local --persist-to <dir>
+#
+# Arguments are passed to `wrangler d1 execute DB`. Authentication comes from
+# the environment (CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID) or --profile.
+# CI maps the separate CLOUDFLARE_D1_READ_TOKEN secret to CLOUDFLARE_API_TOKEN.
+#
 # Read-only: it runs one SELECT on the d1_migrations table. It deliberately
 # avoids `wrangler d1 migrations list`, which exits 0 whether or not
 # migrations are pending and first runs CREATE TABLE IF NOT EXISTS against
 # the database. A token with Account > D1 > Read is enough.
+#
+# Pending means a *.sql file directly inside the migrations directory whose
+# name is not recorded in d1_migrations, matching Wrangler's default
+# migrations_pattern and migrations_table. Any error fails closed.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -281,6 +281,8 @@ final class ReferenceSnapshotStoreTests: XCTestCase {
   func testPolicyRejectsADifferentUserEvenWithAMatchingFingerprint() {
     let settings = SnapshotFixture.settings()
     var snapshot = SnapshotFixture.snapshot(settings: settings)
+    // Forge the joined fingerprint so only the explicit user check can catch
+    // this: one user's ledger must never render under another's session.
     snapshot.authenticatedUserID = "someone-else"
     XCTAssertEqual(SnapshotPolicy.rejection(snapshot: snapshot, settings: settings), .differentUser)
   }

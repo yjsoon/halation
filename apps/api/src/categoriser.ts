@@ -343,6 +343,7 @@ export async function autoCategorise<T extends TransactionInput>(
         }
       });
     } catch (error) {
+      // Any failure here, including an unexpected one, leaves the rows uncategorised rather than failing the create.
       const reason = error instanceof CategoriserUnavailableError ? error.code : error instanceof Error ? error.name : "unknown";
       console.warn(JSON.stringify({ event: "auto_categorise_skipped", reason, count: chunk.length }));
     }

@@ -101,6 +101,11 @@ type ReconcileDraft = {
   mismatch: ReconciliationMismatchDetail | null;
 };
 
+/**
+ * The rows a Spending drill-down (`flow=outflow`) keeps, by the report's own
+ * rule: an outflow counts unless it is an uncategorised transfer leg, so a
+ * categorised transfer to a tracking account (a loan payment) stays in.
+ */
 function isSpendingOutflow(txn: Transaction): boolean {
   return txn.amount < 0 && (!txn.transfer_account_id || txn.category_id !== null);
 }
@@ -209,6 +214,8 @@ export function TransactionsPage() {
     loadingMore: false,
     error: null as string | null,
   });
+  // Parsed with the plan's currency format, exactly as the server parses `q`,
+  // so local, scheduled and server matches agree on "£12.50" or "12,50".
   const currencyFormat = currentCurrencyFormat();
   const registerQuery = useMemo(
     () => parseRegisterQuery(deferredSearch, moneyFormatFromPlan(currencyFormat)),
@@ -1962,6 +1969,8 @@ export function TransactionsPage() {
           <p className="status-title">Loading transactions...</p>
         </div>
       )}
+      {/* The queue is fetched only when this flow opens, so it needs its own
+          waiting state -- the register itself is already up by then. */}
       {unapprovedOnly && approvalQueue.data === null && approvalQueue.loading && !approvalQueue.error && (
         <div className="status-panel">
           <p className="status-title">Loading transactions awaiting approval...</p>

@@ -107,6 +107,7 @@ export function buildPlanSeed(
     symbolFirst = types.indexOf("currency") < types.indexOf("integer");
     decimalDigits = Math.min(4, money.resolvedOptions().maximumFractionDigits ?? 2);
   } catch {
+    // Keep the plain-ISO-code defaults above.
   }
   const number = new Intl.NumberFormat("en-US", { minimumFractionDigits: decimalDigits, maximumFractionDigits: decimalDigits })
     .format(123_456.78);

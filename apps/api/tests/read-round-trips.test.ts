@@ -48,6 +48,8 @@ const ROUTES: Array<{ name: string; path: string }> = [
   { name: "GET /v1/plans/:id/payees", path: `/v1/plans/${PLAN_ID}/payees` },
   { name: "GET /v1/plans/:id/transactions?limit=10", path: `/v1/plans/${PLAN_ID}/transactions?limit=10` },
   { name: "GET /v1/plans/:id/transactions?q=", path: `/v1/plans/${PLAN_ID}/transactions?limit=10&q=Shop` },
+  // A searched register reads the plan's currency format before it can build
+  // the SQL, so it costs one trip more than the plain page.
   { name: "GET /v1/plans/:id/transactions/unapproved_count", path: `/v1/plans/${PLAN_ID}/transactions/unapproved_count` },
   { name: "GET /v1/plans/:id/scheduled_transactions", path: `/v1/plans/${PLAN_ID}/scheduled_transactions` },
   { name: "GET /api/reports/spending-breakdown", path: `/api/reports/spending-breakdown?plan_id=${PLAN_ID}` },
@@ -173,9 +175,14 @@ test("the D1 register page reads knowledge, rows and split lines in one batch", 
   expect(counting.roundTrips.filter((trip) => trip.kind !== "batch" && /server_knowledge FROM plans/.test(trip.sql)))
     .toBeEmpty();
 });
+  // One batch is one D1 transaction, so these three statements share a
+  // snapshot. That is what replaced reading server_knowledge either side of the
+  // page and retrying when the two disagreed.
 
 test("the SQLite register page comes from one batch, which nests without deadlocking", async () => {
   const sqlite = await ledgerSqlite();
+  // No knowledge read survives outside the batch, so nothing can observe a
+  // different snapshot from the rows it labels.
   sqlite.run("INSERT INTO plans (id, name) VALUES (?, 'Plan')", [PLAN_ID]);
   sqlite.run("INSERT INTO users (id, display_name) VALUES ('user-1', 'reader')");
   seedLedger(sqlite);
@@ -211,6 +218,8 @@ test("the SQLite register page comes from one batch, which nests without deadloc
   expect(singles.filter((sql) => /server_knowledge FROM plans/.test(sql))).toBeEmpty();
 
   // Inside an open transaction the helper runs its statements inline. Queueing
+  // The page and the knowledge value labelling it came from one batch call, so
+  // no write could have landed between them.
   // behind transaction()'s serialiser instead would deadlock on the caller.
   const nested = await db.transaction(() => runBatch([
     { sql: "SELECT server_knowledge FROM plans WHERE id = ?", values: [PLAN_ID] },

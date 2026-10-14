@@ -187,6 +187,8 @@ struct TransactionFormView: View {
   @State private var showCategoryPrompt = false
   @State private var isShowingDate = false
   @State private var rewardCards: [CreditCard] = []
+  /// Memo (and any later non-amount text field) — not the amount header, which
+  /// owns CalculatorKeypad rather than the system keyboard.
   @FocusState private var isTextInputFocused: Bool
   private let isEditing: Bool
   private let allowsDeletion: Bool
@@ -216,6 +218,8 @@ struct TransactionFormView: View {
     engine.setValue(draft.amountMagnitudeMilli)
     self.draft = draft
     self.keypad = engine
+    // A duplicate arrives with its amount prefilled; opening the keypad over
+    // it would just cost taps on the way to Save.
     self.isKeypadVisible = !isEditing && draft.amountMagnitudeMilli == 0
   }
 

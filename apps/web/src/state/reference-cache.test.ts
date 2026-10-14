@@ -88,6 +88,7 @@ describe("planCachedFetch", () => {
   });
 
   test("a write from another client replaces the cached set", () => {
+    // Cached at N, server reports N+1: the entry may only seed the fetch.
     const plan = planCachedFetch(makeEnvelope(identity, 41, payees), identity, 42);
     expect(plan).toEqual({ use: "network", seed: payees });
   });
@@ -251,6 +252,7 @@ describe("the storage shell", () => {
   });
 
   test("a read that started before a local write cannot refill the cache", () => {
+    // The GET went out at this epoch and resolves after the write below.
     const epochAtRequest = currentCacheEpoch();
     writeSlot("payees", identity, 41, payees);
     expect(readSlot("payees", isPayeeList)).not.toBeNull();
@@ -258,6 +260,8 @@ describe("the storage shell", () => {
     clearReferenceCache();
     expect(readSlot("payees", isPayeeList)).toBeNull();
 
+    // Its rows predate the write, so storing them would resurrect exactly what
+    // the invalidation existed to remove.
     writeSlot("payees", identity, 41, payees, epochAtRequest);
     expect(readSlot("payees", isPayeeList)).toBeNull();
 

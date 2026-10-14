@@ -259,6 +259,8 @@ CREATE TABLE sync_attempts (
 CREATE INDEX idx_sync_attempts_run_started ON sync_attempts(run_id, started_at DESC);
 
 CREATE TRIGGER sync_runs_id_collision_guard BEFORE INSERT ON sync_runs
+-- IDs are globally supplied by the scheduler.  An exact retry is harmless, but
+-- reusing one for a different object must not be mistaken for that retry.
 WHEN EXISTS (SELECT 1 FROM sync_runs WHERE id = NEW.id AND (plan_id <> NEW.plan_id OR scheduled_for <> NEW.scheduled_for))
 BEGIN SELECT RAISE(ABORT, 'sync run id collision'); END;
 CREATE TRIGGER sync_attempts_id_collision_guard BEFORE INSERT ON sync_attempts
@@ -266,6 +268,10 @@ WHEN EXISTS (SELECT 1 FROM sync_attempts WHERE id = NEW.id AND run_id <> NEW.run
 BEGIN SELECT RAISE(ABORT, 'sync attempt id collision'); END;
 
 CREATE TABLE sync_transition_receipts (
+-- Inserting this receipt is the first statement of a terminal batch.  The
+-- trigger is the SQL-side compare-and-swap: unlike client-side change counts,
+-- RAISE(ABORT) rolls the entire D1 batch back.  Existing, exact receipts make
+-- an ambiguous-commit retry successful without applying the transition again.
   id TEXT PRIMARY KEY,
   plan_id TEXT NOT NULL,
   run_id TEXT NOT NULL,
@@ -426,6 +432,9 @@ BEGIN
 END;
 
 CREATE TABLE write_assertions (
+-- Assertions are deliberately executed inside the write batch. Preflight reads
+-- improve error messages, but cannot protect against a row disappearing between
+-- planning and D1's atomic batch.
   command_id TEXT NOT NULL REFERENCES write_commands(id) ON DELETE CASCADE,
   kind TEXT NOT NULL CHECK (kind IN ('account', 'payee', 'transfer_payee', 'category', 'update_target', 'graph_update_target', 'graph_transaction', 'graph_subtransaction', 'upsert_transaction', 'mirror_transaction', 'upsert_subtransaction', 'upsert_subtransaction_parent', 'metadata_plan', 'metadata_plan_exists', 'metadata_account', 'metadata_account_exists', 'metadata_payee', 'metadata_category_group', 'metadata_category_group_exists', 'metadata_category', 'import_session_new', 'import_session_running', 'import_transaction')),
   target_id TEXT NOT NULL,

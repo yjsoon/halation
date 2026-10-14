@@ -254,9 +254,15 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
+        // The session check, the plans list and - when a plan is remembered -
+        // its reference data all start now, instead of one after another. The
+        // pure helpers in ./bootstrap decide afterwards which answers survive.
         const attached = accountPreferencesControllerRef.current;
         const prefs = loadPrefs();
         const hint = prefs.planId ?? null;
+        // The cache is read before a single request is made, so the shell can
+        // be on screen before the first response.
+        //
         // Painting it early means painting before the server has confirmed who
         // is here, so it is gated on the session expiry this browser recorded
         // at its last sign-in. Without that gate, a cookie that expired while
@@ -281,6 +287,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
           existingPlanId: attached?.planId ?? null,
           cachedPlanId: paintedCache?.planId ?? null,
         });
+        // Only the calls that race ahead of the session check decide their own
+        // 401s; once the session is known, a 401 means the session really has
+        // ended and the global handler should see it.
         const speculative = { handleUnauthorized: false } as const;
         // Recorded before the batch goes out, for the same reason the routes
         // record it: a write landing while these reads are in flight must not
@@ -307,6 +316,10 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         savePrefs({ sessionExpiresAt: status.session_expires_at ?? undefined });
         const session = decideSession(status);
         if (session.kind === "signed-out") {
+          // The sign-in form goes up now. Whatever the two speculative calls
+          // return is never awaited, never read, and never reaches state. The
+          // cache goes with it: nobody is signed in, so there is no session
+          // against which any of it could be shown to belong to this browser.
           clearReferenceCache();
           setValue(null);
           setError(null);
@@ -361,6 +374,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
           return;
         }
         const { settings, categoryGroups } = batch;
+        // The accounts read is the one the cache can skip. When knowledge has
+        // moved — or when the batch above went out for a different plan — it
+        // is fetched now instead, one round trip later than a cold load.
         const accountsSnapshot = batch.accounts
           ?? (accountsDecision === "keep" && validCache
             ? { accounts: validCache.data.accounts, server_knowledge: validCache.serverKnowledge }
@@ -368,6 +384,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         if (cancelled) {
           return;
         }
+        // The batch skips preferences when a controller is already attached.
+        // If that controller turns out to belong to another user or plan, ask
+        // now rather than mistaking "not asked" for "server does not support".
         const accountPreferencesSnapshot = existingController
           ? null
           : batch.accountPreferences !== undefined

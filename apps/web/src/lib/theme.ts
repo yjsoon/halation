@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { withViewTransition } from "./view-transition";
 
+/** Keep in step with public/theme-boot.js, which applies the same prefs before first paint. */
 export const LOOKS = [
   { id: "dusk-ridge", name: "Dusk Ridge", note: "Plum dusk chrome, amber bloom. The mark, unfolded.", meta: ["#2b1f2c", "#120d13"] },
   { id: "ridge-charcoal", name: "Ridge Charcoal", note: "Quiet charcoal chrome with a safelight edge.", meta: ["#242722", "#0b0c0c"] },
@@ -38,6 +39,11 @@ export function applyTheme(prefs: ThemePrefs): void {
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", look.meta[dark ? 1 : 0]);
 }
 
+/**
+ * Saves the choice on this device (not cleared on sign-out: it is not ledger
+ * data) and cross-fades to it. The patch merges into the prefs current when the
+ * transition applies it, so quick successive picks land in order.
+ */
 export function setTheme(patch: Partial<ThemePrefs>): void {
   withViewTransition("theme", () => {
     current = { ...current, ...patch };

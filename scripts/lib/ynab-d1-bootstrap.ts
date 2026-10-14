@@ -68,12 +68,18 @@ function generateBootstrap(inputPath: string, outputPath: string, mode: "single"
       }
     }
     if (scalar(source, "SELECT count(*) n FROM plan_month_assignments") !== 0) {
+    // Assignments are a mutable HowMuch-local overlay, not YNAB provenance.
+    // A clean initial migration must never transfer them implicitly.
       throw new Error("Source must not contain local plan month assignments");
     }
     if (scalar(source, "SELECT count(*) n FROM plan_month_category_targets") !== 0) {
       throw new Error("Source must not contain local plan month category targets");
     }
     if (scalar(source, "SELECT count(*) n FROM account_reconciliation_assertions") !== 0
+    // Reconciliation changes normalised cleared states, but this initial
+    // bootstrap intentionally does not copy its audit/assertion receipts.
+    // Refuse such a source rather than silently preserving balances while
+    // dropping the reconciliation provenance and idempotency history.
       || scalar(source, "SELECT count(*) n FROM audit_events WHERE action='account.reconcile'") !== 0) {
       throw new Error("Source must not contain account reconciliation history");
     }

@@ -75,6 +75,8 @@ struct RewardsReportFilter {
   /// The as-of day in Asia/Singapore, or nil for today (the server decides).
   var asOfISO: String? { useAsOfDate ? RewardsCalendar.isoString(asOfDate) : nil }
 
+  // An omitted lower bound selects current card periods on the rewards API.
+  // All Time must instead send a comparison-only lower bound for aggregation.
   var from: String? { mode == .current ? nil : (range.fromISO ?? "0001-01-01") }
   var to: String? { mode == .current ? asOfISO : range.toISO }
   var accountIDs: [String] { scope.accountIDs.sorted() }
@@ -1700,6 +1702,8 @@ struct RewardsAsOfDateSheet: View {
 
   var body: some View {
     NavigationStack {
+      // Pinned to Singapore so the chosen day is the day sent to the server,
+      // whatever zone the device is in.
       DatePicker("As of", selection: $draft, in: ...Date(), displayedComponents: .date)
         .datePickerStyle(.graphical)
         .environment(\.timeZone, RewardsCalendar.timeZone)

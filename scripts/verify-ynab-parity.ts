@@ -27,6 +27,8 @@ try {
   const actual = db.query("SELECT object_type type, object_id id, payload_json payload_json FROM ynab_raw_objects WHERE plan_id=? ORDER BY object_type,object_id").all(planId) as Array<{ type: string; id: string; payload_json: string }>;
   const byType = groupBy(expected, (object) => object.type);
   const actualByType = groupBy(actual, (object) => object.type);
+  // Settings is fetched from YNAB's separate endpoint. Without its snapshot,
+  // retain the useful mirror-count report without treating it as drift.
   const settings = actualByType.settings ?? [];
   if (expectedSettings === undefined) console.log(`settings: source=separate-endpoint mirror=${settings.length}`);
   const types = [...new Set([...Object.keys(byType), ...Object.keys(actualByType).filter((type) => expectedSettings !== undefined || type !== "settings")])].sort();

@@ -1129,6 +1129,8 @@ private final class RewardsSnapshotProtocol: URLProtocol {
   }
 }
 
+/// Expected values are worked out by hand from the fixture numbers, never read
+/// back from the projection under test.
 final class RewardRowProjectionTests: XCTestCase {
   private let sgd = CurrencyFormat(
     isoCode: "SGD", exampleFormat: "$123,456.78", decimalDigits: 2,

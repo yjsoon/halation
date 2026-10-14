@@ -627,6 +627,8 @@ final class ClearedEditorTests: XCTestCase {
     XCTAssertEqual(try row(in: model).cleared, .uncleared)
     await model.waitForOutboxDrain()
 
+    // The older-page merge keeps the saved row. It must not use that cached
+    // match to retire the overlay before the pre-edit first page arrives.
     state.release("older")
     await older.value
     XCTAssertTrue(model.transactions.contains { $0.id == "older-marker" })
@@ -634,6 +636,8 @@ final class ClearedEditorTests: XCTestCase {
     await first.value
     XCTAssertEqual(try row(in: model).cleared, .uncleared)
 
+    // Another client changes the row before our FIRST post-save ledger read.
+    // Retirement must follow read ownership, not wait to see our saved value.
     state.setCleared("cleared")
     await model.refresh(slices: [.ledger])
     XCTAssertEqual(try row(in: model).cleared, .cleared, "a post-save first page must retire the editor overlay")

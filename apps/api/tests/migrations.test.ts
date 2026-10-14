@@ -246,6 +246,9 @@ describe("local schema migrations", () => {
     try {
       applyMigrations(db);
       db.run("INSERT INTO plans(id,name) VALUES ('p','Plan')");
+      // A live split, whose lines replace the parent, and a deleted parent
+      // that must not contribute. Written before the rerun below, because the
+      // first applyMigrations backfilled an empty database.
       for (const [type, id, payload] of [
         ["transaction", "split", { id: "split", date: "2026-05-04", amount: -900, category_id: "legacy", deleted: false }],
         ["subtransaction", "splita", { id: "a", transaction_id: "split", amount: -900, category_id: "food", deleted: false }],
@@ -291,6 +294,8 @@ describe("local schema migrations", () => {
       expect(db.query("SELECT version FROM schema_migrations WHERE version='019_query_covering_indexes'").get()).toEqual({
         version: "019_query_covering_indexes",
       });
+      // The aggregate triggers recompute one account-month on every ledger
+      // write, so that lookup must be a seek, never a scan.
       expect(detail(`SELECT SUM(t.amount_milli) FROM transactions t
         WHERE t.plan_id = 'p' AND t.account_id = 'a' AND t.deleted = 0
           AND t.date >= '2026-01-01' AND t.date < '2026-02-01'`)).toContain("idx_transactions_account_live_register");

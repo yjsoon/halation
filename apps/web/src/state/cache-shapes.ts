@@ -1,3 +1,13 @@
+/**
+ * The shapes the cache stores, and the guards that decide whether something
+ * read back from storage is still one of them.
+ *
+ * The guards are deliberately structural rather than exhaustive. Their job is
+ * not to re-validate the server; it is to reject a payload written by an older
+ * build, a half-finished write, or another tab, so a shape change can never
+ * reach a component as a crash. Anything they reject is simply refetched.
+ */
+
 import type {
   Account,
   AccountPreferencesSnapshot,

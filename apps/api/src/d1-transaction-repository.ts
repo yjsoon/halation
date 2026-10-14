@@ -284,6 +284,8 @@ export class D1TransactionRepository {
       const sourcePayee = await this.db.get<Record<string, any>>("SELECT id,name FROM payees WHERE id=$1 AND plan_id=$2 AND deleted=0", [account.transfer_payee_id, planId]);
       if (!sourcePayee) throw new Error("Source account transfer payee not found");
       if (input.payee_id) body.push(assertion(stable.commandId, "transfer_payee", input.payee_id, planId));
+      // A transfer named only by its account (the web schedule editor saves
+      // one so) takes the target's transfer payee, as on SQLite.
       const targetPayee = input.payee_id ? null : await this.transferPayee(target, planId);
       if (targetPayee) {
         parentPayeeId = targetPayee.id; parentPayeeName = targetPayee.name;
@@ -292,6 +294,8 @@ export class D1TransactionRepository {
       body.push(assertion(stable.commandId, "upsert_transaction", transferId, planId));
       body.push(assertion(stable.commandId, "mirror_transaction", transferId, input.id!));
       const existingMirror = snapshot.mirrors.find((row) => row.id === transferId);
+      // A new other side is uncleared (as on SQLite and for split lines): the
+      // source's cleared or reconciled state says nothing about the target's statement.
       body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? (input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared"), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: transferDropsCategory ? null : existingMirror?.category_id, categoryName: transferDropsCategory ? null : existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
       touched.add(transferId);
     } else if (transferAccount) {

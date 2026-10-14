@@ -294,6 +294,8 @@ describe("YNAB-compatible API", () => {
     expect(data.usage).toEqual([
       { account_id: "bank", count: 4 },
       { account_id: "wallet", count: 1 },
+    // "quiet" has no rows in the window and is simply absent; the client reads a
+    // missing account as zero.
     ]);
 
     const single = await request("/v1/plans/plan-test/accounts/usage?days=1&until=2026-08-31");
@@ -1158,6 +1160,8 @@ describe("YNAB-compatible API", () => {
     expect(plan.some((step) => step.detail.includes("idx_transactions_plan_live_register"))).toBeTrue();
   });
 
+    // limit/offset page a list; there is nothing to page here, so they are
+    // ignored rather than validated -- a stray limit=0 must not 400.
   test("rejects invalid transaction patches without mutating the ledger", async () => {
     const created = await (await request("/v1/plans/plan-test/transactions", {
       method: "POST",
@@ -3500,6 +3504,8 @@ function assertIosDecodableSchedule(row: Record<string, any>): void {
     expect(row[field]).not.toBe("");
   }
   expect(Number.isSafeInteger(row.amount)).toBe(true);
+    // Every `/api/rewards` branch is a write, so a GET falls through to a 404.
+    // It must not create the plan on the way there.
   expect(row.deleted).toBe(false);
   expect(Array.isArray(row.subtransactions)).toBe(true);
   for (const line of row.subtransactions) {

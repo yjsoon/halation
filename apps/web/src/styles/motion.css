@@ -1,3 +1,16 @@
+/*
+ * Halation motion: keyframes and animation rules. Imported after app.css.
+ * Durations and easings are tokens (styles/tokens.css); under reduced motion
+ * they collapse to 0ms, except --dur-bloom, whose keyframes are colour only.
+ *
+ * Editor rules (acceptance criteria): on .register-compose-row td,
+ * .register-compose-actions-row td and idle tr > td only background-color,
+ * color, border-color, box-shadow and opacity may animate; nothing on the
+ * editor's inputs, selects or :focus; never transform a <tr>; no entry
+ * keyframes or @starting-style on idle row selectors.
+ */
+
+/* Keyframe library */
 @keyframes hl-fade-in  { from { opacity: 0; } }
 @keyframes hl-fade-out { to { opacity: 0; } }
 @keyframes hl-rise     { from { opacity: 0; transform: translateY(6px); } }

@@ -1,7 +1,13 @@
 import XCTest
 @testable import HowMuch
 
-/// Failure mode: malformed external input.
+/// Failure mode: malformed external input. OCR of bank and wallet screenshots
+/// is noisy in ways the E2E flows cannot cover exhaustively: two-line rows,
+/// header and total lines, foreign amounts, stray glyphs. The expectations are
+/// what a person reading each synthetic screenshot would write down, not what
+/// the parser happens to return. The worst outcomes guarded against are a
+/// foreign amount saved as dollars, a balance saved as a spend, and an amount
+/// attached to the wrong payee.
 final class IntakeLineParserTests: XCTestCase {
 
   func testDBSStyleCardLinesWithLeadingDateAndTrailingAmount() {

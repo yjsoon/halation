@@ -45,6 +45,7 @@ export function QuickEntryPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [recent, setRecent] = useState<Transaction[]>([]);
+  // Generated per entry attempt so retries of a failed submit stay idempotent.
   const clientIdRef = useRef(crypto.randomUUID());
   const amountRef = useRef<HTMLInputElement>(null);
 

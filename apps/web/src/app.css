@@ -1325,6 +1325,8 @@ a.page-eyebrow:hover {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
+  /* Fixed at left: 50%, the bar would otherwise shrink to the half-width left of
+     its centre and stack every action on a phone. */
   width: max-content;
   max-width: calc(100vw - 32px);
   padding: 8px 14px;
@@ -1441,6 +1443,9 @@ a.page-eyebrow:hover {
   box-shadow: inset 3px 0 var(--plan-accent);
 }
 
+/* Idle-row hover, keyboard focus and selection. Colour only and never animated.
+   tabindex="0" marks idle ledger rows: the editor rows (tabindex -1), the compose
+   row, scheduled rows and deep-link targets keep their own treatment. */
 .register-table tbody tr[tabindex="0"]:not(.register-row-targeted):hover > td {
   background: var(--row-hover);
 }
@@ -4172,6 +4177,8 @@ tr:hover .share-bar {
   text-underline-offset: 2px;
 }
 
+/* Touch: 44px targets for the small controls, never inside the in-row editor.
+   :where() keeps this at zero specificity, so a control another rule hides stays hidden. */
 @media (pointer: coarse) {
   :where(.segment, .filter-trigger, .filter-toggle, .text-button, .mobile-actions > *):where(:not(.register-compose-row *, .register-compose-actions-row *)) {
     display: inline-flex;

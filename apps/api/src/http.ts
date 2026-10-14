@@ -224,6 +224,9 @@ async function handleV1(
     ? (!canRead(principal, planId, defaultPlanId) ? apiError(404, "resource_not_found", "Plan not found", "404.2") : null)
     : authorizePlan(principal, planId, defaultPlanId, method);
   if (denied) return denied;
+  // Reads never create the plan they name: a missing plan is a 404, not an
+  // implicit INSERT on the D1 primary. Writes still bootstrap it, because an
+  // API-token client may address the default plan before setup has run.
   if (isUnsafeMethod(method)) await repo.ensurePlan(planId);
 
   if (segments.length === 3 && method === "GET") {
@@ -264,6 +267,8 @@ async function handleV1(
       if (!payload || (!payload.id && !payload.name)) {
         return apiError(400, "bad_request", "account requires a name");
       }
+      // An object name was stored as "[object Object]", an object type failed
+      // as a 500, and a string flag read as true on D1 but false on SQLite.
       for (const field of ["id", "name", "type", "icon", "note"]) {
         if (payload[field] != null && typeof payload[field] !== "string") {
           throw new ValidationError(`account.${field} must be a string`);
@@ -274,6 +279,8 @@ async function handleV1(
           throw new ValidationError(`account.${field} must be true or false`);
         }
       }
+      // Balances feed integer milliunit arithmetic; a decimal string or an
+      // object would be stored verbatim and corrupt every later balance.
       for (const field of ["balance", "opening_balance", "cleared_balance", "uncleared_balance"]) {
         if (payload[field] != null && !Number.isSafeInteger(payload[field])) {
           throw new ValidationError(`account.${field} must be integer milliunits`);
@@ -441,6 +448,8 @@ async function handleV1(
     if (segments.length === 4 && method === "POST") {
       const body = await readJson(request);
       const name = body.payee?.name ?? body.name;
+      // A missing name reached the NOT NULL column as a 500; a blank one made
+      // a payee nobody can see or pick.
       if (typeof name !== "string" || !name.trim()) throw new ValidationError("payee.name is required");
       const payee = await repo.createPayee(planId, name.trim());
       return json({ data: { payee, server_knowledge: await repo.getServerKnowledge(planId) } }, 201);
@@ -525,6 +534,8 @@ async function handleV1(
     }
     if (segments.length === 4 && method === "PATCH") {
       const edits = parseTransactionUpdates(await readJson(request));
+      // A bulk recolour takes the card's name for the new colour, as a single
+      // edit does; otherwise the row keeps the old colour's name.
       for (const edit of edits) {
         if (!Object.prototype.hasOwnProperty.call(edit.patch, "flag_color") || Object.prototype.hasOwnProperty.call(edit.patch, "flag_name")) continue;
         const accountId = typeof edit.patch.account_id === "string" && edit.patch.account_id
@@ -772,6 +783,8 @@ async function handleNative(
     return json({ data: { settings: await repo.getSettings(targetPlanId) } });
   }
 
+  // Suggestions only: nothing is written. Cookie sessions still pass the
+  // global same-origin check for POSTs, and bearer clients (iOS) may call it.
   if (segments[1] === "tools" && segments[2] === "categorise" && segments.length === 3 && method === "POST") {
     const denied = authorizePlan(principal, planId, defaultPlanId, method);
     if (denied) return denied;
@@ -902,6 +915,7 @@ async function handleNative(
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
     if (denied) return denied;
+    // Reads must not create a plan as a side effect.
     if (isUnsafeMethod(method)) await repo.ensurePlan(targetPlanId);
 
     if (segments[2] === "accounts" && segments[4] === "config" && segments.length === 5) {
@@ -967,6 +981,10 @@ function queryFilters(url: URL, overrides: Record<string, string | null> = {}): 
 }
 
 async function transactionListResponse(repo: LedgerStore, planId: string, filters: TransactionFilters): Promise<Response> {
+  // The client uses server_knowledge to detect offset shifts while walking
+  // pages. listTransactionsPage reads the knowledge value in the same batch as
+  // the rows, and a batch is one transaction, so the label already describes
+  // exactly these rows. That replaces the old read-either-side-and-retry loop.
   const page = await repo.listTransactionsPage(planId, filters);
   return json({
     data: {
@@ -1126,7 +1144,12 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
         setup_required: await store.setupRequired(),
         bootstrap_required: !!config.apiToken,
         user,
+        // Unix seconds. The web client stores this and refuses to paint cached
+        // ledger data once it has passed, so an expired cookie cannot show the
+        // previous user's plan to whoever opens the browser next (#175, #177).
         session_expires_at: principal?.kind === "session" ? principal.sessionExpiresAt ?? null : null,
+        // Plan id to role, for session principals only. Lets the web client show
+        // owner-only controls; the server still enforces the role on every write.
         ...(principal?.kind === "session" ? { roles: principal.roles } : {}),
       },
     });
@@ -1289,6 +1312,7 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
       || typeof body.current_password !== "string" || !validPassword(body.new_password)) {
       return authError(400, "bad_request", "A current password and a new password of at least 15 characters are required");
     }
+    // Same byte ceiling as sign-in, checked before any key derivation.
     if (Buffer.byteLength(body.current_password, "utf8") > 256) {
       return authError(400, "bad_request", "The current password is too long");
     }
@@ -1308,6 +1332,8 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
     if (!credential || credential.user_id !== principal.id || !await verifyPassword(body.current_password, credential)) {
       return authError(401, "invalid_credentials", "Current password is incorrect");
     }
+    // Every session of this user is revoked and the caller gets a fresh one in
+    // the same step, so a token that leaked before the change dies with it.
     const session = newSession();
     // Conditional on the hash just verified: a concurrent change that committed
     // first wins, and this request changes nothing and issues no session.

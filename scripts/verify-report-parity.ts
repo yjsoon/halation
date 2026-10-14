@@ -1,3 +1,13 @@
+/**
+ * Compare the aggregate-backed net-worth and cached age-of-money reports with
+ * the full-history reports, on a real SQLite export.
+ *
+ *   bun scripts/verify-report-parity.ts --db data/howmuch-real.sqlite
+ *
+ * The database is opened read-only and only aggregate counts are printed --
+ * never a date, an account name, a payee, a memo or an amount -- so the output
+ * is safe to paste into a pull request or an issue.
+ */
 import { Database } from "bun:sqlite";
 import { AsyncReportService } from "../apps/api/src/async-reports";
 import type { AsyncSqlDatabase, SqlValues } from "../apps/api/src/async-sql";
