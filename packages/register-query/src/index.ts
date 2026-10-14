@@ -1,5 +1,8 @@
 export const MAX_REGISTER_QUERY_LENGTH = 200;
 
+/** The most rows the transactions endpoint returns in one page. The API clamps to it; the web register asks for exactly this many. */
+export const MAX_TRANSACTION_PAGE_SIZE = 250;
+
 export type MoneyFormat = {
   decimalDigits?: number;
   decimalSeparator?: string;
