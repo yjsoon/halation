@@ -1,0 +1,49 @@
+{
+ "initialRequests": [
+  {
+   "limit": null,
+   "offset": null
+  },
+  {
+   "limit": "250",
+   "offset": "0"
+  },
+  {
+   "limit": "250",
+   "offset": "0"
+  },
+  {
+   "limit": "250",
+   "offset": "250"
+  },
+  {
+   "limit": "250",
+   "offset": "500"
+  }
+ ],
+ "initialRows": 700,
+ "loadMoreClicks": 0,
+ "allRequests": [
+  {
+   "limit": null,
+   "offset": null
+  },
+  {
+   "limit": "250",
+   "offset": "0"
+  },
+  {
+   "limit": "250",
+   "offset": "0"
+  },
+  {
+   "limit": "250",
+   "offset": "250"
+  },
+  {
+   "limit": "250",
+   "offset": "500"
+  }
+ ],
+ "finalRows": 700
+}

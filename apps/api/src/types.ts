@@ -67,7 +67,7 @@ export type TransactionFilters = {
 };
 
 export const DEFAULT_TRANSACTION_PAGE_SIZE = 100;
-export const MAX_TRANSACTION_PAGE_SIZE = 250;
+export { MAX_TRANSACTION_PAGE_SIZE } from "@howmuch/register-query";
 export const MAX_TRANSACTION_WRITE_BATCH = 100;
 
 export type NonEmpty<T> = [T, ...T[]];

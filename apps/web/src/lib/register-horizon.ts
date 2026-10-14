@@ -1,11 +1,11 @@
+import { MAX_TRANSACTION_PAGE_SIZE } from "@howmuch/register-query";
 import { trailingMonthsRange } from "./dates";
 
 export const REGISTER_HORIZON_MONTHS = 2;
 export const REGISTER_HORIZON_MAX_ROWS = 600;
 
-// Matches the server's MAX_TRANSACTION_PAGE_SIZE (apps/api/src/types.ts) so the
-// horizon fill can complete in as few requests as the API allows.
-export const REGISTER_PAGE_SIZE = 250;
+// The largest page the API allows, so the horizon fill takes as few requests as it can.
+export const REGISTER_PAGE_SIZE = MAX_TRANSACTION_PAGE_SIZE;
 
 export function horizonStartDate(today: string): string {
   const [year, month, day] = today.split("-").map(Number);
