@@ -35,6 +35,7 @@ import {
   planApproval,
   rowLooksApproved,
 } from "../lib/register-approval";
+import { fetchUnapprovedQueue } from "../lib/unapproved-queue";
 import { resolvedSinceCount, showsUnapprovedBadge, unapprovedBadgeCount, unapprovedBadgeLabel } from "../lib/unapproved-badge";
 import {
   closedCompose,
@@ -384,37 +385,14 @@ export function TransactionsPage() {
         ? await api.unapprovedCount(planId, { since_date: filters.from, until_date: fetchUntilDate }, selectedAccountId)
         : null,
   );
-  // The queue itself, lazily: the rows are only ever rendered inside the
-  // approval flow, so they are only ever fetched once it is open. `null` means
-  // "not loaded" and an empty array means "loaded, and empty" -- the badge
-  // needs to tell those apart.
+  // Loaded only when the approval flow is open, or when the count cannot stand
+  // in for it. `null` is "not loaded"; `[]` is "loaded, and empty".
+  const approvalQueueNeeded = unapprovedOnly || !countMatchesRegisterScope;
   const approvalQueue = useApi<Transaction[] | null>(
-    JSON.stringify({ planId, selectedAccountId, from: filters.from, to: filters.to, refreshGeneration, approvalQueue: unapprovedOnly || !countMatchesRegisterScope }),
-    async () => {
-      if (!unapprovedOnly && countMatchesRegisterScope) return null;
-      for (let attempt = 0; attempt < 3; attempt += 1) {
-        const transactions = new Map<string, Transaction>();
-        let expectedKnowledge: number | null = null;
-        let offset = 0;
-        let changed = false;
-        for (;;) {
-          const query = { since_date: filters.from, until_date: fetchUntilDate, type: "unapproved" as const, limit: 250, offset };
-          const result = selectedAccountId
-            ? await api.accountTransactions(planId, selectedAccountId, query)
-            : await api.transactions(planId, query);
-          expectedKnowledge ??= result.server_knowledge;
-          if (result.server_knowledge !== expectedKnowledge) {
-            changed = true;
-            break;
-          }
-          for (const transaction of result.transactions) transactions.set(transaction.id, transaction);
-          if (!result.has_more || result.next_offset === null) return [...transactions.values()];
-          offset = result.next_offset;
-        }
-        if (!changed) return [...transactions.values()];
-      }
-      throw new Error("Transactions changed while the approval queue was loading. Try again.");
-    },
+    JSON.stringify({ planId, selectedAccountId, from: filters.from, to: filters.to, refreshGeneration, approvalQueueNeeded }),
+    () => approvalQueueNeeded
+      ? fetchUnapprovedQueue(planId, selectedAccountId, { since_date: filters.from, until_date: fetchUntilDate })
+      : Promise.resolve(null),
   );
   const reconciliationPreviewInput = reconcileDraft?.reviewReady && reconcileDraft.accountId && reconcileDraft.statementDate
     ? { accountId: reconcileDraft.accountId, statementDate: reconcileDraft.statementDate }
