@@ -82,7 +82,6 @@ function parts(iso: string): [number, number, number] | null {
   return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
 }
 
-/** `to - from` in whole civil days. */
 /** A day's place in a period, 0 to 1 by whole days (the first day counts as one): the met day's x on the face. */
 export function periodShare(start: string, end: string, day: string): number | null {
   const length = daysBetween(start, end), at = daysBetween(start, day);
@@ -90,6 +89,7 @@ export function periodShare(start: string, end: string, day: string): number | n
   return clamp01((at + 1) / (length + 1));
 }
 
+/** `to - from` in whole civil days. */
 export function daysBetween(from: string, to: string): number | null {
   const a = parts(from), b = parts(to);
   if (!a || !b) return null;

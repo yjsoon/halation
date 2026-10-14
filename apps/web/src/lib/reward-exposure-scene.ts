@@ -151,12 +151,15 @@ export function exposureScene(layout: SceneLayout, ex: Exposure, pose: Pose, opt
   // On the strip the lower slope is anchored at the left, as low as the words allow, and only its far end
   // rises: with the fill, until the minimum is met, when it meets the target where in the period that
   // happened (metAt) and runs with it from there. So the meeting point reads as when the minimum was met.
-  const metAt = across >= 1 ? Math.max(0, Math.min(1, ex.metAt ?? 1)) : 1;
+  const metAt = Math.max(0, Math.min(1, ex.metAt ?? 1));
+  const metShare = (ux: number) => (metAt <= 0 ? 1 : Math.min(1, ux / metAt));
+  // A card whose minimum is met eases from the linear rise to its met shape over the last fifth of the
+  // journey, so the lower slope does not jump at the final frame.
+  const settle = ex.metAt == null ? 0 : clamp01((across - 0.8) / 0.2);
   const stripLower = (ux: number, up: number, fl: number) =>
     across <= 0 ? fl
-      : across < 1 ? fl - (fl - up) * across * ux
-      : metAt <= 0 ? up
-      : fl - (fl - up) * Math.min(1, ux / metAt);
+      : across >= 1 ? fl - (fl - up) * metShare(ux)
+      : fl - (fl - up) * ((1 - settle) * across * ux + settle * metShare(ux));
   const backPts: Array<[number, number]> = [];
   const lowerPts: Array<[number, number]> = [];
   for (let i = 0; i <= SEGMENTS; i++) {

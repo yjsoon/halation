@@ -182,7 +182,7 @@
   :root[data-mode="dark"] {
     --ridge-back: #235741; --ridge-front: #163527;
     --face-foot-soft: #eef4f0; --face-urgent-ink: #ffe7b5; --face-failed-ink: #ffd1d3;
-    --face-marker-cashback: #94591aa6; --face-marker-miles: #ffd98c66; --face-marker-ridge: #f7f5ef42; --face-marker-edge: transparent;
+    --face-marker-cashback: #ffd98c73; --face-marker-miles: #ffd98c66; --face-marker-ridge: #f7f5ef42; --face-marker-edge: transparent;
   }
 }
 

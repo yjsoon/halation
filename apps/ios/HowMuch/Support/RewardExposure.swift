@@ -236,10 +236,13 @@ struct ExposureScene {
     let floor = floorY(at: u)
     let horizon = horizonY(at: u)
     if across <= 0 { return floor }
-    if across < 0.999 { return floor - (floor - horizon) * across * u }
     let metAt = min(1, max(0, exposure.metAt ?? 1))
-    if metAt <= 0 { return horizon }
-    return floor - (floor - horizon) * min(1, u / metAt)
+    let metShare = metAt <= 0 ? 1 : min(1, u / metAt)
+    if across >= 0.999 { return floor - (floor - horizon) * metShare }
+    // A card whose minimum is met eases from the linear rise to its met shape over the last fifth of the
+    // journey, so the lower slope does not jump at the final frame.
+    let settle = exposure.metAt == nil ? 0 : min(1, max(0, (across - 0.8) / 0.2))
+    return floor - (floor - horizon) * ((1 - settle) * across * u + settle * metShare)
   }
 
   /// Both ridges are one: the minimum is met, so the spend horizon has met the target.
