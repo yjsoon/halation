@@ -112,13 +112,8 @@ function isSpendingOutflow(txn: Transaction): boolean {
 
 export function TransactionsPage() {
   const { filters, setFilters } = useFilters({ defaultRange: () => trailingMonthsRange(2) });
-  const { accounts, categoryGroups, planId, planSelectionError, userId, ledgerKnowledge, knowledgeTrusted, cacheEpoch, reload } = usePlan();
-  // `knowledgeTrusted` is false in two cases: before the bootstrap's check has
-  // landed, where the number on hand came from the cache itself, and after a
-  // local write, where the server has already moved past it. In both, these
-  // slots may be painted but neither validated nor written.
+  const { accounts, categoryGroups, planId, planSelectionError, userId, ledgerKnowledge, validatedKnowledge, cacheEpoch, reload } = usePlan();
   const cacheIdentity = useMemo(() => ({ userId, planId }), [userId, planId]);
-  const validatedKnowledge = knowledgeTrusted ? ledgerKnowledge : null;
   const payees = useCachedApi<Payee[]>({
     slot: "payees",
     key: planId,
