@@ -4177,14 +4177,15 @@ tr:hover .share-bar {
   text-underline-offset: 2px;
 }
 
-/* Touch: 44px targets for the small controls, never inside the in-row editor.
-   :where() keeps this at zero specificity, so a control another rule hides stays hidden. */
-@media (pointer: coarse) {
-  :where(.segment, .filter-trigger, .filter-toggle, .text-button, .mobile-actions > *):where(:not(.register-compose-row *, .register-compose-actions-row *)) {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 44px;
+/* Touch: 44px targets for the small controls, never inside the in-row editor. */
+@layer touch-targets {
+  @media (pointer: coarse) {
+    :is(.segment, .filter-trigger, .filter-toggle, .text-button, .mobile-actions > *):not(.register-compose-row *, .register-compose-actions-row *) {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+    }
   }
 }
 
