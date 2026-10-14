@@ -366,10 +366,13 @@ struct TransactionFormView: View {
         withAnimation(Theme.Motion.standard) {
           draft.disableSplit()
         }
-        // disableSplit recomputes the parent amount from the split lines;
-        // re-sync the keypad so Save and a reopened keypad cannot commit a
-        // stale pre-split value over the recomputed total.
-        keypad.setValue(draft.amountMagnitudeMilli)
+      }
+      .onChange(of: draft.amountMagnitudeMilli) { _, milli in
+        // While the keypad is hidden the draft owns the amount, so the
+        // keypad follows any change made to it elsewhere.
+        if !isKeypadVisible, keypad.display != milli {
+          keypad.setValue(milli)
+        }
       }
       .onChange(of: keypad) {
         commitHook?.keypad = keypad
