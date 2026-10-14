@@ -53,7 +53,7 @@ export function NetWorthPage() {
       />
       <div className="report-header">
         <h1>Net worth</h1>
-        <div className="headline-row">
+        <div className="headline-row headline-row-paired">
           <div className="headline-figure">
             <span className="figure-label">{latest ? `As at ${formatDate(latest.end_date)}` : "Current"}</span>
             <span

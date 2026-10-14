@@ -74,7 +74,7 @@ export function SpendingPage() {
       <FilterRail filters={filters} setFilters={setFilters} busy={report.loading} collapsible={isPhone} />
       <div className="report-header">
         <h1>Spending breakdown</h1>
-        <div className="headline-row">
+        <div className="headline-row headline-row-paired">
           <div className="headline-figure">
             <span className="figure-label">Total spending</span>
             <span key={total} className="figure-value figure-settle figure-negative">{formatAmount(total)}</span>

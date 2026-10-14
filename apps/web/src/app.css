@@ -4545,7 +4545,7 @@ tr:hover .share-bar {
     text-align: left;
   }
 
-  .report-header .headline-row:not(.register-balances) {
+  .headline-row.headline-row-paired {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 14px 16px;

@@ -140,7 +140,7 @@ export function ScheduledTransactionsPage() {
         <div>
           <h1>Scheduled transactions</h1>
         </div>
-        <div className="headline-row schedule-figures" aria-label="Schedule summary">
+        <div className="headline-row headline-row-paired schedule-figures" aria-label="Schedule summary">
           <Figure label="Active schedules" value={String(active.length)} />
           <Figure label="Next due" value={nextDate ? formatDate(nextDate) : "—"} />
           <button
