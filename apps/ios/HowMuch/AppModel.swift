@@ -258,6 +258,12 @@ final class AppModel {
   /// single queued request that runs once the in-flight one finishes.
   @ObservationIgnored private var inFlightRefresh: Task<Void, Never>?
   @ObservationIgnored private var queuedRefresh = RefreshRequest.none
+  private struct FullRefreshRun {
+    let fingerprint: String
+    let generation: Int
+    let task: Task<Void, Never>
+  }
+
   /// The full `refreshAll()` run in flight, keyed on the connection it
   /// started for. A second call that opts in to joining (`joinInFlight: true`)
   /// for the same connection (the capture sheet opening while the launch
@@ -266,7 +272,7 @@ final class AppModel {
   /// never reaches it: a joiner must not inherit a dead run. A superseded run
   /// finishes, and its writes are discarded by the same fingerprint,
   /// generation, planID and scope guards a plan switch relies on.
-  @ObservationIgnored private var inFlightRefreshAll: (fingerprint: String, generation: Int, task: Task<Void, Never>)?
+  @ObservationIgnored private var inFlightRefreshAll: FullRefreshRun?
   @ObservationIgnored private var refreshAllGeneration = 0
   /// Serialises preference writes so a slower earlier request cannot overwrite
   /// a newer reorder on the server.
@@ -1963,21 +1969,22 @@ final class AppModel {
     refreshAllGeneration &+= 1
     let generation = refreshAllGeneration
     let task = Task { @MainActor [weak self] () -> Void in
-      await self?.performRefreshAll(quiet: quiet)
-      // The run clears its own record as its last step, so a caller that
-      // arrives once the work finished but before the starting caller's
-      // `await task.value` resumes never waits on an already-finished task.
-      // A plan switch may have started a newer run meanwhile; the generation
-      // guard keeps this run from clearing the newer run's record.
-      if let self, self.inFlightRefreshAll?.generation == generation {
-        self.inFlightRefreshAll = nil
-      }
+      await self?.performRefreshAll(quiet: quiet, generation: generation)
     }
-    inFlightRefreshAll = (fingerprint, generation, task)
+    inFlightRefreshAll = FullRefreshRun(fingerprint: fingerprint, generation: generation, task: task)
     await task.value
   }
 
-  private func performRefreshAll(quiet: Bool) async {
+  /// Drops the run's record, unless a newer run has replaced it. Called as
+  /// the run's last step, so no caller can join a run that already finished.
+  private func finishRefreshAll(generation: Int) {
+    if inFlightRefreshAll?.generation == generation {
+      inFlightRefreshAll = nil
+    }
+  }
+
+  private func performRefreshAll(quiet: Bool, generation: Int) async {
+    defer { finishRefreshAll(generation: generation) }
     guard await resolvePlanSelection() else {
       return
     }
