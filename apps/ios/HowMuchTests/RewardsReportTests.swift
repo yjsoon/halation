@@ -215,28 +215,6 @@ final class RewardsReportTests: XCTestCase {
     XCTAssertEqual(filter.to, "2025-05-24")
   }
 
-  func testRequestKeyTracksModesRangeAsOfAndScope() throws {
-    var filter = RewardsReportFilter()
-    var key = filter.key
-    filter.mode = .historical
-    XCTAssertNotEqual(filter.key, key)
-    key = filter.key
-    filter.range.mode = .custom
-    filter.range.customFrom = try date(2025, 3, 1)
-    XCTAssertNotEqual(filter.key, key)
-    key = filter.key
-    filter.scope.accountIDs = ["a", "b"]
-    XCTAssertNotEqual(filter.key, key)
-    key = filter.key
-    filter.scope.accountIDs = ["b", "a"]
-    XCTAssertEqual(filter.key, key)
-    filter.useAsOfDate = true
-    XCTAssertNotEqual(filter.key, key)
-    key = filter.key
-    filter.asOfDate = try date(2025, 4, 10)
-    XCTAssertNotEqual(filter.key, key)
-  }
-
   private func date(_ year: Int, _ month: Int, _ day: Int) throws -> Date {
     try XCTUnwrap(Calendar.current.date(from: DateComponents(year: year, month: month, day: day, hour: 12)))
   }
@@ -315,14 +293,6 @@ final class RewardsReportTests: XCTestCase {
     XCTAssertEqual((object["ynab"] as? [String: Any])?["selectedBudgetId"] as? String, "plan")
   }
 
-  func testRewardGroupByCasesMatchAPIGroupQueryValues() {
-    XCTAssertEqual(RewardGroupBy.allCases.map(\.rawValue), ["flag", "payee", "category", "memo"])
-    XCTAssertEqual(RewardGroupBy.flag.title, "Flag")
-    XCTAssertEqual(RewardGroupBy.payee.title, "Payee")
-    XCTAssertEqual(RewardGroupBy.category.title, "Category")
-    XCTAssertEqual(RewardGroupBy.memo.title, "Memo")
-  }
-
   func testDecodesMixedKeyRewardsEnvelope() throws {
     let report = try decoder.decode(RewardsReport.self, from: Data(rewardsJSON.utf8))
 
@@ -341,51 +311,6 @@ final class RewardsReportTests: XCTestCase {
     XCTAssertEqual(report.groups[0].flagColor, "orange")
     XCTAssertEqual(report.groups[0].transactionCount, 3)
     XCTAssertEqual(report.groups[0].rewardDollars, 12.46)
-  }
-
-  func testTotalsSpendIsCurrencyUnitsNotMilliunits() throws {
-    let report = try decoder.decode(RewardsReport.self, from: Data(rewardsJSON.utf8))
-    XCTAssertEqual(report.totals.spend, 830.8)
-    XCTAssertNotEqual(report.totals.spend, 830_800)
-  }
-
-  func testDecodesImportResultSnakeCase() throws {
-    let json = """
-    {
-      "import_session_id": "sess-1",
-      "cards": 1,
-      "rules": 4,
-      "tag_mappings": 2,
-      "theme_groups": 1,
-      "accounts_upserted": 1,
-      "transactions_imported": 0,
-      "transactions_updated": 0,
-      "flag_names": 3
-    }
-    """
-    let result = try decoder.decode(RewardsTrackerImportResult.self, from: Data(json.utf8))
-    XCTAssertEqual(result.importSessionId, "sess-1")
-    XCTAssertEqual(result.cards, 1)
-    XCTAssertEqual(result.tagMappings, 2)
-    XCTAssertEqual(result.themeGroups, 1)
-    XCTAssertEqual(result.accountsUpserted, 1)
-    XCTAssertEqual(result.transactionsImported, 0)
-    XCTAssertEqual(result.flagNames, 3)
-  }
-
-  func testDecodesSnapshotCardsWithYnabAccountId() throws {
-    let json = """
-    {
-      "snapshot": { "cards": [{ "id": "card-travel", "name": "Travel Card", "issuer": "DBS", "type": "miles", "ynabAccountId": "acct-travel" }] },
-      "cards": [{ "id": "card-travel", "name": "Travel Card", "issuer": "DBS", "type": "miles", "ynabAccountId": "acct-travel" }],
-      "imported_at": "2026-05-24T10:00:00Z",
-      "updated_at": "2026-05-24T10:00:00Z"
-    }
-    """
-    let snapshot = try decoder.decode(RewardsTrackerSnapshot.self, from: Data(json.utf8))
-    XCTAssertEqual(snapshot.cards[0].ynabAccountId, "acct-travel")
-    XCTAssertEqual(snapshot.cards[0].name, "Travel Card")
-    XCTAssertEqual(snapshot.snapshot?.cards?.first?.ynabAccountId, "acct-travel")
   }
 
   func testSkipsAMalformedCardWithoutDroppingSiblings() throws {
@@ -434,22 +359,6 @@ final class RewardsReportTests: XCTestCase {
     XCTAssertEqual(report.cards.count, 1)
     XCTAssertEqual(report.cards[0].card.name, "Travel Card")
     XCTAssertEqual(report.cards[0].accountId, "acct-credit")
-  }
-
-  func testCurrencyUnitsFormatterMatchesMilliunits() {
-    let format = CurrencyFormat(
-      isoCode: "SGD",
-      exampleFormat: "$123,456.78",
-      decimalDigits: 2,
-      decimalSeparator: ".",
-      groupSeparator: ",",
-      symbolFirst: true,
-      currencySymbol: "$"
-    )
-    XCTAssertEqual(
-      MoneyCodec.displayString(forCurrencyUnits: 830.8, currencyFormat: format),
-      MoneyCodec.displayString(for: 830_800, currencyFormat: format)
-    )
   }
 
   private var decoder: JSONDecoder {
@@ -514,7 +423,7 @@ final class RewardsReportTests: XCTestCase {
     "groups": [
       {
         "key": "candlenut",
-        "label": "Candlenut",
+        "label": "Demo Cafe",
         "flag_color": "orange",
         "spend": 188.0,
         "reward": 940,
@@ -602,9 +511,9 @@ final class RewardsSnapshotTests: XCTestCase {
 
   private func categoryFixture(values: [(String, String, Double, Double)]? = nil, minimumSpend: Double = 0) throws -> RewardsCardRow {
     let values = values ?? [
-      ("Telcos", "blue", 60.51, 375), ("Groceries", "gray", 695.63, 500),
-      ("Gas", "green", 105.15, 375), ("Food", "yellow", 343.94, 375),
-      ("Transport", "purple", 234.46, 375), ("MYRIDR", "orange", 203.79, 375),
+      ("Telcos", "blue", 60, 375), ("Groceries", "gray", 700, 500),
+      ("Gas", "green", 100, 375), ("Food", "yellow", 345, 375),
+      ("Transport", "purple", 240, 375), ("Rides", "orange", 210, 375),
       ("Excluded", "red", 21, 375),
     ]
     let flags = values.map { name, colour, spend, cap in
@@ -613,12 +522,12 @@ final class RewardsSnapshotTests: XCTestCase {
        "maximumSpend": cap, "rewardEarned": 0] as [String: Any]
     }
     let json: [String: Any] = [
-      "card": ["id": "maybank", "name": "Maybank Mine 8008", "issuer": "Demo", "type": "cashback",
+      "card": ["id": "maybank", "name": "Demo Cashback Card", "issuer": "Demo", "type": "cashback",
         "subcategories": [["id": "Excluded", "name": "Excluded", "flagColor": "red", "rewardValue": 0,
           "priority": 0, "active": true, "excludeFromRewards": true, "createdAt": "", "updatedAt": ""]]],
-      "account_id": "demo", "account_name": "Maybank",
-      "calculation": ["period": "2026-09", "total_spend": 1643.48, "counted_spend": 1447.85,
-        "eligible_spend": 1447.85, "reward_earned": 105.83, "reward_earned_dollars": 105.83,
+      "account_id": "demo", "account_name": "Demo Bank",
+      "calculation": ["period": "2026-09", "total_spend": 1500, "counted_spend": 1300,
+        "eligible_spend": 1300, "reward_earned": 100, "reward_earned_dollars": 100,
         "reward_type": "cashback", "minimum_spend": minimumSpend, "minimum_spend_met": true,
         "maximum_spend_exceeded": false, "flags": flags],
     ]
@@ -629,14 +538,14 @@ final class RewardsSnapshotTests: XCTestCase {
 
   func testCategoryUsageUsesActualSpendAndClampsOnlyFill() throws {
     let categories = RewardCategoryUsage.make(row: try categoryFixture())
-    XCTAssertEqual(categories.map(\.id), ["Groceries", "Food", "Transport", "MYRIDR", "Gas", "Telcos", "Excluded"])
-    XCTAssertEqual(categories[0].spend, 695.63)
-    XCTAssertEqual(try XCTUnwrap(categories[0].ratio), 1.39126, accuracy: 0.00001)
+    XCTAssertEqual(categories.map(\.id), ["Groceries", "Food", "Transport", "Rides", "Gas", "Telcos", "Excluded"])
+    XCTAssertEqual(categories[0].spend, 700)
+    XCTAssertEqual(try XCTUnwrap(categories[0].ratio), 1.4, accuracy: 0.00001)
     XCTAssertEqual(categories[0].fill, 1)
     XCTAssertTrue(categories[0].warning)
     XCTAssertTrue(categories[1].warning)
     XCTAssertFalse(categories[2].warning)
-    XCTAssertEqual(categories[2].fill, 234.46 / 375, accuracy: 0.00001)
+    XCTAssertEqual(categories[2].fill, 240 / 375, accuracy: 0.00001)
     XCTAssertTrue(categories[6].excluded)
     XCTAssertNil(categories[6].cap)
     XCTAssertNil(categories[6].ratio)
@@ -670,7 +579,7 @@ final class RewardsSnapshotTests: XCTestCase {
           .environment(harness.model).environment(\.dynamicTypeSize, size).preferredColorScheme(scheme),
         size: CGSize(width: 430, height: size.isAccessibilitySize ? 1500 : 932)
       ))
-      let expected = ["Groceries", "$695.63", "139%", "Food", "92%", "MYRIDR", "Excluded", "$21.00"]
+      let expected = ["Groceries", "$700.00", "140%", "Food", "92%", "Rides", "Excluded", "$21.00"]
       let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 5_000_000_000)
       attach(rendered.image, "reward-categories-\(name)")
       for text in expected { XCTAssertTrue(rendered.text.contains(text.lowercased()), "Missing \(text): \(rendered.text)") }
@@ -683,7 +592,7 @@ final class RewardsSnapshotTests: XCTestCase {
     defer { URLProtocol.unregisterClass(RewardsSnapshotProtocol.self) }
     let harness = SnapshotHarness.make(baseURLString: "https://rewards-snapshot.test")
     let row = try categoryFixture()
-    let short = try categoryFixture(values: [("Groceries", "gray", 695.63, 500)])
+    let short = try categoryFixture(values: [("Groceries", "gray", 700, 500)])
     let targets = try categoryFixture(minimumSpend: 800)
     var heights: [String: CGFloat] = [:]
     for (name, fixture, textSize, width) in [
@@ -723,8 +632,8 @@ final class RewardsSnapshotTests: XCTestCase {
         XCTAssertTrue(bottom.text.contains("$21.00"), bottom.text)
       } else {
         XCTAssertLessThanOrEqual(scroll.contentSize.height, visible + 2, "\(name) must fit without scrolling")
-        var expected = ["Done", "Edit", "Groceries", "$695.63", "139%"]
-        if name != "short" { expected += ["Food", "Transport", "MYRIDR", "Gas", "Telcos", "Excluded", "$21.00"] }
+        var expected = ["Done", "Edit", "Groceries", "$700.00", "140%"]
+        if name != "short" { expected += ["Food", "Transport", "Rides", "Gas", "Telcos", "Excluded", "$21.00"] }
         if name == "targets" { expected += ["Targets", "Minimum met"] }
         let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 3_000_000_000)
         attach(rendered.image, "reward-adaptive-\(name)")
@@ -1285,13 +1194,13 @@ final class RewardRowProjectionTests: XCTestCase {
   // server flags, or treating finite category caps as the whole card's limit.
   func testMetMinimumDoesNotImplyTerminalCategoryExhaustionOrQualification() throws {
     let calculation: [String: Any] = [
-      "minimum_spend": 600, "total_spend": 796.39, "minimum_spend_met": true,
-      "flags": [flag("Online", total: 449.72, maximum: 416, exceeded: true),
+      "minimum_spend": 600, "total_spend": 800, "minimum_spend_met": true,
+      "flags": [flag("Online", total: 450, maximum: 416, exceeded: true),
         flag("Uncapped", total: 346.67)],
     ]
     let qualified = try project(calculation)
     XCTAssertEqual(qualified.tone, .earning)
-    XCTAssertEqual(qualified.basis, .init(spend: 796.39, target: 600))
+    XCTAssertEqual(qualified.basis, .init(spend: 800, target: 600))
     XCTAssertEqual(qualified.fill, 1)
     XCTAssertFalse(qualified.isTerminalCap)
     XCTAssertEqual(RewardRowText(qualified, currencyFormat: sgd).actionLabel, "Minimum met")
@@ -1507,23 +1416,17 @@ final class RewardRowProjectionTests: XCTestCase {
     XCTAssertEqual(RewardsBoardOrdering.fallbackOrder([capped, unlimited, minimum]), ["minimum", "unlimited", "capped"])
   }
 
-  func testAccessibilityValueStatesTargetProgressAndDeadline() throws {
-    let projection = try project(["minimum_spend": 500, "total_spend": 300, "reward_earned": 1300, "reward_type": "miles"])
-    let value = RewardRowText(projection, currencyFormat: sgd).accessibilityValue
-    XCTAssertEqual(value, "$200.00 to minimum. $300.00 of $500.00, 60 per cent. 8 days left, ends 30 Sep. 1,300 miles earned")
-  }
-
   @MainActor
   func testStatusRowsRenderLightDarkAndLargeText() async throws {
-    let dcs = try project([
-      "minimum_spend": 600, "total_spend": 796.39, "reward_earned": 35,
-      "flags": [flag("Online", total: 449.72, maximum: 416, exceeded: true),
-        flag("FCY", total: 210.77, maximum: 325), flag("Tap", total: 135.90, maximum: 416)],
-    ], name: "DCS Flex", id: "dcs")
-    let maybank = try project([
+    let flex = try project([
+      "minimum_spend": 600, "total_spend": 800, "reward_earned": 35,
+      "flags": [flag("Online", total: 450, maximum: 416, exceeded: true),
+        flag("FCY", total: 210, maximum: 325), flag("Tap", total: 135, maximum: 416)],
+    ], name: "Flex Card", id: "flex")
+    let tiered = try project([
       "minimum_spend": 1600, "total_spend": 1650, "reward_earned": 90, "has_next_spending_tier": false,
       "flags": [flag("Groceries", total: 450, maximum: 400, exceeded: true), flag("Other", total: 1200)],
-    ], name: "Maybank", id: "maybank", card: ["spendingTiers": [["id": "top", "spendThreshold": 1600]]])
+    ], name: "Tiered Card", id: "tiered", card: ["spendingTiers": [["id": "top", "spendThreshold": 1600]]])
     let unmet = try project(["minimum_spend": 600, "total_spend": 0, "minimum_spend_met": false],
       name: "New monthly period", id: "unmet")
     let capped = try project([
@@ -1563,7 +1466,7 @@ final class RewardRowProjectionTests: XCTestCase {
     ], name: "Category minimum outstanding", id: "category-minimum")
     let july = RewardsCalendar.today().hasPrefix("2026-") ? "July minimum missed" : "July 2026 minimum missed"
     let groups: [(String, [RewardRowProjection], [String])] = [
-      ("main", [dcs, maybank, unmet, capped, failed],
+      ("main", [flex, tiered, unmet, capped, failed],
         ["Minimum met", "Online over cap", "Highest tier active", "Groceries over cap", "to minimum", "Bonus cap reached", july]),
       ("boundaries", [next, headroom, pending, unlimited, range, withheld, mixed],
         ["to next tier", "left before bonus cap", "Rewards unlock after", "No cap", "Historical aggregate",

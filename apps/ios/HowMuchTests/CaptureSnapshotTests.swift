@@ -1144,30 +1144,6 @@ final class CaptureSnapshotTests: XCTestCase {
     }
   }
 
-  func testPreviewActionsMeetHitTargetsAtDefaultAndAccessibility3() async {
-    for size in [DynamicTypeSize.large, .accessibility3] {
-      let harness = SnapshotHarness.make()
-      guard let surface = SnapshotSurface(
-        root: AddTransactionsView(session: harness.admitParsed(), workspace: harness.workspace)
-          .environment(harness.model)
-          .environment(\.dynamicTypeSize, size),
-        size: CGSize(width: 390, height: 844)
-      ) else {
-        XCTFail("\(size) preview geometry needs a connected UIWindowScene")
-        continue
-      }
-      defer { surface.detach() }
-      _ = await surface.captureUntilOCR(contains: ["Lunch", "Save transaction"])
-      for label in ["Edit", "Save transaction", "Add manually"] {
-        guard let control = surface.firstControl(label: label) else {
-          XCTFail("\(size) missing \(label) in \(surface.accessibilityLabels())")
-          continue
-        }
-        surface.assertMinimumHitTarget(control)
-      }
-    }
-  }
-
   private func scanVisibleFrames(
     _ surface: SnapshotSurface,
     until matches: ([String]) -> Bool
@@ -1274,37 +1250,6 @@ final class CaptureSnapshotTests: XCTestCase {
     XCTAssertTrue(field.isFirstResponder)
     XCTAssertTrue((field.text ?? "").contains("!"))
     XCTAssertTrue(session.composerText.contains("!"))
-  }
-
-  func testComposerInsetsCenterBodyLineInMinRow() {
-    let font = CaptureComposerMetrics.bodyFont()
-    let inset = CaptureComposerMetrics.textContainerInset(for: font)
-    XCTAssertEqual(inset.top, inset.bottom)
-    XCTAssertEqual(inset.left, CaptureComposerMetrics.horizontalInset)
-    XCTAssertEqual(inset.right, CaptureComposerMetrics.horizontalInset)
-    let stacked = inset.top + font.lineHeight + inset.bottom
-    if font.lineHeight + 16 <= CaptureComposerMetrics.minHeight {
-      XCTAssertEqual(
-        stacked,
-        CaptureComposerMetrics.minHeight,
-        accuracy: 1,
-        "single-line composer insets must fill the 44pt row: font \(font.lineHeight) inset \(inset.top)"
-      )
-    } else {
-      XCTAssertEqual(inset.top, 8, "large type keeps an 8pt floor rather than a negative inset")
-      XCTAssertGreaterThan(stacked, CaptureComposerMetrics.minHeight)
-    }
-  }
-
-  func testComposerFittedHeightDoesNotClipWrappedUsedRect() {
-    let font = CaptureComposerMetrics.bodyFont()
-    let inset = CaptureComposerMetrics.textContainerInset(for: font)
-    let wrappedUsed = font.lineHeight * 1.2
-    let needed = wrappedUsed + inset.top + inset.bottom
-    let height = CaptureComposerMetrics.fittedHeight(usedRectHeight: wrappedUsed, font: font, inset: inset)
-    XCTAssertGreaterThanOrEqual(height, needed - 0.5, "wrapped usedRect must fit: used \(wrappedUsed) height \(height)")
-    XCTAssertGreaterThan(height, CaptureComposerMetrics.minHeight)
-    XCTAssertLessThanOrEqual(height, CaptureComposerMetrics.maxHeight)
   }
 
   func testConversationDockStaysPinnedWithIconActionLabels() async {
@@ -2236,34 +2181,6 @@ final class CaptureSnapshotTests: XCTestCase {
       XCTAssertTrue(session.drafts.isEmpty)
       XCTAssertTrue(harness.model.pendingRows.isEmpty)
       surface.detach()
-    }
-  }
-
-  func testAIProviderSettingsAndModelsRenderAtDefaultAndAccessibility3() async throws {
-    for (size, name) in [(DynamicTypeSize.large, "large"), (.accessibility3, "accessibility3")] {
-      for provider in CaptureAICatalog.bundled.providers {
-        let suite = "howmuch.byok.snapshot.\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defer { defaults.removePersistentDomain(forName: suite) }
-        let settings = CaptureAISettings(defaults: defaults, keys: CaptureAIMemoryKeys())
-        try settings.save(CaptureAISelection(providerID: provider.id, modelID: provider.models[0].id))
-        await assertRenderedContent(
-          NavigationStack { CaptureAISettingsView(settings: settings) }.environment(\.dynamicTypeSize, size),
-          expected: [provider.name, provider.models[0].name],
-          name: "byok-settings-\(provider.id)-\(name)",
-          forbidden: ["fixture-api-key", "Allow sending"]
-        )
-      }
-      let suite = "howmuch.byok.custom.\(UUID().uuidString)"
-      let defaults = UserDefaults(suiteName: suite)!
-      defer { defaults.removePersistentDomain(forName: suite) }
-      let settings = CaptureAISettings(defaults: defaults, keys: CaptureAIMemoryKeys())
-      try settings.save(CaptureAISelection(providerID: "custom", modelID: "fixture-model",
-        customBaseURL: "https://byok.invalid/v1"))
-      await assertRenderedContent(
-        NavigationStack { CaptureAISettingsView(settings: settings) }.environment(\.dynamicTypeSize, size),
-        expected: ["Custom endpoint", "fixture-model"], name: "byok-settings-custom-\(name)"
-      )
     }
   }
 

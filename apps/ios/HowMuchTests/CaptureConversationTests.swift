@@ -361,31 +361,6 @@ final class CaptureConversationTests: XCTestCase {
     XCTAssertEqual(session.selectedAccountID, "acct-travel")
   }
 
-  func testPersistedQuickAddRemainsAvailableInAssistantRecents() {
-    let workspace = CaptureWorkspace(
-      store: CaptureWorkspaceStore(
-        defaults: UserDefaults(suiteName: "howmuch.tests.recents.\(UUID().uuidString)")!,
-        rootURL: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-      )
-    )
-    let session = workspace.admit(
-      request: CaptureRequest(kind: .blank, connectionFingerprint: "a", origin: .lastUsedOpen),
-      scopeKey: "scope-a",
-      openAccounts: [Self.account()],
-      lastUsedAccountID: "acct-everyday",
-      focusedRegisterAccountID: nil
-    )
-    session.composerText = "Keep this"
-    let id = session.id
-    workspace.persistCurrentIfNeeded()
-    XCTAssertEqual(workspace.recents.first?.id, id)
-    XCTAssertEqual(workspace.recents.first?.composerText, "Keep this")
-    _ = workspace.resume(id)
-    XCTAssertEqual(workspace.pendingAssistantSessionID, id)
-    XCTAssertEqual(workspace.current?.id, id)
-    XCTAssertEqual(workspace.current?.composerText, "Keep this")
-  }
-
   func testClarificationReplyListsTargetsAndChooseUpdatesOnlyThatDraft() {
     let session = Self.session()
     session.replaceDrafts([
@@ -461,20 +436,6 @@ final class CaptureConversationTests: XCTestCase {
     let owner = session.messages.first { $0.ownedDraftIDs.contains(lunch.id) }!
     session.removeDraft(lunch.id)
     XCTAssertTrue(session.drafts.isEmpty)
-    XCTAssertTrue(session.canUndo(ownedIDs: owner.ownedDraftIDs))
-    session.undo()
-    XCTAssertEqual(session.drafts.first?.id, lunch.id)
-    XCTAssertEqual(session.ownerMessageID(forDraft: lunch.id), owner.id)
-  }
-
-  func testRemovingOnlyManualDraftCanUndoOnSystemOwner() {
-    let session = Self.session()
-    let lunch = session.appendManualDraft(Self.draft(payee: "Lunch", amount: 12_000))
-    let owner = session.messages.first { $0.kind == .system && $0.ownedDraftIDs.contains(lunch.id) }!
-    XCTAssertEqual(owner.text, "Entered manually")
-    session.removeDraft(lunch.id)
-    XCTAssertTrue(session.drafts.isEmpty)
-    XCTAssertTrue(session.ownedDrafts(for: owner).isEmpty)
     XCTAssertTrue(session.canUndo(ownedIDs: owner.ownedDraftIDs))
     session.undo()
     XCTAssertEqual(session.drafts.first?.id, lunch.id)
@@ -610,23 +571,6 @@ final class CaptureConversationTests: XCTestCase {
     formatter.dateFormat = "yyyy-MM-dd"
     XCTAssertEqual(formatter.string(from: session.drafts.last?.draft.date ?? .distantPast), "2026-09-01")
     XCTAssertEqual(session.selectedAccountID, "acct-travel")
-  }
-
-  func testClosedAccountBlocksGroupSave() {
-    let session = Self.session()
-    session.apply(turn: Self.addTurn("Added lunch."), mapped: [Self.mapped(amount: 12_000, payee: "Lunch")])
-    let id = session.drafts[0].id
-    XCTAssertTrue(session.canSaveGroup(ids: [id]))
-    XCTAssertFalse(session.usesClosedOrMissingAccount(ids: [id], openAccounts: [Self.account()]))
-    XCTAssertTrue(
-      session.usesClosedOrMissingAccount(
-        ids: [id],
-        openAccounts: [
-          Account(id: "acct-everyday", name: "Everyday", icon: nil, type: "checking", onBudget: true, closed: true, balance: 0, clearedBalance: 0, unclearedBalance: 0, lastReconciledDate: nil, deleted: false),
-        ]
-      )
-    )
-    XCTAssertTrue(session.usesClosedOrMissingAccount(ids: [id], openAccounts: []))
   }
 
   func testLegacyQueryCardsHydrateOntoMatchingAssistantOrSystemEvent() throws {

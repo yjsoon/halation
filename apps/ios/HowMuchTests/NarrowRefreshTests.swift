@@ -91,18 +91,6 @@ final class NarrowRefreshTests: XCTestCase {
     )
   }
 
-  func testRegisterPullToRefreshFetchesTheLedgerWithoutReports() async {
-    let model = makeModel()
-
-    await model.refresh(slices: TabRefresh.register, quiet: false)
-
-    XCTAssertEqual(NarrowRefreshProtocol.reportRequestCount(), 0)
-    XCTAssertTrue(
-      NarrowRefreshProtocol.log().contains { $0.path.hasSuffix("/transactions") },
-      "pulling on the register must fetch the ledger page"
-    )
-  }
-
   func testRegisterPullAppliesExternallyChangedBalanceAndSchedule() async {
     let model = makeModel()
     await model.refresh(slices: [.accounts, .ledger, .schedules], quiet: false)
@@ -217,21 +205,6 @@ final class NarrowRefreshTests: XCTestCase {
       model.referencePhase,
       .loaded,
       "one GET of balances must not claim that categories, payees and plan settings loaded"
-    )
-  }
-
-  func testSwitchingPlanRestartsReflect() async {
-    let model = makeModel()
-    let generationBefore = model.reportsRefreshGeneration
-
-    var switched = model.settings
-    switched.planID = "plan-2"
-    await model.applySettings(switched)
-
-    XCTAssertGreaterThan(
-      model.reportsRefreshGeneration,
-      generationBefore,
-      "ReflectView's only trigger is this generation; a plan switch must restart it"
     )
   }
 

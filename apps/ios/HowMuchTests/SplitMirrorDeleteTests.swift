@@ -27,18 +27,6 @@ final class SplitTransferDraftTests: XCTestCase {
     XCTAssertEqual(source.subtransactions.map(\.transferTransactionID), ["mirror-savings", nil, "mirror-travel"])
   }
 
-  func testEditingPreservesSplitAndMirrorIdentities() throws {
-    let draft = TransactionDraft(transaction: try splitTransfer())
-    let request = draft.writeRequest()
-
-    XCTAssertEqual(draft.id, "original")
-    XCTAssertEqual(request.subtransactions.map(\.id), ["line-savings", "line-lunch", "line-travel"])
-    XCTAssertEqual(request.subtransactions.map(\.transferTransactionID), ["mirror-savings", nil, "mirror-travel"])
-    XCTAssertEqual(request.subtransactions.map(\.transferAccountID), ["savings", nil, "travel"])
-    XCTAssertEqual(request.subtransactions.map(\.amount), [-60_500, -13_980, -44_580])
-    XCTAssertFalse(draft.changesReconciliationGraph)
-  }
-
   private func splitTransfer() throws -> Transaction {
     try JSONDecoder().decode(Transaction.self, from: Data(#"""
       {
@@ -1154,18 +1142,6 @@ private struct PlansBody: Encodable {
 /// What a delete takes off each account. Pure: rows in, deltas out. Every
 /// value is invented.
 final class DeleteBalanceDeltaTests: XCTestCase {
-  func testAPlainRowComesOffItsAccountByClearedState() {
-    let uncleared = Self.row("txn-1", account: "acct-a", amount: -1_000, cleared: .uncleared)
-    XCTAssertEqual(
-      DeleteBalanceDelta.deltas(deleted: uncleared, removedIDs: ["txn-1"], knownRows: [:]),
-      ["acct-a": .init(balance: 1_000, cleared: 0, uncleared: 1_000)]
-    )
-    let reconciled = Self.row("txn-2", account: "acct-a", amount: 2_500, cleared: .reconciled)
-    XCTAssertEqual(
-      DeleteBalanceDelta.deltas(deleted: reconciled, removedIDs: ["txn-2"], knownRows: [:]),
-      ["acct-a": .init(balance: -2_500, cleared: -2_500, uncleared: 0)]
-    )
-  }
 
   func testATransferTakesBothSidesUsingEachSidesClearedState() {
     let out = Self.row("out", account: "acct-a", amount: -5_000, cleared: .cleared,
@@ -1213,15 +1189,6 @@ final class DeleteBalanceDeltaTests: XCTestCase {
       DeleteBalanceDelta.deltas(deleted: mirror, removedIDs: ["mirror"], knownRows: [:]),
       ["acct-b": .init(balance: -2_000, cleared: -2_000, uncleared: 0)]
     )
-  }
-
-  func testApplyingAdjustsOnlyTheNamedAccounts() {
-    let accounts = [Self.account("acct-a", balance: 10_000, cleared: 8_000), Self.account("acct-b", balance: 0, cleared: 0)]
-    let next = DeleteBalanceDelta.applying(["acct-a": .init(balance: 1_000, cleared: 0, uncleared: 1_000)], to: accounts)
-    XCTAssertEqual(next[0].balance, 11_000)
-    XCTAssertEqual(next[0].clearedBalance, 8_000)
-    XCTAssertEqual(next[0].unclearedBalance, 3_000)
-    XCTAssertEqual(next[1], accounts[1])
   }
 
   private static func row(

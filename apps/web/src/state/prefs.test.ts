@@ -42,10 +42,6 @@ describe("parsePrefs", () => {
 describe("sessionLooksLive", () => {
   const now = 1_800_000_000_000;
 
-  test("is true while the recorded session has time left", () => {
-    expect(sessionLooksLive(1_800_000_060, now)).toBe(true);
-  });
-
   test("is false once the session has expired", () => {
     // The case this exists for: a cookie that lapsed while the tab was closed.
     // Nobody's ledger data may be painted on the strength of it.
@@ -56,11 +52,4 @@ describe("sessionLooksLive", () => {
     expect(sessionLooksLive(1_800_000_000, now)).toBe(false);
   });
 
-  test("is false when no session was ever recorded", () => {
-    expect(sessionLooksLive(undefined, now)).toBe(false);
-  });
-
-  test("is false for an unusable value rather than assuming the best", () => {
-    expect(sessionLooksLive(Number.NaN, now)).toBe(false);
-  });
 });

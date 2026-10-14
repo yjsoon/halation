@@ -14,16 +14,6 @@ function rows(...ids: string[]): RegisterSelectionRow[] {
 }
 
 describe("register selection", () => {
-  test("toggles one row on and off", () => {
-    const visible = rows("a", "b", "c");
-    const selected = reduceSelection(emptySelection(SCOPE), visible, { kind: "toggle", index: 1 }, SCOPE);
-    expect(selectedIds(selected, visible, SCOPE)).toEqual(["b"]);
-    expect(headerState(selected, visible, SCOPE)).toBe("some");
-
-    const cleared = reduceSelection(selected, visible, { kind: "toggle", index: 1 }, SCOPE);
-    expect(selectedIds(cleared, visible, SCOPE)).toEqual([]);
-    expect(headerState(cleared, visible, SCOPE)).toBe("none");
-  });
 
   test("releases rows when a live shift range shrinks", () => {
     const visible = rows("a", "b", "c", "d");

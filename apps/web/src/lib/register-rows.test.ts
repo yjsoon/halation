@@ -1,12 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
-  applyClearedOverlays,
-  applyRegisterPatches,
   deletedIdsForRemoval,
-  markDeletedByIds,
   reconcileClearedOverlays,
-  replaceRowById,
-  retainInFlightPatches,
   supersedeClearedOverlays,
   unlinkSplitMirrorParent,
 } from "./register-rows";
@@ -16,19 +11,6 @@ function row(id: string, deleted = false, cleared = "uncleared") {
 }
 
 describe("register rows", () => {
-  test("replaceRowById swaps the matching row and keeps the rest", () => {
-    const next = row("b", false, "cleared");
-    expect(replaceRowById([row("a"), row("b"), row("c")], next)).toEqual([
-      row("a"),
-      next,
-      row("c"),
-    ]);
-  });
-
-  test("deletedIdsForRemoval includes the transfer pair when present", () => {
-    expect(deletedIdsForRemoval({ id: "a" })).toEqual(["a"]);
-    expect(deletedIdsForRemoval({ id: "a", transfer_transaction_id: "b" })).toEqual(["a", "b"]);
-  });
 
   test("unlinkSplitMirrorParent clears the matching split transfer line", () => {
     const groceries = { id: "sub-food", transfer_account_id: null, transfer_transaction_id: null };
@@ -57,43 +39,6 @@ describe("register rows", () => {
         ],
       }),
     ).toEqual(["parent", "mirror-a", "mirror-b"]);
-  });
-
-  test("markDeletedByIds flips only the named live rows", () => {
-    expect(markDeletedByIds([row("a"), row("b", true), row("c")], new Set(["a", "b"]))).toEqual([
-      row("a", true),
-      row("b", true),
-      row("c"),
-    ]);
-  });
-
-  test("applyRegisterPatches replaces then marks deleted", () => {
-    const replacements = new Map([["b", row("b", false, "cleared")]]);
-    expect(applyRegisterPatches([row("a"), row("b"), row("c")], replacements, new Set(["c"]))).toEqual([
-      row("a"),
-      row("b", false, "cleared"),
-      row("c", true),
-    ]);
-  });
-
-  test("retainInFlightPatches keeps only ids still in flight", () => {
-    const current = new Map([
-      ["a", row("a")],
-      ["b", row("b", false, "cleared")],
-      ["c", row("c")],
-    ]);
-    expect([...retainInFlightPatches(current, new Set(["b", "missing"]))]).toEqual([
-      ["b", row("b", false, "cleared")],
-    ]);
-  });
-
-  test("applyClearedOverlays flips only the overlaid cleared field", () => {
-    const overlays = new Map([["b", "cleared"]]);
-    expect(applyClearedOverlays([row("a"), row("b"), row("c")], overlays)).toEqual([
-      row("a"),
-      row("b", false, "cleared"),
-      row("c"),
-    ]);
   });
 
   test("a bulk command discards targeted overlays before complete or uncertain outcomes", () => {

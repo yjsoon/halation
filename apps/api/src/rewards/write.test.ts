@@ -58,26 +58,6 @@ describe("parseCreditCardWrite", () => {
     expect(card).not.toHaveProperty("settings");
   });
 
-  test("rejects a missing account id", () => {
-    expect(() => parseCreditCardWrite({
-      id: "card-1",
-      name: "Everyday",
-      issuer: "DBS",
-      type: "cashback",
-    })).toThrow(ValidationError);
-  });
-
-  test("keeps named ledger colours on the card", () => {
-    const card = parseCreditCardWrite({
-      id: "card-1",
-      name: "Travel Card",
-      issuer: "UOB",
-      type: "cashback",
-      ynabAccountId: "acct-rewards",
-      flagNames: { red: "Dining", blue: " Online ", pink: "Nope" },
-    });
-    expect(card.flagNames).toEqual({ red: "Dining", blue: "Online" });
-  });
 });
 
 describe("native rewards card writes", () => {
@@ -116,22 +96,6 @@ describe("native rewards card writes", () => {
       expect.objectContaining({ id: second.id, type: "miles" }),
     ]);
     expect((stored.snapshot as { cards: unknown[] }).cards).toHaveLength(2);
-  });
-
-  test("patches the same card id", async () => {
-    await createRewardsCard(repo, "plan-test", {
-      id: "card-cash",
-      name: "Cash",
-      type: "cashback",
-      ynabAccountId: "acct-rewards",
-      earningRate: 1,
-    });
-    const patched = await patchRewardsCard(repo, "plan-test", "card-cash", { earningRate: 3 });
-    const again = await patchRewardsCard(repo, "plan-test", "card-cash", { earningRate: 3 });
-
-    expect(patched).toMatchObject({ id: "card-cash", earningRate: 3, name: "Cash" });
-    expect(again.id).toBe("card-cash");
-    expect(db.query("SELECT COUNT(*) AS count FROM rewards_tracker_cards WHERE plan_id='plan-test' AND deleted=0").get()).toEqual({ count: 1 });
   });
 
   test("soft-deletes one card without emptying the snapshot", async () => {

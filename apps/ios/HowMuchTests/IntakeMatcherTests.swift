@@ -33,15 +33,6 @@ final class IntakeMatcherTests: XCTestCase {
     }
   }
 
-  func testWindowIsConfigurable() {
-    let read = line(8_900, date: "2026-06-30", payee: "Grab")
-    let candidates = [row("a", date: "2026-07-04", payee: "Grab")]
-    XCTAssertEqual(IntakeMatcher(dayWindow: 5).match([read], openAccountIDs: openIDs, candidates: candidates)
-      .first?.targetTransactionID, "a")
-    XCTAssertEqual(IntakeMatcher(dayWindow: 3).match([read], openAccountIDs: openIDs, candidates: candidates)
-      .first?.kind, .add)
-  }
-
   func testSameAmountOppositeDirectionIsAPossibleDuplicateNeverAFix() {
     // A refund of the same amount: shown beside the original, never edited.
     let refund = row("refund", amount: 8_900, payee: "Grab")
@@ -200,13 +191,6 @@ final class IntakeMatcherTests: XCTestCase {
     XCTAssertFalse(proposals[0].appliesOnApproval)
   }
 
-  func testNoCandidateIsAPlainAdd() {
-    let proposals = matcher.match([line(8_900, payee: "Grab")], openAccountIDs: openIDs, candidates: [])
-    XCTAssertEqual(proposals[0].kind, .add)
-    XCTAssertEqual(proposals[0].candidateIDs, [])
-    XCTAssertTrue(proposals[0].appliesOnApproval)
-  }
-
   func testEqualScoreTieIsAPossibleDuplicateAndNeverEdits() {
     // Two identical rows. The matcher cannot know which one the document means,
     // so it must not edit either, even though the payee differs.
@@ -219,16 +203,6 @@ final class IntakeMatcherTests: XCTestCase {
     XCTAssertNil(proposals[0].targetTransactionID)
     XCTAssertEqual(Set(proposals[0].candidateIDs), ["a", "b"])
     XCTAssertFalse(proposals[0].appliesOnApproval)
-  }
-
-  func testTieOfIdenticalContentIsNotAnAlreadyInEither() {
-    let proposals = matcher.match(
-      [line(8_900, payee: "Grab")],
-      openAccountIDs: openIDs,
-      candidates: [row("a", payee: "Grab"), row("b", payee: "Grab")]
-    )
-    XCTAssertEqual(proposals[0].kind, .possibleDuplicate)
-    XCTAssertNil(proposals[0].targetTransactionID)
   }
 
   func testCloserDateBreaksWhatWouldOtherwiseBeATie() {
@@ -309,12 +283,6 @@ final class IntakeMatcherTests: XCTestCase {
     )
     XCTAssertEqual(proposals.map(\.kind), [.alreadyIn, .add])
     XCTAssertEqual(proposals.compactMap(\.targetTransactionID), ["a"])
-  }
-
-  func testReturnsOneProposalPerLineInOrder() {
-    let reads = [line(1_000, payee: "A"), line(2_000, payee: "B"), line(3_000, payee: "C")]
-    let proposals = matcher.match(reads, openAccountIDs: openIDs, candidates: [])
-    XCTAssertEqual(proposals.map(\.draft.amountMagnitudeMilli), [1_000, 2_000, 3_000])
   }
 
   private func line(

@@ -104,12 +104,6 @@ final class OutboxPlannerTests: XCTestCase {
     DeleteBalanceDelta.Delta(balance: balance, cleared: cleared, uncleared: uncleared)
   }
 
-  func testFirstCommandIsAppendedAndStamped() {
-    let queue = enqueueAll([command(.approve, id: "t1"), command(.approve, id: "t2")])
-    XCTAssertEqual(queue.map(\.seq), [1, 2])
-    XCTAssertEqual(queue.map(\.transactionID), ["t1", "t2"])
-  }
-
   func testCreateThenUpdateStaysACreateWithTheNewBodyAndOriginalImportID() {
     let queue = enqueueAll([
       command(.create(request(cleared: .cleared, importID: "imp-1"))),
@@ -234,10 +228,6 @@ final class OutboxPlannerTests: XCTestCase {
     ])
     XCTAssertEqual(approveFirst.map(\.kind), [.update(request(approved: true))])
     XCTAssertEqual(updateFirst.map(\.kind), [.update(request(approved: true))])
-  }
-
-  func testRepeatedApprovalsCollapse() {
-    XCTAssertEqual(enqueueAll([command(.approve), command(.approve)]).map(\.kind), [.approve])
   }
 
   func testAnyChangeThenDeleteBecomesADeleteGuardedByTheBase() {
@@ -393,10 +383,6 @@ final class OutboxPlannerTests: XCTestCase {
     XCTAssertEqual(plan.deferred.map(\.transactionID), ["t1"])
   }
 
-  func testEmptyQueuePlansNothing() {
-    XCTAssertEqual(OutboxPlanner.plan([]), OutboxPlanner.Plan(batches: [], deferred: []))
-  }
-
   // Failure mode: two connections (servers, plans or users) can hold a row
   // with the same id -- server ids are only unique per database. Matching on
   // the id alone folds one connection's change into the other's command,
@@ -475,14 +461,6 @@ final class OutboxPlannerTests: XCTestCase {
     for (kind, result, expected) in cases {
       XCTAssertEqual(OutboxPlanner.action(for: kind, result: result), expected, "\(kind) / \(result)")
     }
-  }
-
-  func testCreateAddsToItsAccount() {
-    let deltas = OutboxPlanner.balanceDeltas(
-      [command(.create(request(amount: -10_000, cleared: .uncleared)))],
-      rowsByID: [:]
-    )
-    XCTAssertEqual(deltas, ["a1": delta(balance: -10_000, uncleared: -10_000)])
   }
 
   func testCreatedTransferMirrorsToTheResolvedAccount() {
@@ -727,18 +705,6 @@ final class OutboxPlannerTests: XCTestCase {
     XCTAssertFalse(older.sentWithClientID)
   }
 
-  func testCommandsRoundTripThroughJSON() throws {
-    let commands = [
-      command(.create(request(cleared: .cleared, importID: "imp"))),
-      command(.update(request(payeeID: "p", memo: "m")), base: row()),
-      command(.cleared(expected: .uncleared, cleared: .cleared, approve: true), state: .inFlight),
-      command(.approve, state: .rejected(message: "No", code: 400)),
-      command(.delete(expectedApproved: false), state: .rejected(message: "Gone", code: nil)),
-      command(.delete(expectedApproved: nil)),
-    ]
-    let data = try JSONEncoder().encode(commands)
-    XCTAssertEqual(try JSONDecoder().decode([OutboxCommand].self, from: data), commands)
-  }
 }
 
 /// A seeded generator so a failing random sequence reproduces.

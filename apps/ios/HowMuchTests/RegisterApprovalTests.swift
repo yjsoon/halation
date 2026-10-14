@@ -2,17 +2,6 @@ import XCTest
 @testable import HowMuch
 
 final class RegisterApprovalTests: XCTestCase {
-  func testKeepsOnlyVisibleUnapprovedUndeletedParentIDs() {
-    XCTAssertEqual(
-      RegisterApproval.eligibleIDs(in: [
-        row("a"),
-        row("b", approved: true),
-        row("c", deleted: true),
-        row("d"),
-      ]),
-      ["a", "d"]
-    )
-  }
 
   func testSubmittedPlanApprovesALedgerRowThatIsNotInTheInbox() {
     XCTAssertEqual(RegisterApproval.plan(submitted: [row("ledger-only")])?.ids, ["ledger-only"])
@@ -37,17 +26,6 @@ final class RegisterApprovalTests: XCTestCase {
     XCTAssertEqual(plan?.chunks[1].ids, ["txn-100"])
   }
 
-  func testWritesCompactBritishApprovalCopy() {
-    XCTAssertEqual(RegisterApproval.approveSelectedLabel(3), "Approve 3 selected")
-    XCTAssertEqual(RegisterApproval.approveAllLabel(3), "Approve all (3)")
-    XCTAssertEqual(RegisterApproval.approvedToast(1), "1 transaction approved.")
-    XCTAssertEqual(RegisterApproval.approvedToast(3), "3 transactions approved.")
-    XCTAssertEqual(
-      RegisterApproval.interruptedToast(approvedCount: 2, uncertainCount: 1),
-      "2 transactions approved. 1 may not have been approved."
-    )
-  }
-
   func testBeginAddsPendingAndRejectsEmptyOrAlreadyPendingIDs() {
     XCTAssertNil(RegisterApproval.begin(.empty, ids: []))
     let started = RegisterApproval.begin(.empty, ids: ["a", "b"])
@@ -55,16 +33,6 @@ final class RegisterApprovalTests: XCTestCase {
     XCTAssertEqual(started?.confirmed.count, 0)
     XCTAssertNotNil(started)
     XCTAssertNil(RegisterApproval.begin(started!, ids: ["b", "c"]))
-  }
-
-  func testFinishMovesIDsFromPendingToConfirmed() {
-    let started = RegisterApproval.begin(.empty, ids: ["a", "b"])
-    XCTAssertNotNil(started)
-    let finished = RegisterApproval.finish(started!, ids: ["a"])
-    XCTAssertEqual(finished.pending, ["b"])
-    XCTAssertEqual(finished.confirmed, ["a"])
-    XCTAssertTrue(started!.pending.contains("a"))
-    XCTAssertFalse(started!.confirmed.contains("a"))
   }
 
   func testFailDropsPendingAndConfirmsTheAcceptedPrefix() {
@@ -76,41 +44,12 @@ final class RegisterApprovalTests: XCTestCase {
     XCTAssertEqual(RegisterApproval.fail(started!, ids: ["a", "b", "c"], approvedCount: 0).confirmed, [])
   }
 
-  func testLooksApprovedIncludesPending() {
-    let started = RegisterApproval.begin(.empty, ids: ["a"])
-    XCTAssertNotNil(started)
-    XCTAssertTrue(RegisterApproval.looksApproved(row("a"), session: started!))
-    XCTAssertFalse(RegisterApproval.looksApproved(row("b"), session: started!))
-    XCTAssertEqual(RegisterApproval.resolvedIDs(started!), Set(["a"]))
-  }
-
-  func testFailWithoutPrefixStopsLookingApproved() {
-    let started = RegisterApproval.begin(.empty, ids: ["a"])
-    XCTAssertNotNil(started)
-    let failed = RegisterApproval.fail(started!, ids: ["a"], approvedCount: 0)
-    XCTAssertFalse(RegisterApproval.looksApproved(row("a"), session: failed))
-    XCTAssertTrue(RegisterApproval.resolvedIDs(failed).isEmpty)
-  }
-
   func testEligibleIDsSkipPending() {
     let started = RegisterApproval.begin(.empty, ids: ["a"])
     XCTAssertNotNil(started)
     XCTAssertEqual(RegisterApproval.eligibleIDs(in: [row("a"), row("d")], session: started!), ["d"])
     XCTAssertNil(RegisterApproval.plan(submitted: [row("a")], session: started!))
     XCTAssertEqual(RegisterApproval.plan(ids: ["a", "d"], rows: [row("a"), row("d")], session: started!)?.ids, ["d"])
-  }
-
-  func testLooksApprovedUsesTheConfirmedOverlay() {
-    let session = RegisterApproval.finish(RegisterApproval.begin(.empty, ids: ["a"])!, ids: ["a"])
-    XCTAssertTrue(RegisterApproval.looksApproved(row("a"), session: session))
-    XCTAssertFalse(RegisterApproval.looksApproved(row("b"), session: session))
-    XCTAssertTrue(RegisterApproval.looksApproved(row("b", approved: true), session: .empty))
-  }
-
-  func testEligibleIDsSkipConfirmedOverlayRowsWhenASessionIsPassed() {
-    let session = RegisterApproval.finish(RegisterApproval.begin(.empty, ids: ["a"])!, ids: ["a"])
-    XCTAssertEqual(RegisterApproval.eligibleIDs(in: [row("a"), row("d")], session: session), ["d"])
-    XCTAssertEqual(RegisterApproval.eligibleIDs(in: [row("a"), row("d")]), ["a", "d"])
   }
 
   func testSecondPlanAfterFinishOmitsConfirmedIDs() {

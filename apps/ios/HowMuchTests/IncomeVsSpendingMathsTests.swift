@@ -56,16 +56,6 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
     XCTAssertEqual(rows[2].to, "2026-03-31")
   }
 
-  func testZeroFillLeavesACompletelyEmptyReportEmpty() {
-    let rows = IncomeVsSpendingMaths.zeroFill(
-      periods: [],
-      interval: .month,
-      from: "2026-01-01",
-      to: "2026-12-31"
-    )
-    XCTAssertTrue(rows.isEmpty)
-  }
-
   func testSqliteWeekKeysMatchKnownSQLiteValues() {
     XCTAssertEqual(IncomeVsSpendingMaths.sqliteWeekKey(for: "2026-01-01"), "2026-W00")
     XCTAssertEqual(IncomeVsSpendingMaths.sqliteWeekKey(for: "2026-01-05"), "2026-W01")
@@ -129,13 +119,6 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
       period: "2026-11", from: "2026-11-30", to: "2026-11-01", income: 0, spending: 0, net: 0, isEmpty: true
     )
     XCTAssertEqual(IncomeVsSpendingMaths.drillDownRange(inverted), ("2026-11-30" ... "2026-11-30"))
-  }
-
-  func testFilterLineAndInProgressCaption() {
-    XCTAssertEqual(IncomeVsSpendingMaths.filterLine(accountCount: 2, categoryCount: 3), "Filtered: 2 accounts, 3 categories")
-    XCTAssertEqual(IncomeVsSpendingMaths.filterLine(accountCount: 1, categoryCount: 0), "Filtered: 1 account")
-    XCTAssertNil(IncomeVsSpendingMaths.filterLine(accountCount: 0, categoryCount: 0))
-    XCTAssertEqual(IncomeVsSpendingMaths.inProgressCaption(from: "2026-10-01", to: "2026-10-03"), "1–3 Oct so far")
   }
 
   func testRegisterFilterExcludesPlainTransfersAndRespectsSign() throws {

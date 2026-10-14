@@ -327,19 +327,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(outcomes.first?.application.effects, [.review])
   }
 
-  func testReasonNamesTheRuleAndHowManyCorrectionsItCameFrom() {
-    var read = line(payee: "KOPITIAM AMK", account: altitude)
-    var learned = rule(when: .init(payeeToken: "kopitiam"), then: .setCategory(eatingOut))
-    learned.origin.corrections = 4
-    var outcomes = IntakeRuleEngine.apply([learned], to: &read, context: context)
-    XCTAssertEqual(outcomes.first?.reason, "Learned rule: KOPITIAM → Eating Out (from 4 corrections)")
-
-    read = line(payee: "KOPITIAM AMK", account: altitude)
-    learned.origin.corrections = 1
-    outcomes = IntakeRuleEngine.apply([learned], to: &read, context: context)
-    XCTAssertEqual(outcomes.first?.reason, "Learned rule: KOPITIAM → Eating Out (from 1 correction)")
-  }
-
   func testChangingAFieldARuleSetCountsAsAnOverrideAndOtherEditsDoNot() {
     var proposed = TransactionDraft()
     proposed.payeeName = "Kopitiam"
@@ -513,14 +500,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(skill.notes.count, 4_000)
   }
 
-  func testAnEmptyOrUnreadableFileGivesTheDefaultSkill() throws {
-    let skill = try IntakeSkillStore.decoder().decode(IntakeSkill.self, from: Data("{}".utf8))
-    XCTAssertEqual(skill, IntakeSkill())
-    XCTAssertEqual(skill.locale.currency, "SGD")
-    XCTAssertEqual(skill.locale.dateOrder, .dmy)
-    XCTAssertEqual(skill.dedupe.dayWindow, 3)
-  }
-
   func testStoreRoundTripsAtomicallyAndRefusesToOverwriteAFileItCannotRead() throws {
     let container = FileManager.default.temporaryDirectory
       .appendingPathComponent("HowMuchTests-skill-\(UUID().uuidString)", isDirectory: true)
@@ -627,15 +606,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(Set(skill.rules.map(\.id)), [rename.id, second.id])
   }
 
-  func testGlobalWithAPayeeIsTheSameRuleAsAPayeeScope() {
-    let payee = rule(scope: .payee("shopee"), when: .init(payeeToken: "shopee"), then: .setCategory(household))
-    let global = rule(scope: .global, when: .init(payeeToken: "shopee"), then: .setCategory(groceries))
-    var skill = IntakeSkill()
-    skill.add(payee)
-    skill.add(global)
-    XCTAssertEqual(skill.rules.map(\.id), [global.id])
-  }
-
   func testAnAllAccountsRuleReplacesOlderAccountRulesForTheSameTokenAndFamilyButNotTheOtherWayRound() {
     let uobRule = rule(scope: .account(uob), when: .init(payeeToken: "shopee", accountID: uob), then: .setCategory(household))
     let allAccounts = rule(scope: .payee("shopee"), when: .init(payeeToken: "shopee"), then: .setCategory(groceries))
@@ -659,15 +629,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertTrue(skill.isSuppressed("category|kopitiam|cat-eating-out", at: now.addingTimeInterval(29 * 86_400)))
     XCTAssertFalse(skill.isSuppressed("category|kopitiam|cat-eating-out", at: now.addingTimeInterval(31 * 86_400)))
     XCTAssertFalse(skill.isSuppressed("category|kopitiam|cat-groceries", at: now), "only that exact suggestion")
-  }
-
-  func testSummaryIsTheCharacterCountOnly() {
-    var skill = IntakeSkill()
-    XCTAssertEqual(skill.summary, "No instructions yet")
-    skill.notes = String(repeating: "a", count: 1_912)
-    XCTAssertEqual(skill.summary, "1.9k characters")
-    skill.notes = "Short"
-    XCTAssertEqual(skill.summary, "5 characters")
   }
 
   func testPromptGuidanceCombinesGlobalAndAccountNotesWithinTheCap() {

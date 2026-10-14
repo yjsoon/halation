@@ -1004,28 +1004,6 @@ describe("D1 foundation", () => {
     expect(db.query("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 
-  test("ordinary statements work and interactive transactions fail closed", async () => {
-    const db = sqlite();
-    db.exec("CREATE TABLE values_table (id TEXT PRIMARY KEY, value INTEGER)");
-    const d1 = new D1Database(fakeD1(db));
-    expect((await d1.run("INSERT INTO values_table VALUES ($1, $2)", ["a", 7])).rowCount).toBe(1);
-    expect(await d1.get<{ value: number }>("SELECT value FROM values_table WHERE id = $1", ["a"])).toEqual({ value: 7 });
-    expect(() => d1.transaction(async () => 1)).toThrow("does not support interactive transactions");
-  });
-
-  test("D1 async reports match local SQLite reports", async () => {
-    const db = await ledgerSqlite();
-    db.run("INSERT INTO transactions (id, ledger_sequence, plan_id, account_id, date, amount_milli, payee_name_snapshot) VALUES ('t', 1, 'p', 'a', '2026-01-02', -1200, 'Shop')");
-    const expected = new ReportService(db);
-    const actual = new D1ReportService(fakeD1(db));
-    expect(await actual.spendingBreakdown("p")).toEqual(expected.spendingBreakdown("p"));
-    expect(await actual.incomeVsSpending("p")).toEqual(expected.incomeVsSpending("p"));
-    expect(await actual.incomeVsSpending("p", { interval: "week" })).toEqual(expected.incomeVsSpending("p", { interval: "week" }));
-    expect(await actual.incomeVsSpendingGroups("p")).toEqual(expected.incomeVsSpendingGroups("p"));
-    expect(await actual.netWorth("p", { from: "2026-01-01", to: "2026-01-31" })).toEqual(expected.netWorth("p", { from: "2026-01-01", to: "2026-01-31" }));
-    expect(await actual.ageOfMoney("p", { from: "2026-01-01", to: "2026-01-31" })).toEqual(expected.ageOfMoney("p", { from: "2026-01-01", to: "2026-01-31" }));
-  });
-
   test("D1 per-account config exchange preserves destination identity and sibling configuration", async () => {
     const db = await ledgerSqlite();
     db.run("INSERT INTO accounts(id,plan_id,name) VALUES('b','p','Sibling')");

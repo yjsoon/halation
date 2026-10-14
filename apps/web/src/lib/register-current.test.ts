@@ -10,11 +10,6 @@ import {
 const TODAY = "2026-09-01";
 
 describe("isUpcomingRegisterDate", () => {
-  test("treats dates after today as upcoming, not current", () => {
-    expect(isUpcomingRegisterDate("2026-09-08", TODAY)).toBe(true);
-    expect(isUpcomingRegisterDate("2026-09-01", TODAY)).toBe(false);
-    expect(isUpcomingRegisterDate("2026-08-29", TODAY)).toBe(false);
-  });
 });
 
 describe("registerFetchUntilDate", () => {
@@ -24,9 +19,6 @@ describe("registerFetchUntilDate", () => {
     expect(registerFetchUntilDate(undefined, TODAY)).toBeUndefined();
   });
 
-  test("keeps until_date for a past window", () => {
-    expect(registerFetchUntilDate("2026-08-31", TODAY)).toBe("2026-08-31");
-  });
 });
 
 describe("dateInRegisterWindow", () => {

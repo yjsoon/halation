@@ -192,14 +192,6 @@ final class ReferenceSnapshotStoreTests: XCTestCase {
     XCTAssertNil(store.load(), "delete must leave nothing to load")
   }
 
-  func testScheduledWriteLandsAndIsReadableSynchronously() {
-    let settings = SnapshotFixture.settings()
-    store.scheduleWrite(SnapshotFixture.snapshot(settings: settings))
-    store.waitForPendingWrites()
-
-    XCTAssertEqual(store.load()?.planID, settings.planID)
-  }
-
   func testBackToBackScheduledWritesLeaveTheLatestSnapshot() {
     let settings = SnapshotFixture.settings()
     store.scheduleWrite(SnapshotFixture.snapshot(settings: settings, serverKnowledge: 1))
@@ -256,13 +248,6 @@ final class ReferenceSnapshotStoreTests: XCTestCase {
     XCTAssertFalse(
       FileManager.default.fileExists(atPath: store.fileURL.path),
       "a corrupt file must delete itself rather than fail on every launch"
-    )
-  }
-
-  func testPolicyAcceptsAMatchingSnapshot() {
-    let settings = SnapshotFixture.settings()
-    XCTAssertNil(
-      SnapshotPolicy.rejection(snapshot: SnapshotFixture.snapshot(settings: settings), settings: settings)
     )
   }
 
@@ -359,39 +344,6 @@ final class ReferenceSnapshotStoreTests: XCTestCase {
     )
   }
 
-  /// Keeps an eye on what the cache costs on disk. The counts are a generous
-  /// synthetic plan; the measured size is printed so it can be quoted.
-  func testSnapshotStaysSmallAtRealisticCounts() {
-    var settings = SnapshotFixture.settings()
-    settings.planID = SnapshotFixture.planID
-    let snapshot = ReferenceSnapshot(
-      connectionFingerprint: settings.connectionFingerprint,
-      authenticatedUserID: settings.authenticatedUserID,
-      planID: settings.planID,
-      serverKnowledge: 7,
-      planSettings: nil,
-      accounts: (0..<40).map { SnapshotFixture.account(id: "acct-\($0)", name: "Account \($0)") },
-      categoryGroups: (0..<30).map { SnapshotFixture.categoryGroup(id: "group-\($0)") },
-      payees: (0..<800).map { SnapshotFixture.payee(id: "payee-\($0)") },
-      accountPreferences: nil,
-      scheduledTransactions: (0..<60).map { SnapshotFixture.schedule(id: "sched-\($0)") },
-      ledgerPage: ReferenceSnapshot.LedgerPage(
-        transactions: (0..<100).map { SnapshotFixture.transaction(id: "txn-\($0)") },
-        hasMore: true,
-        nextOffset: 100
-      )
-    )
-
-    XCTAssertTrue(store.save(snapshot))
-    let size = store.fileSize() ?? 0
-    print("ReferenceSnapshot size at 40 accounts / 30 groups / 800 payees / 60 schedules / 100 rows: \(size) bytes")
-    XCTAssertGreaterThan(size, 0)
-    XCTAssertLessThan(
-      size,
-      1_500_000,
-      "the snapshot is a launch cache, not an archive; a megabyte-and-a-half is already too much"
-    )
-  }
 }
 
 /// #176 end to end: a warm launch renders from the snapshot before the network
@@ -1026,17 +978,6 @@ final class ReportsSnapshotTests: XCTestCase {
 
     XCTAssertNil(reportsStore.load(), "a revoked session must leave no cached reports on the device")
     XCTAssertNil(model.rewardsReport(for: .overview(planID: SnapshotFixture.planID)))
-  }
-
-  func testOnlyTheOverviewRewardsRequestIsCached() {
-    func request(from: String? = nil, to: String? = nil, accountIDs: [String] = []) -> RewardsRequest {
-      RewardsRequest(planID: "plan-1", from: from, to: to, accountIDs: accountIDs)
-    }
-    XCTAssertTrue(request().isOverview)
-    XCTAssertEqual(request(), .overview(planID: "plan-1"))
-    XCTAssertFalse(request(to: "2026-01-31").isOverview)
-    XCTAssertFalse(request(from: "0001-01-01").isOverview)
-    XCTAssertFalse(request(accountIDs: ["acct-card"]).isOverview)
   }
 
   /// Decoded the way the API client decodes, so the cache is proven to

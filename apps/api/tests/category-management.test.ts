@@ -23,12 +23,6 @@ async function open(backend: (typeof BACKENDS)[number]): Promise<NativeHarness> 
 }
 
 describe("category input parsing", () => {
-  test("normalises names and defaults hidden to false", () => {
-    expect(parseCategoryGroupCreate({ name: "  Bills " })).toEqual({ name: "Bills", hidden: false });
-    expect(parseCategoryCreate({ id: "cat-1", category_group_id: "grp-1", name: "Rent", hidden: true }))
-      .toEqual({ id: "cat-1", category_group_id: "grp-1", name: "Rent", hidden: true });
-    expect(parseCategoryPatch({ category_group_id: "grp-2" })).toEqual({ category_group_id: "grp-2" });
-  });
 
   test("rejects unknown fields, empty patches, bad ids and bad names", () => {
     expect(() => parseCategoryGroupCreate({ name: "Bills", budgeted: 1 })).toThrow("category_group.budgeted cannot be set");

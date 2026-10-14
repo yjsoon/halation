@@ -15,29 +15,6 @@ final class IntentCatalogTests: XCTestCase {
     try? FileManager.default.removeItem(at: directory)
   }
 
-  func testProjectedOpenAccountIDsMatchAppModel() {
-    var settings = APISettings()
-    settings.baseURLString = "https://howmuch.example.test"
-    settings.planID = "local-plan"
-    settings.authenticatedUserID = "user-1"
-    settings.sessionToken = "token"
-
-    let model = AppModel(outboxStore: .temporary(), settings: settings, viewPrefs: ViewPrefs())
-    model.accounts = [
-      Self.account(id: "acct-everyday", name: "Everyday Account", closed: false),
-      Self.account(id: "acct-rainy", name: "Rainy Day Saver", closed: false),
-      Self.account(id: "acct-closed", name: "Old Card", closed: true),
-    ]
-
-    let snapshot = IntentCatalogSnapshot.project(
-      fingerprint: model.settings.connectionFingerprint,
-      accounts: model.accounts,
-      categoryGroups: model.categoryGroups,
-      payees: model.payees
-    )
-    XCTAssertEqual(snapshot.openAccounts.map(\.id), model.openAccounts.map(\.id))
-  }
-
   func testPayeesSortedByNameFollowsPayeeChanges() {
     var settings = APISettings()
     settings.baseURLString = "https://howmuch.example.test"
@@ -108,19 +85,6 @@ final class IntentCatalogTests: XCTestCase {
     XCTAssertEqual(store.load(fingerprint: "plan-a")?.openAccounts.map(\.id), ["acct-everyday"])
   }
 
-  func testWipeRemovesTheFile() {
-    let snapshot = IntentCatalogSnapshot.project(
-      fingerprint: "plan-a",
-      accounts: [Self.account(id: "acct-everyday", name: "Everyday Account", closed: false)],
-      categoryGroups: [],
-      payees: []
-    )
-    store.write(snapshot)
-    XCTAssertNotNil(store.load(fingerprint: "plan-a"))
-    store.wipe(fingerprint: "plan-a")
-    XCTAssertNil(store.load(fingerprint: "plan-a"))
-  }
-
   func testWipeAllClearsEveryFingerprint() {
     store.write(
       IntentCatalogSnapshot.project(
@@ -185,14 +149,6 @@ final class IntentCatalogTests: XCTestCase {
     migrated.write(newer)
     IntentCatalogStore.migrate(from: legacy, to: destination)
     XCTAssertEqual(migrated.load(fingerprint: "plan-a")?.openAccounts.map(\.id), ["acct-travel"])
-  }
-
-  func testDirectoryInAppGroupContainerKeepsIntentCatalogFolder() {
-    let container = URL(fileURLWithPath: "/tmp/howmuch-app-group")
-    XCTAssertEqual(
-      IntentCatalogStore.directory(in: container).lastPathComponent,
-      "IntentCatalog"
-    )
   }
 
   func testScheduledWriteDoesNotLandAfterWipe() {

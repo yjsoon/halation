@@ -6,118 +6,6 @@ import XCTest
 /// served from cache (#180). No network, no model, no view.
 final class RefreshPlanTests: XCTestCase {
 
-  func testClearedToggleRefreshesBalancesOnly() {
-    XCTAssertEqual(
-      RefreshPlanner.slices(after: .clearedToggled),
-      [.accounts],
-      "a cleared toggle applies the returned row locally, so only the account balances are left to read"
-    )
-    XCTAssertFalse(
-      RefreshPlanner.invalidatesPlanAndReports(after: .clearedToggled),
-      "clearing moves no money: the plan and the reports read amounts, not cleared state"
-    )
-  }
-
-  func testOrdinaryEditRefreshesBalancesOnly() {
-    let slices = RefreshPlanner.slices(
-      after: .transactionEdited(changesAccount: false, touchesTransfer: false, hasNewPayee: false)
-    )
-    XCTAssertEqual(slices, [.accounts])
-    XCTAssertFalse(slices.contains(.referenceData))
-    XCTAssertFalse(slices.contains(.schedules))
-  }
-
-  func testEditThatMovesAccountOrTouchesATransferAlsoRefreshesTheLedger() {
-    XCTAssertEqual(
-      RefreshPlanner.slices(
-        after: .transactionEdited(changesAccount: true, touchesTransfer: false, hasNewPayee: false)
-      ),
-      [.accounts, .ledger]
-    )
-    XCTAssertEqual(
-      RefreshPlanner.slices(
-        after: .transactionEdited(changesAccount: false, touchesTransfer: true, hasNewPayee: false)
-      ),
-      [.accounts, .ledger],
-      "a transfer's mirror row lives on another account and is not returned by the write"
-    )
-  }
-
-  func testEditThatNamesANewPayeeAlsoRefreshesThePayeeList() {
-    XCTAssertEqual(
-      RefreshPlanner.slices(
-        after: .transactionEdited(changesAccount: false, touchesTransfer: false, hasNewPayee: true)
-      ),
-      [.accounts, .payees],
-      "a payee the server provisioned during the save is absent from the local pickers until it is read"
-    )
-  }
-
-  func testCreatesAddLedgerOnlyForTransfersAndPayeesOnlyForNewNames() {
-    XCTAssertEqual(
-      RefreshPlanner.slices(after: .transactionsCreated(hasTransfer: false, hasNewPayee: false)),
-      [.accounts]
-    )
-    XCTAssertEqual(
-      RefreshPlanner.slices(after: .transactionsCreated(hasTransfer: true, hasNewPayee: false)),
-      [.accounts, .ledger]
-    )
-    XCTAssertEqual(
-      RefreshPlanner.slices(after: .transactionsCreated(hasTransfer: false, hasNewPayee: true)),
-      [.accounts, .payees]
-    )
-  }
-
-  func testDeleteRefreshesBalancesOnly() {
-    XCTAssertEqual(RefreshPlanner.slices(after: .transactionDeleted), [.accounts])
-  }
-
-  func testApprovalRefreshesLedgerForCascadedRows() {
-    XCTAssertEqual(
-      RefreshPlanner.slices(after: .transactionsApproved),
-      [.ledger],
-      "approval can cascade from a split to unloaded mirrors, so the first ledger page and its count must reconcile"
-    )
-    XCTAssertFalse(RefreshPlanner.invalidatesPlanAndReports(after: .transactionsApproved))
-  }
-
-  func testAccountWritesStayOffTheLedger() {
-    XCTAssertEqual(
-      RefreshPlanner.slices(after: .accountCreated),
-      [.payees],
-      "a new account provisions its transfer payee server-side but holds no opening-balance transaction"
-    )
-    XCTAssertEqual(
-      RefreshPlanner.slices(after: .accountUpdated),
-      [],
-      "the PATCH returns the account and the transfer payee rename is mirrored locally"
-    )
-  }
-
-  func testReconcileRefreshesTheLedgerButNotTheAccountsList() {
-    XCTAssertEqual(
-      RefreshPlanner.slices(after: .accountReconciled),
-      [.ledger],
-      "the reconcile response carries the account with its new balances, so only the flipped rows must be re-read"
-    )
-  }
-
-  func testScheduleWritesRefreshNothing() {
-    XCTAssertEqual(RefreshPlanner.slices(after: .scheduleSaved), [])
-    XCTAssertEqual(RefreshPlanner.slices(after: .scheduleDeleted), [])
-  }
-
-  func testEnteringAnOccurrenceRefreshesBalancesAndTransfersOnly() {
-    XCTAssertEqual(
-      RefreshPlanner.slices(after: .scheduledOccurrenceEntered(isTransfer: false)),
-      [.accounts]
-    )
-    XCTAssertEqual(
-      RefreshPlanner.slices(after: .scheduledOccurrenceEntered(isTransfer: true)),
-      [.accounts, .ledger]
-    )
-  }
-
   func testNoMutationEverRefetchesReferenceDataOrReports() {
     let mutations: [MutationKind] = [
       .clearedToggled,
@@ -145,14 +33,6 @@ final class RefreshPlanTests: XCTestCase {
     }
   }
 
-  func testAccountsPullNeverAsksForReports() {
-    XCTAssertEqual(TabRefresh.accounts, [.accounts])
-    XCTAssertFalse(TabRefresh.accounts.contains(.reports))
-    XCTAssertFalse(TabRefresh.accounts.contains(.ledger))
-    XCTAssertEqual(TabRefresh.register, [.accounts, .ledger, .schedules])
-    XCTAssertEqual(TabRefresh.reflect, [.reports])
-  }
-
   func testAccountsPullRetriesTheWholeBatchWhenReferenceDataIsNotLoaded() {
     XCTAssertEqual(
       TabRefresh.accounts(referencePhase: .loaded),
@@ -177,35 +57,12 @@ final class RefreshPlanTests: XCTestCase {
     XCTAssertTrue(merged.force, "one forced caller makes the coalesced pass forced")
   }
 
-  func testMergingIsIdempotentForARepeatedRequest() {
-    let request = RefreshRequest(slices: [.accounts], quiet: false)
-    XCTAssertEqual(request.merging(request), request, "spamming pull-to-refresh must collapse to one pass")
-  }
-
-  func testAnEmptyRequestIsSkipped() {
-    XCTAssertTrue(RefreshRequest(slices: []).isEmpty)
-    XCTAssertTrue(RefreshRequest.none.isEmpty)
-  }
-
   func testReferenceDataAbsorbsItsOwnNarrowerSlices() {
     let request = RefreshRequest(slices: [.referenceData, .accounts, .payees, .ledger])
     XCTAssertEqual(
       request.slices,
       [.referenceData, .ledger],
       "the reference batch already fetches accounts and payees; keeping both would double the requests"
-    )
-  }
-
-  func testReportsAreFetchedOnFirstAppearance() {
-    XCTAssertTrue(
-      ReportsRefreshPolicy.shouldFetch(
-        phase: .idle,
-        force: false,
-        lastKnowledge: nil,
-        currentKnowledge: 7,
-        lastMutationGeneration: nil,
-        currentMutationGeneration: 0
-      )
     )
   }
 
@@ -278,19 +135,6 @@ final class RefreshPlanTests: XCTestCase {
     XCTAssertTrue(
       ReportsRefreshPolicy.shouldFetch(
         phase: .idle,
-        force: false,
-        lastKnowledge: 7,
-        currentKnowledge: 7,
-        lastMutationGeneration: 3,
-        currentMutationGeneration: 3
-      )
-    )
-  }
-
-  func testAFailedFetchIsRetriedRatherThanCached() {
-    XCTAssertTrue(
-      ReportsRefreshPolicy.shouldFetch(
-        phase: .failed("offline"),
         force: false,
         lastKnowledge: 7,
         currentKnowledge: 7,

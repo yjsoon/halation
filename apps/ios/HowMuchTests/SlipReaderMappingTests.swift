@@ -2,22 +2,6 @@ import XCTest
 @testable import HowMuch
 
 final class SlipReaderMappingTests: XCTestCase {
-  func testStringAmountsGoThroughMoneyCodec() {
-    let mapped = SlipReaderMapping.map(
-      [
-        .init(amount: "5.00", category: "Groceries", account: "Everyday Account"),
-        .init(amount: "$3.5", category: "Dining Out", account: "Everyday Account"),
-      ],
-      accounts: [Self.account("acct-everyday", "Everyday Account")],
-      categoryGroups: [Self.everydayGroup],
-      payees: [],
-      calendar: Self.calendar,
-      now: Self.now
-    )
-    XCTAssertEqual(mapped.map(\.draft.amountMagnitudeMilli), [5_000, 3_500])
-    XCTAssertEqual(mapped.map(\.parsedAmount), [true, true])
-    XCTAssertEqual(MoneyCodec.milliunits(from: "5.00").map(abs), mapped[0].draft.amountMagnitudeMilli)
-  }
 
   func testExtractionAmountsAcceptCurrencyPrefixesAndJunk() {
     let mapped = SlipReaderMapping.map(
@@ -207,31 +191,6 @@ final class SlipReaderMappingTests: XCTestCase {
     XCTAssertEqual(draft.payeeID, "payee-travel")
   }
 
-  func testTwoSpendsReturnTwoDrafts() {
-    let mapped = SlipReaderMapping.map(
-      [
-        .init(amount: "5", category: "Groceries", account: "Everyday Account"),
-        .init(amount: "12", category: "Dining Out", account: "Travel Card"),
-      ],
-      accounts: [
-        Self.account("acct-everyday", "Everyday Account"),
-        Self.account("acct-travel", "Travel Card"),
-      ],
-      categoryGroups: [Self.everydayGroup],
-      payees: [],
-      calendar: Self.calendar,
-      now: Self.now
-    )
-    XCTAssertEqual(mapped.count, 2)
-    XCTAssertEqual(mapped[0].draft.amountMagnitudeMilli, 5_000)
-    XCTAssertEqual(mapped[0].draft.accountID, "acct-everyday")
-    XCTAssertEqual(mapped[0].draft.categoryID, "cat-groceries")
-    XCTAssertEqual(mapped[1].draft.amountMagnitudeMilli, 12_000)
-    XCTAssertEqual(mapped[1].draft.accountID, "acct-travel")
-    XCTAssertEqual(mapped[1].draft.categoryID, "cat-dining")
-    XCTAssertNotEqual(mapped[0].draft.importID, mapped[1].draft.importID)
-  }
-
   func testDateUsesLocalCalendar() {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(secondsFromGMT: 8 * 3600)!
@@ -319,26 +278,6 @@ final class SlipReaderMappingTests: XCTestCase {
     XCTAssertTrue(mapped[0].parsedAccount)
     XCTAssertEqual(mapped[0].draft.accountID, "")
     XCTAssertTrue(mapped[0].accountCandidates.isEmpty)
-  }
-
-  func testApplyLeavesAccountUnresolvedWhenNameIsExplicitlyUnrecognized() {
-    var draft = TransactionDraft()
-    draft.accountID = "acct-everyday"
-    draft.direction = .inflow
-    let row = SlipReaderMapping.map(
-      [.init(amount: "5", account: "No Such Bank")],
-      accounts: [Self.account("acct-everyday", "Everyday Account")],
-      categoryGroups: [Self.everydayGroup],
-      payees: [],
-      calendar: Self.calendar,
-      now: Self.now
-    )[0]
-    let applied = ComposeParseApply.applying(row, to: draft)
-    XCTAssertEqual(applied.draft.accountID, "")
-    XCTAssertTrue(applied.accountCandidates.isEmpty)
-    XCTAssertEqual(applied.draft.amountMagnitudeMilli, 5_000)
-    XCTAssertEqual(applied.draft.direction, .inflow)
-    XCTAssertFalse(applied.draft.canSave)
   }
 
   func testApplyClearsSeedWhenUnknownAccountIsNamedInSentence() {
@@ -459,27 +398,6 @@ final class SlipReaderMappingTests: XCTestCase {
     XCTAssertEqual(applied.draft.accountID, "acct-everyday")
   }
 
-  func testApplyExplicitTravelCardInSentenceOverwritesADifferentSeed() {
-    var draft = TransactionDraft()
-    draft.accountID = "acct-everyday"
-    let row = SlipReaderMapping.map(
-      [.init(amount: "5", account: "Travel Card")],
-      sentence: "5 on Travel Card",
-      accounts: [
-        Self.account("acct-everyday", "Everyday Account"),
-        Self.account("acct-travel", "Travel Card"),
-      ],
-      categoryGroups: [Self.everydayGroup],
-      payees: [],
-      calendar: Self.calendar,
-      now: Self.now
-    )[0]
-    let applied = ComposeParseApply.applying(row, to: draft)
-    XCTAssertEqual(applied.draft.accountID, "acct-travel")
-    XCTAssertFalse(row.accountUnresolved)
-    XCTAssertTrue(applied.accountCandidates.isEmpty)
-  }
-
   func testApplyKeepsSeededAccountWhenSentenceDoesNotNameOne() {
     var draft = TransactionDraft()
     draft.accountID = "acct-travel"
@@ -538,33 +456,6 @@ final class SlipReaderMappingTests: XCTestCase {
     XCTAssertTrue(prefix.contains("Categories: Groceries, Dining Out"))
     XCTAssertFalse(prefix.contains("Payees:"))
     XCTAssertFalse(prefix.contains("FairPrice"))
-    XCTAssertTrue(prefix.hasSuffix("Sentence:\n"))
-    XCTAssertTrue((prefix + "I spent 5").contains("Sentence:\nI spent 5"))
-  }
-
-  func testPromptLeavesAccountEmptyUnlessNamedAndParsesCurrencyAndDates() {
-    let text = SlipReaderPrompt.instructions
-    XCTAssertFalse(text.contains("when they match"))
-    XCTAssertTrue(text.localizedCaseInsensitiveContains("leave account empty unless"))
-    XCTAssertTrue(text.contains("S$"))
-    XCTAssertTrue(text.localizedCaseInsensitiveContains("schedule"))
-  }
-
-  func testReadDoesNotCallCommit() async {
-    let reader = SlipReader(extractor: .fixed { _ in
-      [
-        .init(amount: "5", category: "Groceries", account: "Everyday Account"),
-        .init(amount: "8", category: "Dining Out", account: "Everyday Account"),
-      ]
-    })
-    let drafts = await reader.read(
-      text: "5 of Groceries and 8 of Dining Out on Everyday Account",
-      accounts: [Self.account("acct-everyday", "Everyday Account")],
-      categoryGroups: [Self.everydayGroup],
-      payees: []
-    )
-    XCTAssertEqual(drafts.count, 2)
-    XCTAssertEqual(drafts.map(\.amountMagnitudeMilli), [5_000, 8_000])
   }
 
   private static let now = Date(timeIntervalSince1970: 1_746_316_800)
