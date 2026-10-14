@@ -151,7 +151,7 @@ enum IntakeTransferReader {
   private static let directionLabel = try! NSRegularExpression(
     // Bare labels, "From: x" with a colon, or the phrases "Sent to", "Received from" and so on. A line that
     // merely starts with the word ("From 1 Oct", "To savings goals") is not a label.
-    pattern: #"^(?:(?:from|to)(?:\s+account)?\s*:?$|(?:from|to)\s*:\s*\S|(?:sent\s+to|received\s+from|paid\s+to|transferred\s+(?:to|from))\b)"#,
+    pattern: #"^(?:(?:from|to)(?:\s+account)?\s*:?$|(?:from|to)(?:\s+account)?\s*:\s*\S|(?:sent\s+to|received\s+from|paid\s+to|transferred\s+(?:to|from))\b)"#,
     options: [.caseInsensitive]
   )
 

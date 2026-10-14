@@ -181,7 +181,7 @@ final class IntakeTransferReaderTests: XCTestCase {
   }
 
   func testOneLineSourceAndDestinationLabelsDeclineTheReceipt() {
-    for label in ["From: UOB One Savings", "Sent to Citi Rewards", "Received from UOB One Savings"] {
+    for label in ["From: UOB One Savings", "From account: UOB One Savings", "Sent to Citi Rewards", "Received from UOB One Savings"] {
       let rows = IntakeTransferReader.read(
         text: "Scheduled transfers\nOct\n16\n\(label)\nCiti Rewards\n669.54 SGD",
         note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
