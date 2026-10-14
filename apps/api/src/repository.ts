@@ -315,6 +315,7 @@ export class LedgerRepository {
 
   async ensureAccount(planId: string, accountId: string, name?: string): Promise<void> {
     await this.ensurePlan(planId);
+    await this.assertAccountIdNotInOtherPlan(planId, accountId, "Account not found");
     await this.db
       .query(
         `INSERT INTO accounts (id, plan_id, name, external_ynab_id)
@@ -322,33 +323,23 @@ export class LedgerRepository {
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(accountId, planId, name ?? `Imported account ${accountId.slice(0, 8)}`, accountId);
-    // The insert skips an id that exists anywhere: another plan's account id
-    // booked this plan's transaction against that plan's balance.
-    if (await this.db.query("SELECT 1 FROM accounts WHERE id = ? AND plan_id <> ?").get(accountId, planId)) {
-      throw new ValidationError("Account not found");
-    }
     await this.ensureTransferPayee(planId, accountId);
+  }
+
+  /**
+   * Account ids are unique across plans while the writes below match on id
+   * alone, so an id owned by another plan must be refused before any write
+   * touches that plan's row.
+   */
+  private async assertAccountIdNotInOtherPlan(planId: string, accountId: string, message: string): Promise<void> {
+    if (await this.db.query("SELECT 1 FROM accounts WHERE id = ? AND plan_id <> ?").get(accountId, planId)) {
+      throw new ValidationError(message);
+    }
   }
 
   async createAccount(planId: string, account: any): Promise<any> {
     const accountId = account.id ?? createId("acct");
-    if (account.id) {
-      // Pre-existing reseed shape: `balance` stays a transient snapshot that
-      // transaction recalculation owns; only an explicit opening_balance
-      // persists. Folding balance in here would double-count ledgers that
-      // POST accounts and then import their starting-balance transactions.
-      await this.upsertAccount(planId, account);
-    } else {
-      // YNAB's create-account body carries the starting balance in `balance`.
-      const openingBalance = account.opening_balance ?? account.balance ?? 0;
-      await this.upsertAccount(planId, {
-        ...account,
-        id: accountId,
-        opening_balance: openingBalance,
-        balance: account.balance ?? openingBalance,
-        cleared_balance: account.cleared_balance ?? account.balance ?? openingBalance,
-      });
-    }
+    await this.upsertAccount(planId, account.id ? account : withOpeningBalance({ ...account, id: accountId }));
     await this.touchPlan(planId);
     return this.getAccount(planId, accountId);
   }
@@ -421,10 +412,8 @@ export class LedgerRepository {
 
   async upsertAccount(planId: string, account: any): Promise<void> {
     await this.ensurePlan(planId);
-    const existing = await this.db.query("SELECT icon, plan_id FROM accounts WHERE id = ?").get(account.id) as Row | null;
-    // The upsert matches on id alone: another plan's account id renamed and
-    // retyped that plan's account.
-    if (existing && existing.plan_id !== planId) throw new ValidationError("Account belongs to another plan");
+    await this.assertAccountIdNotInOtherPlan(planId, account.id, "Account belongs to another plan");
+    const existing = await this.db.query("SELECT icon FROM accounts WHERE id = ?").get(account.id) as Row | null;
     const presentation = resolveAccountPresentation({
       name: account.name ?? `Account ${account.id}`,
       icon: account.icon,
@@ -3417,6 +3406,23 @@ function formatPlan(row: Row): any {
     date_format: JSON.parse(row.date_format_json),
     currency_format: JSON.parse(row.currency_format_json),
     server_knowledge: Number(row.server_knowledge),
+  };
+}
+
+/**
+ * YNAB's create-account body carries the starting balance in `balance`. Only
+ * applied when the server mints the id: a body naming its own id is a reseed,
+ * where `balance` is a transient snapshot owned by transaction recalculation
+ * and folding it in would double-count ledgers that POST accounts and then
+ * import their starting-balance transactions.
+ */
+function withOpeningBalance(account: any): any {
+  const openingBalance = account.opening_balance ?? account.balance ?? 0;
+  return {
+    ...account,
+    opening_balance: openingBalance,
+    balance: account.balance ?? openingBalance,
+    cleared_balance: account.cleared_balance ?? account.balance ?? openingBalance,
   };
 }
 
