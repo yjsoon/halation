@@ -19,6 +19,20 @@ enum SlipAccountPick {
   }
 }
 
+extension SlipAccountPick {
+  /// The account a row falls back to when none was chosen. A transfer row never
+  /// lands on its own destination: the next open account stands in instead.
+  static func seed(_ draft: inout TransactionDraft, accounts: [Account], preferredAccountID: String?) {
+    draft.seedIfNeeded(accounts: accounts, preferredAccountID: preferredAccountID)
+    guard let destination = draft.transferAccountID, draft.accountID == destination else {
+      return
+    }
+    if let other = accounts.first(where: { !$0.closed && $0.id != destination }) {
+      draft.accountID = other.id
+    }
+  }
+}
+
 struct SlipMappedDraft: Equatable, Codable, Sendable {
   var draft: TransactionDraft
   var parsedAmount: Bool
@@ -404,7 +418,7 @@ enum SlipReaderMapping {
 
 enum SlipReaderPrompt {
   static let instructions = """
-  Extract every distinct spend from the sentence. Amount is the numeric figure even when the sentence uses $, S$, SGD, USD, or the word dollars. Write it as a decimal string such as 5 or 5.00, never milliunits and never IDs. Payee is a name from the sentence. Copy a category name from the provided list only when the sentence names that category. Leave account empty unless the sentence explicitly names an account. Do not pick an account from the list just because it is there. Leave a field empty when it was not mentioned. Fill date when the sentence names a day to post or schedule, including today, yesterday, 8 Sep, 15 September, 8/9, next Friday, or yyyy-MM-dd. Split two spends in one sentence into two items. Return spends. Each spend has amount, payee, category, account, date, and isInflow (true only when money is received).
+  Extract every distinct spend from the sentence. Amount is the numeric figure even when the sentence uses $, S$, SGD, USD, or the word dollars. Write it as a decimal string such as 5 or 5.00, never milliunits and never IDs. Payee is a name from the sentence. Copy a category name from the provided list only when the sentence names that category. Leave account empty unless the sentence explicitly names an account. Do not pick an account from the list just because it is there. Leave a field empty when it was not mentioned. Fill date when the sentence names a day to post or schedule, including today, yesterday, 8 Sep, 15 September, 8/9, next Friday, or yyyy-MM-dd. Split two spends in one sentence into two items. When a transfer lists the account the money goes to, the payee is that account's name, not the bank's name. Never invent an amount: copy each amount exactly as printed. Return spends. Each spend has amount, payee, category, account, date, and isInflow (true only when money is received).
   """
 
   /// - Parameter guidance: the owner's skill-file notes for reading documents,

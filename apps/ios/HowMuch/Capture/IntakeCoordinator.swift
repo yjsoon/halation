@@ -383,6 +383,18 @@ final class IntakeCoordinator {
     return task
   }
 
+  /// What the model reader is told: the note typed on this share, then the skill's notes.
+  static func guidance(note: String?, skill: String?) -> String? {
+    var parts: [String] = []
+    if let note = note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+      parts.append("About this share: " + String(note.prefix(500)))
+    }
+    if let skill {
+      parts.append(skill)
+    }
+    return parts.isEmpty ? nil : parts.joined(separator: "\n\n")
+  }
+
   static func isFromAnotherBudget(_ job: IntakeJob, model: AppModel) -> Bool {
     let planID = model.settings.planID
     guard let jobPlan = job.planID, !planID.isEmpty else {
@@ -466,8 +478,12 @@ final class IntakeCoordinator {
 
     let accounts = model.openAccounts
     // The owner's notes go to the model reader only; the line parser reads none.
-    let guidance = IntakeSkillStore.shared.skill.promptGuidance(
-      accountID: reading.decideAccount ? nil : reading.accountID
+    // The note typed on this share comes first: it is about this batch alone.
+    let guidance = Self.guidance(
+      note: reading.note,
+      skill: IntakeSkillStore.shared.skill.promptGuidance(
+        accountID: reading.decideAccount ? nil : reading.accountID
+      )
     )
     var extracted: [SlipMappedDraft] = []
     var sourceIndexes: [Int] = []
@@ -496,23 +512,32 @@ final class IntakeCoordinator {
       if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         readAnyText = true
       }
-      var drafts: [SlipMappedDraft]
-      do {
-        drafts = try await SlipReader.shared.interpretOrThrow(
-          text: text,
-          accounts: accounts,
-          categoryGroups: model.categoryGroups,
-          payees: model.payees,
-          guidance: guidance
-        )
-      } catch {
-        if background, readable(id) != nil {
-          // The model failed (not "returned no spends"). Don't settle for the
-          // line parser in the background: wait for a foreground read.
-          leaveForForeground(id)
-          return
+      // A transfers screen is read from its text first: the model and the line
+      // parser take its subtitle as the payee and miss the destination account.
+      var drafts = IntakeTransferReader.read(
+        text: text,
+        note: reading.note,
+        accounts: accounts,
+        payees: model.payees
+      )
+      if drafts.isEmpty {
+        do {
+          drafts = try await SlipReader.shared.interpretOrThrow(
+            text: text,
+            accounts: accounts,
+            categoryGroups: model.categoryGroups,
+            payees: model.payees,
+            guidance: guidance
+          )
+        } catch {
+          if background, readable(id) != nil {
+            // The model failed (not "returned no spends"). Don't settle for the
+            // line parser in the background: wait for a foreground read.
+            leaveForForeground(id)
+            return
+          }
+          drafts = []
         }
-        drafts = []
       }
       guard readable(id) != nil else {
         return
@@ -570,7 +595,9 @@ final class IntakeCoordinator {
       }
     } else {
       for index in extracted.indices where extracted[index].draft.accountID.isEmpty {
-        extracted[index].draft.seedIfNeeded(accounts: accounts, preferredAccountID: model.lastUsedOpenAccountID)
+        SlipAccountPick.seed(
+          &extracted[index].draft, accounts: accounts, preferredAccountID: model.lastUsedOpenAccountID
+        )
       }
     }
 

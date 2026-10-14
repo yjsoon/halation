@@ -359,15 +359,28 @@ struct IntakeReviewView: View {
           .padding(.horizontal, 16)
           .padding(.vertical, 12)
           .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-        // This version reads documents only; it does not act on notes yet.
-        Label("Notes aren’t read yet", systemImage: "exclamationmark.circle")
-          .font(.footnote)
-          .foregroundStyle(Theme.uncategorised)
+        // The note informs the model reader. The line parser reads none, so say so
+        // when every row came from it.
+        if notesNotApplied(in: job) {
+          Label("Note not applied: needs Apple Intelligence", systemImage: "exclamationmark.circle")
+            .font(.footnote)
+            .foregroundStyle(Theme.uncategorised)
+        }
       }
       .frame(maxWidth: .infinity, alignment: .trailing)
       .accessibilityElement(children: .combine)
-      .accessibilityLabel("Your note: \(note). Notes aren’t read yet")
+      .accessibilityLabel(
+        notesNotApplied(in: job) ? "Your note: \(note). Note not applied: needs Apple Intelligence" : "Your note: \(note)"
+      )
     }
+  }
+
+  /// Every row was read by the line parser, which ignores notes. Rows read as
+  /// transfers took the note into account.
+  private func notesNotApplied(in job: IntakeJob) -> Bool {
+    let reasons = job.proposals.map(\.reasons)
+    return !reasons.isEmpty
+      && reasons.allSatisfy { $0.contains(IntakeCoordinator.fallbackReason) }
   }
 
   /// Accounts are loaded but none is open: there is nothing to choose yet.
