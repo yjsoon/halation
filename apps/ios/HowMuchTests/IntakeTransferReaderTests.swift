@@ -199,6 +199,14 @@ final class IntakeTransferReaderTests: XCTestCase {
     XCTAssertEqual(rows, [])
   }
 
+  func testALineThatMerelyStartsWithFromOrToIsNotAReceiptLabel() {
+    let rows = IntakeTransferReader.read(
+      text: Self.ocr.replacingOccurrences(of: "Scheduled transfers\nAll", with: "Scheduled transfers\nFrom 1 Oct\nTo savings goals"),
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows.count, 3)
+  }
+
   func testANoteSayingNonTransferDoesNotOpenTheReader() {
     let rows = IntakeTransferReader.read(
       text: "Oct\n16\nCiti Rewards\n669.54 SGD",
