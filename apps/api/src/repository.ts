@@ -35,6 +35,7 @@ import {
   scheduledOccurrencesThrough,
   scheduledTransactionMutation,
   nextScheduledOccurrence,
+  newLinkedSideCleared,
   type EffectiveScheduledTransaction,
 } from "./scheduled-transactions";
 import { parseAccountIcon, resolveAccountPresentation, splitLegacyAccountName } from "./account-icon";
@@ -1132,7 +1133,7 @@ export class LedgerRepository {
           }
           const target = await this.requireTransferTarget(planId, input.account_id, targetAccountId);
           transferAccountId = target.id;
-          if (input.source_kind === "scheduled-transaction" && target.type === "cash") linkedCleared = "cleared";
+          linkedCleared = newLinkedSideCleared(input.source_kind, target.type);
           const targetPayee = await this.ensureTransferPayee(planId, target.id);
           if (targetPayee) {
             payeeId = targetPayee.id;
@@ -1280,7 +1281,7 @@ export class LedgerRepository {
               approved: input.approved,
               sourceAccountId: input.account_id,
               linkId: subId,
-              cleared: input.source_kind === "scheduled-transaction" && target.type === "cash" ? "cleared" : "uncleared",
+              cleared: newLinkedSideCleared(input.source_kind, target.type),
             }, plan);
           }
         }
