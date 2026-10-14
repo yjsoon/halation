@@ -506,10 +506,7 @@ struct APIClient {
 
   func importRewardsTracker(planID: String, payloadJSON: Data) async throws -> RewardsTrackerImportResult {
     let payload = try RewardsImportFile.wholeSettings(payloadJSON)
-    let body = try JSONSerialization.data(withJSONObject: [
-      "plan_id": planID,
-      "payload": payload,
-    ])
+    let body = try Self.verbatimPayloadBody(planID: planID, payload: payload)
     let response: APIEnvelope<RewardsTrackerImportResult> = try await executeRequest(
       path: "/api/import/rewards-tracker",
       method: "POST",
@@ -520,14 +517,19 @@ struct APIClient {
 
   func importRewardsAccountConfig(planID: String, accountID: String, payloadJSON: Data) async throws -> CreditCard {
     _ = try RewardsImportFile.accountConfig(payloadJSON)
-    // JSONSerialization preserves absent keys, explicit nulls and unknown configuration.
-    // CreditCard decoding/encoding would silently normalise those distinctions.
     let payload = try JSONSerialization.jsonObject(with: payloadJSON)
-    let body = try JSONSerialization.data(withJSONObject: ["plan_id": planID, "payload": payload])
+    let body = try Self.verbatimPayloadBody(planID: planID, payload: payload)
     let response: APIEnvelope<RewardCardPayload> = try await executeRequest(
       path: "/api/rewards/accounts", appendedPathSegments: [accountID, "config"], method: "PUT", bodyData: body
     )
     return response.data.card
+  }
+
+  /// The payload goes through `JSONSerialization`, not `CreditCard`, so absent keys,
+  /// explicit nulls and unknown configuration reach the server unchanged.
+  private static func verbatimPayloadBody(planID: String, payload: Any) throws -> Data {
+    let envelope: [String: Any] = ["plan_id": planID, "payload": payload]
+    return try JSONSerialization.data(withJSONObject: envelope)
   }
 
   func createRewardCard(planID: String, card: CreditCard) async throws -> CreditCard {
