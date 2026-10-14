@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { CATEGORY_SUGGESTION_BATCH, type CategorySuggestion, type CategorySuggestionRequestItem } from "../lib/category-suggestions";
+import type { LocalePlanSeed } from "../lib/locale-plan-seed";
 import type {
   Account,
   AccountPreferences,
@@ -278,6 +279,32 @@ async function request<T>(path: string, init?: RequestInit, options?: ApiRequest
   }
 }
 
+/** A file the server names itself (Content-Disposition), such as an export. */
+export interface DownloadedFile {
+  blob: Blob;
+  filename: string;
+}
+
+async function downloadFile(path: string, fallbackName: string): Promise<DownloadedFile> {
+  const startedEpoch = requestEpoch;
+  const response = await fetch(path, { credentials: "same-origin" });
+  if (!response.ok) {
+    if (response.status === 401 && shouldHandleUnauthorized(path, startedEpoch)) {
+      bumpRequestEpoch();
+      onUnauthorized?.();
+    }
+    let detail: string | undefined;
+    try {
+      detail = (await response.json())?.error?.detail;
+    } catch {
+      detail = undefined;
+    }
+    throw new ApiError(detail ?? `${response.status} ${response.statusText}`, response.status);
+  }
+  const named = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") ?? "")?.[1];
+  return { blob: await response.blob(), filename: named ?? fallbackName };
+}
+
 /**
  * Announce a write made outside `request` — see `lib/reward-tools.ts`, which
  * calls `fetch` directly so it can carry its own abort and timeout handling.
@@ -307,6 +334,8 @@ export interface ReportQuery {
   category_ids?: string;
   interval?: string;
   group?: string;
+  /** Rewards only: `range` keeps historical attribution when `from` is empty (all history). */
+  mode?: string;
 }
 
 export interface AuthUser {
@@ -320,6 +349,8 @@ export interface AuthStatus {
   user: AuthUser | null;
   /** Unix seconds; null when nothing here holds a browser session. */
   session_expires_at?: number | null;
+  /** Plan id to this user's role there. Present only for a signed-in session. */
+  roles?: Record<string, "owner" | "editor" | "viewer">;
 }
 
 /** What the setup and login endpoints return for a cookie session. */
@@ -369,11 +400,11 @@ async function approveTransactionBatch(planId: string, transactionIds: readonly 
 
 export const api = {
   authStatus: (options?: ApiRequestOptions) => request<AuthStatus>("/api/auth/status", undefined, options),
-  setup: (username: string, password: string, bootstrapToken: string) =>
+  setup: (username: string, password: string, bootstrapToken: string, seed?: LocalePlanSeed) =>
     request<AuthSession>("/api/auth/setup", {
       method: "POST",
       headers: bootstrapToken ? { authorization: `Bearer ${bootstrapToken}` } : undefined,
-      body: JSON.stringify({ username, password }),
+      body: JSON.stringify({ username, password, ...seed }),
     }),
   login: (username: string, password: string) =>
     request<AuthSession>("/api/auth/login", {
@@ -381,6 +412,11 @@ export const api = {
       body: JSON.stringify({ username, password }),
     }),
   logout: () => request<{ ok: true }>("/api/auth/logout", { method: "POST", body: "{}" }),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: true; session_expires_at?: number | null }>("/api/auth/password", {
+      method: "POST",
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }),
   personalApiTokens: () =>
     request<{ tokens: PersonalApiToken[] }>("/api/auth/personal-tokens").then((data) => data.tokens),
   createPersonalApiToken: (name: string) =>
@@ -394,8 +430,18 @@ export const api = {
     }).then((data) => data.token),
   plans: (options?: ApiRequestOptions) =>
     request<{ plans: Plan[] }>("/v1/plans", undefined, options).then((d) => d.plans),
+  /** Everything in the plan as one JSON archive, or every live transaction as CSV. */
+  exportPlan: (planId: string, kind: "archive" | "transactions-csv") =>
+    kind === "archive"
+      ? downloadFile(planUrl(planId, "export"), "halation-export.json")
+      : downloadFile(planUrl(planId, "export", "transactions.csv"), "halation-transactions.csv"),
   settings: (planId: string, options?: ApiRequestOptions) =>
     request<{ settings: PlanSettings }>(planUrl(planId, "settings"), undefined, options).then((d) => d.settings),
+  updatePlanFormats: (planId: string, formats: Pick<LocalePlanSeed, "currency_format" | "date_format">) =>
+    request<{ settings: PlanSettings }>(`/api/plans/${encodeURIComponent(planId)}/settings`, {
+      method: "PATCH",
+      body: JSON.stringify(formats),
+    }).then((d) => d.settings),
   accounts: (planId: string, options?: ApiRequestOptions) =>
     request<{ accounts: Account[]; server_knowledge: number }>(planUrl(planId, "accounts"), undefined, options),
   updateAccountIcon: (planId: string, accountId: string, icon: string) =>

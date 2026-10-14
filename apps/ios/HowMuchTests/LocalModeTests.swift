@@ -33,7 +33,7 @@ final class LocalModeTests: XCTestCase {
     do {
       _ = try await client.fetchTransaction(planID: settings.planID, transactionID: "missing")
       XCTFail("Expected a not-found error")
-    } catch APIClientError.server(let message) {
+    } catch APIClientError.notFound(let message) {
       XCTAssertFalse(message.isEmpty)
     }
   }
@@ -184,6 +184,67 @@ final class LocalModeTests: XCTestCase {
     XCTAssertEqual(model.unsentChangeCount, 0)
     await model.refresh(slices: [.accounts])
     XCTAssertEqual(model.accounts.first?.balance, 100_000)
+  }
+
+  /// Failure mode: `URLQueryItem` leaves a "+" bare in the query, and the
+  /// backend's `URLSearchParams` reads it as a space, so a search for
+  /// "C+C" (or a "+12.50" inflow search) reaches the server as something else.
+  func testRegisterSearchSendsAPlusSignIntact() async throws {
+    let settings = APISettings.local(in: defaults)
+    let client = APIClient(settings: settings)
+    try await LocalEngine.shared.prepare(config: settings.localEngineConfig)
+    let account = try await client.createAccount(
+      planID: settings.planID, name: "Everyday", type: "checking", balance: 0, icon: nil, onBudget: true
+    )
+    _ = try await client.createTransaction(planID: settings.planID, request: TransactionWriteRequest(
+      accountID: account.id, date: "2026-09-01", amount: -12_500, payeeID: nil, payeeName: "C+C Hardware",
+      categoryID: nil, memo: nil, cleared: .uncleared, approved: true, flagColor: nil, subtransactions: []
+    ))
+    _ = try await client.createTransaction(planID: settings.planID, request: TransactionWriteRequest(
+      accountID: account.id, date: "2026-09-02", amount: 12_500, payeeID: nil, payeeName: "Refund",
+      categoryID: nil, memo: nil, cleared: .uncleared, approved: true, flagColor: nil, subtransactions: []
+    ))
+
+    let byName = try await client.fetchTransactions(planID: settings.planID, q: "C+C")
+    XCTAssertEqual(byName.transactions.map(\.payeeName), ["C+C Hardware"])
+    let inflows = try await client.fetchTransactions(planID: settings.planID, q: "+12.50")
+    XCTAssertEqual(inflows.transactions.map(\.payeeName), ["Refund"])
+  }
+
+  /// Failure mode: one engine run enters at most 25 occurrences, as the
+  /// Worker's daily cron does, and says `has_more` when more are due. A phone
+  /// that was away for a month entered only the first 25 of a daily schedule,
+  /// and the register and balances stayed short until the app next came to
+  /// the front.
+  @MainActor
+  func testLocalCatchUpEntersEveryDueOccurrence() async throws {
+    let settings = APISettings.local(in: defaults)
+    let client = APIClient(settings: settings)
+    try await LocalEngine.shared.prepare(config: settings.localEngineConfig)
+    let account = try await client.createAccount(
+      planID: settings.planID, name: "Everyday", type: "checking", balance: 0, icon: nil, onBudget: true
+    )
+    let start = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: -29, to: .now)).isoDateString
+    _ = try await client.createScheduledTransaction(
+      planID: settings.planID,
+      idempotencyKey: "local-catch-up",
+      request: ScheduledTransactionWriteRequest(
+        accountID: account.id, dateFirst: start, dateNext: start, frequency: "daily", amount: -1_000,
+        payeeID: nil, categoryID: nil, transferAccountID: nil, memo: nil, flagColor: nil, subtransactions: []
+      )
+    )
+    let model = AppModel(
+      outboxStore: .temporary(),
+      settings: settings,
+      viewPrefs: ViewPrefs(),
+      snapshotStore: SnapshotStore(directory: directory.appending(path: "snapshots", directoryHint: .isDirectory)),
+      hasSavedSettings: true
+    )
+
+    await model.runLocalScheduledTransactions(refreshAfter: false)
+
+    let page = try await client.fetchTransactions(planID: settings.planID)
+    XCTAssertEqual(page.transactions.count, 30, "every day from \(start) through today")
   }
 
   /// Lost preferences with the ledger still on disk: starting again adopts

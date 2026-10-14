@@ -17,7 +17,19 @@ export function AccountIconButton({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const labelId = useId();
+
+  // Closing the popover (Esc, or a chosen icon) unmounts the focused control;
+  // hand focus back to the icon button rather than to <body>.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    const closed = wasOpen.current && !open;
+    wasOpen.current = open;
+    if (closed && (document.activeElement === null || document.activeElement === document.body)) {
+      triggerRef.current?.focus();
+    }
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -57,6 +69,7 @@ export function AccountIconButton({
   return (
     <div className="account-icon-picker" ref={rootRef}>
       <button
+        ref={triggerRef}
         type="button"
         className="account-icon-button"
         aria-haspopup="dialog"

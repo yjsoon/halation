@@ -1,6 +1,6 @@
 import type { Payee, Subtransaction, Transaction, TransactionUpdateInput } from "../api/types";
-import { formatMilliunitsInput, parseMilliunits } from "./money";
-import { canonicalPayeeName, findTransferPayee, formatComposeAmount } from "./register-compose";
+import { parseMilliunits, planDecimalIsComma } from "./money";
+import { canonicalPayeeName, findTransferPayee, formatMilliunitsPadded } from "./register-compose";
 
 export type RegisterRowDraft = {
   readonly date: string;
@@ -384,7 +384,7 @@ function splitDraft(parent: Transaction, line: Subtransaction): RegisterRowDraft
 }
 
 function amountDraft(amount: number): Pick<RegisterRowDraft, "outflow" | "inflow"> {
-  const formatted = formatComposeAmount(formatMilliunitsInput(Math.abs(amount)));
+  const formatted = formatMilliunitsPadded(Math.abs(amount));
   if (amount < 0) {
     return { outflow: formatted, inflow: "" };
   }
@@ -739,8 +739,11 @@ type AmountToken =
   | { readonly kind: "rparen" };
 
 const AMOUNT_NUMBER = /^(?:(\d+)(?:\.(\d{0,3}))?|\.(\d{1,3}))/;
+// A comma-decimal plan's "12,5+1" (parseMilliunits reads its comma too).
+const AMOUNT_NUMBER_COMMA = /^(?:(\d+)(?:[.,](\d{0,3}))?|[.,](\d{1,3}))/;
 
 function tokenizeAmount(text: string): AmountToken[] | null {
+  const numberPattern = planDecimalIsComma() ? AMOUNT_NUMBER_COMMA : AMOUNT_NUMBER;
   const tokens: AmountToken[] = [];
   let index = 0;
   while (index < text.length) {
@@ -764,7 +767,7 @@ function tokenizeAmount(text: string): AmountToken[] | null {
       index += 1;
       continue;
     }
-    const match = text.slice(index).match(AMOUNT_NUMBER);
+    const match = text.slice(index).match(numberPattern);
     if (!match) {
       return null;
     }

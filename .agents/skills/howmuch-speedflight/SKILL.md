@@ -45,13 +45,14 @@ Never cut an IPA from a stale local checkout.
 Confirm without printing secrets. Full checklist and blocker table:
 `docs/speedflight.md` ("Preflight" and "Blockers and owner setup").
 
-1. Darwin with working `xcodebuild`. No Linux/cloud VM, and no CI workflow
-   exists — creating one requires an explicit request.
+1. Darwin with working `xcodebuild`; a hosted macOS VM with Xcode is fine,
+   Linux is not. If an operator-specific publishing skill is available,
+   follow it. No CI workflow exists; creating one requires an explicit request.
 2. Gitignored `.env.speedflight` defines `ASC_KEY_ID`, `ASC_ISSUER_ID`,
    `ASC_PRIVATE_KEY_PATH` (explicit path, mode `600`), `SPEEDFLIGHT_SECRET`,
    `SPEEDFLIGHT_DEEP_LINK=howmuch://`, `SPEEDFLIGHT_AUTHOR`.
 3. The `.p8` belongs to **Tinkertanker `PQ6U5ESLN2`**, which owns
-   **`sg.soon.howmuch`**. A **T Krobot `XL5JK4F896`** key may authenticate
+   **`sg.soon.howmuch`**. A key from another team may authenticate
    but cannot sign this bundle. **Never** change `DEVELOPMENT_TEAM` to make
    a wrong-team key work, never archive unsigned, and never create or
    revoke certificates/profiles by hand.

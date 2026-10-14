@@ -1,9 +1,9 @@
 import type { Database } from "bun:sqlite";
-import type { ApiConfig } from "./config";
+import { isLoopbackHost, type ApiConfig } from "./config";
 import { AccountPreferencesConflictError, LedgerRepository, NotFoundError, ReconciliationMismatchError, TransactionStateConflictError, ValidationError } from "./repository";
 import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
-import { collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
+import { assertTransactionFieldTypes, collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
 import { ReportService } from "./reports";
 import { decimalToMilliunits } from "./money";
 import { importCsvRows } from "./importers/csv";
@@ -33,7 +33,7 @@ import {
 } from "./password-auth";
 import { randomBytes } from "node:crypto";
 import { ScheduledTransactionValidationError } from "./scheduled-transactions";
-import { ACCOUNT_KINDS, parseAccountKind, type AccountUpdatePatch } from "./account-kind";
+import { ACCOUNT_KINDS, onBudgetForKind, parseAccountKind, type AccountUpdatePatch } from "./account-kind";
 import { handleRewardTool } from "./reward-tools";
 import { autoCategorise, CategoriserUnavailableError, parseCategoriseExclusions, parseCategoriseItems, suggestCategories, type CategoriserConfig } from "./categoriser";
 import type { Fetch } from "@typesafe-ai/sdk";
@@ -48,6 +48,8 @@ import {
   parseCategoryPatch,
 } from "./category-management";
 import { MAX_SNAPSHOT_BYTES, PlanNotEmptyError, SnapshotValidationError } from "./plan-snapshot";
+import { buildPlanExport, transactionsCsv } from "./plan-export";
+import { parseSeedCurrencyFormat, parseSeedDateFormat } from "./plan-settings-seed";
 
 type HandlerOptions = {
   db?: Database;
@@ -109,7 +111,7 @@ export function createHandler(options: HandlerOptions): (request: Request) => Pr
       }
 
       if (segments[0] === "api") {
-        return await handleNative(request, url, segments, repo, reports, principal, config.defaultPlanId, categoriser);
+        return await handleNative(request, url, segments, repo, reports, principal, config.defaultPlanId, categoriser, config.ynabBaseUrl);
       }
 
       return apiError(404, "not_found", "Route not found");
@@ -265,7 +267,31 @@ async function handleV1(
       if (!payload || (!payload.id && !payload.name)) {
         return apiError(400, "bad_request", "account requires a name");
       }
-      const account = await repo.createAccount(planId, payload);
+      // An object name was stored as "[object Object]", an object type failed
+      // as a 500, and a string flag read as true on D1 but false on SQLite.
+      for (const field of ["id", "name", "type", "icon", "note"]) {
+        if (payload[field] != null && typeof payload[field] !== "string") {
+          throw new ValidationError(`account.${field} must be a string`);
+        }
+      }
+      for (const field of ["on_budget", "closed", "deleted"]) {
+        if (payload[field] != null && typeof payload[field] !== "boolean") {
+          throw new ValidationError(`account.${field} must be true or false`);
+        }
+      }
+      // Balances feed integer milliunit arithmetic; a decimal string or an
+      // object would be stored verbatim and corrupt every later balance.
+      for (const field of ["balance", "opening_balance", "cleared_balance", "uncleared_balance"]) {
+        if (payload[field] != null && !Number.isSafeInteger(payload[field])) {
+          throw new ValidationError(`account.${field} must be integer milliunits`);
+        }
+      }
+      // The documented create body names a type and no on_budget; a tracking
+      // kind (mortgage, asset, loan) must not default to on-budget.
+      const kind = parseAccountKind(payload.type);
+      const account = await repo.createAccount(planId, payload.on_budget == null && kind
+        ? { ...payload, on_budget: onBudgetForKind(kind) }
+        : payload);
       return json({ data: { account, server_knowledge: await repo.getServerKnowledge(planId) } }, 201);
     }
     // Must precede the `/accounts/{account_id}` branch below, or "usage" would
@@ -341,6 +367,19 @@ async function handleV1(
     return json({ data: await repo.exportPlanSnapshot(planId) });
   }
 
+  if (resource === "export" && (segments.length === 4 || (segments.length === 5 && segments[4] === "transactions.csv")) && method === "GET") {
+    if (principal.kind !== "api-token" && principal.roles[planId] === "viewer") {
+      return apiError(403, "forbidden", "Plan owner or editor access is required");
+    }
+    const archive = await buildPlanExport(repo, planId, principal.kind === "api-token" ? null : principal.id);
+    const day = archive.exported_at.slice(0, 10);
+    if (segments.length === 5) {
+      const decimalDigits = Number((archive.settings as any)?.currency_format?.decimal_digits ?? 2);
+      return download(transactionsCsv(archive.snapshot, { decimalDigits }), "text/csv; charset=utf-8", `halation-transactions-${day}.csv`);
+    }
+    return download(JSON.stringify(archive, null, 2), "application/json; charset=utf-8", `halation-export-${day}.json`);
+  }
+
   if (resource === "import_snapshot" && segments.length === 4 && method === "POST") {
     const administrationDenied = authorizePlanAdministration(principal, planId);
     if (administrationDenied) return administrationDenied;
@@ -408,7 +447,11 @@ async function handleV1(
     }
     if (segments.length === 4 && method === "POST") {
       const body = await readJson(request);
-      const payee = await repo.createPayee(planId, body.payee?.name ?? body.name);
+      const name = body.payee?.name ?? body.name;
+      // A missing name reached the NOT NULL column as a 500; a blank one made
+      // a payee nobody can see or pick.
+      if (typeof name !== "string" || !name.trim()) throw new ValidationError("payee.name is required");
+      const payee = await repo.createPayee(planId, name.trim());
       return json({ data: { payee, server_knowledge: await repo.getServerKnowledge(planId) } }, 201);
     }
     const payeeId = segments[4];
@@ -490,13 +533,24 @@ async function handleV1(
       return transactionListResponse(repo, planId, queryFilters(url));
     }
     if (segments.length === 4 && method === "PATCH") {
-      const result = await repo.updateTransactions(planId, parseTransactionUpdates(await readJson(request)));
+      const edits = parseTransactionUpdates(await readJson(request));
+      // A bulk recolour takes the card's name for the new colour, as a single
+      // edit does; otherwise the row keeps the old colour's name.
+      for (const edit of edits) {
+        if (!Object.prototype.hasOwnProperty.call(edit.patch, "flag_color") || Object.prototype.hasOwnProperty.call(edit.patch, "flag_name")) continue;
+        const accountId = typeof edit.patch.account_id === "string" && edit.patch.account_id
+          ? edit.patch.account_id
+          : (await repo.getTransaction(planId, await repo.resolveTransactionLookup(planId, edit.lookup))).account_id;
+        await stampTransactionFlagName(repo, planId, accountId, edit.patch);
+      }
+      const result = await repo.updateTransactions(planId, edits);
       return json({ data: result });
     }
     if (segments.length === 4 && method === "POST") {
       const body = await readJson(request);
       if (collectionPostIntent(body) === "many") {
         const inputs = parseTransactionCreates(body.transactions);
+        for (const input of inputs) await stampTransactionFlagName(repo, planId, input.account_id, input);
         await autoCategorise(repo, planId, inputs, categoriser);
         const result = await repo.createTransactions(planId, inputs);
         return json({ data: result }, 201);
@@ -505,6 +559,7 @@ async function handleV1(
       if (!input) {
         return apiError(400, "bad_request", "transaction is required");
       }
+      assertTransactionFieldTypes(input);
       const existing = input?.import_id && input?.account_id
         ? await repo.findTransactionByImportId(planId, input.import_id, input.account_id)
         : null;
@@ -542,10 +597,10 @@ async function handleV1(
     }
     if (segments.length === 5 && segments[4] === "import" && method === "POST") {
       const body = await readJson(request);
-      const result = await repo.importTransactions(
-        planId,
-        (body.transactions ?? []).map((transaction: any) => transaction.transaction ?? transaction),
-      );
+      if (body.transactions != null && !Array.isArray(body.transactions)) throw new ValidationError("transactions must be an array");
+      const items = (body.transactions ?? []).map((transaction: any) => transaction?.transaction ?? transaction);
+      items.forEach((item: unknown, index: number) => assertTransactionFieldTypes(item, `transactions[${index}]`));
+      const result = await repo.importTransactions(planId, items);
       return json({ data: result }, 201);
     }
 
@@ -583,9 +638,13 @@ async function handleV1(
     if (segments.length === 5 && (method === "PUT" || method === "PATCH")) {
       const body = await readJson(request);
       const patch = body.transaction ?? body;
+      assertTransactionFieldTypes(patch);
       if (Object.prototype.hasOwnProperty.call(patch, "flag_color") && !Object.prototype.hasOwnProperty.call(patch, "flag_name")) {
-        const existing = await repo.getTransaction(planId, transactionId);
-        await stampTransactionFlagName(repo, planId, existing.account_id, patch);
+        // A move and a flag in one edit take the destination card's names.
+        const accountId = typeof patch.account_id === "string" && patch.account_id
+          ? patch.account_id
+          : (await repo.getTransaction(planId, transactionId)).account_id;
+        await stampTransactionFlagName(repo, planId, accountId, patch);
       }
       const updated = await repo.updateTransaction(planId, transactionId, patch);
       return json({ data: { transaction: updated, server_knowledge: await repo.getServerKnowledge(planId) } });
@@ -695,9 +754,34 @@ async function handleNative(
   principal: Principal,
   defaultPlanId: string,
   categoriser: CategoriserConfig,
+  ynabBaseUrl?: string,
 ): Promise<Response> {
   const method = request.method.toUpperCase();
   const planId = url.searchParams.get("plan_id") ?? defaultPlanId;
+
+  if (segments[1] === "plans" && segments[3] === "settings" && segments.length === 4 && method === "PATCH") {
+    const targetPlanId = segments[2];
+    const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method)
+      ?? authorizePlanAdministration(principal, targetPlanId);
+    if (denied) return denied;
+    const body = await readJson(request);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new ValidationError("Request body must be a JSON object");
+    }
+    const currencyFormat = body.currency_format === undefined ? undefined : parseSeedCurrencyFormat(body.currency_format);
+    const dateFormat = body.date_format === undefined ? undefined : parseSeedDateFormat(body.date_format);
+    if (currencyFormat === null || dateFormat === null) {
+      throw new ValidationError("currency_format or date_format is not valid");
+    }
+    if (currencyFormat === undefined && dateFormat === undefined) {
+      throw new ValidationError("Provide currency_format, date_format or both");
+    }
+    await repo.updatePlanFormats(targetPlanId, {
+      ...(currencyFormat ? { currency_format: currencyFormat } : {}),
+      ...(dateFormat ? { date_format: dateFormat } : {}),
+    });
+    return json({ data: { settings: await repo.getSettings(targetPlanId) } });
+  }
 
   // Suggestions only: nothing is written. Cookie sessions still pass the
   // global same-origin check for POSTs, and bearer clients (iOS) may call it.
@@ -748,10 +832,13 @@ async function handleNative(
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
     if (denied) return denied;
     await repo.ensurePlan(targetPlanId);
-    const amount = body.amount_milli ?? decimalToMilliunits(body.amount);
+    const amount = quickEntryMilliunits(body.amount_milli, body.amount, "amount");
+    if (Array.isArray(body.subtransactions) && body.subtransactions.some((sub: unknown) => !sub || typeof sub !== "object" || Array.isArray(sub))) {
+      throw new ValidationError("subtransactions must be objects");
+    }
     const subtransactions = Array.isArray(body.subtransactions)
       ? body.subtransactions.map((sub: any) => ({
-          amount: sub.amount_milli ?? decimalToMilliunits(sub.amount),
+          amount: quickEntryMilliunits(sub.amount_milli, sub.amount, "subtransaction amount"),
           payee_id: sub.payee_id ?? null,
           payee_name: sub.payee_name ?? null,
           category_id: sub.category_id ?? null,
@@ -773,6 +860,7 @@ async function handleNative(
       source_ref: body.client_id ?? null,
       subtransactions,
     };
+    assertTransactionFieldTypes(input);
     await stampTransactionFlagName(repo, targetPlanId, input.account_id, input);
     await autoCategorise(repo, targetPlanId, [input], categoriser);
     const transaction = await repo.createTransaction(targetPlanId, input);
@@ -798,7 +886,7 @@ async function handleNative(
     const result = await importYnabFromApi(repo, {
       token: body.token,
       planId: targetPlanId,
-      baseUrl: body.base_url,
+      baseUrl: ynabBaseUrl,
       sinceDate: body.since_date,
     });
     return json({ data: result }, 201);
@@ -859,6 +947,21 @@ async function handleNative(
   }
 
   return apiError(404, "not_found", "Route not found");
+}
+
+/**
+ * Quick entry takes integer milliunits or a decimal string. A missing or
+ * unparseable decimal is the caller's mistake, not a server failure; integer
+ * checks on `amount_milli` stay with the transaction writer.
+ */
+function quickEntryMilliunits(milli: unknown, decimal: unknown, label: string): number {
+  if (milli !== undefined && milli !== null) return milli as number;
+  if (typeof decimal !== "string" && typeof decimal !== "number") throw new ValidationError(`${label} is required`);
+  try {
+    return decimalToMilliunits(decimal);
+  } catch {
+    throw new ValidationError(`${label} must be a decimal amount`);
+  }
 }
 
 function queryFilters(url: URL, overrides: Record<string, string | null> = {}): TransactionFilters {
@@ -958,6 +1061,7 @@ function reportFilters(url: URL) {
     interval: (url.searchParams.get("interval") as any) ?? "month",
     topPayeesLimit: parseNumber(url.searchParams.get("top_payees_limit")),
     groupBy: parseRewardGroupBy(url.searchParams.get("group")),
+    rewardsRange: url.searchParams.get("mode") === "range",
   };
 }
 
@@ -997,11 +1101,18 @@ async function readJson(request: Request): Promise<any> {
   if (!text) {
     return {};
   }
+  let body: unknown;
   try {
-    return JSON.parse(text);
+    body = JSON.parse(text);
   } catch {
     throw new ValidationError("Request body is not valid JSON");
   }
+  // Every route reads named fields; a bare null, array or scalar failed on the
+  // first property read as a 500.
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new ValidationError("Request body must be a JSON object");
+  }
+  return body;
 }
 
 function scheduledWriteOptions(request: Request): { operationId?: string } {
@@ -1037,6 +1148,9 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
         // ledger data once it has passed, so an expired cookie cannot show the
         // previous user's plan to whoever opens the browser next (#175, #177).
         session_expires_at: principal?.kind === "session" ? principal.sessionExpiresAt ?? null : null,
+        // Plan id to role, for session principals only. Lets the web client show
+        // owner-only controls; the server still enforces the role on every write.
+        ...(principal?.kind === "session" ? { roles: principal.roles } : {}),
       },
     });
   }
@@ -1100,6 +1214,13 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
     if (!sameOrigin(request, url)) {
       return authError(403, "forbidden", "Origin validation failed");
     }
+    if (!config.apiToken && !isLoopbackHost(url.hostname)) {
+      return authError(
+        403,
+        "forbidden",
+        "Tokenless setup is only allowed from this machine; set HOWMUCH_API_TOKEN",
+      );
+    }
     const authorization = request.headers.get("authorization");
     const bootstrapToken = bearerToken(authorization);
     const validBootstrap = config.apiToken
@@ -1115,6 +1236,12 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
       return authError(400, "bad_request", "Username or password does not meet the requirements");
     }
 
+    const currencyFormat = body.currency_format === undefined ? undefined : parseSeedCurrencyFormat(body.currency_format);
+    const dateFormat = body.date_format === undefined ? undefined : parseSeedDateFormat(body.date_format);
+    if (currencyFormat === null || dateFormat === null) {
+      return authError(400, "bad_request", "currency_format or date_format is not valid");
+    }
+
     const userId = randomBytes(16).toString("hex");
     const session = newSession();
     const credential = await passwordCredential(body.password);
@@ -1124,10 +1251,13 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
       credential,
       session,
       planId: config.defaultPlanId,
+      currencyFormat,
+      dateFormat,
     });
     if (!created) {
       return authError(409, "setup_complete", "Setup has already completed");
     }
+    await pruneAuthRows(store);
     return sessionResponse({ data: { user: { id: userId, username }, session_expires_at: session.expiresAt } }, session.token, session.expiresAt);
   }
 
@@ -1155,11 +1285,70 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
     }
 
     const session = newSession();
-    await store.createSession(credential.user_id, session);
+    // Conditional on the hash just verified: a password change that committed
+    // while scrypt ran must not leave this login with a live session.
+    if (!await store.createSession(credential.user_id, session, credential.hash_hex)) {
+      return authError(401, "invalid_credentials", "Invalid username or password");
+    }
+    await pruneAuthRows(store);
     const user = { id: credential.user_id, username: credential.username };
     return browserLogin
       ? sessionResponse({ data: { user, session_expires_at: session.expiresAt } }, session.token, session.expiresAt)
       : authJson({ data: { token: session.token, expires_at: session.expiresAt, user } });
+  }
+
+  if (path === "/api/auth/password" && method === "POST") {
+    const principal = await authenticate(request, store, config.apiToken);
+    // Only a signed-in person may change a password. The static bootstrap token
+    // and personal API tokens are machine credentials and never qualify.
+    if (!principal || principal.kind !== "session") {
+      return authError(401, "not_authorized", "A signed-in account is required");
+    }
+    if (principal.transport === "cookie" && !sameOrigin(request, url)) {
+      return authError(403, "forbidden", "CSRF validation failed");
+    }
+    const body = await readJson(request);
+    if (!body || typeof body !== "object" || Array.isArray(body)
+      || typeof body.current_password !== "string" || !validPassword(body.new_password)) {
+      return authError(400, "bad_request", "A current password and a new password of at least 15 characters are required");
+    }
+    // Same byte ceiling as sign-in, checked before any key derivation.
+    if (Buffer.byteLength(body.current_password, "utf8") > 256) {
+      return authError(400, "bad_request", "The current password is too long");
+    }
+    if (body.new_password === body.current_password) {
+      return authError(400, "bad_request", "The new password must differ from the current one");
+    }
+    // Its own counter, keyed on the account rather than the username, so
+    // anonymous failed sign-ins cannot lock the owner out of changing their
+    // password, while guessing through this route stays at ten per window.
+    // (The table's CHECK allows only 'username' and 'ip' scopes; the prefix
+    // keeps this key apart from any sign-in key.)
+    const windowStart = Math.floor(Date.now() / 1_000 / 900) * 900;
+    if (await store.rateAttempt("username", sha256(`pwchange:${principal.id}`), windowStart) > 10) {
+      return authError(429, "rate_limited", "Too many password attempts", { "retry-after": "900" });
+    }
+    const credential = await store.credential(principal.username);
+    if (!credential || credential.user_id !== principal.id || !await verifyPassword(body.current_password, credential)) {
+      return authError(401, "invalid_credentials", "Current password is incorrect");
+    }
+    // Every session of this user is revoked and the caller gets a fresh one in
+    // the same step, so a token that leaked before the change dies with it.
+    const session = newSession();
+    // Conditional on the hash just verified: a concurrent change that committed
+    // first wins, and this request changes nothing and issues no session.
+    if (!await store.replaceCredential(
+      principal.id,
+      await passwordCredential(body.new_password),
+      session,
+      Math.floor(Date.now() / 1_000),
+      credential.hash_hex,
+    )) {
+      return authError(401, "invalid_credentials", "Current password is incorrect");
+    }
+    return principal.transport === "cookie"
+      ? sessionResponse({ data: { ok: true, session_expires_at: session.expiresAt } }, session.token, session.expiresAt)
+      : authJson({ data: { ok: true, token: session.token, expires_at: session.expiresAt } });
   }
 
   if (path === "/api/auth/logout" && method === "POST") {
@@ -1178,6 +1367,19 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
   }
 
   return authError(404, "not_found", "Route not found");
+}
+
+/**
+ * Housekeeping on sign-in: expired sessions and finished rate-limit windows
+ * are otherwise never deleted. Best effort and bounded, so a failure here must
+ * never fail the sign-in that triggered it.
+ */
+async function pruneAuthRows(store: AuthStore): Promise<void> {
+  try {
+    await store.pruneExpired(Math.floor(Date.now() / 1_000));
+  } catch (error) {
+    console.error("Could not prune expired auth rows", error);
+  }
 }
 
 async function authenticate(request: Request, store: AuthStore, apiToken?: string): Promise<Principal | null> {
@@ -1360,6 +1562,16 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
+    },
+  });
+}
+
+function download(body: string, contentType: string, filename: string): Response {
+  return new Response(body, {
+    headers: {
+      "content-type": contentType,
+      "content-disposition": `attachment; filename="${filename}"`,
+      "cache-control": "no-store",
     },
   });
 }

@@ -43,7 +43,7 @@ Required hardening before relying on it daily:
 - Keep backup-before-import behaviour.
 - Add a documented restore drill: stop API, copy the chosen backup over the active DB, start API, run smoke checks.
 - Avoid running more than one API process against the same writable DB file.
-- Set `HOWMUCH_API_TOKEN` for anything reachable beyond localhost.
+- Set `HOWMUCH_API_TOKEN` for anything reachable beyond localhost. The Bun server listens on `127.0.0.1` by default; set `HOWMUCH_HOST` (for example `0.0.0.0`) to serve other machines, and it refuses to start on a non-loopback host without `HOWMUCH_API_TOKEN`. Tokenless first-time setup is also refused unless the request Host is loopback, so anything that tunnels or reverse-proxies to the loopback server (or could be reached by DNS rebinding) must set `HOWMUCH_API_TOKEN`.
 
 ### Phase 2: Private Beta / Small Paid Users
 
@@ -183,7 +183,7 @@ Risks:
 
 ## Decision Points
 
-- Is HowMuch meant to be self-hosted for the user, or centrally hosted for other people?
+- Is HowMuch meant to be self-hosted for the user, or centrally hosted for other people? Decided 2026-10-10: self-hosted only. The owner will not host other people's financial data, so the multi-tenant and shared hosted options above are not being pursued.
 - For the first beta, is one database/deployment per user acceptable?
 - Is Cloudflare Workers a hard platform requirement, or is Cloudflare only needed as the public edge?
 - Is iOS/OpenClaw auth allowed to remain token-based, or should beta require account login from day one?

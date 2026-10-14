@@ -1,5 +1,7 @@
 # Deployment
 
+This is the owner's runbook. To run your own instance, see [self-hosting](self-hosting.md).
+
 The D1 databases (placement is per-database and fixed at creation):
 
 - Production (Tinkertanker account, env `tk`): `howmuch-production-sg` = `d13295f9-10d4-4ac0-bf62-b3e8c78cbf29` — primary in **SIN** since the 2026-09-12 #183 cutover
@@ -39,6 +41,12 @@ Preview:
 cd apps/worker
 wrangler d1 migrations apply DB --remote --env preview --profile yj
 bun run deploy:preview
+```
+
+Production (only when production itself is authorized; run `scripts/backup-d1.sh` first):
+
+```sh
+cd apps/worker
 wrangler d1 migrations apply DB --env tk --remote --profile tinkertanker
 bun run deploy:tk
 ```
@@ -55,7 +63,10 @@ environment `tk` in `wrangler.jsonc`:
   `https://howmuch.tk.sg`, serving the web front-end and API on one hostname.
 - One cron, `5 16 * * *` (00:05 Asia/Singapore), materialises due scheduled
   transactions; it catches up overdue occurrences (25 per run, idempotent via
-  deterministic operation IDs). No YNAB configuration. Keep
+  deterministic operation IDs). No YNAB configuration. A cron equal to the YNAB
+  sync cron (`HOWMUCH_YNAB_SYNC_CRON`, default `10 16 * * *`) runs the YNAB
+  sync only when that variable is set, a YNAB token or plan ID is configured,
+  or transition read-only mode is on; otherwise it materialises. Keep
   `HOWMUCH_API_TOKEN` as an encrypted secret on this Worker.
 - Optional: `TYPESAFE_API_KEY` (encrypted secret) turns on Jev category
   suggestions (`POST /api/tools/categorise`); without it the route returns 503.
@@ -73,6 +84,25 @@ environment `tk` in `wrangler.jsonc`:
   applies D1 migrations. If a release includes a migration, apply it manually
   (`wrangler d1 migrations apply DB --env tk --remote --profile tinkertanker`)
   before tagging, following the verification order in this document.
+- Migration `0019_own_imported_ynab_schedules.sql` copies every mirrored YNAB
+  schedule into HowMuch's own schedule tables and adds `plans.ynab_sourced`. It
+  must be applied **before** the Worker that reads them is deployed (the new
+  code needs the column; the old code keeps working against the new schema).
+  Run `scripts/backup-d1.sh` first. The migration is atomic and fails, changing
+  nothing, if a mirrored schedule cannot be copied. Afterwards, with
+  `wrangler d1 execute DB --env tk --remote --profile tinkertanker --command`,
+  check that the two counts match and that the plan is marked:
+  `SELECT (SELECT count(*) FROM ynab_raw_objects WHERE object_type='scheduled_transaction') AS mirrored, (SELECT count(*) FROM scheduled_transaction_edits WHERE origin='ynab-overlay') AS owned, (SELECT group_concat(ynab_sourced) FROM plans) AS plan_marked`.
+  It leaves `ynab_raw_objects` untouched; pruning it is a separate decision (#161).
+  Before applying, run this read-only preflight; every count must be 0, because
+  a schedule the migration cannot copy makes it abort (atomically, so nothing
+  is lost, but the release stalls):
+  `SELECT (SELECT count(*) FROM ynab_raw_objects r WHERE r.object_type='scheduled_transaction' AND (json_extract(r.payload_json,'$.account_id') IS NULL OR json_extract(r.payload_json,'$.date_first') IS NULL OR json_extract(r.payload_json,'$.date_next') IS NULL OR json_extract(r.payload_json,'$.frequency') IS NULL OR json_extract(r.payload_json,'$.amount') IS NULL OR NOT EXISTS (SELECT 1 FROM accounts a WHERE a.id=json_extract(r.payload_json,'$.account_id')))) AS bad_schedules, (SELECT count(*) FROM ynab_raw_objects s WHERE s.object_type='scheduled_subtransaction' AND COALESCE(json_extract(s.payload_json,'$.deleted'),0)=0 AND (json_extract(s.payload_json,'$.amount') IS NULL OR json_extract(s.payload_json,'$.scheduled_transaction_id') IS NULL)) AS bad_lines`.
+  Do not run a YNAB import between applying the migration and deploying the
+  Worker: the old Worker would write a new schedule only to the mirror, where
+  the new code does not look. Production has no YNAB configuration, so this
+  only matters if one is added.
+  Once a schedule is owned, a later YNAB import does not change or delete it.
 - Before building or deploying, the workflow runs
   `scripts/check-d1-migrations.sh --env tk --remote`. It reads the
   `d1_migrations` table with a single `SELECT` and fails the run, without
@@ -225,8 +255,8 @@ bun run backup:d1
 ```
 
 - Destination: gitignored `data/backups/` (override with `HOWMUCH_BACKUP_DIR`).
-  Each run writes `howmuch-production-YYYY-MM-DD.sql` (UTC date) and
-  `howmuch-production-YYYY-MM-DD.sql.sha256`, and appends diagnostics to
+  Each run writes `howmuch-production-sg-YYYY-MM-DD.sql` (UTC date) and
+  `howmuch-production-sg-YYYY-MM-DD.sql.sha256`, and appends diagnostics to
   `data/backups/.backup-d1.log`.
 - The script is read-only against production. It first verifies that Wrangler
   profile `tinkertanker` exposes `howmuch-production-sg` = `d13295f9-...`, then
@@ -241,7 +271,7 @@ bun run backup:d1
   risky change. The YNAB raw mirror dominates the ~204 MB dump.
 - Retention: keeps the newest archive from each of the most recent 6 calendar
   months (`HOWMUCH_BACKUP_RETENTION_MONTHS`). Pruning removes only
-  `howmuch-production-*.sql` and its `.sha256` inside the configured backup
+  `howmuch-production-sg-YYYY-MM-DD.sql` and its `.sha256` inside the configured backup
   directory; it never touches `data/tk-migration/` or other artefacts, and the
   newest dump is always kept.
 - Other overrides: `HOWMUCH_BACKUP_COUNT_TOLERANCE`, `HOWMUCH_BACKUP_MIN_BYTES`,
@@ -265,7 +295,9 @@ fire `RAISE(ABORT, ...)` guards during bulk load):
 
 ```sh
 cd apps/worker
-wrangler d1 export howmuch-production --env tk --remote --profile tinkertanker --output <local-file>.sql
+# howmuch-production-sg, not howmuch-production: that name in this account is
+# the frozen pre-cutover KIX snapshot, which Wrangler would export instead.
+wrangler d1 export howmuch-production-sg --env tk --remote --profile tinkertanker --output <local-file>.sql
 
 # Build a local copy, then emit schema/data/triggers in dependency order:
 sqlite3 local-copy.sqlite < <local-file>.sql
@@ -300,8 +332,8 @@ Keep `HOWMUCH_API_TOKEN` as an encrypted secret. Use the local, validated import
 ## Historical: temporary YNAB transition mode
 
 > Completed. The YNAB transition finished before the 2026-09-11 account
-> migration; production (Tinkertanker) runs no YNAB configuration, no cron,
-> and accepts writes normally. This section is kept for reference and for its
+> migration; production (Tinkertanker) runs no YNAB configuration, no YNAB
+> cron (only the scheduled-materialisation cron), and accepts writes normally. This section is kept for reference and for its
 > privacy-safe verification rules, which still apply to any operational work.
 
 Production has finished the YNAB-primary transition. `HOWMUCH_TRANSITION_READ_ONLY=false`, there is no `HOWMUCH_YNAB_PLAN_ID`, and the only cron is HowMuch scheduled materialisation at `5 16 * * *` (`00:05 Asia/Singapore`). Do not add `HOWMUCH_YNAB_PLAN_ID` or the `10 16 * * *` YNAB delta cron again unless a new transition is explicitly authorised. `HOWMUCH_YNAB_TOKEN` must not exist as a Worker secret. Preview stays writable with no YNAB plan, token, or cron. Local configuration is writable unless the variable is the literal string `true`.

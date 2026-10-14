@@ -25,6 +25,9 @@ enum APIClientError: LocalizedError {
   case invalidBaseURL
   case invalidResponse
   case server(String)
+  /// 404 `resource_not_found`: the server answered and the record is not
+  /// there. Its message is the server's, exactly as `.server` would show it.
+  case notFound(String)
   /// 409 `conflict`: the entity already exists or changed underneath the
   /// request. Its message is the server's, exactly as `.server` would show it.
   case conflict(String)
@@ -51,7 +54,7 @@ enum APIClientError: LocalizedError {
       return "Enter a valid API base URL."
     case .invalidResponse:
       return "The API returned an invalid response."
-    case .server(let message), .conflict(let message):
+    case .server(let message), .notFound(let message), .conflict(let message):
       return message
     case .reconciliationMismatch(let detail):
       return detail.message
@@ -71,6 +74,11 @@ enum APIClientError: LocalizedError {
       return "This is too much to send in one go."
     }
   }
+}
+
+enum ExportEverythingFormat {
+  case archive
+  case transactionsCSV
 }
 
 struct APIClient {
@@ -652,6 +660,16 @@ struct APIClient {
     return try SnapshotImport.snapshot(fromExportResponse: data)
   }
 
+  /// "Export everything": the plan as one `howmuch-export` JSON archive, or
+  /// every live transaction as CSV. The bytes are the server's file, unchanged.
+  func exportEverything(planID: String, format: ExportEverythingFormat) async throws -> Data {
+    try await executeRawRequest(
+      path: "/v1/plans/\(planID)/export",
+      appendedPathSegments: format == .transactionsCSV ? ["transactions.csv"] : [],
+      bodyData: nil
+    )
+  }
+
   /// Imports snapshot bytes (from `exportSnapshot`) into an empty plan.
   /// Returns whether the server replayed an earlier import with this key.
   @discardableResult
@@ -818,6 +836,9 @@ struct APIClient {
         if httpResponse.statusCode == 409, serverError.error.name == "conflict" {
           throw APIClientError.conflict(serverError.error.detail)
         }
+        if httpResponse.statusCode == 404, serverError.error.name == "resource_not_found" {
+          throw APIClientError.notFound(serverError.error.detail)
+        }
         if path.hasSuffix("/import_snapshot") {
           switch (httpResponse.statusCode, serverError.error.name) {
           case (409, "plan_not_empty"):
@@ -910,6 +931,10 @@ struct APIClient {
     let basePath = components.percentEncodedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     components.percentEncodedPath = basePath.isEmpty ? requestPath : "/\(basePath)\(requestPath)"
     components.queryItems = queryItems.isEmpty ? nil : queryItems
+    // `URLQueryItem` leaves "+" bare, and the server's `URLSearchParams` reads
+    // a bare "+" as a space. Every "+" left in the encoded query is a literal.
+    components.percentEncodedQuery = components.percentEncodedQuery?
+      .replacingOccurrences(of: "+", with: "%2B")
 
     guard let url = components.url else {
       throw APIClientError.invalidBaseURL

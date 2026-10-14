@@ -1,6 +1,6 @@
 import type { Payee, QuickEntryInput } from "../api/types";
 import { todayIso } from "./dates";
-import { formatMilliunitsInput, parseMilliunits } from "./money";
+import { formatMilliunitsInput, parseMilliunits, withPlanDecimal } from "./money";
 
 export type RegisterComposeDraft = {
   clientId: string;
@@ -138,12 +138,17 @@ export function formatComposeAmount(value: string): string {
   if (parsed === null || parsed <= 0) {
     return value.trim();
   }
-  const formatted = formatMilliunitsInput(parsed);
-  if (!formatted.includes(".")) {
-    return `${formatted}.00`;
-  }
-  const [whole, fraction = ""] = formatted.split(".");
-  return `${whole}.${fraction.padEnd(2, "0")}`;
+  return formatMilliunitsPadded(parsed);
+}
+
+/**
+ * A saved amount as an amount field shows it: at least two decimals, with the
+ * plan's own decimal mark, as the register shows the saved amount. Takes
+ * milliunits, so a saved value is never read back through the typed parser.
+ */
+export function formatMilliunitsPadded(milliunits: number): string {
+  const [whole, fraction = ""] = formatMilliunitsInput(milliunits).split(".");
+  return withPlanDecimal(`${whole}.${fraction.padEnd(2, "0")}`);
 }
 
 export function composePayload(

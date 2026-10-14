@@ -291,7 +291,9 @@ export class ReportService {
 
     return {
       interval,
-      periods: [...buckets.entries()].map(([period, bucket]) => ({
+      // Weekly cursors step seven days from `from`, so a year's last short
+      // week (31 December) can be missing until a row creates it at the end.
+      periods: [...buckets.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([period, bucket]) => ({
         period,
         age_of_money_days: bucket.spent > 0 ? bucket.weightedAge / bucket.spent : null,
         spent: bucket.spent,
@@ -354,6 +356,7 @@ export class ReportService {
       settings: parseAppSettings(parsedSnapshot?.settings),
       from: filters.from ?? null,
       to: filters.to ?? null,
+      range: filters.rewardsRange,
       groupBy: parseRewardGroupBy(filters.groupBy),
       accountIds: filters.accountIds ?? [],
     });

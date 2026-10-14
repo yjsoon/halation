@@ -676,6 +676,14 @@ final class RootChromeState {
   /// receiving tab consumes (clears) the request once it has acted on it.
   var pendingAccountID: String?
   var pendingRewardsCardID: String?
+  /// An Inbox notification tap or link; Accounts consumes it.
+  var pendingIntakeDestination: IntakeDestination?
+
+  func showIntake(_ route: IntakeDestination) {
+    overflowByTab[.accounts] = nil
+    pendingIntakeDestination = route
+    tab = .accounts
+  }
 
   func showAccount(_ accountID: String) {
     overflowByTab[.accounts] = nil
@@ -771,6 +779,7 @@ struct RootTabView: View {
             }
           }
         }
+        .badge(IntakeCoordinator.shared.attentionCount)
         Tab(AppTab.rewards.title, systemImage: AppTab.rewards.systemImage, value: AppTab.rewards) {
           RootChromeScope(chrome: chrome) {
             RootTabHost(for: .rewards, workspace: workspace) {
@@ -841,6 +850,8 @@ struct RootTabView: View {
         }
       }
     }
+    // Ready plus Needs you; zero hides the badge.
+    .badge(tab == .accounts ? IntakeCoordinator.shared.attentionCount : 0)
   }
 
   @ViewBuilder
@@ -888,10 +899,13 @@ struct RootTabView: View {
 /// The compact action stays separate from the destination pill.
 struct RootCaptureTab: TabContent {
   private var role: TabRole {
+    // `TabRole.prominent` ships in the iOS 27 SDK; Xcode 26 must still build.
+    #if compiler(>=6.4)
     if #available(iOS 27.0, *) {
       // Search no longer guarantees the separate prominent treatment.
       return .prominent
     }
+    #endif
     return .search
   }
 

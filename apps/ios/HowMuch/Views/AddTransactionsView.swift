@@ -1612,10 +1612,11 @@ struct QuerySourceListView: View {
 
   private var sourceSectionTitle: String {
     let splits = card.sourceRows.filter(\.isSplitPortion).count
+    let payments = card.sourceCount == 1 ? "1 payment" : "\(card.sourceCount) payments"
     if splits == 0 {
-      return "\(card.sourceCount) payments"
+      return payments
     }
-    return "\(card.sourceCount) payments, \(splits) split portions"
+    return "\(payments), \(splits == 1 ? "1 split portion" : "\(splits) split portions")"
   }
 
   private func sourceRowFootnote(_ row: LedgerQuerySourceRow) -> String {

@@ -21,7 +21,23 @@ Authorization: Bearer <token>
 
 The first owner is created once with `POST /api/auth/setup`, authorized by `HOWMUCH_API_TOKEN`. That static token remains valid for integrations, but only against `HOWMUCH_DEFAULT_PLAN_ID`. Session users can access only plans where they hold an owner, editor, or viewer membership; viewers cannot mutate data.
 
+`POST /api/auth/setup` also accepts two optional fields that seed the new plan's formats: `currency_format` and `date_format`. `currency_format` must contain exactly `iso_code` (three capital letters), `example_format` (1 to 40 characters), `decimal_digits` (integer 0 to 4), `decimal_separator` (must be `"."`), `symbol_first` (boolean), `group_separator` (must be `","`), `currency_symbol` (1 to 8 characters) and `display_symbol` (boolean). The clients only parse `.` and `,`, so other separators are rejected. `date_format` must be `{"format": "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD"}`. An invalid value returns `400 bad_request` and creates nothing. Omitted fields keep the schema default (SGD, `DD/MM/YYYY`). The seed applies only when the plan row does not exist yet, and is ignored otherwise. Change either format afterwards with `PATCH /api/plans/{plan_id}/settings` (see [Changing plan formats](#changing-plan-formats)).
+
 Signed-in browser users manage long-lived personal credentials at `GET`/`POST /api/auth/personal-tokens` and `DELETE /api/auth/personal-tokens/{id}`. Creation returns the `hm_pat_…` bearer value once; Halation stores only its SHA-256 fingerprint. Personal tokens inherit the user's current plan memberships, remain valid until revoked, and cannot create or manage other tokens. Management requires the secure browser session and same-origin checks; the global integration token and native bearer sessions are not accepted.
+
+`GET /api/auth/status` also returns `roles` (plan id to `owner`, `editor` or `viewer`) when the caller holds a user session. Clients use it to show owner-only controls; the server enforces the role on every write regardless.
+
+### Changing your password
+
+`POST /api/auth/password` with `{ "current_password": "...", "new_password": "..." }`.
+
+- Requires a signed-in user session, either the browser cookie (which must pass the same-origin check) or a native bearer session token. The static `HOWMUCH_API_TOKEN` and personal API tokens are refused with `401`.
+- `new_password` must meet the setup rule (at least 15 characters, at most 256 bytes) and differ from `current_password`, otherwise `400 bad_request`.
+- A wrong `current_password` returns `401 invalid_credentials` with a generic message. So does a request that verified the old password but lost to another password change that committed first: it changes nothing and issues no session. Attempts have their own budget, keyed on the account and separate from the login counters, so failed sign-ins by others cannot block the owner. More than 10 in a 15 minute window returns `429 rate_limited` with `retry-after: 900`, even for the correct password. A `current_password` over 256 bytes, or a body that is not a JSON object, returns `400 bad_request`.
+- On success the credential is replaced, every session of that user (the caller's included) is revoked, and a fresh session is issued to the caller, all in one step. The old token stops working. A cookie request receives a new `__Host-howmuch_session` cookie (same attributes as login) and `{ "data": { "ok": true, "session_expires_at": <unix seconds> } }`. A bearer request receives `{ "data": { "ok": true, "token": "...", "expires_at": <unix seconds> } }` and must use the new `token` from then on. Personal API tokens are separate credentials and are not revoked; manage them with `/api/auth/personal-tokens`.
+- A login that verified the old password but commits after a password change creates no session and returns `401 invalid_credentials`.
+
+Expired sessions and rate-limit windows that ended more than a day ago are deleted opportunistically (a bounded batch at each successful sign-in or setup), so no scheduled job is needed.
 
 Error responses follow the YNAB wrapper shape:
 
@@ -67,6 +83,8 @@ Returns `plans` for `/plans` and `budgets` for `/budgets`, with the same records
 
 Returns date format, currency format, and custom flag names.
 
+Plan owners change the formats with `PATCH /api/plans/{plan_id}/settings`; see [Changing plan formats](#changing-plan-formats) under Native Endpoints.
+
 ### Accounts
 
 `GET /v1/plans/{plan_id}/accounts`
@@ -86,7 +104,8 @@ Returns date format, currency format, and custom flag names.
 `POST /v1/plans/{plan_id}/accounts/{account_id}/reconcile`
 
 Create body: `{ "account": { "name": "Savings", "type": "savings", "balance": 0, "icon": "💰" } }`.
-`icon` is optional. A leading emoji on `name` is lifted into `icon` and
+`icon` is optional. `on_budget` defaults from `type` when it is not sent, so a
+mortgage, loan or asset account is a tracking account. A leading emoji on `name` is lifted into `icon` and
 stripped from the stored name. A trailing emoji stays on the name. Accounts
 without a leading emoji receive a type default such as 🏦 for checking or 💳
 for credit cards.
@@ -177,7 +196,7 @@ statement date, and only when their projected reconciled balance exactly matches
 the supplied statement balance. A mismatch returns `409 reconciliation_mismatch`
 with the current, projected, statement, and difference values; no rows change.
 Successful retries return the original receipt. Reconciliation is a cutover-only
-Halation write: it does not alter the immutable YNAB raw mirror and a later YNAB
+Halation write: it does not alter the YNAB raw mirror and a later YNAB
 re-import must not be used to overwrite local ledger state.
 
 ### Payees
@@ -231,7 +250,7 @@ SQLite checks and writes in one immediate transaction. D1 repeats every check in
 
 Halation has no budgeting. The YNAB month routes (`GET /v1/plans/{plan_id}/months/{month}`, `PATCH …/months/{month}/categories/{category_id}` for assignments and targets, and `GET …/months/{month}/transactions`) and the money-movement routes now return `404`.
 
-The YNAB importer still mirrors months, month categories and money movements into `ynab_raw_objects`. The tables behind the old overlays (`plan_month_assignments`, `plan_month_category_targets`) and the materialised `ynab_source_month_activity` baseline are retained legacy tables: no migration drops them and no code reads or writes them.
+The YNAB importer still mirrors months, month categories and money movements into `ynab_raw_objects`, which is provenance only: nothing that serves schedules or gates category edits reads it. The importer records a plan that carried months in `plans.ynab_sourced`. The tables behind the old overlays (`plan_month_assignments`, `plan_month_category_targets`) and the materialised `ynab_source_month_activity` baseline are retained legacy tables: no migration drops them and no code reads or writes them.
 
 ### Scheduled transactions
 
@@ -241,7 +260,7 @@ The YNAB importer still mirrors months, month categories and money movements int
 
 `GET /v1/plans/{plan_id}/scheduled_subtransactions`
 
-The collection is an effective view: untouched imported schedules are returned exactly from the YNAB mirror with their subtransactions, while Halation-local schedules and overlays replace source objects with the same ID. A tombstoned overlay hides its imported schedule. The source rows in `ynab_raw_objects` are never updated or deleted.
+Every schedule, imported or created here, is a row in `scheduled_transaction_edits` (with its lines in `scheduled_subtransaction_edits`), and the collection reads only those tables. An imported schedule is stored with `origin = ynab-overlay` and its payload exactly as YNAB sent it; a delete hides it with a tombstone. The importer adds a schedule only when none with that ID exists, so a later import never overwrites a local change. Migration `0019` (SQLite `022`) copied the schedules imported before that. The source rows in `ynab_raw_objects` are not read or changed by schedule requests.
 
 Create, replace, update, or delete an effective schedule with:
 
@@ -551,6 +570,26 @@ Transaction response fields:
 - `deleted`
 - `subtransactions`
 
+### Export everything
+
+`GET /v1/plans/{plan_id}/export`
+
+`GET /v1/plans/{plan_id}/export/transactions.csv`
+
+Owners and editors (and the default-plan API token) may export; viewers get `403`. Both responses are files, not `{ "data": … }` envelopes: they carry `Content-Disposition: attachment` (`halation-export-YYYY-MM-DD.json`, `halation-transactions-YYYY-MM-DD.csv`) and `Cache-Control: no-store`. Web **Settings → Export everything** and iOS **Settings → Export everything** download them.
+
+The JSON archive (`format: "howmuch-export"`, `version: 1`) has:
+
+- `exported_at`: ISO timestamp.
+- `plan` and `settings`: as `GET /v1/plans/{plan_id}` and `GET /v1/plans/{plan_id}/settings` return them.
+- `snapshot` and `server_knowledge`: exactly what `export_snapshot` returns (below).
+- `account_preferences`: the caller's own account organisation, or `null` for the API token or when none was saved. Other members' preferences are not included.
+- `rewards`: `cards` (the Rewards card set), `tracker_snapshot` (the stored Rewards Tracker import, or `null`), `imported_at`, `updated_at`. Both copies drop, at any depth, keys that look like credentials (`token`, `secret`, `password`, `mnemonic`, `credential`, `api key`, `private key`, `cloud sync`, `pat`, `authorization`) and cached YNAB data (`cachedData`), as the portable Rewards export does.
+
+Passwords, sessions, API tokens and other users are never included. Because `import_snapshot` reads the `snapshot` key of its body, the archive file can be posted to it unchanged to restore the ledger into an empty plan. `import_snapshot` accepts at most 8 MiB, so when Rewards data pushes an archive past that, post `{ "snapshot": … }` with just the archive's `snapshot` instead. Preferences and Rewards cards are then restored through their own endpoints.
+
+The CSV is UTF-8 with a byte-order mark and CRLF line endings, one row per live transaction, oldest first: `Date`, `Account`, `Payee`, `Category group`, `Category`, `Memo`, `Amount`, `Cleared`, `Approved`, `Flag`, `Transfer account`, `Transaction ID`, `Split of`. A split is written as one row per line, with the parent's id in `Split of` and no parent row, so the amounts sum to the ledger. `Amount` is a decimal in the plan currency's decimal places, widened to three when a milliunit would otherwise be lost. Text cells starting with `=`, `+`, `-`, `@`, tab or carriage return get a leading `'` so spreadsheets do not run them as formulas.
+
 ### Plan snapshots
 
 A snapshot moves a whole ledger between installs, for example from a phone's local database to a self-hosted server.
@@ -582,7 +621,7 @@ Snapshot format, version 1. Every section is an array and may be omitted. Amount
 
 `payee_name` (optional, at most 500 characters) is the free-text payee of a row or split line that has no payee row. Export sets it only when `payee_id` is null; import ignores it when `payee_id` is set and takes the name from that payee, as reads do. It was added without a version bump: the parser rejects unknown top-level sections but not unknown fields inside a row, so a server that predates it accepts a snapshot carrying it and simply drops the name, as before.
 
-Export writes live accounts, transactions and schedules, and every group, category and payee (tombstones included, because live transactions may still name them). An account's `opening_balance` is exported as the value that reproduces its displayed balance from its live transactions. Budgeting data, YNAB raw objects, account preferences (per user) and Rewards Tracker configuration are not included; set preferences and rewards cards through their own endpoints after importing. Some derived or server-side state is also not carried:
+Export writes live accounts, transactions and schedules, and every group, category and payee (tombstones included, because live transactions may still name them). An account's `opening_balance` is exported as the value that reproduces its displayed balance from its live transactions. Budgeting data, YNAB raw objects, account preferences (per user) and Rewards Tracker configuration are not included; set preferences and rewards cards through their own endpoints after importing. The [Export everything](#export-everything) archive carries the caller's preferences and the Rewards cards alongside the snapshot. Some derived or server-side state is also not carried:
 
 - `last_reconciled_date` on an account comes from the reconciliation history, which is not exported. After import it is the date of the latest reconciled transaction, which is earlier than the original when the last statement date fell after that transaction.
 - `direct_import_linked` and `direct_import_in_error` are YNAB bank-link flags; imported accounts read `false`.
@@ -601,6 +640,16 @@ Import rules:
 The import is one atomic write. Each table's rows are bound as JSON chunks of at most 512 KiB and expanded in SQL with `json_each`, so the statement count grows with the snapshot's size in bytes, not its row count. On SQLite the whole import runs in one immediate transaction; on D1 it is one guarded batch that re-checks emptiness and the native-plan rule inside the batch. A failure leaves the plan exactly as it was, never partly imported.
 
 ## Native Endpoints
+
+### Changing plan formats
+
+`PATCH /api/plans/{plan_id}/settings` with `currency_format`, `date_format`, or both. Each is validated exactly as at setup (see `POST /api/auth/setup` above), so only `.` and `,` separators and the three date formats are accepted. An invalid value, or a body with neither field, returns `400 bad_request` and writes nothing; a valid field is not applied if the other is invalid.
+
+- Plan owners only: editors and viewers receive `403 forbidden`. The static `HOWMUCH_API_TOKEN` works only for `HOWMUCH_DEFAULT_PLAN_ID`; a personal API token acts with its user's role.
+- Returns `{ "data": { "settings": ... } }` in the same shape as `GET /v1/plans/{plan_id}/settings`.
+- The plan's `server_knowledge` increases and `last_modified_on` updates, so clients that validate cached plan data against them refetch.
+- Changing the currency changes only how clients display amounts (symbol and decimal places). No stored value is converted.
+- The three `date_format` values name an ordering: `DD/MM/YYYY` is day first (24 May 2026), `MM/DD/YYYY` is month first (May 24, 2026) and `YYYY-MM-DD` is year first (2026-05-24). The web app renders them that way. The iOS app always shows dates as 24 May 2026 and picks up a new currency on its next refresh.
 
 ### Reports
 
@@ -622,6 +671,7 @@ Rewards has two date modes:
 
 - **No `from`:** each card's own current calendar, billing, promotional or anchored reward period, evaluated as of `to` (or today). `as_of` is clamped to today's **Asia/Singapore** date; future purchases never earn early.
 - **With `from`:** historical attribution from that date through `to` (or today). Calculations retain the complete history within each actual reward period before attributing rewards to the selected transactions. A range boundary does not reset caps, minimums or spending tiers.
+- **`mode=range` without `from`:** historical attribution across all history, starting at the earliest selected transaction (or `as_of` when there is none). The response `from` stays `null`; `period` names the dates used.
 
 Dates must be real `YYYY-MM-DD` dates and `from` must not follow an explicit `to`; invalid values return 400. Account filters select cards. Reward rules use transaction flags, not the general report category/transfer filters described below.
 
@@ -661,6 +711,7 @@ Extra filters:
 - `include_closed_accounts` on Net Worth
 - `top_payees_limit` on Spending Breakdown
 - `group` on Rewards (`flag`, `payee`, `category`, `memo`)
+- `mode=range` on Rewards (historical attribution when `from` is absent)
 
 ### Mobile Quick Entry
 
@@ -696,7 +747,7 @@ Returns a normal YNAB-compatible transaction envelope.
 
 `POST /api/import/ynab`
 
-Starts a YNAB migration using a supplied token and plan id. The importer should fetch full history explicitly.
+Starts a YNAB migration using a supplied token and plan id. The importer should fetch full history explicitly. The YNAB API base URL is operator configuration (`HOWMUCH_YNAB_BASE_URL`, default `https://api.ynab.com/v1`) and also applies to the scheduled YNAB sync; a `base_url` in the request body is ignored so callers cannot make the server fetch arbitrary URLs.
 
 `POST /api/import/rewards-tracker`
 

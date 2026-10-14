@@ -51,6 +51,61 @@ final class SlipReaderMappingTests: XCTestCase {
     XCTAssertNil(MoneyCodec.milliunits(from: "S$50"))
   }
 
+  /// The system decimal pad shows the device's own decimal separator. Where
+  /// that is a comma, stripping it as a thousands separator saved "12,50" as
+  /// 1,250.00: a hundred times the amount, with no error shown.
+  func testTypedAmountsReadADeviceDecimalComma() {
+    XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "12,50", decimalSeparator: ","), 12_500)
+    XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "-0,5", decimalSeparator: ","), -500)
+    XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "12.50", decimalSeparator: ","), 12_500)
+    XCTAssertNil(MoneyCodec.milliunits(fromTyped: "1,2345", decimalSeparator: ","))
+    // Where the decimal point is a full stop, a comma still groups thousands.
+    XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "1,250", decimalSeparator: "."), 1_250_000)
+    XCTAssertEqual(MoneyCodec.milliunits(fromTyped: "1,234.56", decimalSeparator: "."), 1_234_560)
+  }
+
+  /// Reward rates, block sizes and the miles valuation are typed on the same
+  /// decimal pad. With a device decimal comma, `Double("1,4")` is nil, so a
+  /// fractional rate could never be saved: every entry was "not a number".
+  func testTypedDecimalsReadADeviceDecimalComma() {
+    XCTAssertEqual(TypedNumber.double(from: "1,4", decimalSeparator: ","), 1.4)
+    XCTAssertEqual(TypedNumber.double(from: " 0,015 ", decimalSeparator: ","), 0.015)
+    XCTAssertEqual(TypedNumber.double(from: "1.4", decimalSeparator: ","), 1.4)
+    XCTAssertEqual(TypedNumber.double(from: "1.4", decimalSeparator: "."), 1.4)
+    XCTAssertNil(TypedNumber.double(from: "1,4", decimalSeparator: "."))
+    XCTAssertNil(TypedNumber.double(from: "1,4,5", decimalSeparator: ","))
+    XCTAssertNil(TypedNumber.double(from: "", decimalSeparator: ","))
+  }
+
+  /// A plan's currency format says where its symbol goes and whether it shows
+  /// at all (a YNAB euro plan is "123.456,78€"), as the web app draws it. The
+  /// device's region pattern put the symbol first and showed a hidden one.
+  func testDisplayFollowsThePlanSymbolPlacement() {
+    let euro = CurrencyFormat(
+      isoCode: "EUR",
+      exampleFormat: "123.456,78€",
+      decimalDigits: 2,
+      decimalSeparator: ",",
+      groupSeparator: ".",
+      symbolFirst: false,
+      currencySymbol: "€"
+    )
+    XCTAssertEqual(MoneyCodec.displayString(for: 1_234_560, currencyFormat: euro), "1.234,56€")
+    XCTAssertEqual(MoneyCodec.displayString(for: -1_234_560, currencyFormat: euro), "-1.234,56€")
+
+    let hidden = CurrencyFormat(
+      isoCode: "SGD",
+      exampleFormat: "123,456.78",
+      decimalDigits: 2,
+      decimalSeparator: ".",
+      groupSeparator: ",",
+      symbolFirst: true,
+      currencySymbol: "$",
+      displaySymbol: false
+    )
+    XCTAssertEqual(MoneyCodec.displayString(for: 1_234_560, currencyFormat: hidden), "1,234.56")
+  }
+
   func testUnambiguousNameMapsToID() {
     let mapped = SlipReaderMapping.map(
       [.init(amount: "5", category: "Groceries", account: "Everyday Account")],

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Interval } from "../api/types";
 import { splitCategoryGroups, UNCATEGORISED_CATEGORY_ID } from "../lib/categories";
 import {
@@ -28,6 +28,7 @@ interface Props {
 
 export function FilterRail({ filters, setFilters, intervals, showCategories = true, groups, busy = false, collapsible = false }: Props) {
   const [open, setOpen] = useState(false);
+  const stackRef = useRef<HTMLDivElement>(null);
   const { accounts, categoryGroups } = usePlan();
   const activePreset = matchPreset(filters.from, filters.to);
   const month = calendarMonthOf(filters.from, filters.to);
@@ -86,7 +87,12 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
     .filter(Boolean)
     .join(" · ");
 
-  const clearFilters = () =>
+  const clearFilters = () => {
+    // "Clear filters" goes once nothing is set; keep keyboard focus in the
+    // rail (on All, or the Filters toggle when collapsed) rather than <body>.
+    const stack = stackRef.current;
+    const all = [...(stack?.querySelectorAll<HTMLButtonElement>(".segmented[aria-label='Date range'] button") ?? [])].at(-1);
+    (all ?? stack?.querySelector<HTMLButtonElement>(".filter-toggle"))?.focus();
     setFilters({
       from: undefined,
       to: undefined,
@@ -95,9 +101,10 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
       interval: intervals?.includes("month") ? "month" : (intervals?.[0] ?? "month"),
       groupBy: "flag",
     });
+  };
 
   return (
-    <div className="filter-stack">
+    <div className="filter-stack" ref={stackRef}>
       {collapsible && (
         <div className="filter-bar">
           <button
@@ -150,6 +157,7 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
               <button
                 key={preset.id}
                 type="button"
+                aria-pressed={preset.id === activePreset}
                 className={preset.id === activePreset ? "segment segment-active" : "segment"}
                 onClick={() => setFilters(preset.range())}
               >
@@ -207,6 +215,7 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
                 <button
                   key={interval}
                   type="button"
+                  aria-pressed={interval === filters.interval}
                   className={interval === filters.interval ? "segment segment-active" : "segment"}
                   onClick={() => setFilters({ interval })}
                 >
@@ -225,6 +234,7 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
                 <button
                   key={group}
                   type="button"
+                  aria-pressed={group === filters.groupBy}
                   className={group === filters.groupBy ? "segment segment-active" : "segment"}
                   onClick={() => setFilters({ groupBy: group })}
                 >

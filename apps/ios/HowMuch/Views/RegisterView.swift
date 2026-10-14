@@ -1776,12 +1776,12 @@ private struct AccountReconciliationSheet: View {
   }
 
   private var reviewBalanceText: String {
-    let amount = MoneyCodec.milliunits(from: statementBalanceText) ?? 0
+    let amount = MoneyCodec.milliunits(fromTyped: statementBalanceText) ?? 0
     return MoneyCodec.signedDisplayString(for: amount, currencyFormat: model.currencyFormat)
   }
 
   private var reviewDifference: Int? {
-    guard let preview, let statementBalance = MoneyCodec.milliunits(from: statementBalanceText) else {
+    guard let preview, let statementBalance = MoneyCodec.milliunits(fromTyped: statementBalanceText) else {
       return nil
     }
     return statementBalance - preview.projectedReconciledBalance
@@ -1797,7 +1797,7 @@ private struct AccountReconciliationSheet: View {
   }
 
   private var reviewRequirement: String {
-    if MoneyCodec.milliunits(from: statementBalanceText) == nil {
+    if MoneyCodec.milliunits(fromTyped: statementBalanceText) == nil {
       return "Enter a statement balance with no more than three decimal places."
     }
     return "The statement balance must exactly match the projected balance before confirmation."
@@ -1885,7 +1885,7 @@ private struct AccountReconciliationSheet: View {
       errorMessage = "Wait for an exact server review, then confirm the reconciliation."
       return
     }
-    guard let statementBalance = MoneyCodec.milliunits(from: statementBalanceText) else {
+    guard let statementBalance = MoneyCodec.milliunits(fromTyped: statementBalanceText) else {
       errorMessage = "Enter the exact statement balance with no more than three decimal places."
       return
     }

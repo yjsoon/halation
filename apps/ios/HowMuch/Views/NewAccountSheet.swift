@@ -132,7 +132,7 @@ struct NewAccountSheet: View {
     if trimmed.isEmpty {
       return 0
     }
-    return MoneyCodec.milliunits(from: trimmed)
+    return MoneyCodec.milliunits(fromTyped: trimmed)
   }
 
   private var canSave: Bool {

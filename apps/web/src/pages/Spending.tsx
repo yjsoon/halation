@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import { FilterRail } from "../components/FilterRail";
 import { isQuietGroupName } from "../lib/categories";
+import { useIsPhone } from "../lib/use-is-phone";
 import { formatAmount, formatShare } from "../lib/money";
 import { loadPrefs, savePrefs } from "../state/prefs";
 import { transactionsLink, useFilters } from "../state/filters";
@@ -11,6 +12,7 @@ export function SpendingPage() {
   const { filters, setFilters, reportQuery } = useFilters();
   const query = { ...reportQuery, interval: undefined };
   const report = useApi(JSON.stringify(query), () => api.spendingBreakdown(query));
+  const isPhone = useIsPhone();
 
   const [includeQuiet, setIncludeQuiet] = useState(() => loadPrefs().includeQuietSpending ?? false);
   const toggleQuiet = () => {
@@ -65,24 +67,26 @@ export function SpendingPage() {
       averageTransaction: totalTransactions > 0 ? total / totalTransactions : null,
     };
   }, [report.data, hideQuiet]);
+  // `grouped` holds category groups; the meta line counts the category rows.
+  const categoryCount = grouped.reduce((count, group) => count + group.rows.length, 0);
 
   return (
     <>
-      <FilterRail filters={filters} setFilters={setFilters} busy={report.loading} />
+      <FilterRail filters={filters} setFilters={setFilters} busy={report.loading} collapsible={isPhone} />
       <div className="report-header">
         <h1>Spending breakdown</h1>
         <div className="headline-row">
           <div className="headline-figure">
             <span className="figure-label">Total spending</span>
-            <span className="figure-value figure-negative">{formatAmount(total)}</span>
+            <span key={total} className="figure-value figure-settle figure-negative">{formatAmount(total)}</span>
           </div>
           <div className="headline-figure">
             <span className="figure-label">Largest line</span>
-            <span className="figure-value">{topCategory ? topCategory.category_name : "-"}</span>
+            <span key={topCategory?.category_id ?? "none"} className="figure-value figure-settle">{topCategory ? topCategory.category_name : "-"}</span>
           </div>
           <div className="headline-figure">
             <span className="figure-label">Average transaction</span>
-            <span className="figure-value">
+            <span key={averageTransaction ?? "none"} className="figure-value figure-settle">
               {averageTransaction !== null ? formatAmount(averageTransaction) : "-"}
             </span>
           </div>
@@ -117,7 +121,8 @@ export function SpendingPage() {
             <div className="section-heading">
               <span className="section-title">Category detail</span>
               <span className="section-meta">
-                {grouped.length} categories · {totalTransactions} posted transactions
+                {categoryCount} {categoryCount === 1 ? "category" : "categories"} · {totalTransactions} posted{" "}
+                {totalTransactions === 1 ? "transaction" : "transactions"}
               </span>
             </div>
             {grouped.length > 0 ? (

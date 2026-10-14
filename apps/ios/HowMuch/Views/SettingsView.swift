@@ -21,6 +21,93 @@ private struct LocalArchiveDocument: FileDocument {
   }
 }
 
+/// A file from "Export everything", saved with the file exporter.
+private struct ExportEverythingDocument: FileDocument {
+  static var readableContentTypes: [UTType] { [.json, .commaSeparatedText] }
+  var data: Data
+
+  init(data: Data) { self.data = data }
+
+  init(configuration: ReadConfiguration) throws {
+    guard let data = configuration.file.regularFileContents else {
+      throw CocoaError(.fileReadCorruptFile)
+    }
+    self.data = data
+  }
+
+  func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+    FileWrapper(regularFileWithContents: data)
+  }
+}
+
+/// Saves the whole current plan as a file: the JSON archive (ledger, formats,
+/// account organisation, Rewards cards) or a transactions CSV.
+private struct ExportEverythingSection: View {
+  /// False while Settings holds an unsaved server or plan: export reads the
+  /// saved connection, so it waits until the selection is saved.
+  var isSelectionSaved = true
+  @Environment(AppModel.self) private var model
+  @State private var exportDocument: ExportEverythingDocument?
+  @State private var exportFormat: ExportEverythingFormat = .archive
+  @State private var isExporting = false
+  @State private var isWorking = false
+  @State private var errorMessage: String?
+
+  var body: some View {
+    Section {
+      Button("Export archive (JSON)") {
+        export(.archive)
+      }
+      Button("Export transactions (CSV)") {
+        export(.transactionsCSV)
+      }
+      if let errorMessage {
+        Text(errorMessage)
+          .font(.caption)
+          .foregroundStyle(Theme.outflow)
+      }
+    } header: {
+      Text("Export everything")
+    } footer: {
+      if isSelectionSaved {
+        Text("The archive holds every account, transaction, schedule, category and payee, the plan formats, your account organisation and the Rewards cards. The CSV lists every transaction, one row per split line. Passwords and tokens are never included.")
+      } else {
+        Text("Save to export the plan you have selected.")
+      }
+    }
+    .disabled(isWorking || !isSelectionSaved)
+    .fileExporter(
+      isPresented: $isExporting,
+      document: exportDocument,
+      contentType: exportFormat == .archive ? .json : .commaSeparatedText,
+      defaultFilename: exportFormat == .archive
+        ? "halation-export-\(Date.now.isoDateString).json"
+        : "halation-transactions-\(Date.now.isoDateString).csv"
+    ) { outcome in
+      if case .failure(let error) = outcome {
+        errorMessage = error.localizedDescription
+      }
+      exportDocument = nil
+    }
+  }
+
+  private func export(_ format: ExportEverythingFormat) {
+    isWorking = true
+    errorMessage = nil
+    Task {
+      do {
+        let data = try await model.apiClient.exportEverything(planID: model.settings.planID, format: format)
+        exportFormat = format
+        exportDocument = ExportEverythingDocument(data: data)
+        isExporting = true
+      } catch {
+        errorMessage = error.localizedDescription
+      }
+      isWorking = false
+    }
+  }
+}
+
 /// The on-device ledger an install used before it connected to a server.
 /// It can be saved as a file or used again.
 private struct LocalArchiveSection: View {
@@ -163,6 +250,15 @@ struct SettingsView: View {
       && draft.username == authenticatedUsername
   }
 
+  /// Export uses the saved connection, so it is offered only when the draft
+  /// still names that server, account and plan.
+  private var exportSelectionSaved: Bool {
+    draft.trimmedBaseURL == model.settings.trimmedBaseURL
+      && draft.username == model.settings.username
+      && draft.planID == model.settings.planID
+      && model.settings.isAuthenticated
+  }
+
   private var hasValidPlanSelection: Bool {
     guard case .loaded(let plans) = planState else {
       return false
@@ -219,6 +315,9 @@ struct SettingsView: View {
           NavigationLink("AI provider") {
             CaptureAISettingsView(settings: model.captureAI)
           }
+          NavigationLink("Skill & Memory") {
+            SkillAndMemoryView()
+          }
         }
         Section {
           NavigationLink {
@@ -231,6 +330,7 @@ struct SettingsView: View {
         } footer: {
           Text("Import or export Rewards Tracker settings. Does not connect to live YNAB.")
         }
+        ExportEverythingSection()
         Section {
           clipboardImagesButton
         } footer: {
@@ -253,7 +353,7 @@ struct SettingsView: View {
     NavigationStack {
       Form {
         Section {
-          TextField("http://192.168.1.10:8787", text: $draft.baseURLString)
+          TextField("https://halation.example.com", text: $draft.baseURLString)
             .keyboardType(.URL)
             .textInputAutocapitalization(.never)
             .autocorrectionDisabled()
@@ -266,7 +366,7 @@ struct SettingsView: View {
               : "Enter a complete HTTP or HTTPS URL with a host.")
               .foregroundStyle(Theme.outflow)
           } else {
-            Text("New installs connect to Halation. HTTP is allowed only for this device or this network. First-time setup must be opened from the website.")
+            Text("Enter the address of your own Halation server. HTTP is allowed only for this device or this network. First-time setup must be opened from the website.")
           }
         }
         .disabled(isTesting)
@@ -308,6 +408,9 @@ struct SettingsView: View {
             NavigationLink("AI provider") {
               CaptureAISettingsView(settings: model.captureAI)
             }
+            NavigationLink("Skill & Memory") {
+              SkillAndMemoryView()
+            }
           }
           Section {
             NavigationLink {
@@ -320,6 +423,7 @@ struct SettingsView: View {
           } footer: {
             Text("Import or export Rewards Tracker settings. Does not connect to live YNAB.")
           }
+          ExportEverythingSection(isSelectionSaved: exportSelectionSaved)
         }
 
         if let localArchive {

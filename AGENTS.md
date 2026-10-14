@@ -15,6 +15,12 @@
 - If isolation is necessary, first write down the system's plausible failure modes and which ones existing E2E checks miss. Then write the smallest failing tests for those gaps, and only then write the implementation. State the failure modes beside the tests or in the task discussion; do not add a separate report by default.
 - An isolated test must catch a concrete bug the E2E checks would miss, such as a race, partial failure, unsafe migration, or malformed external input. Derive expectations independently of the implementation. Do not add tests for constants, getters, mock call shapes, source spelling, or happy paths already proven end to end. When pruning, verify actual coverage: a recipe that delegates a check to a unit test does not replace that test, and an unexecuted recipe is not passing evidence.
 
+## Hosting stance
+
+Halation is self-hosted only. The owner does not host other people's financial data: there is no hosted service, no public sign-up and no multi-tenant plan. `https://howmuch.tk.sg` is the owner's personal instance, not a service for others. Other people run Halation on their own iPhone (local mode) or their own Cloudflare account ([self-hosting](docs/self-hosting.md)). Do not add features, copy or docs that offer hosting, accounts or data storage for other users.
+
+The root `wrangler.jsonc`, `.dev.vars.example` and `scripts/deploy-button.sh` are the Deploy to Cloudflare button template for self-hosters. The owner's stacks never use them; they deploy from `apps/worker`. The root `bun run deploy` refuses to run outside Cloudflare Workers Builds. Keep the template's vars, cron and migrations in step with `apps/worker/wrangler.self-host.example.jsonc`.
+
 ## Cloudflare deployments
 
 HowMuch's primary stack runs in the Tinkertanker Cloudflare account at
@@ -31,11 +37,11 @@ Cloudflare Email Routing) stays in the YJ account — do not move it.
 - The `tk` environment has one cron, `5 16 * * *` (00:05 Asia/Singapore), which materialises due scheduled transactions. It has no YNAB configuration. `HOWMUCH_API_TOKEN` is an encrypted secret on this Worker. `TYPESAFE_API_KEY` (optional encrypted secret) enables Jev category suggestions; never put it in `wrangler.jsonc` or the repo.
 - Do not add `HOWMUCH_REDIRECT_TARGET` to the `tk` env. Wrangler warns that top-level vars are not inherited; that warning is expected, and setting the var here would make production redirect to itself.
 - Production deploys automatically when a `v*` tag is pushed (`.github/workflows/deploy.yml`), using the `CLOUDFLARE_API_TOKEN` repo secret pinned to this account. The workflow never applies D1 migrations; migrations follow the order in `docs/deployment.md` and are run manually before tagging. It refuses to deploy while any migration is pending (`scripts/check-d1-migrations.sh`, a read-only check), using the separate `CLOUDFLARE_D1_READ_TOKEN` repo secret with only Account > D1 > Read, mapped to `CLOUDFLARE_API_TOKEN` for that step only. Do not broaden the deployment token for this check.
-- This is the only environment that accepts writes. The iOS app's `productionBaseURL` points at `howmuch.tk.sg`; installs still carrying the former `howmuch.soon.sg` default migrate on launch, and the legacy `soon.sg` host stays reachable as a redirect.
+- This is the only environment that accepts writes. The iOS app's `productionBaseURL` points at `howmuch.tk.sg` but is no longer the default for new installs, which start with an empty server field; installs still carrying the former `howmuch.soon.sg` default migrate to it on launch, and the legacy `soon.sg` host stays reachable as a redirect.
 
 ### Legacy redirect + backup (profile `yj`, account `YJ`)
 
-- Wrangler profile `yj`, Cloudflare account `YJ` (`810a0c404daff0737f4a2a97a7aab092`). This is the owner's personal Cloudflare account, referred to by the owner as `yjsoon@gmail.com`; Cloudflare currently reports its accepted Super Administrator member as `cloudflare@yjsoon.com`.
+- Wrangler profile `yj`, Cloudflare account `YJ` (`810a0c404daff0737f4a2a97a7aab092`). This is the owner's personal Cloudflare account.
 - Worker `howmuch` (top-level env in `wrangler.jsonc`) redirects every request to `https://howmuch.tk.sg` via `HOWMUCH_REDIRECT_TARGET` (308, path and query preserved). It has no cron and serves no data. Deploy it from `apps/worker` with `bun run deploy:yj-redirect`, which pins `--profile yj`.
 - D1 database `howmuch-production` (`57dc5569-d639-44c1-bb9d-6214f43a43b8`) holds the final production snapshot taken at the 2026-09-11 cutover, frozen read-only. Treat it as a cold backup: never write to it. Restoring from it means re-importing into the Tinkertanker database using the chunked procedure in `docs/deployment.md`.
 - The preview environment still lives here: Worker `howmuch-preview` and D1 `howmuch-preview` (`7ca818bd-7f04-4b9b-8a84-8c8f84a6a272`), deployed with `bun run deploy:preview`.
@@ -43,7 +49,7 @@ Cloudflare Email Routing) stays in the YJ account — do not move it.
 
 ### Rules for both
 
-- Before running any remote D1 migration or Worker deployment, verify that Wrangler has selected the intended account (`Tinkertanker` or `YJ`, IDs above) and that the configured resources exist there. The account ID and resource IDs are authoritative; do not block deployment solely because Cloudflare displays `cloudflare@yjsoon.com` instead of the owner's `yjsoon@gmail.com` shorthand.
+- Before running any remote D1 migration or Worker deployment, verify that Wrangler has selected the intended account (`Tinkertanker` or `YJ`, IDs above) and that the configured resources exist there. The account ID and resource IDs are authoritative; do not block deployment solely because the member email Cloudflare displays differs from what you expect.
 - Never create replacement Cloudflare resources or change bindings merely because Wrangler is authenticated to the wrong account. Switch to the correct account instead.
 - Run `scripts/backup-d1.sh` at least monthly and before any D1 migration (see `docs/deployment.md`). Dumps and checksums stay in gitignored `data/backups/`; the repository is public, so never commit them, upload them to GitHub releases or artifacts, or paste them anywhere world-readable. Restore is the manual chunked procedure, not a single command.
 - Follow `docs/deployment.md` for migration, deployment, and verification order.

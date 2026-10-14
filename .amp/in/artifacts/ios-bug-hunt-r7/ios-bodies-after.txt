@@ -1,0 +1,52 @@
+| Flow | Request | Expected | Observed | Result |
+| --- | --- | --- | --- | --- |
+| create account (no icon) | POST …/accounts | 201 | 201 | PASS |
+| create account (icon) | POST …/accounts | 201 | 201 | PASS |
+| create tracking account | POST …/accounts | 201 | 201 | PASS |
+| rename account | PATCH …/accounts/acct_822f0b32-1b5e-48b4-87de-0a78fdb68c80 | 200 | 200 | PASS |
+| change icon only | PATCH …/accounts/acct_822f0b32-1b5e-48b4-87de-0a78fdb68c80 | 200 | 200 | PASS |
+| create category group | POST …/category_groups | 201 | 201 | PASS |
+| create category | POST …/categories | 201 | 201 | PASS |
+| create category 2 | POST …/categories | 201 | 201 | PASS |
+| create (new payee, nulls) | POST …/transactions | 201 | 201 | PASS |
+| create (no payee, no category) | POST …/transactions | 201 | 201 | PASS |
+| create (flag, memo, cleared) | POST …/transactions | 201 | 201 | PASS |
+| create unapproved (share intake) | POST …/transactions | 201 | 201 | PASS |
+| create inflow (zero category) | POST …/transactions | 201 | 201 | PASS |
+| legacy queued create (no id) | POST …/transactions | 201 | 201 | PASS |
+| create | POST …/transactions | 201 | 201 | PASS |
+| replay same create | POST …/transactions | 200 | 200 | PASS |
+| list payees | GET …/payees | 200 | 200 | PASS |
+| create transfer | POST …/transactions | 201 | 201 | PASS |
+| create transfer to tracking (category) | POST …/transactions | 201 | 201 | PASS |
+| create split | POST …/transactions | 201 | 201 | PASS |
+| edit plain (memo, flag) | PUT …/transactions/txn_dd1ab568-21e0-433a-a3e8-48514dd4e270 | 200 | 200 | PASS |
+| edit plain clears memo, flag, category | PUT …/transactions/txn_dd1ab568-21e0-433a-a3e8-48514dd4e270 | 200 | 200 | PASS |
+| edit transfer amount | PUT …/transactions/txn_84732e8a-9f3e-4fb2-b634-0fe0ee93bb0b | 200 | 200 | PASS |
+| edit split | PUT …/transactions/txn_123fb621-0955-48fb-8372-37acb2034a6b | 200 | 200 | PASS |
+| fetch split | GET …/transactions/txn_123fb621-0955-48fb-8372-37acb2034a6b | 200 | 200 | PASS |
+| edit split again (lines from server) | PUT …/transactions/txn_123fb621-0955-48fb-8372-37acb2034a6b | 200 | 200 | PASS |
+| unsplit (empty subtransactions) | PUT …/transactions/txn_123fb621-0955-48fb-8372-37acb2034a6b | 200 | 200 | PASS |
+| create pending | POST …/transactions | 201 | 201 | PASS |
+| approve one | PATCH …/transactions/txn_9016fa67-2d59-4ae8-a4b2-67baba4431b3 | 200 | 200 | PASS |
+| create pending 2 | POST …/transactions | 201 | 201 | PASS |
+| bulk approve | PATCH …/transactions | 200 | 200 | PASS |
+| toggle cleared | PATCH …/transactions/txn_dd1ab568-21e0-433a-a3e8-48514dd4e270/cleared | 200 | 200 | PASS |
+| delete | DELETE …/transactions/txn_96ab2baa-512f-468f-a314-c2e9ae48a600?expected_approved=true | 200 | 200 | PASS |
+| create schedule | POST …/scheduled_transactions | 201 | 201 | PASS |
+| edit schedule | PATCH …/scheduled_transactions/scheduled_dc9327b0eddf8affa254eb7d | 200 | 200 | PASS |
+| enter schedule occurrence | POST …/scheduled_transactions/scheduled_dc9327b0eddf8affa254eb7d/materialize | 200 | 200 | PASS |
+| create split schedule | POST …/scheduled_transactions | 201 | 201 | PASS |
+| schedule catch-up | runScheduledMaterialization | failure_count 0 | {"through_date":"2026-10-13","occurrence_count":2,"skipped_closed_schedule_count":0,"failure_count":0,"has_more":false} | PASS |
+| delete schedule | DELETE …/scheduled_transactions/scheduled_be0372ec3850850e6f8109c6 | 200 | 200 | PASS |
+| reconciliation preview | GET …/accounts/acct_822f0b32-1b5e-48b4-87de-0a78fdb68c80/reconciliation?statement_date=2026-10-13 | 200 | 200 | PASS |
+| reconcile | POST …/accounts/acct_822f0b32-1b5e-48b4-87de-0a78fdb68c80/reconcile | 200 | 200 | PASS |
+| create reward card | POST /api/rewards/cards | 201 | 201 | PASS |
+| update reward card | PATCH /api/rewards/cards/card_ced605be-7118-4b82-8f04-c3622103f671 | 200 | 200 | PASS |
+| rewards settings | PATCH /api/rewards/settings | 200 | 200 | PASS |
+| delete reward card | DELETE /api/rewards/cards/card_ced605be-7118-4b82-8f04-c3622103f671 | 200 | 200 | PASS |
+| export snapshot | GET …/export_snapshot | 200 | 200 | PASS |
+| import snapshot into a fresh engine | POST …/import_snapshot | 201 | 201 | PASS |
+| imported transaction count | sqlite | 18 | 18 | PASS |
+
+0 failure(s)

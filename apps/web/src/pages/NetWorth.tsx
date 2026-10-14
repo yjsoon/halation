@@ -1,16 +1,20 @@
 import { api, useApi } from "../api/client";
+import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
 import { SteppedArea } from "../components/charts";
 import { formatDate, formatPeriod, trailingMonthsRange } from "../lib/dates";
 import { formatMoney } from "../lib/money";
+import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
 
 const TRAILING_YEAR = () => trailingMonthsRange(12);
+const INTERVALS: Interval[] = ["week", "month"];
 
 export function NetWorthPage() {
-  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: TRAILING_YEAR });
+  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: TRAILING_YEAR, intervals: INTERVALS });
   const query = { ...reportQuery, category_ids: undefined };
   const report = useApi(JSON.stringify(query), () => api.netWorth(query));
+  const isPhone = useIsPhone();
 
   const periods = report.data?.periods ?? [];
   const latest = periods[periods.length - 1];
@@ -43,30 +47,34 @@ export function NetWorthPage() {
       <FilterRail
         filters={filters}
         setFilters={setFilters}
-        intervals={["week", "month"]}
+        intervals={INTERVALS}
         showCategories={false}
         busy={report.loading}
+        collapsible={isPhone}
       />
       <div className="report-header">
         <h1>Net worth</h1>
         <div className="headline-row">
           <div className="headline-figure">
             <span className="figure-label">{latest ? `As at ${formatDate(latest.end_date)}` : "Current"}</span>
-            <span className={!latest || latest.net_worth >= 0 ? "figure-value figure-positive" : "figure-value figure-negative"}>
+            <span
+              key={latest?.net_worth ?? "none"}
+              className={!latest || latest.net_worth >= 0 ? "figure-value figure-settle figure-positive" : "figure-value figure-settle figure-negative"}
+            >
               {latest ? formatMoney(latest.net_worth) : "-"}
             </span>
           </div>
           {delta !== null && (
             <div className="headline-figure">
               <span className="figure-label">Change on previous period</span>
-              <span className={delta >= 0 ? "figure-value figure-positive" : "figure-value figure-negative"}>
+              <span key={delta} className={delta >= 0 ? "figure-value figure-settle figure-positive" : "figure-value figure-settle figure-negative"}>
                 {formatMoney(delta, { sign: true })}
               </span>
             </div>
           )}
           <div className="headline-figure">
             <span className="figure-label">Tracked accounts</span>
-            <span className="figure-value">{trackedAccounts || "-"}</span>
+            <span key={trackedAccounts} className="figure-value figure-settle">{trackedAccounts || "-"}</span>
           </div>
         </div>
       </div>
@@ -90,7 +98,7 @@ export function NetWorthPage() {
               <section className="report-section">
                 <div className="section-heading">
                   <span className="section-title">Trend</span>
-                  <span className="section-meta">{periods.length} closing snapshots</span>
+                  <span className="section-meta">{periods.length} closing {periods.length === 1 ? "snapshot" : "snapshots"}</span>
                 </div>
                 <SteppedArea periods={periods} />
               </section>
