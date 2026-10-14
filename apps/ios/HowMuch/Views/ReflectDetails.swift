@@ -677,17 +677,13 @@ struct SpendingBreakdownDetailView: View {
         accountIDs: Array(scope.accountIDs),
         categoryIDs: Array(scope.categoryIDs)
       )
-      // A superseded request (a filter change or a newer Retry) must not
-      // overwrite the current one.
-      guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
         report = next
         phase = .loaded
       }
     } catch {
-      // Neither a cancelled filter fetch nor a stale Retry (which runs in
-      // its own Task) may flash an error or clear a newer report.
-      guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      guard fetchGate.mayCommit(token) else { return }
       // Drop the previous window's figures so they never sit under the new
       // filter chips; the placeholder offers Retry instead.
       withAnimation(Theme.Motion.arrive) {
@@ -870,17 +866,13 @@ struct NetWorthDetailView: View {
         interval: interval,
         accountIDs: Array(scope.accountIDs)
       )
-      // A superseded request (a filter change or a newer Retry) must not
-      // overwrite the current one.
-      guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
         report = next
         phase = .loaded
       }
     } catch {
-      // Neither a cancelled filter fetch nor a stale Retry (which runs in
-      // its own Task) may flash an error or clear a newer report.
-      guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      guard fetchGate.mayCommit(token) else { return }
       // Drop the previous window's figures so they never sit under the new
       // filter chips; the placeholder offers Retry instead.
       withAnimation(Theme.Motion.arrive) {
@@ -1088,17 +1080,13 @@ struct IncomeVsSpendingDetailView: View {
         accountIDs: Array(scope.accountIDs),
         categoryIDs: Array(scope.categoryIDs)
       )
-      // A superseded request (a filter change or a newer Retry) must not
-      // overwrite the current one.
-      guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
         report = next
         phase = .loaded
       }
     } catch {
-      // Neither a cancelled filter fetch nor a stale Retry (which runs in
-      // its own Task) may flash an error or clear a newer report.
-      guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      guard fetchGate.mayCommit(token) else { return }
       // Drop the previous window's figures so they never sit under the new
       // filter chips; the placeholder offers Retry instead.
       withAnimation(Theme.Motion.arrive) {
@@ -1243,17 +1231,13 @@ struct AgeOfMoneyDetailView: View {
         interval: interval,
         accountIDs: Array(scope.accountIDs)
       )
-      // A superseded request (a filter change or a newer Retry) must not
-      // overwrite the current one.
-      guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
         report = next
         phase = .loaded
       }
     } catch {
-      // Neither a cancelled filter fetch nor a stale Retry (which runs in
-      // its own Task) may flash an error or clear a newer report.
-      guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      guard fetchGate.mayCommit(token) else { return }
       // Drop the previous window's figures so they never sit under the new
       // filter chips; the placeholder offers Retry instead.
       withAnimation(Theme.Motion.arrive) {

@@ -497,13 +497,13 @@ struct IncomeVsSpendingPeriodDetailView: View {
         accountIDs: Array(scope.accountIDs),
         categoryIDs: Array(scope.categoryIDs)
       )
-      guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
         groups = next
         phase = .loaded
       }
     } catch {
-      guard fetchGate.isCurrent(token), !Task.isCancelled else { return }
+      guard fetchGate.mayCommit(token) else { return }
       // After a step, `groups` is the previous period's breakdown. Drop it so
       // it never sits under this period's header; the placeholder offers Retry.
       withAnimation(Theme.Motion.arrive) {
