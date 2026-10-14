@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { formatMilliunitsInput, formatSavingsRate, parseMilliunits } from "./money";
+import { configureMoney, formatMilliunitsInput, formatMoney, formatSavingsRate, parseMilliunits } from "./money";
 
 describe("parseMilliunits", () => {
   test("parses whole numbers and up to three decimal places exactly", () => {
@@ -23,6 +23,66 @@ describe("parseMilliunits", () => {
     expect(parseMilliunits("1e3")).toBeNull();
     expect(parseMilliunits("12.34.5")).toBeNull();
   });
+
+  // Failure mode: formatMoney shows an imported comma-decimal plan's amounts
+  // as "12,50", and the amount fields read that comma as a group mark, so
+  // typing what the page shows stores a hundred times the amount. The fields
+  // are still prefilled with a dot ("12.5"), so a dot must keep reading.
+  test("reads the plan's comma decimal mark as the page shows it", () => {
+    try {
+      configureMoney({ iso_code: "EUR", example_format: "123.456,78", decimal_digits: 2, decimal_separator: ",", symbol_first: false, group_separator: ".", currency_symbol: "€", display_symbol: true });
+      expect(formatMoney(12_500)).toBe("12,50€");
+      expect(parseMilliunits("12,50")).toBe(12_500);
+      expect(parseMilliunits("-12,5")).toBe(-12_500);
+      expect(parseMilliunits("1.234,50")).toBe(1_234_500);
+      expect(parseMilliunits("12.5")).toBe(12_500);
+      expect(parseMilliunits("1,2,3")).toBeNull();
+    } finally {
+      configureMoney(undefined);
+    }
+    expect(parseMilliunits("12,50")).toBe(1_250_000);
+  });
+});
+
+// A zero-decimal comma plan (decimal ",", group ".") shows 1,234 units as
+// "1.234". Copying that into a field must give 1,234 units, not 1.234.
+describe("parseMilliunits with a zero-decimal comma plan", () => {
+  test("reads the displayed grouping back as the same amount", () => {
+    try {
+      configureMoney({ iso_code: "XXX", example_format: "123.456", decimal_digits: 0, decimal_separator: ",", symbol_first: false, group_separator: ".", currency_symbol: "", display_symbol: false });
+      expect(formatMoney(1_234_000)).toBe("1.234");
+      expect(parseMilliunits(formatMoney(1_234_000))).toBe(1_234_000);
+      expect(parseMilliunits("1.234.567")).toBe(1_234_567_000);
+      expect(parseMilliunits("-12.345")).toBe(-12_345_000);
+      expect(parseMilliunits("1234")).toBe(1_234_000);
+      expect(parseMilliunits("1.5")).toBe(1_500);
+      // An explicit comma is always the decimal mark, whatever the digits.
+      expect(parseMilliunits("1,234")).toBe(1_234);
+      expect(parseMilliunits("-1,234")).toBe(-1_234);
+      expect(parseMilliunits("1.234,5")).toBe(1_234_500);
+    } finally {
+      configureMoney(undefined);
+    }
+  });
+});
+
+// Imported dot-decimal plans can group with a space or an apostrophe: the page
+// shows 1 234.50 or 1’234.50, and copying that into a field must be accepted.
+describe("parseMilliunits with a non-comma group mark in a dot-decimal plan", () => {
+  for (const group of [" ", "’", "'", "\u00a0", "\u202f"]) {
+    test(`reads back what the page shows with group ${JSON.stringify(group)}`, () => {
+      try {
+        configureMoney({ iso_code: "CHF", example_format: "1’234.56", decimal_digits: 2, decimal_separator: ".", symbol_first: true, group_separator: group, currency_symbol: "", display_symbol: false });
+        const shown = formatMoney(1_234_500);
+        expect(shown).toContain(group);
+        expect(parseMilliunits(shown)).toBe(1_234_500);
+        expect(parseMilliunits("12.5")).toBe(12_500);
+        expect(parseMilliunits("1,234.50")).toBe(1_234_500);
+      } finally {
+        configureMoney(undefined);
+      }
+    });
+  }
 });
 
 describe("formatMilliunitsInput", () => {

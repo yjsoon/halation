@@ -72,7 +72,7 @@ struct ScheduledSubtransactionDraft {
   }
 
   var amount: Int? {
-    MoneyCodec.milliunits(from: amountText)
+    MoneyCodec.milliunits(fromTyped: amountText)
   }
 
   func writeRequest() -> ScheduledSubtransactionWriteRequest? {
@@ -140,7 +140,7 @@ struct ScheduledTransactionDraft {
       }
       return total
     }
-    guard let amount = MoneyCodec.milliunits(from: amountText) else {
+    guard let amount = MoneyCodec.milliunits(fromTyped: amountText) else {
       return nil
     }
     return direction == .outflow ? -amount : amount

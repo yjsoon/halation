@@ -158,7 +158,7 @@ struct IntakeMatcher: Sendable {
         kind: .add,
         confidence: 0.8,
         draft: read.draft,
-        reasons: ["No row within \(days) days for this amount"]
+        reasons: ["No row within \(days == 1 ? "1 day" : "\(days) days") for this amount"]
       )
     }
 
@@ -230,7 +230,7 @@ struct IntakeMatcher: Sendable {
       )
     }
 
-    var reasons = ["Same amount within \(days) days"]
+    var reasons = ["Same amount within \(days == 1 ? "1 day" : "\(days) days")"]
     if !chosen.isEmpty, best.row.accountID != chosen {
       reasons.append("Found in another account")
     }

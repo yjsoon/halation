@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { configureMoney } from "./money";
 import type { Payee, Subtransaction, Transaction } from "../api/types";
 import {
   beginRowEdit,
@@ -1033,5 +1034,34 @@ describe("sessionRowGone", () => {
   test("is true only when the editing row is missing", () => {
     expect(sessionRowGone(editing, new Set(["txn-1"]))).toBeFalse();
     expect(sessionRowGone(editing, new Set(["other"]))).toBeTrue();
+  });
+});
+
+// A zero-decimal comma plan (decimal ",", group ".") shows a fractional
+// amount as "1,234" and a whole one as "1.234". Editing a saved row must open
+// the amount it saved, and a typed sum must read each number as shown.
+describe("amounts in a zero-decimal comma plan", () => {
+  const format = { iso_code: "XXX", example_format: "123.456", decimal_digits: 0, decimal_separator: ",", symbol_first: false, group_separator: ".", currency_symbol: "", display_symbol: false };
+
+  test("opens a saved fractional amount as the same amount, not a thousand times more", () => {
+    try {
+      configureMoney(format);
+      const decision = beginRowEdit(posted(txn({ amount: -1234 })), "outflow", { writeLocked: false, mutatingId: null } as RowEditContext);
+      expect(decision.kind).toBe("begin");
+      if (decision.kind === "begin") {
+        expect(decision.action.type === "begin" && decision.action.draft.outflow).toBe("1,234");
+      }
+    } finally {
+      configureMoney(undefined);
+    }
+  });
+
+  test("reads a typed sum number by number", () => {
+    try {
+      configureMoney(format);
+      expect(parseAmountEntry("1,234+1")).toBe(2_234);
+    } finally {
+      configureMoney(undefined);
+    }
   });
 });

@@ -54,7 +54,7 @@ describe("D1 foundation", () => {
 
   test("canonical schema applies cleanly with auth constraints and cascades", async () => {
     const db = sqlite();
-    for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql", "../d1-migrations/0015_rewards_tracker.sql", "../d1-migrations/0016_query_covering_indexes.sql", "../d1-migrations/0017_ynab_source_month_activity.sql", "../d1-migrations/0018_account_month_balances.sql"]) db.exec(await Bun.file(new URL(path, import.meta.url)).text());
+    for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql", "../d1-migrations/0015_rewards_tracker.sql", "../d1-migrations/0016_query_covering_indexes.sql", "../d1-migrations/0017_ynab_source_month_activity.sql", "../d1-migrations/0018_account_month_balances.sql", "../d1-migrations/0019_own_imported_ynab_schedules.sql"]) db.exec(await Bun.file(new URL(path, import.meta.url)).text());
     const objects = db.query("SELECT name,type FROM sqlite_master WHERE type IN ('table','index','trigger')").all() as Array<{name:string;type:string}>;
     const names = new Set(objects.map((row) => row.name));
     for (const name of ["plans","import_sessions","import_rows","ynab_raw_objects","plan_month_assignments","plan_month_category_targets","scheduled_transaction_edits","scheduled_subtransaction_edits","scheduled_transaction_snapshot_assertions","account_reconciliation_assertions","users","auth_identities","sessions","personal_api_tokens","account_preferences","plan_memberships","password_credentials","auth_setup","login_rate_limits","sync_runs","sync_attempts","sync_transition_receipts","audit_events","write_state","write_commands","write_assertions","rewards_tracker_snapshots","rewards_tracker_cards","idx_sessions_user","idx_sessions_expiry","idx_personal_api_tokens_user","idx_plan_memberships_user_plan","idx_transactions_transfer_transaction_id","idx_subtransactions_transfer_transaction_id","idx_transactions_plan_live_register","idx_transactions_account_live_register","idx_transactions_account_reconciled_date","idx_payees_plan_live_name","idx_account_reconciliation_assertions_account_date","transactions_assign_ledger_sequence","accounts_transfer_payee_plan_guard"]) expect(names.has(name)).toBeTrue();
@@ -772,6 +772,64 @@ describe("D1 foundation", () => {
     expect(await repo.materializeScheduledTransactionsForCron("p", "2026-08-21", 5, "cron-run")).toMatchObject({
       occurrence_count: 0, failure_count: 0, has_more: false,
     });
+  });
+
+  // Failure mode: the occurrence transaction commits but the schedule advance
+  // does not (transport error, Worker eviction). The next attempt runs under a
+  // different operation seed (the next day's cron, or a manual retry with a new
+  // Idempotency-Key). It must advance the schedule over the posted occurrence,
+  // not refuse it as idempotency-key reuse and strand the schedule forever.
+  test("D1 materialisation recovers an occurrence posted before a failed advance under a new operation seed", async () => {
+    const db = await ledgerSqlite();
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    await repo.createScheduledTransaction("p", {
+      id: "stranded", account_id: "a", date_first: "2026-08-21", frequency: "monthly", amount: -100,
+    });
+    const update = repo.updateScheduledTransaction.bind(repo);
+    let failAdvance = true;
+    repo.updateScheduledTransaction = async (...args) => {
+      if (failAdvance) {
+        failAdvance = false;
+        throw new Error("temporary D1 command failure");
+      }
+      return update(...args);
+    };
+
+    expect(await repo.materializeScheduledTransactionsForCron("p", "2026-08-21", 5, "cron-day-1")).toMatchObject({ failure_count: 1, has_more: true });
+    expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
+    expect(await repo.getScheduledTransaction("p", "stranded")).toMatchObject({ date_next: "2026-08-21" });
+
+    expect(await repo.materializeScheduledTransactionsForCron("p", "2026-08-22", 5, "cron-day-2")).toMatchObject({ failure_count: 0, has_more: false });
+    expect(await repo.getScheduledTransaction("p", "stranded")).toMatchObject({ date_next: "2026-09-21" });
+    expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
+  });
+
+  // Failure mode: a user moves date_next back onto an occurrence that was
+  // already posted and advanced. The deterministic advance key then replays the
+  // earlier advance without writing, so the schedule never leaves that date and
+  // the cron's "made progress" loop spins on it until the Worker is killed.
+  test("D1 cron materialisation advances a schedule moved back onto an already posted occurrence", async () => {
+    const db = await ledgerSqlite();
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    await repo.createScheduledTransaction("p", {
+      id: "moved-back", account_id: "a", date_first: "2026-08-21", frequency: "monthly", amount: -100,
+    });
+    expect(await repo.materializeScheduledTransactionsForCron("p", "2026-08-21", 5, "cron-day-1")).toMatchObject({ occurrence_count: 1 });
+    expect(await repo.getScheduledTransaction("p", "moved-back")).toMatchObject({ date_next: "2026-09-21" });
+    await repo.updateScheduledTransaction("p", "moved-back", { date_next: "2026-08-21" });
+
+    // The fake D1 never yields to the event loop, so a spinning run cannot be
+    // timed out; cap the attempts instead and turn a spin into a failure.
+    const materialize = repo.materializeScheduledOccurrence.bind(repo);
+    let attempts = 0;
+    repo.materializeScheduledOccurrence = async (...args) => {
+      attempts += 1;
+      if (attempts > 10) throw new Error("materialisation is not making progress");
+      return materialize(...args);
+    };
+    expect(await repo.materializeScheduledTransactionsForCron("p", "2026-08-22", 5, "cron-day-2")).toMatchObject({ failure_count: 0, has_more: false });
+    expect(await repo.getScheduledTransaction("p", "moved-back")).toMatchObject({ date_next: "2026-09-21" });
+    expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
   });
 
   test("D1 cron materialisation continues past an invalid schedule and reports only counts", async () => {
@@ -1605,7 +1663,7 @@ describe("D1 foundation", () => {
 
   test("versioned D1 metadata and import-session writes replay and reject collisions", async () => {
     const db = sqlite();
-    for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql"]) {
+    for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql", "../d1-migrations/0019_own_imported_ynab_schedules.sql"]) {
       db.exec(await Bun.file(new URL(path, import.meta.url)).text());
     }
     const metadata = new D1MetadataRepository(new D1Database(fakeD1(db)));
@@ -2005,7 +2063,7 @@ function provisionTransferPayee(db: Database, accountId: string): void {
 
 async function ledgerSqlite(): Promise<Database> {
   const db = sqlite();
-  for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql", "../d1-migrations/0015_rewards_tracker.sql", "../d1-migrations/0016_query_covering_indexes.sql", "../d1-migrations/0017_ynab_source_month_activity.sql", "../d1-migrations/0018_account_month_balances.sql"]) db.exec(await Bun.file(new URL(path, import.meta.url)).text());
+  for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql", "../d1-migrations/0015_rewards_tracker.sql", "../d1-migrations/0016_query_covering_indexes.sql", "../d1-migrations/0017_ynab_source_month_activity.sql", "../d1-migrations/0018_account_month_balances.sql", "../d1-migrations/0019_own_imported_ynab_schedules.sql"]) db.exec(await Bun.file(new URL(path, import.meta.url)).text());
   db.run("INSERT INTO plans (id, name) VALUES ('p', 'Plan')");
   db.run("INSERT INTO accounts (id, plan_id, name) VALUES ('a', 'p', 'Cash')");
   return db;

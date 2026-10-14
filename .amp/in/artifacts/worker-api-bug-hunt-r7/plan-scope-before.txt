@@ -1,0 +1,13 @@
+| Request | Expected | Observed |
+| --- | --- | --- |
+| PATCH transfer tx-1 account_id to its target acc-sav | 400 | 200  |
+| POST transaction id tx-q (plan q's) | 404 | 404 Transaction not found |
+| POST bulk transaction id tx-q | 404 | 404 Transaction not found |
+| POST import transaction id tx-q | 404 | 404 Transaction not found |
+| POST account id acc-q (plan q's) | 400 | 404 Account not found |
+| POST transaction on account acc-q | 400 | 201  |
+| POST transaction with payee payee-q | 400 | 201  |
+
+Database after the run:
+transactions [{"id":"tx-1","plan_id":"p","account_id":"acc-sav","amount_milli":-1000,"memo":null,"transfer_account_id":"acc-sav","deleted":0},{"id":"tx-a","plan_id":"p","account_id":"acc-q","amount_milli":-5,"memo":null,"transfer_account_id":null,"deleted":0},{"id":"tx-b","plan_id":"p","account_id":"acc-chk","amount_milli":-5,"memo":null,"transfer_account_id":null,"deleted":0},{"id":"tx-q","plan_id":"q","account_id":"acc-chk","amount_milli":-7,"memo":"from p import","transfer_account_id":null,"deleted":0},{"id":"txn_c8224d85-877a-4bec-a7b5-3668a828d159","plan_id":"p","account_id":"acc-sav","amount_milli":1000,"memo":null,"transfer_account_id":"acc-sav","deleted":0}]
+accounts [{"id":"acc-chk","plan_id":"p","name":"Chk","balance_milli":-12},{"id":"acc-q","plan_id":"q","name":"hijack","balance_milli":-5},{"id":"acc-sav","plan_id":"p","name":"Sav","balance_milli":0}]

@@ -65,4 +65,4 @@ Halation is MIT-licensed. See [LICENSE](LICENSE).
 
 Halation is not affiliated with or endorsed by YNAB.
 
-The bundled web fonts (IBM Plex Sans, IBM Plex Mono and Newsreader, via `@fontsource`) are licensed under the SIL Open Font License 1.1.
+The bundled web fonts (Instrument Serif, IBM Plex Sans and IBM Plex Mono, via `@fontsource`) are licensed under the SIL Open Font License 1.1.

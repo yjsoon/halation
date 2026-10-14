@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
 import { createId } from "./ids";
+import { ownedRecordStatements } from "./ynab-owned-records";
 import type { SeedCurrencyFormat, SeedDateFormat } from "./plan-settings-seed";
 import { SqliteRepositoryDatabase, type RepositoryDatabase } from "./repository-db";
 import {
@@ -62,6 +63,8 @@ import {
   type CategoryRow,
 } from "./category-management";
 import { requestHash } from "./d1-guarded-command";
+import { cardFlagNames, flagNameForColour } from "./rewards/flag-names";
+import type { CreditCard } from "./rewards/types";
 import {
   PLAN_NOT_EMPTY_CONDITION,
   PlanNotEmptyError,
@@ -319,6 +322,11 @@ export class LedgerRepository {
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(accountId, planId, name ?? `Imported account ${accountId.slice(0, 8)}`, accountId);
+    // The insert skips an id that exists anywhere: another plan's account id
+    // booked this plan's transaction against that plan's balance.
+    if (await this.db.query("SELECT 1 FROM accounts WHERE id = ? AND plan_id <> ?").get(accountId, planId)) {
+      throw new ValidationError("Account not found");
+    }
     await this.ensureTransferPayee(planId, accountId);
   }
 
@@ -413,7 +421,10 @@ export class LedgerRepository {
 
   async upsertAccount(planId: string, account: any): Promise<void> {
     await this.ensurePlan(planId);
-    const existing = await this.db.query("SELECT icon FROM accounts WHERE id = ?").get(account.id) as Row | null;
+    const existing = await this.db.query("SELECT icon, plan_id FROM accounts WHERE id = ?").get(account.id) as Row | null;
+    // The upsert matches on id alone: another plan's account id renamed and
+    // retyped that plan's account.
+    if (existing && existing.plan_id !== planId) throw new ValidationError("Account belongs to another plan");
     const presentation = resolveAccountPresentation({
       name: account.name ?? `Account ${account.id}`,
       icon: account.icon,
@@ -580,8 +591,9 @@ export class LedgerRepository {
   }
 
   async getAccount(planId: string, accountId: string): Promise<any> {
-    await this.ensureAccount(planId, accountId);
-    const row = await this.db.query(`${ACCOUNT_SELECT_SQL} WHERE id = ? AND plan_id = ?`).get(accountId, planId) as Row;
+    // A read must not create the account (and its transfer payee) for an unknown id.
+    const row = await this.db.query(`${ACCOUNT_SELECT_SQL} WHERE id = ? AND plan_id = ?`).get(accountId, planId) as Row | null;
+    if (!row) throw new NotFoundError("Account not found");
     return formatAccount(row);
   }
 
@@ -717,6 +729,10 @@ export class LedgerRepository {
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(payeeId, planId, name ?? `Imported payee ${payeeId.slice(0, 8)}`, payeeId);
+    // As ensureCategory: another plan's payee must not be linked from this one.
+    if (await this.db.query("SELECT 1 FROM payees WHERE id = ? AND plan_id <> ?").get(payeeId, planId)) {
+      throw new ValidationError("Payee not found");
+    }
   }
 
   async upsertPayee(planId: string, payee: any): Promise<void> {
@@ -982,7 +998,7 @@ export class LedgerRepository {
 
   /** The plan's ledger in `howmuch-plan-snapshot` form, read in one consistent batch. */
   async exportPlanSnapshot(planId: string): Promise<{ snapshot: PlanSnapshot; server_knowledge: number }> {
-    const [groups, categories, payees, accounts, transactions, subtransactions, rawParents, rawSubs, editRows, editSubRows, knowledge] = await this.db.batchRead([
+    const [groups, categories, payees, accounts, transactions, subtransactions, editRows, editSubRows, knowledge] = await this.db.batchRead([
       { sql: "SELECT id, name, hidden, internal, deleted FROM category_groups WHERE plan_id = ? ORDER BY id", values: [planId] },
       { sql: "SELECT id, category_group_id, name, hidden, internal, deleted FROM categories WHERE plan_id = ? ORDER BY id", values: [planId] },
       { sql: "SELECT id, name, transfer_account_id, deleted FROM payees WHERE plan_id = ? ORDER BY id", values: [planId] },
@@ -1018,7 +1034,7 @@ export class LedgerRepository {
         accounts: accounts ?? [],
         transactions: transactions ?? [],
         subtransactions: subtransactions ?? [],
-        scheduledTransactions: assembleScheduledTransactions(rawParents ?? [], rawSubs ?? [], editRows ?? [], editSubRows ?? []),
+        scheduledTransactions: assembleScheduledTransactions(editRows ?? [], editSubRows ?? []),
       }),
       server_knowledge: knowledgeFrom(knowledge),
     };
@@ -1101,6 +1117,11 @@ export class LedgerRepository {
       const existingRow = await this.db
         .query("SELECT * FROM transactions WHERE id = ? AND plan_id = ?")
         .get(transactionId, planId) as Row | null;
+      // The upsert below matches on id alone, so a write naming another plan's
+      // transaction id moved that row into this plan's account, as on D1 refused.
+      if (!existingRow && await this.db.query("SELECT 1 FROM transactions WHERE id = ? AND plan_id <> ?").get(transactionId, planId)) {
+        throw new NotFoundError("Transaction belongs to another plan");
+      }
       const refs = await this.resolveTransactionRefs(planId, input);
 
       let payeeId = refs.payeeId;
@@ -1141,6 +1162,11 @@ export class LedgerRepository {
           }
           createLinkedSide = true;
         }
+      }
+      // Moving a linked row into the account it transfers to made both sides
+      // land in that account, and the source lost its side of the money.
+      if (autoLink && transferTransactionId && transferAccountId === input.account_id) {
+        throw new ValidationError("Transfer target must be a different account");
       }
       if (autoLink && transferAccountId && await this.accountsBothOnBudget(planId, input.account_id, transferAccountId)) {
         // Transfers between two budget accounts carry no category in YNAB;
@@ -1220,11 +1246,9 @@ export class LedgerRepository {
         .query("SELECT id, transfer_transaction_id FROM subtransactions WHERE transaction_id = ?")
         .all(transactionId) as Row[];
       await this.db.query("DELETE FROM subtransactions WHERE transaction_id = ?").run(transactionId);
-      const keptSubIds = new Set<string>();
       const keptLinkIds = new Set<string>();
       for (const sub of input.subtransactions ?? []) {
         const subId = sub.id ?? createId("sub");
-        keptSubIds.add(subId);
         const subRefs = await this.resolveTransactionRefs(planId, {
           account_id: input.account_id,
           date: input.date,
@@ -1311,11 +1335,11 @@ export class LedgerRepository {
           );
       }
 
-      // Split lines that disappeared take their linked sides with them — but
-      // a line that was merely re-keyed keeps the linked side it still cites.
+      // A linked side no line still cites goes: the line disappeared, stopped
+      // being a transfer, or kept its id but was given a new linked side. A
+      // line that was merely re-keyed keeps the linked side it still cites.
       for (const previous of previousSubs) {
         if (
-          !keptSubIds.has(previous.id) &&
           previous.transfer_transaction_id &&
           !keptLinkIds.has(previous.transfer_transaction_id)
         ) {
@@ -1621,7 +1645,7 @@ export class LedgerRepository {
     };
   }
 
-  protected async resolveTransactionLookup(planId: string, lookup: TransactionLookup): Promise<string> {
+  async resolveTransactionLookup(planId: string, lookup: TransactionLookup): Promise<string> {
     if (lookup.kind === "id") {
       const row = await this.getTransactionRow(planId, lookup.id);
       if (!row) throw new NotFoundError("Transaction not found");
@@ -2034,6 +2058,8 @@ export class LedgerRepository {
    * Stores an exact source object from YNAB.  The normalised ledger remains
    * the write model; this mirror keeps fields that HowMuch does not yet model
    * (targets, notes, scheduling metadata, locations, and future API fields).
+   * Objects HowMuch serves (schedules with their `ownedLines`, the plan
+   * marker) are also written to its own tables, see `ynab-owned-records.ts`.
    */
   async upsertYnabRawObject(
     planId: string,
@@ -2041,22 +2067,27 @@ export class LedgerRepository {
     objectId: string,
     payload: unknown,
     serverKnowledge?: number,
+    ownedLines: readonly unknown[] = [],
   ): Promise<void> {
     await this.ensurePlan(planId);
     const json = JSON.stringify(payload);
     if (json === undefined) throw new ValidationError("YNAB raw object payload must be JSON serialisable");
     const deleted = Boolean((payload as Record<string, unknown> | null)?.deleted) ? 1 : 0;
-    await this.db
-      .query(
-        `INSERT INTO ynab_raw_objects(plan_id, object_type, object_id, payload_json, deleted, server_knowledge, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(plan_id, object_type, object_id) DO UPDATE SET
-           payload_json = excluded.payload_json,
-           deleted = excluded.deleted,
-           server_knowledge = excluded.server_knowledge,
-           updated_at = CURRENT_TIMESTAMP`,
-      )
-      .run(planId, objectType, objectId, json, deleted, serverKnowledge ?? null);
+    const owned = ownedRecordStatements(planId, objectType, objectId, json, deleted, ownedLines);
+    await this.db.transaction(async () => {
+      await this.db
+        .query(
+          `INSERT INTO ynab_raw_objects(plan_id, object_type, object_id, payload_json, deleted, server_knowledge, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+           ON CONFLICT(plan_id, object_type, object_id) DO UPDATE SET
+             payload_json = excluded.payload_json,
+             deleted = excluded.deleted,
+             server_knowledge = excluded.server_knowledge,
+             updated_at = CURRENT_TIMESTAMP`,
+        )
+        .run(planId, objectType, objectId, json, deleted, serverKnowledge ?? null);
+      for (const statement of owned) await this.db.query(statement.sql).run(...(statement.values as any[]));
+    })();
   }
 
   async listYnabRawObjects(planId: string, objectType: string): Promise<any[]> {
@@ -2066,27 +2097,27 @@ export class LedgerRepository {
     return rows.map((row) => parseRawYnabObject(row.payload_json, objectType));
   }
 
-  /** Effective schedules: immutable YNAB rows plus HowMuch-owned overlays. */
+  /** Effective schedules: imported YNAB schedules and local ones, all in HowMuch's tables. */
   async listScheduledTransactions(planId: string): Promise<any[]> {
     const rows = await Promise.all(SCHEDULED_SQL.map((sql) => this.db.query(sql).all(planId) as Promise<Row[]>));
-    return assembleScheduledTransactions(rows[0]!, rows[1]!, rows[2]!, rows[3]!);
+    return assembleScheduledTransactions(rows[0]!, rows[1]!);
   }
 
   /**
    * Schedules and the knowledge value in one round trip, for the HTTP route.
-   * The method above keeps its four separate statements because write paths
+   * The method above keeps its separate statements because write paths
    * call it from inside an open transaction, where a batch cannot nest.
    */
   async listScheduledTransactionsWithKnowledge(
     planId: string,
   ): Promise<{ scheduled_transactions: any[]; server_knowledge: number }> {
     const values = [planId];
-    const [rawParents, rawSubs, editRows, editSubRows, knowledgeRows] = await this.db.batchRead([
+    const [editRows, editSubRows, knowledgeRows] = await this.db.batchRead([
       ...SCHEDULED_SQL.map((sql) => ({ sql, values })),
       { sql: SERVER_KNOWLEDGE_SQL, values },
     ]);
     return {
-      scheduled_transactions: assembleScheduledTransactions(rawParents ?? [], rawSubs ?? [], editRows ?? [], editSubRows ?? []),
+      scheduled_transactions: assembleScheduledTransactions(editRows ?? [], editSubRows ?? []),
       server_knowledge: knowledgeFrom(knowledgeRows),
     };
   }
@@ -2115,10 +2146,7 @@ export class LedgerRepository {
     if (await this.replayedScheduleMutation(planId, id, "scheduled_transaction.create", options.operationId, fingerprint)) {
       return projectScheduledRead(await this.readScheduledTransaction(planId, id, true));
     }
-    const collision = await this.db.query(
-      `SELECT 1 FROM scheduled_transaction_edits WHERE plan_id=? AND id=?
-       UNION ALL SELECT 1 FROM ynab_raw_objects WHERE plan_id=? AND object_type='scheduled_transaction' AND object_id=? LIMIT 1`,
-    ).get(planId, id, planId, id);
+    const collision = await this.db.query("SELECT 1 FROM scheduled_transaction_edits WHERE plan_id=? AND id=?").get(planId, id);
     if (collision) throw new ValidationError("Scheduled transaction already exists");
     const transaction = scheduledTransactionMutation(id, input as Record<string, unknown>, null, [], options.operationId);
     await this.validateScheduledReferences(planId, transaction);
@@ -2208,19 +2236,31 @@ export class LedgerRepository {
     const scheduleSnapshot = scheduledOccurrenceSnapshotHash(schedule);
     if (existing && existing.snapshotHash !== scheduleSnapshot) throw new Error("stale scheduled occurrence");
 
-    const input = await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId);
+    // An occurrence posted from this exact schedule snapshot whose advance did
+    // not commit is only advanced here. Re-creating it would hash a different
+    // source_ref whenever the retry carries another operation seed (the next
+    // day's cron, a new Idempotency-Key), and be refused as key reuse forever.
     const operationId = `scheduled_occurrence_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
-    const transaction = await this.createTransaction(planId, input, { autoLink: true, operationId });
-    const advanceId = `scheduled_advance_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
-    let advanced: any;
+    const transaction = existing
+      ? existing.transaction
+      : await this.createTransaction(
+        planId,
+        await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId),
+        { autoLink: true, operationId },
+      );
+    const advanceKind = schedule.frequency === "never" ? "complete" : "advance";
+    const advanceId = `scheduled_${advanceKind}_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
     const expected = { date_first: schedule.date_first, date_next: occurrenceDate, frequency: schedule.frequency };
-    if (schedule.frequency === "never") {
-      advanced = await this.deleteScheduledTransaction(planId, scheduledTransactionId, { operationId: advanceId, expected });
-    } else {
-      const nextDate = nextScheduledOccurrence(schedule.date_first, occurrenceDate, schedule.frequency);
-      if (!nextDate) throw new ValidationError("Recurring schedule did not produce a next date");
-      advanced = await this.updateScheduledTransaction(planId, scheduledTransactionId, { date_next: nextDate }, { operationId: advanceId, expected });
-    }
+    const nextDate = schedule.frequency === "never" ? null : nextScheduledOccurrence(schedule.date_first, occurrenceDate, schedule.frequency);
+    if (schedule.frequency !== "never" && !nextDate) throw new ValidationError("Recurring schedule did not produce a next date");
+    const advance = (operationId?: string) => schedule.frequency === "never"
+      ? this.deleteScheduledTransaction(planId, scheduledTransactionId, { operationId, expected })
+      : this.updateScheduledTransaction(planId, scheduledTransactionId, { date_next: nextDate! }, { operationId, expected });
+    let advanced: any = await advance(advanceId);
+    // The keyed advance replays an earlier one without writing when the
+    // schedule was moved back onto this already-posted occurrence. Advance it
+    // for real; `expected` still refuses a concurrent change.
+    if (!advanced.deleted && advanced.date_next === occurrenceDate) advanced = await advance();
     return {
       transaction,
       scheduled_transaction: advanced,
@@ -2421,12 +2461,22 @@ export class LedgerRepository {
       cleared: sourceAccount.type === "cash" ? "cleared" : "uncleared",
       approved: false,
       flag_color: normalised.flag_color ?? null,
+      // Named from the account's rewards card, as a typed transaction is; a
+      // posted occurrence otherwise labels its flag group by colour alone.
+      ...await this.cardFlagName(planId, normalised.account_id, normalised.flag_color ?? null),
       transfer_account_id: parent.transferAccountId,
       import_id: `scheduled:${schedule.id}:${occurrenceDate}`,
       source_kind: "scheduled-transaction",
       source_ref: `${schedule.id}:${occurrenceDate}:${scheduledOccurrenceSnapshotHash(schedule)}:${scheduleDigest(requestOperationId ?? "direct").slice(0, 16)}`,
       subtransactions,
     };
+  }
+
+  private async cardFlagName(planId: string, accountId: string, flagColor: string | null): Promise<{ flag_name?: string | null }> {
+    const card = (await this.getRewardsTrackerSnapshot(planId)).cards.find((entry) =>
+      Boolean(entry && typeof entry === "object" && !Array.isArray(entry) && (entry as { ynabAccountId?: string }).ynabAccountId === accountId),
+    ) as CreditCard | undefined;
+    return card ? { flag_name: flagNameForColour(cardFlagNames(card), flagColor) } : {};
   }
 
   private async readMaterializedOccurrence(planId: string, transactionId: string, scheduleId: string, occurrenceDate: string): Promise<{ transaction: any; snapshotHash: string } | null> {
@@ -2448,19 +2498,17 @@ export class LedgerRepository {
       const payload = { ...parseRawYnabObject(edit.payload_json, "scheduled transaction"), deleted: Boolean(edit.deleted) };
       return { ...payload, payload, payloadJson: String(edit.payload_json), subtransactions, origin: edit.origin as "howmuch-local" | "ynab-overlay" } as any;
     }
-    const source = await this.db.query("SELECT payload_json,deleted FROM ynab_raw_objects WHERE plan_id=? AND object_type='scheduled_transaction' AND object_id=?").get(planId, id) as Row | null;
-    if (!source || (Boolean(source.deleted) && !includeDeleted)) throw new NotFoundError("Scheduled transaction not found");
-    const rows = await this.db.query("SELECT payload_json FROM ynab_raw_objects WHERE plan_id=? AND object_type='scheduled_subtransaction' ORDER BY object_id").all(planId) as Row[];
-    const subtransactions = rows.map((row) => parseRawYnabObject(row.payload_json, "scheduled subtransaction")).filter((row) => row.scheduled_transaction_id === id);
-    const payload = { ...parseRawYnabObject(source.payload_json, "scheduled transaction"), deleted: Boolean(source.deleted) };
-    return { ...payload, payload, payloadJson: String(source.payload_json), subtransactions, origin: "ynab-overlay" };
+    throw new NotFoundError("Scheduled transaction not found");
   }
 
   private async validateScheduledReferences(planId: string, transaction: EffectiveScheduledTransaction): Promise<void> {
     const requireReference = async (table: "accounts" | "payees" | "categories", id: unknown, label: string) => {
       if (id == null) return;
-      const row = await this.db.query(`SELECT name FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`).get(id, planId) as Row | null;
+      const row = await this.db.query(`SELECT ${table === "payees" ? "name,transfer_account_id" : "name"} FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`).get(id, planId) as Row | null;
       if (!row) throw new ValidationError(`${label} not found`);
+      if (table === "payees" && row.transfer_account_id != null && row.transfer_account_id === transaction.account_id) {
+        throw new ValidationError(`${label} is a transfer to the scheduled transaction's own account`);
+      }
       return row;
     };
     const account = await requireReference("accounts", transaction.account_id, "Account");
@@ -3318,11 +3366,17 @@ function normaliseReconciliationDate(value: unknown): string {
 
 const CLEARED_STATES = new Set(["cleared", "uncleared", "reconciled"]);
 
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
 function validateTransactionInput(input: TransactionInput, strict: boolean): void {
   if (!input.account_id || typeof input.account_id !== "string") {
     throw new ValidationError("account_id is required");
   }
-  if (!input.date || (strict && !/^\d{4}-\d{2}-\d{2}$/.test(String(input.date)))) {
+  if (!input.date || (strict && !isCalendarDate(String(input.date)))) {
     // Importers (strict=false) keep accepting the loose date spellings they
     // always stored verbatim; API writes must be ISO.
     throw new ValidationError("date must be an ISO date (YYYY-MM-DD)");
@@ -3432,10 +3486,8 @@ const LIST_PAYEES_SQL = "SELECT id, name, transfer_account_id, deleted FROM paye
 const LIST_CATEGORY_GROUPS_SQL = "SELECT * FROM category_groups WHERE plan_id = ? AND deleted = 0 ORDER BY name";
 const LIST_CATEGORIES_SQL = "SELECT * FROM categories WHERE plan_id = ? AND deleted = 0 ORDER BY name";
 
-/** The four row sets an effective schedule list is projected from, in order. */
+/** The two row sets an effective schedule list is projected from, in order. */
 const SCHEDULED_SQL = [
-  "SELECT object_id,payload_json,deleted FROM ynab_raw_objects WHERE plan_id=? AND object_type='scheduled_transaction' ORDER BY object_id",
-  "SELECT payload_json FROM ynab_raw_objects WHERE plan_id=? AND object_type='scheduled_subtransaction' ORDER BY object_id",
   "SELECT id,payload_json,deleted FROM scheduled_transaction_edits WHERE plan_id=? ORDER BY id",
   "SELECT scheduled_transaction_id,payload_json FROM scheduled_subtransaction_edits WHERE plan_id=? ORDER BY scheduled_transaction_id,id",
 ];
@@ -3465,25 +3517,12 @@ function assembleCategoryGroups(groups: Row[], categories: Row[]): any[] {
   }));
 }
 
-/** Pure projection of the four schedule row sets into effective schedules. */
-function assembleScheduledTransactions(rawParents: Row[], rawSubs: Row[], editRows: Row[], editSubRows: Row[]): any[] {
-    const sourceSubs = groupScheduledSubtransactions(rawSubs.map((row) => parseRawYnabObject(row.payload_json, "scheduled subtransaction")));
+/** Pure projection of the two schedule row sets into effective schedules. */
+function assembleScheduledTransactions(editRows: Row[], editSubRows: Row[]): any[] {
     const editedSubs = groupScheduledSubtransactions(editSubRows.map((row) => parseRawYnabObject(row.payload_json, "scheduled subtransaction")));
-    const edits = new Map(editRows.map((row) => [String(row.id), row]));
     const result: any[] = [];
-
-    for (const row of rawParents) {
-      const id = String(row.object_id);
-      const edit = edits.get(id);
-      edits.delete(id);
-      if (edit) {
-        if (!Boolean(edit.deleted)) result.push(projectScheduledPayload(edit.payload_json, editedSubs.get(id) ?? [], edit.deleted));
-      } else if (!Boolean(row.deleted)) {
-        result.push(projectScheduledPayload(row.payload_json, sourceSubs.get(id) ?? [], row.deleted));
-      }
-    }
-    for (const [id, edit] of edits) {
-      if (!Boolean(edit.deleted)) result.push(projectScheduledPayload(edit.payload_json, editedSubs.get(id) ?? [], edit.deleted));
+    for (const edit of editRows) {
+      if (!Boolean(edit.deleted)) result.push(projectScheduledPayload(edit.payload_json, editedSubs.get(String(edit.id)) ?? [], edit.deleted));
     }
     return result.sort((left, right) => String(left.date_next ?? left.date_first ?? "9999-12-31").localeCompare(String(right.date_next ?? right.date_first ?? "9999-12-31")) || String(left.id).localeCompare(String(right.id)));
 }

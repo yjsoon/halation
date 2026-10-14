@@ -1,0 +1,10 @@
+PASS "鼎泰豐" create=201 search=200 hits=1
+PASS "Café ☕ & Co" create=201 search=200 hits=1
+PASS "A+B Mart" create=201 search=200 hits=1
+PASS "50% Off" create=201 search=200 hits=1
+FAIL "Ōtsuka" create=201 search=200 hits=0
+FAIL typed "ŌTSUKA" finds "Ōtsuka": hits=0
+PASS typed "ōtsuka" finds "ōtsuka memo": hits=1
+PASS typed "CAFÉ" finds "Café ☕ & Co": hits=1
+PASS typed "鼎泰" finds "鼎泰豐": hits=1
+2 failure(s)

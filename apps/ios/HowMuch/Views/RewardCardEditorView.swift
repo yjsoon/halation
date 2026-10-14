@@ -560,7 +560,7 @@ struct RewardCardDraft: Equatable {
     if trimmed.isEmpty {
       return nil
     }
-    guard let value = Double(trimmed), value.isFinite else {
+    guard let value = TypedNumber.double(from: trimmed), value.isFinite else {
       throw RewardCardWriteError.message("\(label) must be a number.")
     }
     if nonnegative && value < 0 {
@@ -1079,9 +1079,11 @@ struct RewardCardEditorView: View {
     switch rule {
     case .flags:
       return
-        "\(draft.flags.count) rules · \(draft.subcategoriesEnabled ? "Enabled" : "Disabled; rules retained")"
-    case .tiers: return "\(draft.tiers.count) tiers"
-    case .qualification: return "\(draft.rewardMonthCount) months · from \(draft.rewardAnchorDate)"
+        "\(draft.flags.count == 1 ? "1 rule" : "\(draft.flags.count) rules") · \(draft.subcategoriesEnabled ? "Enabled" : "Disabled; rules retained")"
+    case .tiers: return draft.tiers.count == 1 ? "1 tier" : "\(draft.tiers.count) tiers"
+    case .qualification:
+      let months = draft.rewardMonthCount.trimmingCharacters(in: .whitespaces) == "1" ? "1 month" : "\(draft.rewardMonthCount) months"
+      return "\(months) · from \(draft.rewardAnchorDate)"
     case .promotion: return "Until \(draft.promoEnd)"
     case .rounding: return "Blocks of \(draft.earningBlockSize) \(currency)"
     case .display: return draft.name

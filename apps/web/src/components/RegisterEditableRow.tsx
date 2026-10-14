@@ -81,6 +81,18 @@ export function RegisterEditableRow(props: {
     }
   }, [active, focus]);
 
+  // Ending an edit unmounts the focused field. When focus fell to <body> with
+  // it (Esc, or Enter to save), hand it back to the row so a keyboard user
+  // keeps their place instead of starting again from the top of the page.
+  const wasActive = useRef(active);
+  useEffect(() => {
+    const ended = wasActive.current && !active;
+    wasActive.current = active;
+    if (!ended) return;
+    const lost = document.activeElement === null || document.activeElement === document.body;
+    if (lost) rowRef.current?.focus({ preventScroll: true });
+  }, [active]);
+
   useEffect(() => {
     if (!targeted || !rowRef.current) return;
     rowRef.current.scrollIntoView({ block: "center", inline: "nearest" });

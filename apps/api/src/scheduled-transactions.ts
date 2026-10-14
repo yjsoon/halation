@@ -68,6 +68,17 @@ export function scheduledTransactionMutation(
       throw new ScheduledTransactionValidationError(`${field} must be a string or null`);
     }
   }
+  // Every occurrence of these would be refused when it falls due, so the daily
+  // run would fail on the schedule forever; refuse it when it is saved instead.
+  if (next.transfer_account_id != null && next.transfer_account_id === next.account_id) {
+    throw new ScheduledTransactionValidationError("transfer_account_id must be a different account");
+  }
+  if (subtransactions.some((subtransaction) => subtransaction.transfer_account_id != null && subtransaction.transfer_account_id === next.account_id)) {
+    throw new ScheduledTransactionValidationError("subtransaction transfer_account_id must be a different account");
+  }
+  if (subtransactions.length > 0 && next.transfer_account_id != null) {
+    throw new ScheduledTransactionValidationError("A split scheduled transaction cannot itself be a transfer");
+  }
   if (subtransactions.length === 1) throw new ScheduledTransactionValidationError("split schedules need at least two subtransactions");
   if (subtransactions.length > 0) {
     const sum = subtransactions.reduce((total, subtransaction) => total + subtransaction.amount, 0);

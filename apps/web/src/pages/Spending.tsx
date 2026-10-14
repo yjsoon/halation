@@ -67,6 +67,8 @@ export function SpendingPage() {
       averageTransaction: totalTransactions > 0 ? total / totalTransactions : null,
     };
   }, [report.data, hideQuiet]);
+  // `grouped` holds category groups; the meta line counts the category rows.
+  const categoryCount = grouped.reduce((count, group) => count + group.rows.length, 0);
 
   return (
     <>
@@ -119,7 +121,8 @@ export function SpendingPage() {
             <div className="section-heading">
               <span className="section-title">Category detail</span>
               <span className="section-meta">
-                {grouped.length} categories · {totalTransactions} posted transactions
+                {categoryCount} {categoryCount === 1 ? "category" : "categories"} · {totalTransactions} posted{" "}
+                {totalTransactions === 1 ? "transaction" : "transactions"}
               </span>
             </div>
             {grouped.length > 0 ? (

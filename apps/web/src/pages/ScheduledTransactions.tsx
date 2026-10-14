@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { api, useApi } from "../api/client";
 import type { Account, CategoryGroup, Payee, ScheduledSubtransaction, ScheduledTransaction, ScheduledTransactionInput } from "../api/types";
 import { CategorySelect } from "../components/CategorySelect";
@@ -6,8 +6,9 @@ import { FlagPicker, FlagTag } from "../components/FlagTag";
 import { splitCategoryGroups } from "../lib/categories";
 import { formatDate, todayIso } from "../lib/dates";
 import { stableHash } from "../lib/hash";
-import { formatMilliunitsInput, formatMoney, parseMilliunits } from "../lib/money";
+import { formatMilliunitsField, formatMoney, parseMilliunits } from "../lib/money";
 import { scheduleRecurrence } from "../lib/schedules";
+import { useConfirmationFocus } from "../lib/use-confirmation-focus";
 import { colourNamesByAccount, ledgerFlagNames } from "../lib/reward-flag-names";
 import { usePlan } from "../state/plan";
 import { isCachedPayees, isCachedScheduled } from "../state/cache-shapes";
@@ -26,6 +27,16 @@ export function ScheduledTransactionsPage() {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
   const [pendingEntry, setPendingEntry] = useState<PendingEntry | null>(null);
+  // Both confirmations render above the list, behind the row's buttons in tab order.
+  const deleteCancelRef = useRef<HTMLButtonElement>(null);
+  const entryCancelRef = useRef<HTMLButtonElement>(null);
+  useConfirmationFocus(pendingDeletion?.schedule.id, deleteCancelRef);
+  useConfirmationFocus(pendingEntry?.schedule.id, entryCancelRef);
+  // The editor also renders above the list; Cancel or Save unmounts the
+  // focused control, so focus goes back to the Edit (or Add) that opened it.
+  const editorFirstFieldRef = useRef<HTMLSelectElement>(null);
+  const addScheduleRef = useRef<HTMLButtonElement>(null);
+  useConfirmationFocus(editor ? (editor.mode === "edit" ? `edit-${editor.schedule.id}` : "create") : null, editorFirstFieldRef, () => addScheduleRef.current);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [mutationSuccess, setMutationSuccess] = useState<string | null>(null);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
@@ -137,6 +148,7 @@ export function ScheduledTransactionsPage() {
           <Figure label="Next due" value={nextDate ? formatDate(nextDate) : "—"} />
           <button
             type="button"
+            ref={addScheduleRef}
             className="register-add-link"
             onClick={() => { setEditor({ mode: "create" }); setMutationError(null); setMutationSuccess(null); }}
             disabled={Boolean(mutatingId)}
@@ -150,11 +162,16 @@ export function ScheduledTransactionsPage() {
       {mutationSuccess && <div className="status-panel" role="status"><p className="status-title">{mutationSuccess}</p></div>}
       {editor && (
         <ScheduleEditor
+          // The form copies its schedule into state once, so switching from one
+          // schedule's Edit to another's (or to Add) must remount it; otherwise
+          // the second schedule is saved with the first one's fields.
+          key={editor.mode === "edit" ? `edit-${editor.schedule.id}` : "create"}
           schedule={editor.mode === "edit" ? editor.schedule : undefined}
           accounts={accounts}
           categoryGroups={categoryGroups}
           payees={payees.data ?? []}
           saving={mutatingId === "creating" || (editor.mode === "edit" && mutatingId === editor.schedule.id)}
+          firstFieldRef={editorFirstFieldRef}
           onCancel={() => { setEditor(null); setMutationError(null); }}
           onSave={saveSchedule}
         />
@@ -164,7 +181,7 @@ export function ScheduledTransactionsPage() {
           <div className="section-heading"><div><span className="section-title" id="delete-schedule-heading">Delete scheduled transaction?</span><span className="section-meta">This stops future repeats.</span></div></div>
           <p>{scheduleLabel(pendingDeletion.schedule, payeeNames, accountNames)} is due next on {pendingDeletion.schedule.date_next ? formatDate(pendingDeletion.schedule.date_next) : "its configured date"}.</p>
           <div className="transaction-editor-actions">
-            <button type="button" className="text-button" onClick={() => setPendingDeletion(null)} disabled={mutatingId === pendingDeletion.schedule.id}>Cancel</button>
+            <button type="button" ref={deleteCancelRef} className="text-button" onClick={() => setPendingDeletion(null)} disabled={mutatingId === pendingDeletion.schedule.id}>Cancel</button>
             <button type="button" className="save-button schedule-delete-button" onClick={() => void deleteSchedule(pendingDeletion)} disabled={mutatingId === pendingDeletion.schedule.id}>{mutatingId === pendingDeletion.schedule.id ? "Deleting…" : "Delete schedule"}</button>
           </div>
         </section>
@@ -188,7 +205,7 @@ export function ScheduledTransactionsPage() {
             <span className="field-note">Defaults to today. The schedule still moves forward from {formatDate(pendingEntry.occurrenceDate)}.</span>
           </label>
           <div className="transaction-editor-actions">
-            <button type="button" className="text-button" onClick={() => setPendingEntry(null)} disabled={mutatingId === pendingEntry.schedule.id}>Cancel</button>
+            <button type="button" ref={entryCancelRef} className="text-button" onClick={() => setPendingEntry(null)} disabled={mutatingId === pendingEntry.schedule.id}>Cancel</button>
             <button type="button" className="save-button" onClick={() => void enterScheduleNow(pendingEntry)} disabled={mutatingId === pendingEntry.schedule.id || !pendingEntry.enteredDate}>{mutatingId === pendingEntry.schedule.id ? "Entering…" : "Enter now"}</button>
           </div>
         </section>
@@ -232,7 +249,7 @@ function SplitScheduleRow({ line, accounts, categories, payees }: { line: Schedu
   return <tr className="split-line-row schedule-split-row"><td aria-hidden="true" /><td className="split-line-cell"><span className="schedule-split-mark">Split</span> {payee}{line.memo ? ` · ${line.memo}` : ""}<div className="schedule-mobile-detail">{category}</div></td><td aria-hidden="true" /><td>{category}</td><td aria-hidden="true" /><td className={line.amount < 0 ? "num amount-negative" : line.amount > 0 ? "num amount-positive" : "num"}>{formatMoney(line.amount, { sign: line.amount > 0 })}</td><td aria-hidden="true" /></tr>;
 }
 
-function ScheduleEditor({ schedule, accounts, categoryGroups, payees, saving, onCancel, onSave }: { schedule?: ScheduledTransaction; accounts: Account[]; categoryGroups: CategoryGroup[]; payees: Payee[]; saving: boolean; onCancel: () => void; onSave: (input: ScheduledTransactionInput, idempotencyKey: string) => Promise<void> }) {
+function ScheduleEditor({ schedule, accounts, categoryGroups, payees, saving, firstFieldRef, onCancel, onSave }: { schedule?: ScheduledTransaction; accounts: Account[]; categoryGroups: CategoryGroup[]; payees: Payee[]; saving: boolean; firstFieldRef: React.Ref<HTMLSelectElement>; onCancel: () => void; onSave: (input: ScheduledTransactionInput, idempotencyKey: string) => Promise<void> }) {
   const { planId } = usePlan();
   const rewardsSnapshot = useApi(`${planId}:reward-flag-names`, () => api.rewardsTrackerSnapshot(planId));
   const namesByAccount = useMemo(() => colourNamesByAccount(rewardsSnapshot.data?.cards), [rewardsSnapshot.data]);
@@ -240,13 +257,13 @@ function ScheduleEditor({ schedule, accounts, categoryGroups, payees, saving, on
   const [firstDate, setFirstDate] = useState(schedule?.date_first ?? schedule?.date_next ?? todayIso());
   const [nextDate, setNextDate] = useState(schedule?.date_next ?? schedule?.date_first ?? todayIso());
   const [frequency, setFrequency] = useState(schedule?.frequency ?? "monthly");
-  const [amount, setAmount] = useState(formatMilliunitsInput(amountFor(schedule ?? {} as ScheduledTransaction)));
+  const [amount, setAmount] = useState(formatMilliunitsField(amountFor(schedule ?? {} as ScheduledTransaction)));
   const [payeeId, setPayeeId] = useState(schedule?.payee_id ?? "");
   const [categoryId, setCategoryId] = useState(schedule?.category_id ?? "");
   const [transferAccountId, setTransferAccountId] = useState(schedule?.transfer_account_id ?? "");
   const [memo, setMemo] = useState(schedule?.memo ?? "");
   const [flagColor, setFlagColor] = useState(schedule?.flag_color ?? "");
-  const [splitLines, setSplitLines] = useState<SplitDraft[]>(() => (schedule?.subtransactions ?? []).map((line) => ({ key: line.id, sourceId: line.id, amount: formatMilliunitsInput(line.amount), payeeId: line.payee_id ?? "", categoryId: line.category_id ?? "", transferAccountId: line.transfer_account_id ?? "", memo: line.memo ?? "" })));
+  const [splitLines, setSplitLines] = useState<SplitDraft[]>(() => (schedule?.subtransactions ?? []).map((line) => ({ key: line.id, sourceId: line.id, amount: formatMilliunitsField(line.amount), payeeId: line.payee_id ?? "", categoryId: line.category_id ?? "", transferAccountId: line.transfer_account_id ?? "", memo: line.memo ?? "" })));
   const [validationError, setValidationError] = useState<string | null>(null);
   const [operationSeed] = useState(() => crypto.randomUUID());
   const groups = useMemo(() => splitCategoryGroups(categoryGroups), [categoryGroups]);
@@ -278,6 +295,9 @@ function ScheduleEditor({ schedule, accounts, categoryGroups, payees, saving, on
     } else {
       input.payee_id = payeeId || null; input.category_id = categoryId || null; input.transfer_account_id = null;
     }
+    // The PATCH keeps existing lines when `subtransactions` is absent, so an
+    // unsplit schedule must clear them explicitly.
+    if (!isSplit) input.subtransactions = [];
     setValidationError(null);
     await onSave(input, `scheduled-${operationSeed}-${stableHash(JSON.stringify(input))}`);
   };
@@ -285,7 +305,7 @@ function ScheduleEditor({ schedule, accounts, categoryGroups, payees, saving, on
   return <section className="transaction-editor schedule-editor" aria-labelledby="schedule-editor-heading">
     <div className="section-heading"><div><span className="section-title" id="schedule-editor-heading">{schedule ? "Edit scheduled transaction" : "Add scheduled transaction"}</span><span className="section-meta">{schedule ? "Changes apply to future repeats." : "Add a repeating transaction."}</span></div><button type="button" className="text-button" onClick={onCancel} disabled={saving}>Cancel</button></div>
     <form className="transaction-editor-form" onSubmit={(event) => void submit(event)}>
-      <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">Account</span><select value={accountId} onChange={(event) => setAccountId(event.target.value)} required><option value="">Choose account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.closed ? " (closed)" : ""}</option>)}</select></label><label className="field"><span className="field-label">Amount</span><input type="text" inputMode="decimal" value={isSplit ? formatMilliunitsInput(splitTotal) : amount} onChange={(event) => setAmount(event.target.value)} disabled={isSplit} required /><span className="field-note">Use a minus sign for outflow. Amounts use up to three decimal places.</span></label></div>
+      <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">Account</span><select ref={firstFieldRef} value={accountId} onChange={(event) => setAccountId(event.target.value)} required><option value="">Choose account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.closed ? " (closed)" : ""}</option>)}</select></label><label className="field"><span className="field-label">Amount</span><input type="text" inputMode="decimal" value={isSplit ? formatMilliunitsField(splitTotal) : amount} onChange={(event) => setAmount(event.target.value)} disabled={isSplit} required /><span className="field-note">Use a minus sign for outflow. Amounts use up to three decimal places.</span></label></div>
       <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">First date</span><input type="date" value={firstDate} onChange={(event) => setFirstDate(event.target.value)} required /></label><label className="field"><span className="field-label">Next date</span><input type="date" value={nextDate} onChange={(event) => setNextDate(event.target.value)} required /></label><label className="field"><span className="field-label">Repeat</span><select value={frequency} onChange={(event) => setFrequency(event.target.value)}>{FREQUENCIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
       {!isSplit && <><label className="field"><span className="field-label">Transfer</span><select value={transferAccountId} onChange={(event) => setTransfer(event.target.value)}><option value="">Not a transfer</option>{accounts.filter((account) => account.id !== accountId).map((account) => <option key={account.id} value={account.id}>Transfer to {account.name}</option>)}</select></label>{!transferAccountId && <><label className="field"><span className="field-label">Payee</span><select value={payeeId} onChange={(event) => setPayeeId(event.target.value)}><option value="">No payee</option>{payees.filter((payee) => !payee.deleted && !payee.transfer_account_id).map((payee) => <option key={payee.id} value={payee.id}>{payee.name}</option>)}</select></label><label className="field"><span className="field-label">Category</span><CategorySelect value={categoryId} onChange={setCategoryId} groups={groups} /></label></>}</>}
       <label className="transaction-editor-checkbox"><input type="checkbox" checked={isSplit} onChange={toggleSplit} /> Split this schedule</label>

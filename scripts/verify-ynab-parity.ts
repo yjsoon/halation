@@ -31,7 +31,7 @@ try {
   // retain the useful mirror-count report without treating it as drift.
   const settings = actualByType.settings ?? [];
   if (expectedSettings === undefined) console.log(`settings: source=separate-endpoint mirror=${settings.length}`);
-  const types = [...new Set([...Object.keys(byType), ...Object.keys(actualByType).filter((type) => expectedSettings === undefined && type !== "settings")])].sort();
+  const types = [...new Set([...Object.keys(byType), ...Object.keys(actualByType).filter((type) => expectedSettings !== undefined || type !== "settings")])].sort();
   for (const type of types) {
     const wanted = byType[type] ?? [];
     const got = actualByType[type] ?? [];

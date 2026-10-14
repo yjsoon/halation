@@ -72,7 +72,33 @@ export function matchesRegisterQuery(query: RegisterQuery, fields: SearchableFie
 
 export function transactionSearchSql(query: RegisterQuery): { sql: string; params: unknown[] } {
   const params: unknown[] = [];
-  const textParts = [
+  // SQLite's lower() (and D1's) folds ASCII letters only, so a needle lowered
+  // here ("ōtsuka") never matched a stored non-ASCII capital ("Ōtsuka"), even
+  // typed exactly. Also search the needle with only its ASCII letters folded.
+  const asciiFolded = query.raw.replace(/[A-Z]+/g, (letters) => letters.toLowerCase());
+  const needles = asciiFolded === query.text ? [query.text] : [query.text, asciiFolded];
+  const textParts = needles.flatMap((needle) => {
+    params.push(needle, needle, needle, needle, needle, needle, needle);
+    return textSearchParts();
+  });
+
+  const clauses = [`(${textParts.join(" OR ")})`];
+  if (query.amount) {
+    const parent = amountSql("t.amount_milli", query.amount);
+    const split = amountSql("s.amount_milli", query.amount);
+    clauses.push(`(${parent.sql})`);
+    clauses.push(
+      `EXISTS (SELECT 1 FROM subtransactions s WHERE s.transaction_id = t.id AND s.deleted = 0 AND (${split.sql}))`,
+    );
+    params.push(...parent.params, ...split.params);
+  }
+
+  return { sql: `(${clauses.join(" OR ")})`, params };
+}
+
+/** Seven `?` placeholders, all for the same needle. */
+function textSearchParts(): string[] {
+  return [
     "instr(lower(ifnull(p.name, ifnull(t.payee_name_snapshot, ''))), ?) > 0",
     "instr(lower(ifnull(t.memo, '')), ?) > 0",
     "instr(lower(ifnull(c.name, ifnull(t.category_name_snapshot, ''))), ?) > 0",
@@ -88,20 +114,6 @@ export function transactionSearchSql(query: RegisterQuery): { sql: string; param
             )
           )`,
   ];
-  params.push(query.text, query.text, query.text, query.text, query.text, query.text, query.text);
-
-  const clauses = [`(${textParts.join(" OR ")})`];
-  if (query.amount) {
-    const parent = amountSql("t.amount_milli", query.amount);
-    const split = amountSql("s.amount_milli", query.amount);
-    clauses.push(`(${parent.sql})`);
-    clauses.push(
-      `EXISTS (SELECT 1 FROM subtransactions s WHERE s.transaction_id = t.id AND s.deleted = 0 AND (${split.sql}))`,
-    );
-    params.push(...parent.params, ...split.params);
-  }
-
-  return { sql: `(${clauses.join(" OR ")})`, params };
 }
 
 function resolveMoneyFormat(format?: MoneyFormat | null): Required<Pick<MoneyFormat, "decimalDigits" | "decimalSeparator" | "groupSeparator" | "currencySymbol">> {

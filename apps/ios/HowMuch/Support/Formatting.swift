@@ -45,6 +45,24 @@ enum MoneyCodec {
     return total.partialValue
   }
 
+  /// An amount a person typed into a field. The system decimal pad shows the
+  /// device's own decimal separator, so where that is a comma, "12,50" is
+  /// twelve and a half, not 1,250. A comma is read as the decimal point only
+  /// there, and only when the entry has one comma and no full stop; anything
+  /// else reads exactly as `milliunits(from:)`.
+  static func milliunits(
+    fromTyped input: String,
+    decimalSeparator: String? = Locale.current.decimalSeparator
+  ) -> Int? {
+    guard decimalSeparator == ",",
+          !input.contains("."),
+          input.filter({ $0 == "," }).count == 1
+    else {
+      return milliunits(from: input)
+    }
+    return milliunits(from: input.replacingOccurrences(of: ",", with: "."))
+  }
+
   static func editableString(for milliunits: Int) -> String {
     let magnitude = milliunits.magnitude
     let whole = magnitude / 1_000
@@ -111,6 +129,8 @@ enum MoneyCodec {
       currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$",
       currencyFormat?.decimalSeparator ?? "",
       currencyFormat?.groupSeparator ?? "",
+      currencyFormat?.symbolFirst.map { $0 ? "first" : "last" } ?? "",
+      currencyFormat?.displaySymbol == false ? "hidden" : "",
     ].joined(separator: "\u{1f}")
 
     formatterLock.lock()
@@ -122,14 +142,30 @@ enum MoneyCodec {
 
     let formatter = NumberFormatter()
     formatter.numberStyle = .currency
+    let showsSymbol = currencyFormat?.displaySymbol ?? true
+    if currencyFormat?.symbolFirst != nil || !showsSymbol {
+      // The plan says where its symbol goes, or that it is hidden, as the web
+      // app draws it; the device region's own pattern must not move it. Set
+      // before the digits and separators, which a pattern would reset.
+      let symbolFirst = currencyFormat?.symbolFirst ?? true
+      let pattern = showsSymbol ? (symbolFirst ? "¤#,##0.00" : "#,##0.00¤") : "#,##0.00"
+      formatter.positiveFormat = pattern
+      formatter.negativeFormat = "-\(pattern)"
+    }
     formatter.minimumFractionDigits = currencyFormat?.decimalDigits ?? 2
     formatter.maximumFractionDigits = currencyFormat?.decimalDigits ?? 2
-    formatter.currencySymbol = currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$"
+    formatter.currencySymbol = showsSymbol
+      ? (currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$")
+      : ""
+    // A currency pattern draws with the currency separators, which follow
+    // the device region unless they are set too.
     if let decimalSeparator = currencyFormat?.decimalSeparator {
       formatter.decimalSeparator = decimalSeparator
+      formatter.currencyDecimalSeparator = decimalSeparator
     }
     if let groupSeparator = currencyFormat?.groupSeparator {
       formatter.groupingSeparator = groupSeparator
+      formatter.currencyGroupingSeparator = groupSeparator
     }
 
     formatterLock.lock()
@@ -142,6 +178,24 @@ enum MoneyCodec {
   static func signedDisplayString(for milliunits: Int, currencyFormat: CurrencyFormat?) -> String {
     let base = displayString(for: milliunits, currencyFormat: currencyFormat)
     return milliunits > 0 ? "+\(base)" : base
+  }
+}
+
+enum TypedNumber {
+  /// A plain number typed on the decimal pad, such as a reward rate. Where the
+  /// device's decimal separator is a comma, the pad offers only a comma, so a
+  /// single comma (and no full stop) is read as the decimal point.
+  static func double(
+    from input: String,
+    decimalSeparator: String? = Locale.current.decimalSeparator
+  ) -> Double? {
+    var trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    if decimalSeparator == ",",
+       !trimmed.contains("."),
+       trimmed.filter({ $0 == "," }).count == 1 {
+      trimmed = trimmed.replacingOccurrences(of: ",", with: ".")
+    }
+    return Double(trimmed)
   }
 }
 
