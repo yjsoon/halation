@@ -33,11 +33,11 @@ enum IntakeTransferReader {
     let open = accounts.filter { !$0.closed && !$0.deleted }
     var extractions: [SlipReaderMapping.Extraction] = []
     var destinations: [Account?] = []
-    var year = calendar.component(.year, from: now)
+    var headerYear: Int?
     var previousAmount = -1
     for (index, line) in lines.enumerated() {
       if let header = monthHeaderYear(line) {
-        year = header
+        headerYear = header
         continue
       }
       guard let amount = amount(in: line) else {
@@ -50,16 +50,28 @@ enum IntakeTransferReader {
         return []
       }
       let account = found
-      let payee = account?.name ?? title(in: block) ?? ""
+      let rowTitle = title(in: block)
+      if account == nil, let rowTitle, isSummaryTitle(rowTitle) {
+        // "Total" / "Balance": a figure about the list, not a transfer in it.
+        continue
+      }
+      let payee = account?.name ?? rowTitle ?? ""
       extractions.append(SlipReaderMapping.Extraction(
         amount: amount,
         payee: payee,
-        date: date(in: block, year: year) ?? "",
+        date: date(in: block, headerYear: headerYear, calendar: calendar, now: now) ?? "",
         direction: "outflow"
       ))
       destinations.append(account)
     }
     guard destinations.contains(where: { $0 != nil }) else {
+      return []
+    }
+    // A destination with no transfer payee would stay a plain spend named for the
+    // account, which is not what this reader promises: leave the screen to the others.
+    guard destinations.allSatisfy({ account in
+      account.map { transferPayee(for: $0, in: payees) != nil } ?? true
+    }) else {
       return []
     }
     var rows = SlipReaderMapping.map(
@@ -70,8 +82,7 @@ enum IntakeTransferReader {
       return []
     }
     for index in rows.indices {
-      guard let account = destinations[index],
-            let payee = payees.first(where: { $0.transferAccountId == account.id && $0.deleted != true }) else {
+      guard let account = destinations[index], let payee = transferPayee(for: account, in: payees) else {
         continue
       }
       rows[index].draft.payeeID = payee.id
@@ -80,6 +91,14 @@ enum IntakeTransferReader {
       rows[index].draft.categoryID = nil
     }
     return rows
+  }
+
+  private static func transferPayee(for account: Account, in payees: [Payee]) -> Payee? {
+    payees.first { $0.transferAccountId == account.id && $0.deleted != true }
+  }
+
+  private static func isSummaryTitle(_ title: String) -> Bool {
+    ["total", "subtotal", "grand total", "balance", "total amount"].contains(title.lowercased())
   }
 
   private static func looksLikeTransfers(lines: [String], note: String?) -> Bool {
@@ -95,6 +114,12 @@ enum IntakeTransferReader {
   /// Any money-looking figure on a line. A line with one that `amountLine` does not
   /// accept is a row this reader cannot place.
   private static let moneyFigure = try! NSRegularExpression(pattern: #"\d[\d,]*\.\d{2}\b"#)
+  /// A currency marker beside digits ("1,139 SGD", "1.139,00 SGD", "$12"): whole-number
+  /// and European-format figures are amounts too, only ones this reader cannot parse.
+  private static let currencyFigure = try! NSRegularExpression(
+    pattern: #"(?:S\$|\$|€|£|\b(?:SGD|USD|EUR|GBP|MYR|AUD)\b).*\d|\d.*(?:€|£|\b(?:SGD|USD|EUR|GBP|MYR|AUD)\b)"#,
+    options: [.caseInsensitive]
+  )
   /// "From" / "To" labels: a receipt names a source and a destination, not just a destination.
   private static let directionLabel = try! NSRegularExpression(
     pattern: #"^(?:from|to)(?:\s+account)?:?$"#, options: [.caseInsensitive]
@@ -107,7 +132,9 @@ enum IntakeTransferReader {
   private static func hasUnreadAmount(_ lines: [String]) -> Bool {
     lines.contains { line in
       amount(in: line) == nil
-        && moneyFigure.firstMatch(in: line, options: [], range: NSRange(line.startIndex..., in: line)) != nil
+        && [moneyFigure, currencyFigure].contains {
+          $0.firstMatch(in: line, options: [], range: NSRange(line.startIndex..., in: line)) != nil
+        }
     }
   }
 
@@ -186,12 +213,19 @@ enum IntakeTransferReader {
   /// The first line that is neither a date tile nor a number: the row's title.
   private static func title(in block: ArraySlice<String>) -> String? {
     block.first { line in
-      monthIndex(line) == nil && Int(line) == nil && line.contains { $0.isLetter }
+      monthIndex(line) == nil && monthHeaderYear(line) == nil && Int(line) == nil
+        && line.lowercased() != "all" && !isScreenHeading(line) && line.contains { $0.isLetter }
     }
   }
 
+  private static func isScreenHeading(_ line: String) -> Bool {
+    ["scheduled transfers", "transfers", "upcoming transfers", "upcoming"].contains(line.lowercased())
+  }
+
   /// The date tile ("Oct" over "16", "Oct 16" or "16 Oct") as yyyy-MM-dd.
-  private static func date(in block: ArraySlice<String>, year: Int) -> String? {
+  private static func date(
+    in block: ArraySlice<String>, headerYear: Int?, calendar: Calendar, now: Date
+  ) -> String? {
     let lines = Array(block)
     for (index, line) in lines.enumerated() {
       let words = line.split(separator: " ").map(String.init)
@@ -208,6 +242,16 @@ enum IntakeTransferReader {
         day = value
       }
       if let month, let day, (1...31).contains(day) {
+        var year = headerYear ?? calendar.component(.year, from: now)
+        // Scheduled items are in the future: with no year printed, a month and day
+        // already gone this year are next year's.
+        if headerYear == nil {
+          let thisMonth = calendar.component(.month, from: now)
+          let today = calendar.component(.day, from: now)
+          if (month, day) < (thisMonth, today) {
+            year += 1
+          }
+        }
         return String(format: "%04d-%02d-%02d", year, month, day)
       }
     }

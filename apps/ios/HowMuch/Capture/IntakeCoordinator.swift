@@ -595,7 +595,9 @@ final class IntakeCoordinator {
       }
     } else {
       for index in extracted.indices where extracted[index].draft.accountID.isEmpty {
-        extracted[index].draft.seedIfNeeded(accounts: accounts, preferredAccountID: model.lastUsedOpenAccountID)
+        SlipAccountPick.seed(
+          &extracted[index].draft, accounts: accounts, preferredAccountID: model.lastUsedOpenAccountID
+        )
       }
     }
 

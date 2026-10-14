@@ -122,6 +122,71 @@ final class IntakeTransferReaderTests: XCTestCase {
     XCTAssertEqual(rows, [])
   }
 
+  // MARK: Malformed screens (failure modes the share flow cannot enumerate)
+
+  func testASummaryTotalIsNotAFourthTransfer() {
+    let rows = IntakeTransferReader.read(
+      text: Self.ocr + "\nTotal\n2,714.75 SGD",
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows.map(\.draft.amountMagnitudeMilli), [669_540, 906_210, 1_139_000])
+  }
+
+  func testTheScreenHeaderIsNeverARowsPayee() {
+    // "Citi Rewards" is not tracked here, so the first row is a plain spend whose
+    // title is the card line, not the "OCTOBER 2026" header above its date tile.
+    let rows = IntakeTransferReader.read(
+      text: Self.ocr, note: nil,
+      accounts: Self.accounts.filter { $0.id != "rewards" },
+      payees: Self.payees.filter { $0.transferAccountId != "rewards" },
+      calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows.first?.draft.payeeName, "Citi Rewards 2026")
+  }
+
+  func testAScheduledDateWithoutAYearIsNeverInThePast() {
+    let rows = IntakeTransferReader.read(
+      text: "Scheduled transfers\nJan\n5\nCiti Rewards\n100.00 SGD",
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows.map { Self.calendar.component(.year, from: $0.draft.date) }, [2027])
+    XCTAssertEqual(rows.map { Self.calendar.component(.month, from: $0.draft.date) }, [1])
+  }
+
+  func testAWholeNumberAmountDeclinesTheScreenRatherThanDroppingARow() {
+    let rows = IntakeTransferReader.read(
+      text: Self.ocr.replacingOccurrences(of: "1,139.00 SGD", with: "1,139 SGD"),
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
+  func testAEuropeanFormatAmountDeclinesTheScreen() {
+    let rows = IntakeTransferReader.read(
+      text: Self.ocr.replacingOccurrences(of: "1,139.00 SGD", with: "1.139,00 SGD"),
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
+  func testADestinationWithNoTransferPayeeDeclinesTheScreen() {
+    let rows = IntakeTransferReader.read(
+      text: Self.ocr, note: nil,
+      accounts: Self.accounts, payees: Self.payees.filter { $0.transferAccountId != "smrt" },
+      calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
+  func testSeedingNeverMakesATransferToItsOwnAccount() {
+    var draft = TransactionDraft()
+    draft.transferAccountID = "rewards"
+    SlipAccountPick.seed(&draft, accounts: Self.accounts, preferredAccountID: "rewards")
+    XCTAssertFalse(draft.accountID.isEmpty)
+    XCTAssertNotEqual(draft.accountID, "rewards")
+    XCTAssertEqual(draft.transferAccountID, "rewards")
+  }
+
   // MARK: Fixtures
 
   private static let accounts = [

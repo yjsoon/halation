@@ -19,6 +19,20 @@ enum SlipAccountPick {
   }
 }
 
+extension SlipAccountPick {
+  /// The account a row falls back to when none was chosen. A transfer row never
+  /// lands on its own destination: the next open account stands in instead.
+  static func seed(_ draft: inout TransactionDraft, accounts: [Account], preferredAccountID: String?) {
+    draft.seedIfNeeded(accounts: accounts, preferredAccountID: preferredAccountID)
+    guard let destination = draft.transferAccountID, draft.accountID == destination else {
+      return
+    }
+    if let other = accounts.first(where: { !$0.closed && $0.id != destination }) {
+      draft.accountID = other.id
+    }
+  }
+}
+
 struct SlipMappedDraft: Equatable, Codable, Sendable {
   var draft: TransactionDraft
   var parsedAmount: Bool
