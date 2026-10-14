@@ -49,6 +49,7 @@ try {
   }
 
   verifyLedgerCounts(db, planId, plan, failures);
+  verifyCategoryPlaceholders(db, planId, plan, failures);
   verifyBalances(db, planId, failures);
 
   if (failures.length) {
@@ -102,8 +103,6 @@ function verifyLedgerCounts(db: Database, planId: string, plan: any, failures: s
     console.log(`${label} ledger_count=${mirrored} source_count=${sourceCount}`);
     if (mirrored !== sourceCount) failures.push(`${label}: ledger count ${mirrored} does not match source ${sourceCount}`);
   }
-
-  verifyCategoryPlaceholders(db, planId, plan, failures);
 }
 
 function verifyCategoryPlaceholders(db: Database, planId: string, plan: any, failures: string[]) {
@@ -135,10 +134,10 @@ function verifyCategoryPlaceholders(db: Database, planId: string, plan: any, fai
   const ledgerGroupIds = new Set(ledgerGroups.map((group) => group.id));
   const ledgerCategoryIds = new Set(ledgerCategories.map((category) => category.id));
   const missingGroups = [...expectedGroupIds].filter((id) => !ledgerGroupIds.has(id));
-  // Import-time category creation can leave this one sentinel behind after a
-  // later source category upsert makes its placeholder unnecessary. An empty,
-  // active sentinel is benign; every other non-source group remains drift.
-  const unexpectedGroups = [...ledgerGroupIds].filter((id) => !expectedGroupIds.has(id) && id !== sentinelGroupId);
+  // A later source category upsert can make the sentinel unnecessary without
+  // removing it; an empty, active sentinel is benign, any other extra group is drift.
+  const tolerableGroupIds = new Set([...expectedGroupIds, sentinelGroupId]);
+  const unexpectedGroups = [...ledgerGroupIds].filter((id) => !tolerableGroupIds.has(id));
   const missingCategories = [...expectedCategoryIds].filter((id) => !ledgerCategoryIds.has(id));
   const unexpectedCategories = [...ledgerCategoryIds].filter((id) => !expectedCategoryIds.has(id));
 
