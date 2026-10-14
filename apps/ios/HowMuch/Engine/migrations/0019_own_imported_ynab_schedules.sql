@@ -1,21 +1,3 @@
--- Make imported YNAB schedules and the "this plan came from YNAB" marker
--- HowMuch's own data, so `ynab_raw_objects` is provenance only.
---
--- Until now an imported schedule lived only in the raw mirror. The app read it
--- from there, and `scheduled_transaction_edits` held an overlay once the user
--- changed it. A category guard also asked the mirror whether the plan had any
--- YNAB `month` object. Pruning the mirror (#161) would therefore have changed
--- what the app shows. After this migration nothing outside the importer reads
--- the mirror for schedules or for the plan marker.
---
--- `origin = 'ynab-overlay'` keeps its stored value but now means "this
--- schedule came from a YNAB import"; `'howmuch-local'` is a schedule created
--- here. The CHECK constraint is left alone to avoid rebuilding a table that
--- other tables reference.
---
--- Nothing in the mirror is changed or removed.
-
--- 1. The plan-level marker the category guard used to derive from `month` rows.
 ALTER TABLE plans ADD COLUMN ynab_sourced INTEGER NOT NULL DEFAULT 0 CHECK (ynab_sourced IN (0, 1));
 
 UPDATE plans SET ynab_sourced = 1
@@ -24,14 +6,6 @@ WHERE EXISTS (
   WHERE r.plan_id = plans.id AND r.object_type = 'month'
 );
 
--- 2. Triggers that consulted the mirror. The two source guards enforced
--- "overlay iff a mirror row exists", which no longer holds. The snapshot guard
--- had a `raw` branch comparing against the mirror; a schedule now always has an
--- edit row, so only the `edit` branch remains. The insert guards also
--- validated references against live rows, which would reject a faithful copy
--- of a schedule that names a since-deleted account, payee or category, so
--- they now apply to locally created schedules only. Updates of imported
--- schedules are still checked by the unchanged update guards and by the API.
 DROP TRIGGER IF EXISTS scheduled_transaction_edits_source_guard;
 DROP TRIGGER IF EXISTS scheduled_transaction_edits_source_update_guard;
 DROP TRIGGER IF EXISTS scheduled_transaction_snapshot_assertions_guard;
@@ -77,15 +51,6 @@ WHEN EXISTS (
   )
 BEGIN SELECT RAISE(ABORT, 'scheduled subtransaction ownership failed'); END;
 
--- 3. Copy every mirrored schedule that has no edit row yet. Schedules that
--- already have an overlay or tombstone keep it: it is the complete effective
--- record and the mirror copy was never visible. The column values are the same
--- ones a local write would store; a reference that no longer resolves to a row
--- is stored as NULL (the full payload keeps the original ID), because the
--- column carries a foreign key.
---
--- The copied rows are tagged through `created_at` until their split lines are
--- copied, so that lines are added only to schedules copied here.
 INSERT INTO scheduled_transaction_edits
   (plan_id, id, origin, payload_json, account_id, date_first, date_next, frequency, amount_milli,
    payee_id, category_id, transfer_account_id, deleted, created_at, updated_at)
@@ -112,8 +77,6 @@ WHERE r.object_type = 'scheduled_transaction'
     WHERE e.plan_id = r.plan_id AND e.id = r.object_id
   );
 
--- Live split lines only: the read path always skipped deleted ones. An
--- existing overlay already owns its set of lines.
 INSERT INTO scheduled_subtransaction_edits
   (plan_id, id, scheduled_transaction_id, payload_json, amount_milli,
    payee_id, category_id, transfer_account_id, created_at, updated_at)
