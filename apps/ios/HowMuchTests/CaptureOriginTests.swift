@@ -91,8 +91,6 @@ final class CaptureOriginTests: XCTestCase {
     XCTAssertEqual(fromRegister.selectedAccountID, "acct-everyday")
   }
 
-  @MainActor
-
   func testExplicitRetryRefreshesFailedReference() {
     XCTAssertTrue(CaptureAdmissionGate.shouldRefreshReference(phase: .failed("offline"), explicitRetry: true))
     XCTAssertFalse(CaptureAdmissionGate.shouldRefreshReference(phase: .failed("offline"), explicitRetry: false))

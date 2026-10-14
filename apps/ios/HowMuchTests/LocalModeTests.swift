@@ -261,8 +261,4 @@ final class LocalModeTests: XCTestCase {
     XCTAssertEqual(recovered.planID, first.planID)
   }
 
-  /// Opt-in visual check of the local-mode screens, driven through the real
-  /// `AppModel` and engine. Set `TEST_RUNNER_HOWMUCH_LOCAL_SCREENSHOT_DIR` to
-  /// a host directory to write PNGs there.
-  @MainActor
 }

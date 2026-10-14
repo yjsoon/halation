@@ -13,6 +13,7 @@ import { D1AuthStore } from "../src/auth-store";
 import { CountingD1Database, fakeD1Binding } from "./helpers/counting-d1";
 import { newPersonalApiToken, newSession } from "../src/password-auth";
 import { ReportService } from "../src/reports";
+import { importYnabFromApi } from "../src/importers/ynab";
 import { exportRewardsAccountConfig, importRewardsAccountConfig } from "../src/rewards/account-config";
 import rewardsAccountConfig from "../../../fixtures/rewards-account-config.json";
 import worker from "../../worker/src/index";
@@ -958,6 +959,49 @@ describe("D1 foundation", () => {
       { id: "uncategorized-group" },
     ]);
     expect(db.query("SELECT category_group_id FROM categories WHERE id='missing-category'").get()).toEqual({ category_group_id: "uncategorized-group" });
+  });
+
+  test("D1 preserves duplicate YNAB payee names as ID-distinct transaction references", async () => {
+    const db = await ledgerSqlite();
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+
+    await repo.upsertPayee("p", { id: "ynab-payee-a", name: "Same merchant", external_ynab_id: "ynab-payee-a" });
+    await repo.upsertPayee("p", { id: "ynab-payee-b", name: "Same merchant", external_ynab_id: "ynab-payee-b" });
+    await repo.createTransaction("p", { id: "ynab-txn-a", account_id: "a", date: "2026-08-01", amount: -1000, payee_id: "ynab-payee-a" }, { autoLink: false });
+    await repo.createTransaction("p", { id: "ynab-txn-b", account_id: "a", date: "2026-08-02", amount: -2000, payee_id: "ynab-payee-b" }, { autoLink: false });
+
+    expect(db.query("SELECT id,name,external_ynab_id FROM payees WHERE id LIKE 'ynab-payee-%' ORDER BY id").all()).toEqual([
+      { id: "ynab-payee-a", name: "Same merchant", external_ynab_id: "ynab-payee-a" },
+      { id: "ynab-payee-b", name: "Same merchant", external_ynab_id: "ynab-payee-b" },
+    ]);
+    expect(db.query("SELECT id,payee_id,payee_name_snapshot FROM transactions WHERE id LIKE 'ynab-txn-%' ORDER BY id").all()).toEqual([
+      { id: "ynab-txn-a", payee_id: "ynab-payee-a", payee_name_snapshot: "Same merchant" },
+      { id: "ynab-txn-b", payee_id: "ynab-payee-b", payee_name_snapshot: "Same merchant" },
+    ]);
+    expect(db.query("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
+
+  test("D1 imports reciprocal transfer payees before their accounts", async () => {
+    const db = await ledgerSqlite();
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const pathname = new URL(String(input)).pathname;
+      if (pathname === "/v1/plans/p") {
+        return new Response(JSON.stringify({ data: { server_knowledge: 9, plan: {
+          id: "p", name: "Plan", accounts: [{ id: "ynab-account", name: "Savings", type: "savings", on_budget: true, transfer_payee_id: "ynab-transfer" }],
+          category_groups: [], categories: [], payees: [{ id: "ynab-transfer", name: "Transfer : Savings", transfer_account_id: "ynab-account", deleted: false }],
+          months: [], transactions: [], scheduled_transactions: [], scheduled_subtransactions: [], payee_locations: [],
+        } } }), { headers: { "content-type": "application/json" } });
+      }
+      if (pathname === "/v1/plans/p/settings") return new Response(JSON.stringify({ data: { settings: {} } }), { headers: { "content-type": "application/json" } });
+      return new Response("not found", { status: 404 });
+    }) as typeof fetch;
+
+    await importYnabFromApi(repo, { token: "ynab-token", planId: "p" });
+
+    expect(db.query("SELECT transfer_payee_id FROM accounts WHERE id='ynab-account'").get()).toEqual({ transfer_payee_id: "ynab-transfer" });
+    expect(db.query("SELECT name,transfer_account_id FROM payees WHERE id='ynab-transfer'").get()).toEqual({ name: "Transfer : Savings", transfer_account_id: "ynab-account" });
+    expect(db.query("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 
   test("D1 per-account config exchange preserves destination identity and sibling configuration", async () => {
