@@ -94,7 +94,6 @@ export function foldNetWorthPeriods(
   const months = [...new Set(monthly.map((row) => row.month))].sort();
   const monthIndex = new Map(months.map((month, index) => [month, index]));
 
-  // Per account, the cumulative net change through each known month.
   const cumulative = new Map<string, number[]>();
   for (const account of accounts) cumulative.set(account.id, new Array(months.length).fill(0));
   for (const row of monthly) {

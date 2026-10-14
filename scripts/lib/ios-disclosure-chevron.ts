@@ -1,5 +1,3 @@
-/** Find Form `NavigationLink` rows that still draw DisclosureValueRow's own chevron. */
-
 export type SwiftSource = {
   path: string;
   source: string;
@@ -69,7 +67,6 @@ function componentFaults(file: SwiftSource): DisclosureChevronFault[] {
   return faults;
 }
 
-/** True only for a SwiftUI `Form` token, not identifiers that merely end in Form. */
 function containsSwiftUIForm(body: string): boolean {
   return /\bForm\s*\{/.test(body);
 }

@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const iosRoot = join(root, "apps/ios");
 const ALLOWED: string[] = [
-  'apps/ios/HowMuch/Views/RegisterView.swift:"This transaction hasn’t reached the server."', // Retry and discard are two actions
-  'apps/ios/HowMuch/Views/AddTransactionsView.swift:"Attach"', // Photo Library / Camera is multi-choice, not a binary confirmation
+  'apps/ios/HowMuch/Views/RegisterView.swift:"This transaction hasn’t reached the server."',
+  'apps/ios/HowMuch/Views/AddTransactionsView.swift:"Attach"',
 ];
 const pattern = /\.confirmationDialog\s*\(/g;
 

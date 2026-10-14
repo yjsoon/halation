@@ -1,8 +1,6 @@
 import SwiftUI
 import UIKit
 
-// MARK: - Shell: sign-in and the connect requests
-
 /// Signs in to a server without saving anything. Settings and the connect
 /// flow both use it; neither changes the app's connection until the user
 /// saves or finishes.
@@ -121,8 +119,6 @@ struct ServerConnector {
       : LocalEngine(databaseURL: archive.databaseURL)
   }
 }
-
-// MARK: - Flow
 
 @MainActor
 @Observable
@@ -315,8 +311,6 @@ final class ServerConnectFlow {
   }
 }
 
-// MARK: - Views shared with Settings
-
 /// Shown when a server has no account yet. The first owner is set up on the
 /// website, never from the app.
 struct SetupRequiredSection: View {
@@ -378,8 +372,6 @@ struct PlanChoiceRows: View {
     }
   }
 }
-
-// MARK: - Connect to a server
 
 /// Moves the on-device ledger to a server, or leaves it where it is. The app
 /// stays in local mode until the user finishes.

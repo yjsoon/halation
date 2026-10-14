@@ -1,9 +1,3 @@
-// Builds the on-device engine for the iOS app's local mode.
-//
-//   bun run build:ios-engine   writes the bundle and the migrations into the app
-//   bun run check:ios-engine   rebuilds into a temporary directory and fails if
-//                              the committed copies are stale
-//
 // Xcode cannot run bun, so the outputs are committed:
 //   apps/ios/HowMuch/Engine/howmuch-engine.js   minified apps/api + shims
 //   apps/ios/HowMuch/Engine/migrations/*.sql    copies of apps/api/d1-migrations
@@ -49,7 +43,6 @@ async function buildBundle(): Promise<string> {
   const text = await result.outputs[0].text();
   // A plain script, not a module: JSContext.evaluateScript cannot load modules.
   if (/^\s*(import|export)\s/m.test(text)) throw new Error("The engine bundle still contains import or export statements");
-  // Absolute paths would make the bundle differ between checkouts.
   if (text.includes(root) || /\/Users\/|\/home\//.test(text)) throw new Error("The engine bundle contains an absolute path");
   return HEADER + text;
 }
@@ -105,8 +98,6 @@ if (Bun.version !== ENGINE_BUN_VERSION) {
 const mode = process.argv[2] ?? "build";
 if (mode === "build") {
   await writeOutputs(outputRoot);
-  // Build twice and compare, so a nondeterministic build fails here rather
-  // than as a spurious check failure on another machine.
   const again = mkdtempSync(join(tmpdir(), "howmuch-ios-engine-"));
   await writeOutputs(again);
   const drift = staleOutputs(again, outputRoot);

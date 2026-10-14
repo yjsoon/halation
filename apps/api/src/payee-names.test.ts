@@ -51,16 +51,12 @@ test("recognises one merchant under different spellings, codes and branches", ()
 });
 
 test("keeps different merchants apart", () => {
-  // The merchant word must be first in both: a shared later word is not enough.
   expect(similarity("Sushiro", "Genki Sushi")).toBe(0);
   expect(similarity("Sheng Siong", "Fong Sheng Hao")).toBe(0);
   expect(similarity("Mcdonald's-Tampines Mall", "Tampines Mall Carpark")).toBe(0);
   expect(similarity("Toast Box", "TWENTY LOAF TOASTIES")).toBe(0);
-  // Related but budgeted differently: a prefix match counts half.
   expect(similarity("Grabfood", "Grab")).toBe(0.5);
-  // A sub-brand keeps a real word boundary, so it scores below the plain name.
   expect(similarity("FairPrice Group Hawker", "FairPrice")).toBeLessThan(similarity("FairPrice", "Fairprice"));
-  // Two unrelated PayNow payees no longer match on "mobile ending".
   expect(similarity("TAN AH KOW (Mobile ending 1234)", "LIM BEE LENG (Mobile ending 5678)")).toBe(0);
 });
 

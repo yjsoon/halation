@@ -2,14 +2,11 @@ import SwiftUI
 import UIKit
 
 extension View {
-  /// White rounded card, the basic YNAB surface.
   func ynabCard() -> some View {
     background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
       .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
   }
 
-  /// Numbers that roll digit by digit when `value` changes. Under Reduce
-  /// Motion the new figure simply replaces the old one.
   func rollingNumber(_ value: Int) -> some View {
     modifier(RollingNumber(value: value))
   }
@@ -26,8 +23,6 @@ extension View {
   }
 }
 
-/// Leading icon + trailing content inside a transaction-form card row.
-/// Same column, padding, and minimum height as `DisclosureValueRow`.
 struct FormCardRow<Content: View>: View {
   let icon: String
   var iconColor: Color = Theme.accent
@@ -87,11 +82,6 @@ struct FormRowFramesKey: PreferenceKey {
 }
 #endif
 
-/// Form row with a leading icon. Empty rows show a single-line placeholder;
-/// filled rows put the field label on the left and the value on the right.
-/// Card rows share `Theme.FormRow.height` so choosing a value cannot grow
-/// the row at default sizes. Accessibility sizes may stack the value under
-/// the label and grow.
 struct DisclosureValueRow: View {
   let icon: String
   let caption: String
@@ -411,7 +401,6 @@ enum AppTab: Hashable, CaseIterable {
   case reflect
   case assistant
 
-  /// Compact destinations are the `CompactRootBar` triple — not an open-ended list.
   static var compactDestinations: [AppTab] { CompactRootBar.destinationTabs }
 
   var isCompactDestination: Bool {
@@ -481,8 +470,6 @@ enum CompactBarSelection: Hashable, CaseIterable {
   var isAction: Bool { self == .addTransaction }
 }
 
-/// Compact iPhone chrome is structurally three destinations and one action button.
-/// The destination triple is the capacity: a fourth tab is a type change, not an append.
 enum CompactRootBar {
   static let destinationCapacity = 3
   static let actionCapacity = 1
@@ -898,7 +885,6 @@ struct RootTabView: View {
   }
 }
 
-/// The compact action stays separate from the destination pill.
 struct RootCaptureTab: TabContent {
   private var role: TabRole {
     // `TabRole.prominent` ships in the iOS 27 SDK; Xcode 26 must still build.

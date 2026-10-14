@@ -82,16 +82,13 @@ const preferences: AccountPreferences = {
 };
 
 const rows: FixtureRow[] = [
-  // Inside the window, including both its ends.
   { id: "t1", account_id: "bank", date: "2026-08-02", deleted: false },
   { id: "t2", account_id: "bank", date: "2026-08-15", deleted: false },
   { id: "t3", account_id: "bank", date: UNTIL, deleted: false },
   { id: "t4", account_id: "card", date: "2026-08-10", deleted: false },
   { id: "t5", account_id: "card", date: "2026-08-11", deleted: false },
-  // "tied" matches "card" so the name tiebreak decides their order.
   { id: "t6", account_id: "tied", date: "2026-08-12", deleted: false },
   { id: "t7", account_id: "tied", date: "2026-08-13", deleted: false },
-  // Outside the window or not live: none of these may be counted.
   { id: "t8", account_id: "quiet", date: "2026-08-01", deleted: false },
   { id: "t9", account_id: "quiet", date: "2026-09-01", deleted: false },
   { id: "t10", account_id: "quiet", date: "2026-08-20", deleted: true },
@@ -114,7 +111,6 @@ describe("accountUsageCounts", () => {
 
     const fromEndpoint = order(accountUsageCounts(groupedUsage(rows, since, UNTIL)));
     expect(fromEndpoint).toEqual(order(countByPaginating(rows, since, UNTIL)));
-    // Most used first, ties broken by name, and the unused account last.
     expect(fromEndpoint).toEqual(["bank", "card", "tied", "quiet"]);
   });
 

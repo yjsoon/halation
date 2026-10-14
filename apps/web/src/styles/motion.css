@@ -1,16 +1,3 @@
-/*
- * Halation motion: keyframes and animation rules. Imported after app.css.
- * Durations and easings are tokens (styles/tokens.css); under reduced motion
- * they collapse to 0ms, except --dur-bloom, whose keyframes are colour only.
- *
- * Editor rules (acceptance criteria): on .register-compose-row td,
- * .register-compose-actions-row td and idle tr > td only background-color,
- * color, border-color, box-shadow and opacity may animate; nothing on the
- * editor's inputs, selects or :focus; never transform a <tr>; no entry
- * keyframes or @starting-style on idle row selectors.
- */
-
-/* Keyframe library */
 @keyframes hl-fade-in  { from { opacity: 0; } }
 @keyframes hl-fade-out { to { opacity: 0; } }
 @keyframes hl-rise     { from { opacity: 0; transform: translateY(6px); } }
@@ -25,7 +12,6 @@
 @keyframes hl-breathe  { 50% { transform: scale(1.18); opacity: .7; } }
 @keyframes hl-halo     { from { opacity: 0; transform: scale(.7); } }
 
-/* Filter rail busy sweep: one of the two loops allowed (the other is the "Checking session" halo). */
 @keyframes rail-sweep {
   0% {
     left: 0;
@@ -47,22 +33,16 @@
  * menu inside the filter rail, for one). Exits are always instant.
  */
 
-/* M2. Register save toast: drops in under the edge, never shifts the ledger. */
 .register-toast { animation: hl-drop var(--dur-base) var(--ease-out) backwards; }
 
-/* M3. Edit and compose wash. Background only and no fill, so focus is never gated. */
 .register-compose-row > td,
 .register-compose-actions-row > td { animation: hl-wash-in var(--dur-fast) linear; }
 
-/* M4. Save bloom (lib/halation-bloom.ts): one row, colour only, so it survives reduced motion. */
 .register-table tbody tr[data-bloom] > td { animation: hl-bloom var(--dur-bloom) linear both; }
 
-/* M5. Small state flips. Table hover stays instant: no transition on row hover. */
 .cleared-status-toggle { transition: color var(--dur-fast), background-color var(--dur-fast), border-color var(--dur-fast); }
-/* A transition, not a keyframe: it runs on an actual toggle, never when the ledger remounts after a save. */
 .cleared-glyph { transition: background-color var(--dur-fast), border-color var(--dur-fast), box-shadow var(--dur-fast); }
 
-/* M6. Enter-only reveals. */
 @keyframes hl-bulk-in { from { opacity: 0; transform: translate(-50%, 8px); } to { transform: translate(-50%, 0); } }
 .register-bulk-bar { animation: hl-bulk-in var(--dur-base) var(--ease-out) backwards; }
 .filter-rail { animation: hl-drop var(--dur-base) var(--ease-out) backwards; }
@@ -70,15 +50,11 @@
 .account-icon-popover { animation: hl-drop var(--dur-fast) var(--ease-out) backwards; }
 .account-organizer[open] { animation: hl-rise var(--dur-base) var(--ease-out) backwards; }
 .account-organizer[open]::backdrop { animation: hl-fade-in var(--dur-base) linear backwards; }
-.recent-entries li:first-child { animation: hl-rise var(--dur-base) var(--ease-out) backwards; }   /* Quick entry "Saved this session" */
+.recent-entries li:first-child { animation: hl-rise var(--dur-base) var(--ease-out) backwards; }
 @media (max-width: 720px) {
   .mobile-nav-open .sidebar { animation: hl-drop var(--dur-base) var(--ease-out) backwards; }
 }
 
-/* M7. Route transitions (NavLink viewTransition in Shell.tsx; never on account links).
-   The chrome holds still, the page swaps, and the active nav item slides to its new place.
-   Exactly one .sidebar-link-active renders inside .sidebar-nav at a time: the footer
-   Settings link sits outside it and the drawer copy of Settings is never displayed. */
 .sidebar { view-transition-name: hl-sidebar; }
 .mobile-masthead { view-transition-name: hl-masthead; }
 .sidebar-nav .sidebar-link-active { view-transition-name: hl-nav-active; }
@@ -90,7 +66,6 @@
 ::view-transition-new(hl-masthead) { animation: none; }
 ::view-transition-group(hl-nav-active) { animation-duration: var(--dur-standard); animation-timing-function: var(--ease-out); }
 
-/* M8. Reports disclosure: links step in; the chevron turns instead of swapping glyphs. */
 @keyframes hl-reveal-nav { from { opacity: 0; transform: translateX(-4px); } }
 .sidebar-reflect[open] > .sidebar-report-link {
   animation: hl-reveal-nav var(--dur-base) var(--ease-out) backwards;
@@ -98,11 +73,6 @@
 }
 .sidebar-reflect-summary::after { transition: transform var(--dur-fast) var(--ease-out); }
 
-/* M9. Chart reveal (components/charts.tsx). The marks sit in a <g> keyed by the period
-   set, so this replays when the periods change and not on a refetch. Delays are capped by
-   --dur-fill, which collapses to 0ms under reduced motion, so nothing waits hidden there.
-   The hidden start lives in the keyframes, so a chart is never left undrawn if animations
-   do not run at all. */
 @keyframes hl-draw-in { from { stroke-dashoffset: 1; } }
 .area-line { stroke-dasharray: 1; animation: hl-draw-in var(--dur-fill) var(--ease-out) backwards; }
 .area-fill,
@@ -122,10 +92,8 @@
 }
 .share-bar { transform-origin: left; animation: hl-grow-x var(--dur-fill) var(--ease-out) backwards; }
 
-/* M10. Figure settle, replacing any count-up: keyed by value, opacity only. */
 .figure-settle { animation: hl-settle var(--dur-base) var(--ease-out) backwards; }
 
-/* M12. Boot and sign-in. The "Checking session" halo is the second permitted loop. */
 .boot-message-checking::before {
   content: "";
   display: block;
@@ -152,12 +120,10 @@
 }
 .halation-mark--hero { animation: hl-rise var(--dur-sunrise) var(--ease-bloom) backwards; }
 
-/* Theme switch (lib/theme.ts → withViewTransition("theme")): everything cross-fades as one. */
 :root[data-vt="theme"] :is(.sidebar, .mobile-masthead, .sidebar-link-active) { view-transition-name: none !important; }
 :root[data-vt="theme"]::view-transition-old(root) { animation: hl-fade-out var(--dur-standard) linear both; }
 :root[data-vt="theme"]::view-transition-new(root) { animation: hl-fade-in var(--dur-standard) linear both; }
 
-/* Reduced motion: the duration tokens already collapse; the loops and view transitions stop outright. */
 @media (prefers-reduced-motion: reduce) {
   .filter-rail-busy::after { animation: none; width: 100%; opacity: .4; }
   .boot-message-checking::before { animation: none; }

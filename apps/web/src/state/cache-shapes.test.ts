@@ -6,8 +6,6 @@ import {
   isCachedScheduled,
 } from "./cache-shapes";
 
-// Synthetic throughout: invented ids, invented names, invented amounts.
-
 const reference = {
   settings: { currency_format: { iso_code: "SGD" } },
   categoryGroups: [{ id: "group-1", name: "Everyday", categories: [{ id: "category-1" }] }],

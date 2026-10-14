@@ -1,12 +1,3 @@
-// The outbox on disk. See docs/plans/offline-writes.md P1.
-//
-// One JSON file holds every write that has not reached the server yet. It is
-// written synchronously and atomically on every change, before the change is
-// shown, so a write the app accepted survives a crash or a kill. Nothing here
-// ever deletes a command it could not read: a file that fails to decode is
-// set aside under a new name, and the legacy UserDefaults queue is removed
-// only once its contents are safely in the file.
-
 import Foundation
 
 enum OutboxStoreError: LocalizedError, Equatable {
@@ -176,8 +167,6 @@ final class OutboxStore: @unchecked Sendable {
       .sorted()
       .map { directory.appendingPathComponent($0) }
   }
-
-  // MARK: - Private
 
   private var encoder: JSONEncoder {
     let encoder = JSONEncoder()

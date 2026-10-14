@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Agent/CLI xcodebuild for HowMuch. Standing policy lives in
-# apps/ios/AGENTS.md. This script is the mechanical half: one owner per
-# checkout, a pinned simulator UDID, a stable gitignored DerivedData path,
-# a low job count with indexing off, and timestamped logs.
-#
 # Do not clear DerivedData as a first response. Do not cancel merely
 # because xcodebuild looks idle — inspect children (actool, ibtoold,
 # AssetCatalogSimulatorAgent, swift-frontend) first. Cold builds may
@@ -377,7 +372,6 @@ test_product_exists() {
   [[ -d "$app" && ( -d "$xctest_root" || -d "$xctest_plugin" ) ]]
 }
 
-# Modification time of the built test binary, for telling fresh runs from stale ones.
 test_product_mtime() {
   local bundle target
   # The app-hosted bundle under PlugIns is the one test-without-building loads.
@@ -495,10 +489,6 @@ cmd_test_without_building() {
 
 cmd_test() {
   prepare_build 0
-  # Always rebuild: skipping when products exist ran tests against stale binaries
-  # (#166). Incremental builds are cheap and also catch project, package, and
-  # deleted-file changes that an mtime check would miss. Use
-  # test-without-building to reuse products deliberately.
   local status=0
   xcode_invocation build-for-testing build-for-testing || status=$?
   if ((status != 0)); then

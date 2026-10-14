@@ -38,17 +38,6 @@ extension IntakeCandidateRow {
 /// and after extraction (docs/plans/share-intake.md section 6). Pure: the same
 /// input gives the same proposals, and a proposal only ever names rows that
 /// were passed in.
-///
-/// Candidates share the line's absolute amount and fall within the day window.
-/// Scoring, highest first: amount 0.30 (always earned), a closer date adds up
-/// to 0.20, payee similarity up to 0.50. 0.74 or more is a strong match, so a
-/// strong match needs a payee that agrees at least in part; the same amount on
-/// the same day under another merchant is only a possible duplicate. Whether a
-/// row is approved does not change the score.
-///
-/// A match is never strong, and so never a Fix or Already in, when the
-/// direction differs (a refund of the same amount), when the document gave no
-/// date, or when two rows score the same.
 struct IntakeMatcher: Sendable {
   var dayWindow = 3
   /// Windows for accounts that override the global one (the skill file's

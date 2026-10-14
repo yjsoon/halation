@@ -272,19 +272,16 @@ describe("YNAB-compatible API", () => {
     await repo.upsertAccount("plan-test", { id: "bank", name: "Bank" });
     await repo.upsertAccount("plan-test", { id: "wallet", name: "Wallet" });
     await repo.upsertAccount("plan-test", { id: "quiet", name: "Quiet" });
-    // days=30 until 2026-08-31 is the inclusive window 2026-08-02..2026-08-31.
     await repo.createTransaction("plan-test", { id: "before-window", account_id: "bank", date: "2026-08-01", amount: -100 });
     await repo.createTransaction("plan-test", { id: "first-day", account_id: "bank", date: "2026-08-02", amount: -100 });
     await repo.createTransaction("plan-test", { id: "last-day", account_id: "bank", date: "2026-08-31", amount: -100 });
     await repo.createTransaction("plan-test", { id: "future", account_id: "bank", date: "2026-09-01", amount: -100 });
     await repo.createTransaction("plan-test", { id: "gone", account_id: "bank", date: "2026-08-15", amount: -100 });
     await repo.deleteTransaction("plan-test", "gone");
-    // A split parent counts once; its lines live in another table and never do.
     await repo.createTransaction("plan-test", {
       id: "split", account_id: "bank", date: "2026-08-10", amount: -300,
       subtransactions: [{ amount: -100 }, { amount: -200 }],
     });
-    // A transfer is two rows, so it counts once in each account it touches.
     await repo.createTransaction("plan-test", { id: "transfer", account_id: "bank", date: "2026-08-20", amount: -500, transfer_account_id: "wallet" });
 
     expect((await handler(new Request("http://howmuch.test/v1/plans/plan-test/accounts/usage"))).status).toBe(401);
@@ -294,18 +291,14 @@ describe("YNAB-compatible API", () => {
     const { data } = await response.json();
     expect(data).toMatchObject({ days: 30, since: "2026-08-02", until: "2026-08-31" });
     expect(data.server_knowledge).toBe(await repo.getServerKnowledge("plan-test"));
-    // "quiet" has no rows in the window and is simply absent; the client reads a
-    // missing account as zero.
     expect(data.usage).toEqual([
       { account_id: "bank", count: 4 },
       { account_id: "wallet", count: 1 },
     ]);
 
-    // A one-day window keeps both ends closed on the same date.
     const single = await request("/v1/plans/plan-test/accounts/usage?days=1&until=2026-08-31");
     expect((await single.json()).data).toMatchObject({ days: 1, since: "2026-08-31", usage: [{ account_id: "bank", count: 1 }] });
 
-    // A window that reaches back far enough picks up the earlier row too.
     const wide = await request("/v1/plans/plan-test/accounts/usage?days=31&until=2026-08-31");
     expect((await wide.json()).data).toMatchObject({ since: "2026-08-01", usage: [{ account_id: "bank", count: 5 }, { account_id: "wallet", count: 1 }] });
 
@@ -315,8 +308,6 @@ describe("YNAB-compatible API", () => {
 
     expect((await request("/v1/plans/missing-plan/accounts/usage?until=2026-08-31")).status).toBe(404);
 
-    // The grouped count is served by the partial register index rather than a
-    // scan of the live ledger.
     const plan = db.query(
       `EXPLAIN QUERY PLAN SELECT account_id, COUNT(*) AS usage_count FROM transactions
          WHERE plan_id = ? AND deleted = 0 AND date >= ? AND date <= ? GROUP BY account_id ORDER BY account_id`,
@@ -1118,8 +1109,6 @@ describe("YNAB-compatible API", () => {
     expect(typeof before.count).toBe("number");
     expect(typeof before.server_knowledge).toBe("number");
 
-    // Three new rows land unapproved. One is then approved, one soft-deleted;
-    // only the untouched row should still be counted.
     const stillNew = await create("2026-07-01", -1100);
     const approved = await create("2026-07-02", -1200);
     const removed = await create("2026-07-03", -1300);
@@ -1133,17 +1122,13 @@ describe("YNAB-compatible API", () => {
 
     const after = await countOf("/v1/plans/plan-test/transactions/unapproved_count");
     expect(after.count).toBe(before.count + 1);
-    // A write moved the plan on, and the count is labelled with the new value.
     expect(after.server_knowledge).toBeGreaterThan(before.server_knowledge);
 
-    // The same rows through the register filter, as a cross-check that the count
-    // and the queue agree.
     const queue = await (await request("/v1/plans/plan-test/transactions?type=unapproved&limit=250")).json();
     expect(queue.data.transactions.filter((row: any) => !row.deleted).length).toBe(after.count);
     expect(queue.data.transactions.some((row: any) => row.id === stillNew)).toBe(true);
     expect(queue.data.transactions.some((row: any) => row.id === approved)).toBe(false);
 
-    // Date and account scoping narrow the count the same way they narrow the queue.
     const windowed = await countOf(
       "/v1/plans/plan-test/transactions/unapproved_count?since_date=2026-07-01&until_date=2026-07-01",
     );
@@ -1153,15 +1138,11 @@ describe("YNAB-compatible API", () => {
     );
     expect(otherAccount.count).toBe(0);
 
-    // last_knowledge_of_server would turn the list into "changed since, deleted
-    // rows included". The count ignores it and stays a count of live rows.
     const withKnowledge = await countOf(
       "/v1/plans/plan-test/transactions/unapproved_count?last_knowledge_of_server=0",
     );
     expect(withKnowledge.count).toBe(after.count);
 
-    // limit/offset page a list; there is nothing to page here, so they are
-    // ignored rather than validated -- a stray limit=0 must not 400.
     for (const query of ["?limit=0", "?offset=-1", "?limit=abc", "?limit=9999"]) {
       const response = await request(`/v1/plans/plan-test/transactions/unapproved_count${query}`);
       expect(`${query} -> ${response.status}`).toBe(`${query} -> 200`);
@@ -1170,8 +1151,6 @@ describe("YNAB-compatible API", () => {
 
     expect((await request("/v1/plans/missing-plan/transactions/unapproved_count")).status).toBe(404);
 
-    // The count is served by the partial register index, not a scan of the
-    // whole ledger.
     const plan = db.query(
       `EXPLAIN QUERY PLAN SELECT COUNT(*) AS count FROM transactions t
          WHERE t.plan_id = ? AND t.deleted = 0 AND t.approved = 0`,
@@ -1957,7 +1936,6 @@ describe("transfers and splits", () => {
     expect(outflow.transfer_account_id).toBe(savings.id);
     expect(outflow.transfer_transaction_id).toBeTruthy();
     expect(outflow.payee_name).toBe("Transfer : Savings");
-    // Transfers between two budget accounts carry no category.
     expect(outflow.category_id).toBeNull();
 
     const inflow = await (
@@ -2108,7 +2086,6 @@ describe("transfers and splits", () => {
     expect(approved.data.transaction.approved).toBeTrue();
     expect((await (await request(`/v1/plans/plan-test/transactions/${parent.id}`)).json()).data.transaction.approved).toBeTrue();
 
-    // Deleting the split takes the linked transfer side with it.
     await request(`/v1/plans/plan-test/transactions/${parent.id}`, { method: "DELETE" });
     const remaining = await (await request("/v1/plans/plan-test/transactions")).json();
     expect(remaining.data.transactions).toHaveLength(0);
@@ -2146,8 +2123,6 @@ describe("transfers and splits", () => {
     const checking = await createAccountViaApi({ name: "Checking", type: "checking" });
     const savings = await createAccountViaApi({ name: "Savings", type: "savings" });
 
-    // A web-export import can leave a one-sided transfer: transfer payee and
-    // target set, but no linked row because the pair fell outside the export.
     await repo.createTransaction(
       "plan-test",
       {
@@ -2333,14 +2308,12 @@ describe("transfers and splits", () => {
     const savings = await createAccountViaApi({ name: "Savings", type: "savings" });
     const mortgage = await createAccountViaApi({ name: "Mortgage", type: "mortgage", on_budget: false });
 
-    // On-budget to on-budget: no category, hidden from spending.
     await createTransaction({
       account_id: checking.id,
       date: "2026-06-10",
       amount: -50000,
       payee_id: savings.transfer_payee_id,
     });
-    // On-budget to tracking with a category: counts as spending, like YNAB.
     await createTransaction({
       account_id: checking.id,
       date: "2026-06-11",
@@ -3504,8 +3477,6 @@ describe("plans that do not exist", () => {
   });
 
   test("a native read that matches no route leaves the plan uncreated", async () => {
-    // Every `/api/rewards` branch is a write, so a GET falls through to a 404.
-    // It must not create the plan on the way there.
     for (const path of ["/api/rewards/cards?plan_id=plan-ghost", "/api/rewards/settings?plan_id=plan-ghost"]) {
       const response = await ghostRequest(path);
       expect(`${path} -> ${response.status}`).toBe(`${path} -> 404`);

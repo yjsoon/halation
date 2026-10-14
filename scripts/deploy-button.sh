@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Deploy command for the Deploy to Cloudflare button (root wrangler.jsonc).
-# Runs only on Cloudflare Workers Builds, in the deployer's own account. The
-# owner's stacks deploy from apps/worker; see AGENTS.md.
 set -euo pipefail
 
 if [ "${WORKERS_CI:-}" != "1" ]; then
@@ -12,6 +9,5 @@ fi
 
 cd "$(dirname "$0")/.."
 bun run --cwd apps/web build
-# Apply migrations before deploying so new code never meets an old schema.
 bunx wrangler d1 migrations apply DB --remote --config wrangler.jsonc
 bunx wrangler deploy --config wrangler.jsonc

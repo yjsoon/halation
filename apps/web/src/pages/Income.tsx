@@ -53,8 +53,6 @@ export function IncomePage() {
           </div>
           <div className="headline-figure">
             <span className="figure-label">Savings rate</span>
-            {/* An em dash means "no meaningful rate", so it stays neutral
-                rather than being coloured by a sign it does not show. */}
             <span
               key={savingsRate}
               className={

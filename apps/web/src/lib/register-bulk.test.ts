@@ -78,7 +78,6 @@ describe("register bulk outcomes", () => {
     expect(result.applied_count).toBe(1);
     expect(result.already_removed_count).toBe(1);
     expect(bulkOutcomeIsComplete(result)).toBe(false);
-    // Only unresolved and never-sent rows are ours to retry.
     expect(remainingWorkIds(result)).toEqual(["d", "e"]);
     expect(bulkOutcomeIsComplete(summary([
       { id: "a", status: "applied" },

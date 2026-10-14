@@ -391,8 +391,6 @@ final class SnapshotStore: SnapshotFile<ReferenceSnapshot>, @unchecked Sendable 
   }
 }
 
-// MARK: - Reports (stale-while-revalidate)
-
 /// The Reflect overview and the default Rewards board as they last loaded, so
 /// both render at once on the next launch while a quiet refresh runs behind.
 ///

@@ -23,7 +23,6 @@ export interface SplitGroups {
   quiet: CategoryGroup[];
 }
 
-/** Live groups with live categories, partitioned into everyday and bookkeeping ones. */
 export function splitCategoryGroups(groups: CategoryGroup[]): SplitGroups {
   const primary: CategoryGroup[] = [];
   const quiet: CategoryGroup[] = [];

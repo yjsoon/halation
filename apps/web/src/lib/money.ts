@@ -8,7 +8,6 @@ let symbol = "";
 let symbolFirst = true;
 let currencyFormat: CurrencyFormat | undefined;
 
-/** The plan currency format last passed to `configureMoney`. */
 export function currentCurrencyFormat(): CurrencyFormat | undefined {
   return currencyFormat;
 }
@@ -67,7 +66,6 @@ export function parseMilliunits(value: string): number | null {
   return Number.isSafeInteger(signed) ? signed : null;
 }
 
-/** Formats integer milliunits for an editable decimal field without float rounding. */
 export function formatMilliunitsInput(milliunits: number): string {
   const sign = milliunits < 0 ? "-" : "";
   const absolute = Math.abs(milliunits);
@@ -98,7 +96,6 @@ export function formatMilliunitsField(milliunits: number): string {
   return withPlanDecimal(formatMilliunitsInput(milliunits));
 }
 
-/** Formats integer milliunits for display, e.g. -12340 -> "−£12.34". */
 export function formatMoney(milliunits: number, options?: { sign?: boolean }): string {
   const absolute = formatter
     .format(Math.abs(milliunits) / 1000)
@@ -110,7 +107,6 @@ export function formatMoney(milliunits: number, options?: { sign?: boolean }): s
   return options?.sign && milliunits > 0 ? `+${withSymbol}` : withSymbol;
 }
 
-/** Formats positive magnitudes (report totals are already absolute). */
 export function formatAmount(milliunits: number): string {
   return formatMoney(Math.abs(milliunits));
 }
@@ -119,7 +115,6 @@ export function formatShare(share: number): string {
   return withPlanDecimal(`${(share * 100).toFixed(1)}%`);
 }
 
-/** Net over income. Zero income or a rate below -100% is an em dash. */
 export function formatSavingsRate(net: number, income: number): string {
   if (income <= 0) {
     return "—";

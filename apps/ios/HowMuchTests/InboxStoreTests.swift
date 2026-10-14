@@ -82,7 +82,6 @@ final class InboxStoreTests: XCTestCase {
       _ = try await task.value
       XCTFail("A cancelled preview must not deliver an image")
     } catch is CancellationError {
-      // Expected.
     }
     XCTAssertEqual(store.loadReading().map(\.id), [item.id])
     XCTAssertEqual(try item.payloadData(), data)
@@ -306,7 +305,7 @@ final class InboxStoreTests: XCTestCase {
   }
 
   // Failure mode: manifests already on disk from an older app or extension build
-  // (v1 shape, or a newer build's extra keys) must still load. E2E cannot plant these.
+  // (v1 shape, or a newer build's extra keys) must still load.
   func testV1ManifestOnDiskLoadsAsOneAutoSource() throws {
     let id = UUID()
     let folder = try plantManifest(id: id, json: """

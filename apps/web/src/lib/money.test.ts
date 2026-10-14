@@ -26,8 +26,7 @@ describe("parseMilliunits", () => {
 
   // Failure mode: formatMoney shows an imported comma-decimal plan's amounts
   // as "12,50", and the amount fields read that comma as a group mark, so
-  // typing what the page shows stores a hundred times the amount. The fields
-  // are still prefilled with a dot ("12.5"), so a dot must keep reading.
+  // typing what the page shows stores a hundred times the amount.
   test("reads the plan's comma decimal mark as the page shows it", () => {
     try {
       configureMoney({ iso_code: "EUR", example_format: "123.456,78", decimal_digits: 2, decimal_separator: ",", symbol_first: false, group_separator: ".", currency_symbol: "€", display_symbol: true });
@@ -95,8 +94,6 @@ describe("formatMilliunitsInput", () => {
 });
 
 describe("formatSavingsRate", () => {
-  // Demo YTD is ~80% saved. Zero income and rates below -100% (e.g. $26.40 in /
-  // $525.31 out) are the cases the Income page recipe never exercises.
   test("dashes zero income and rates below -100 percent, keeps ordinary negatives", () => {
     expect(formatSavingsRate(1_750_000, 8_200_000)).toBe("21.3%");
     expect(formatSavingsRate(-450_000, 3_630_000)).toBe("−12.4%");

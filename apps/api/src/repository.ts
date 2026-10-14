@@ -322,8 +322,6 @@ export class LedgerRepository {
          ON CONFLICT(id) DO NOTHING`,
       )
       .run(accountId, planId, name ?? `Imported account ${accountId.slice(0, 8)}`, accountId);
-    // The insert skips an id that exists anywhere: another plan's account id
-    // booked this plan's transaction against that plan's balance.
     if (await this.db.query("SELECT 1 FROM accounts WHERE id = ? AND plan_id <> ?").get(accountId, planId)) {
       throw new ValidationError("Account not found");
     }
@@ -422,8 +420,6 @@ export class LedgerRepository {
   async upsertAccount(planId: string, account: any): Promise<void> {
     await this.ensurePlan(planId);
     const existing = await this.db.query("SELECT icon, plan_id FROM accounts WHERE id = ?").get(account.id) as Row | null;
-    // The upsert matches on id alone: another plan's account id renamed and
-    // retyped that plan's account.
     if (existing && existing.plan_id !== planId) throw new ValidationError("Account belongs to another plan");
     const presentation = resolveAccountPresentation({
       name: account.name ?? `Account ${account.id}`,
@@ -1508,10 +1504,6 @@ export class LedgerRepository {
           outcomes.push({ id: item.id, status: "already_removed", detail: error.message });
           continue;
         }
-        // Anything else may carry infrastructure detail (SQL, binding values,
-        // driver text). The HTTP layer deliberately keeps those out of the
-        // response body and logs them instead; a 200 bulk body must not leak
-        // what a 500 would redact.
         outcomes.push({ id: item.id, status: "unresolved", detail: BULK_UNRESOLVED_DETAIL });
         stopped = true;
       }
@@ -3526,7 +3518,6 @@ function assembleScheduledTransactions(editRows: Row[], editSubRows: Row[]): any
     }
     return result.sort((left, right) => String(left.date_next ?? left.date_first ?? "9999-12-31").localeCompare(String(right.date_next ?? right.date_first ?? "9999-12-31")) || String(left.id).localeCompare(String(right.id)));
 }
-
 
 /** Split lines with their payee and category names; callers add the WHERE. */
 const SUBTRANSACTION_SELECT_SQL = `SELECT

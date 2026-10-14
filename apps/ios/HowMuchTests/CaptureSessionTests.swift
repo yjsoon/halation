@@ -1002,11 +1002,7 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertEqual(session.drafts[1].draft.amountMagnitudeMilli, 18_000)
   }
 
-  /// Failure mode: the keypad shifted every digit in as cents. In a plan
-  /// whose currency has no minor unit (a yen plan seeded on a Japanese-region
-  /// phone), typing 5, 0, 0 entered 5.00 and the header showed "¥5"; the
-  /// owner had to type two extra zeros, and Delete removed a hidden cent.
-  /// In a three-decimal plan the last digit could not be typed at all.
+  /// Failure mode: the keypad shifted every digit in as cents.
   func testKeypadDigitsFollowThePlanCurrencyDecimals() {
     var yen = AmountKeypadEngine()
     for digit in [5, 0, 0] {

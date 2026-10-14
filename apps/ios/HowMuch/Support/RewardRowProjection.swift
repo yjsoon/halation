@@ -160,7 +160,6 @@ struct RewardRowProjection: Equatable {
 
   static func make(row: RewardsCardRow, asOf: String?, isRange: Bool) -> Self {
     let calc = row.calculation
-    // Range rows aggregate several periods and draw no picture.
     let minimumAmount = isRange ? 0 : plainAmount(calc.minimumSpend)
     let activeTier = row.card.spendingTiers?.first(where: { $0.id == calc.activeSpendingTierId })
     let reachedTierThreshold = isRange ? 0 : plainAmount(activeTier?.spendThreshold)
@@ -202,8 +201,6 @@ struct RewardRowProjection: Equatable {
       )
     }
 
-    // A range aggregates several periods; it has no single target or deadline,
-    // and the server keeps only the last period's cap flags.
     if isRange {
       return build(.range, .neutral)
     }

@@ -17,8 +17,6 @@ import {
 } from "./reference-cache";
 import { isCachedPayees, isCachedReference, isCachedRegisterPage } from "./cache-shapes";
 
-// Everything here is synthetic: invented ids, invented names, invented
-// amounts. No ledger row, payee or memo from any real plan appears.
 const identity = { userId: "user-1", planId: "plan-1" };
 
 const payees = [
@@ -90,7 +88,6 @@ describe("planCachedFetch", () => {
   });
 
   test("a write from another client replaces the cached set", () => {
-    // Cached at N, server reports N+1: the entry may only seed the fetch.
     const plan = planCachedFetch(makeEnvelope(identity, 41, payees), identity, 42);
     expect(plan).toEqual({ use: "network", seed: payees });
   });
@@ -115,7 +112,6 @@ describe("keepSettledRows", () => {
   const emptyNetwork = { use: "network", seed: null } as const;
 
   test("keeps rows a local write emptied the cache under", () => {
-    // The register must not refetch every payee because someone cleared a row.
     expect(keepSettledRows(settled, "plan-1", emptyNetwork)).toBe(true);
   });
 
@@ -243,12 +239,9 @@ describe("the storage shell", () => {
   test("a write from another client is seen on the next load and replaces the entry", () => {
     writeSlot("reference", identity, 41, reference);
 
-    // The plans list, which the bootstrap already fetches, now reports 42.
     const cached = readSlot("reference", isCachedReference);
     expect(decideReferenceRefresh(cached, identity, 42)).toBe("refetch");
 
-    // The refetched set is stored under the knowledge it was read at, and the
-    // old accounts are gone.
     const refreshed = { ...reference, accounts: [{ id: "account-1", name: "Test Account", balance: 2000 }] };
     writeSlot("reference", identity, 42, refreshed);
     const reread = readSlot("reference", isCachedReference);
@@ -258,7 +251,6 @@ describe("the storage shell", () => {
   });
 
   test("a read that started before a local write cannot refill the cache", () => {
-    // The GET went out at this epoch and resolves after the write below.
     const epochAtRequest = currentCacheEpoch();
     writeSlot("payees", identity, 41, payees);
     expect(readSlot("payees", isPayeeList)).not.toBeNull();
@@ -266,12 +258,9 @@ describe("the storage shell", () => {
     clearReferenceCache();
     expect(readSlot("payees", isPayeeList)).toBeNull();
 
-    // Its rows predate the write, so storing them would resurrect exactly what
-    // the invalidation existed to remove.
     writeSlot("payees", identity, 41, payees, epochAtRequest);
     expect(readSlot("payees", isPayeeList)).toBeNull();
 
-    // A read started after the invalidation stores normally.
     writeSlot("payees", identity, 42, payees, currentCacheEpoch());
     expect(readSlot("payees", isPayeeList)?.serverKnowledge).toBe(42);
   });

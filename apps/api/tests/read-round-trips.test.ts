@@ -43,15 +43,11 @@ const ROUTES: Array<{ name: string; path: string }> = [
   { name: "GET /v1/plans/:id/settings", path: `/v1/plans/${PLAN_ID}/settings` },
   { name: "GET /v1/plans/:id/accounts", path: `/v1/plans/${PLAN_ID}/accounts` },
   { name: "GET /v1/plans/:id/account_preferences", path: `/v1/plans/${PLAN_ID}/account_preferences` },
-  // The window ends on the seeded row's date so the grouped count is not empty.
   { name: "GET /v1/plans/:id/accounts/usage", path: `/v1/plans/${PLAN_ID}/accounts/usage?days=30&until=2026-01-31` },
   { name: "GET /v1/plans/:id/categories", path: `/v1/plans/${PLAN_ID}/categories` },
   { name: "GET /v1/plans/:id/payees", path: `/v1/plans/${PLAN_ID}/payees` },
   { name: "GET /v1/plans/:id/transactions?limit=10", path: `/v1/plans/${PLAN_ID}/transactions?limit=10` },
-  // A searched register reads the plan's currency format before it can build
-  // the SQL, so it costs one trip more than the plain page.
   { name: "GET /v1/plans/:id/transactions?q=", path: `/v1/plans/${PLAN_ID}/transactions?limit=10&q=Shop` },
-  // The "New" badge: one batch of [knowledge, COUNT], no rows.
   { name: "GET /v1/plans/:id/transactions/unapproved_count", path: `/v1/plans/${PLAN_ID}/transactions/unapproved_count` },
   { name: "GET /v1/plans/:id/scheduled_transactions", path: `/v1/plans/${PLAN_ID}/scheduled_transactions` },
   { name: "GET /api/reports/spending-breakdown", path: `/api/reports/spending-breakdown?plan_id=${PLAN_ID}` },
@@ -154,12 +150,8 @@ test("GET routes issue no writes and stay within their round-trip budget", async
     expect(d1Counts[route.name]).toBeLessThanOrEqual(BUDGET[route.name]!);
   }
 
-  // The headline numbers from #170, asserted by name so a regression is legible
-  // without decoding the table above.
   expect(d1Counts["GET /v1/plans/:id/transactions?limit=10"]).toBeLessThanOrEqual(3);
   expect(d1Counts["GET /v1/plans/:id/accounts"]).toBeLessThanOrEqual(2);
-  // #182: the 30-day usage sort is one grouped query plus the session lookup,
-  // where the web client used to paginate the register.
   expect(d1Counts["GET /v1/plans/:id/accounts/usage"]).toBeLessThanOrEqual(2);
   expect(d1Counts["GET /v1/plans/:id/categories"]).toBeLessThanOrEqual(2);
 });
@@ -175,21 +167,15 @@ test("the D1 register page reads knowledge, rows and split lines in one batch", 
 
   const batches = counting.roundTrips.filter((trip) => trip.kind === "batch");
   expect(batches).toHaveLength(1);
-  // One batch is one D1 transaction, so these three statements share a
-  // snapshot. That is what replaced reading server_knowledge either side of the
-  // page and retrying when the two disagreed.
   expect(batches[0]!.sql).toContain("SELECT server_knowledge FROM plans");
   expect(batches[0]!.sql).toContain("FROM transactions t");
   expect(batches[0]!.sql).toContain("FROM subtransactions st");
-  // No knowledge read survives outside the batch, so nothing can observe a
-  // different snapshot from the rows it labels.
   expect(counting.roundTrips.filter((trip) => trip.kind !== "batch" && /server_knowledge FROM plans/.test(trip.sql)))
     .toBeEmpty();
 });
 
 test("the SQLite register page comes from one batch, which nests without deadlocking", async () => {
   const sqlite = await ledgerSqlite();
-  // No auth setup here, so stand up the plan and user seedLedger references.
   sqlite.run("INSERT INTO plans (id, name) VALUES (?, 'Plan')", [PLAN_ID]);
   sqlite.run("INSERT INTO users (id, display_name) VALUES ('user-1', 'reader')");
   seedLedger(sqlite);
@@ -218,8 +204,6 @@ test("the SQLite register page comes from one batch, which nests without deadloc
 
   expect(page.transactions).toHaveLength(1);
   expect(page.server_knowledge).toBe(expectedKnowledge);
-  // The page and the knowledge value labelling it came from one batch call, so
-  // no write could have landed between them.
   expect(batched).toHaveLength(1);
   expect(batched[0]!.filter((sql) => /server_knowledge FROM plans/.test(sql))).toHaveLength(1);
   expect(batched[0]!.filter((sql) => /FROM subtransactions st/.test(sql))).toHaveLength(1);

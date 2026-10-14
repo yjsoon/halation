@@ -96,7 +96,6 @@ for (const backend of BACKENDS) {
         { current_password: PASSWORD, new_password: NEXT_PASSWORD }, { authorization: `Bearer ${tokenA}` });
       expect(changed.status).toBe(200);
 
-      // The calling session is rotated: its old token dies, a fresh one is returned.
       const rotated = (await changed.json()).data as { ok: boolean; token: string; expires_at: number };
       expect(rotated.ok).toBe(true);
       expect(rotated.token).not.toBe(tokenA);
@@ -130,8 +129,6 @@ for (const backend of BACKENDS) {
     test("a login that verified the old password cannot start a session after the password changed", async () => {
       let armed = false;
       let db!: NativeHarness["db"];
-      // Commits a password change between the login's password check and its
-      // session insert, with no timing involved: the hook runs inside createSession.
       const harness = await open(backend, (store) => new Proxy(store, {
         get(target, property, receiver) {
           const value = Reflect.get(target, property, receiver);
@@ -161,9 +158,6 @@ for (const backend of BACKENDS) {
       let armed = false;
       let first: (() => Promise<Response>) | undefined;
       let firstResponse: Response | undefined;
-      // Request 2 has already verified the old password when it reaches
-      // replaceCredential; request 1 runs to completion right there, so request 2
-      // writes against a credential that is no longer the one it checked.
       const harness = await open(backend, (store) => new Proxy(store, {
         get(target, property, receiver) {
           const value = Reflect.get(target, property, receiver);
@@ -191,7 +185,6 @@ for (const backend of BACKENDS) {
       expect(second.status).toBe(401);
       expect((await second.json()).error.detail).toBe("Current password is incorrect");
       expect(second.headers.get("set-cookie")).toBeNull();
-      // Only request 1's fresh session is live: the loser issued none and did not revoke the winner's.
       expect(harness.db.query("SELECT COUNT(*) AS n FROM sessions WHERE revoked_at IS NULL").get()).toEqual({ n: 1 });
       expect(await status(harness, { authorization: `Bearer ${winner}` })).toBe(200);
       expect((await post(harness, "/api/auth/token", { username: "owner", password: LATER_PASSWORD })).status).toBe(401);
@@ -207,12 +200,10 @@ for (const backend of BACKENDS) {
       expect((await post(harness, "/api/auth/password", body, { authorization: `Bearer ${API_TOKEN}` })).status).toBe(401);
       expect((await post(harness, "/api/auth/password", body, { authorization: `Bearer ${personal}` })).status).toBe(401);
       expect((await post(harness, "/api/auth/password", body)).status).toBe(401);
-      // A cookie request with no Origin must fail the CSRF check, as logout does.
       const noOrigin = await harness.handle(new Request(`${ORIGIN}/api/auth/password`, {
         method: "POST", headers: { "content-type": "application/json", cookie }, body: JSON.stringify(body),
       }));
       expect(noOrigin.status).toBe(403);
-      // None of the refusals changed the credential or revoked anything.
       expect(await status(harness, { authorization: `Bearer ${tokenA}` })).toBe(200);
       expect((await post(harness, "/api/auth/token", { username: "owner", password: PASSWORD })).status).toBe(200);
     });
@@ -236,15 +227,12 @@ for (const backend of BACKENDS) {
       const { tokenA } = await ownerWithSessions(harness);
       const auth = { authorization: `Bearer ${tokenA}` };
       const attempt = () => post(harness, "/api/auth/password", { current_password: WRONG_PASSWORD, new_password: NEXT_PASSWORD }, auth);
-      // The route allows ten guesses per window: ten 401s, then 429.
       for (let n = 0; n < 10; n++) expect((await attempt()).status).toBe(401);
       const throttled = await attempt();
       expect(throttled.status).toBe(429);
       expect(throttled.headers.get("retry-after")).toBe("900");
-      // Even the right password is refused while the window is exhausted.
       const right = await post(harness, "/api/auth/password", { current_password: PASSWORD, new_password: NEXT_PASSWORD }, auth);
       expect(right.status).toBe(429);
-      // Signing in is a separate budget and is not starved by the route's guesses.
       expect((await post(harness, "/api/auth/token", { username: "owner", password: PASSWORD })).status).toBe(200);
     });
 
@@ -270,7 +258,6 @@ for (const backend of BACKENDS) {
         expect((await request("/api/auth/password", "POST", auth)).status).toBe(400);
         expect((await request("/api/plans/p/settings", "PATCH", { authorization: `Bearer ${API_TOKEN}` })).status).toBe(400);
       }
-      // 300 bytes is over the limit login applies; it is refused before any hashing or rate-limit spend.
       const huge = await post(harness, "/api/auth/password", { current_password: "x".repeat(300), new_password: NEXT_PASSWORD }, auth);
       expect(huge.status).toBe(400);
       const user = harness.db.query("SELECT id FROM users LIMIT 1").get() as { id: string };
@@ -292,7 +279,6 @@ for (const backend of BACKENDS) {
       expect((await patch(editor, { currency_format: GBP })).status).toBe(403);
       expect((await patch(viewer, { currency_format: GBP })).status).toBe(403);
       expect((await patch(owner, {})).status).toBe(400);
-      // Valid date but invalid currency: the valid half must not be applied.
       expect((await patch(owner, { date_format: { format: "YYYY-MM-DD" }, currency_format: { ...GBP, decimal_separator: "," } })).status).toBe(400);
       expect((await patch(owner, { date_format: { format: "D/M/Y" } })).status).toBe(400);
       expect(await read()).toEqual(before);
@@ -306,13 +292,11 @@ for (const backend of BACKENDS) {
       expect(after.display).toEqual(before.display);
       expect(await knowledge()).toBeGreaterThan(knowledgeBefore);
 
-      // One field alone leaves the other untouched.
       expect((await patch(owner, { date_format: { format: "MM/DD/YYYY" } })).status).toBe(200);
       const partial = await read();
       expect(partial.currency_format).toEqual(GBP);
       expect(partial.date_format).toEqual({ format: "MM/DD/YYYY" });
 
-      // The static token is confined to the default plan, like other plan routes.
       expect((await harness.request("/api/plans/p/settings", { method: "PATCH", body: { date_format: { format: "DD/MM/YYYY" } } })).status).toBe(200);
       expect((await harness.request("/api/plans/nope/settings", { method: "PATCH", body: { date_format: { format: "DD/MM/YYYY" } } })).status).toBe(404);
     });
@@ -352,7 +336,6 @@ for (const backend of BACKENDS) {
       addWindow("ended-an-hour-ago", currentWindow - 3_600);
       addWindow("current-window", currentWindow);
 
-      // A successful login is the trigger.
       expect((await post(harness, "/api/auth/token", { username: "owner", password: PASSWORD })).status).toBe(200);
 
       const sessions = (harness.db.query("SELECT id FROM sessions").all() as Array<{ id: string }>).map((row) => row.id);

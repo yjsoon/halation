@@ -22,7 +22,6 @@ export function SpendingPage() {
     });
   };
 
-  // An explicit category filter is a deliberate choice - never hide its results.
   const hideQuiet = !includeQuiet && filters.categoryIds.length === 0;
 
   const { grouped, total, excluded, maxAmount, totalTransactions, topCategory, averageTransaction } = useMemo(() => {
@@ -67,7 +66,6 @@ export function SpendingPage() {
       averageTransaction: totalTransactions > 0 ? total / totalTransactions : null,
     };
   }, [report.data, hideQuiet]);
-  // `grouped` holds category groups; the meta line counts the category rows.
   const categoryCount = grouped.reduce((count, group) => count + group.rows.length, 0);
 
   return (

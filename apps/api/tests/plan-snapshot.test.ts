@@ -162,17 +162,14 @@ describe("snapshot core", () => {
     expect(broken((s) => { txn(s, "t-in").transfer_account_id = "c"; })).toThrow("counterpart t-in must name account a as its transfer_account_id");
 
     expect(broken((s) => { txn(s, "t-split-in").transfer_transaction_id = null; })).toThrow("counterpart t-split-in does not link back to s-move");
-    // Transactions are checked before split lines, so the top-level side reports.
     expect(broken((s) => { txn(s, "t-split-in").account_id = "c"; })).toThrow("counterpart s-move must name account c as its transfer_account_id");
     expect(broken((s) => { txn(s, "t-split-in").amount = 1; })).toThrow("counterpart s-move has amount -500; it must be -1");
     expect(broken((s) => { txn(s, "t-split-in").transfer_account_id = "b"; })).toThrow("counterpart s-move is in account a, not transfer_account_id b");
     expect(broken((s) => { sub(s, "s-move").transfer_account_id = "c"; })).toThrow("transactions[3].transfer_transaction_id: counterpart s-move must name account b");
     expect(broken((s) => {
-      // Only the split line is broken, so its own path reports.
       sub(s, "s-move").transfer_account_id = null;
     })).toThrow("transactions[2].subtransactions[1].transfer_transaction_id is set, so transfer_account_id is required");
     expect(broken((s) => {
-      // Two split lines pointing at each other are never produced by the server.
       s.transactions.push({ id: "t-split-2", account_id: "b", date: "2026-01-02", amount: 500, subtransactions: [
         { id: "s-back", amount: 500, transfer_account_id: "a", transfer_transaction_id: "s-move" },
       ] });
@@ -491,8 +488,7 @@ describe("snapshot request size", () => {
   });
 
   // Failure mode: a body under the 8 MiB cap can still carry one field over
-  // D1's 2,000,000-byte limit on a single bound value. D1 then fails the
-  // batch with a generic error rather than a 400 naming the field.
+  // D1's 2,000,000-byte limit on a single bound value.
   test("a schedule memo too long for one stored value is a 400 naming it, and writes nothing", async () => {
     const target = await open("SQLite");
     const memo = "m".repeat(2_100_000);

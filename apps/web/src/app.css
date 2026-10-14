@@ -2,8 +2,6 @@
   box-sizing: border-box;
 }
 
-/* The paper texture is painted on the canvas (html), not body: body is shorter than
-   the viewport on sign-in, boot and quick entry, and the dark-mode grain showed its edges. */
 html {
   background: var(--paper-texture), var(--paper);
   overflow-x: clip;
@@ -249,7 +247,6 @@ textarea {
   display: none;
 }
 
-/* One chevron that turns, rather than a ▾/▴ swap (its timing lives in motion.css). */
 .sidebar-reflect-summary::after {
   content: "▾";
   display: inline-block;
@@ -261,7 +258,6 @@ textarea {
   transform: rotate(180deg);
 }
 
-/* A closed Reports group still says where you are. */
 .sidebar-reflect:has(.sidebar-link-active) > .sidebar-reflect-summary {
   color: var(--sidebar-ink-strong);
 }
@@ -827,7 +823,6 @@ textarea {
   color: var(--ink-soft);
 }
 
-/* The summary gives way on narrow screens; the two buttons never wrap. */
 .filter-bar .filter-summary-text {
   flex: 1 1 auto;
   min-width: 0;
@@ -889,7 +884,6 @@ textarea {
   border-right: none;
 }
 
-/* Inside the segmented clip, an outset outline would be cut off. */
 .segment:focus-visible {
   outline-offset: -3px;
 }
@@ -908,7 +902,6 @@ textarea {
   color: var(--inverse-ink);
 }
 
-/* The inset ring would be ink on ink here (--focus and --inverse-bg are both --ink). */
 .segment-active:focus-visible {
   outline-color: var(--inverse-ink);
 }
@@ -1169,7 +1162,6 @@ textarea {
   font-size: 30px;
 }
 
-/* The crest: once, under the page header, in every look. */
 .report-header {
   background: var(--crest) 0 100% / 100% 2px no-repeat;
 }
@@ -1234,7 +1226,6 @@ a.page-eyebrow:hover {
   color: var(--red);
 }
 
-/* Register header: working balance is the hero; cleared and uncleared sit on one line beneath it. */
 .register-balances {
   flex-wrap: nowrap;
 }
@@ -1334,8 +1325,6 @@ a.page-eyebrow:hover {
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  /* Fixed at left: 50%, the bar would otherwise shrink to the half-width left of
-     its centre and stack every action on a phone. */
   width: max-content;
   max-width: calc(100vw - 32px);
   padding: 8px 14px;
@@ -1409,7 +1398,6 @@ a.page-eyebrow:hover {
   color: var(--ink-faint);
 }
 
-/* Keyboard and double-click advice means nothing on a touch screen. */
 @media (pointer: coarse) {
   .register-hint {
     display: none;
@@ -1453,14 +1441,10 @@ a.page-eyebrow:hover {
   box-shadow: inset 3px 0 var(--plan-accent);
 }
 
-/* Idle-row hover, keyboard focus and selection. Colour only and never animated.
-   tabindex="0" marks idle ledger rows: the editor rows (tabindex -1), the compose
-   row, scheduled rows and deep-link targets keep their own treatment. */
 .register-table tbody tr[tabindex="0"]:not(.register-row-targeted):hover > td {
   background: var(--row-hover);
 }
 
-/* A real ring, not only the tint: an unapproved row already carries a wash and an accent bar. */
 .register-table tbody tr[tabindex="0"]:not(.register-row-targeted):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
@@ -1747,7 +1731,6 @@ a.page-eyebrow:hover {
   background: var(--green-wash);
 }
 
-/* The glyph is the ring or the dot; the button's own circle shows only on hover and focus. */
 .cleared-status-toggle:not(:hover, :focus-visible) {
   border-color: transparent;
 }
@@ -1771,7 +1754,6 @@ a.page-eyebrow:hover {
   box-shadow: 0 0 0 2.5px var(--green-wash);
 }
 
-/* The column's header shows the same ring, so the column reads without hovering. */
 .register-status-heading::after {
   content: "";
   display: inline-block;
@@ -1830,8 +1812,6 @@ a.page-eyebrow:hover {
   font-size: 12px;
 }
 
-/* Confirmations and errors stay in view while the ledger scrolls beneath them,
-   so their washes are laid over solid paper. */
 .transaction-delete-confirm,
 .category-suggestions,
 .status-panel-error.compact-panel {
@@ -1846,8 +1826,6 @@ a.page-eyebrow:hover {
   background: linear-gradient(var(--red-wash), var(--red-wash)), var(--paper-raised);
 }
 
-/* Keyboard focus scrolls a row clear of the sticky phone masthead and of these
-   sticky panels instead of under them (WCAG 2.2 SC 2.4.11). */
 :root {
   scroll-padding-top: calc(var(--masthead-h) + 8px);
 }
@@ -1860,8 +1838,6 @@ a.page-eyebrow:hover {
   scroll-padding-top: calc(var(--masthead-h) + 50vh + 16px);
 }
 
-/* A long review scrolls inside itself: it never sticks taller than half the
-   screen, so its actions stay in reach and the scroll padding above clears it. */
 .category-suggestions {
   max-height: min(calc(100vh - var(--masthead-h) - 16px), 50vh);
   overflow-y: auto;
@@ -2124,7 +2100,6 @@ a.page-eyebrow:hover {
   color: var(--ink-soft);
 }
 
-/* The register table already has its own top rule. */
 .report-section:has(> .table-wrap .register-table) {
   margin-top: 0;
   padding-top: 0;
@@ -2677,8 +2652,6 @@ tr:hover .share-bar {
   margin-top: 12px;
 }
 
-/* Register save toast: fixed, so a save never shifts the ledger. It stays until
-   the next change or Dismiss; nothing times it out. */
 .register-toast {
   position: fixed;
   top: 16px;
@@ -3524,7 +3497,6 @@ tr:hover .share-bar {
   text-underline-offset: 3px;
 }
 
-/* Settings → Appearance. Swatch colours (--sw-*) live in styles/tokens.css. */
 .theme-picker {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -3573,7 +3545,6 @@ tr:hover .share-bar {
   background: radial-gradient(circle at 34% 22%, var(--sw-glow) 0 5px, transparent 6px), var(--sw-chrome);
 }
 
-/* Each swatch shows its look's signature: Dusk Ridge the stepped rings, Ridge Charcoal the safelight bar. */
 .theme-option[data-look="dusk-ridge"] .theme-swatch-chrome {
   background: radial-gradient(circle at 34% 22%, var(--sw-glow) 0 5px, var(--sw-ring-1) 6px 12px, var(--sw-ring-2) 12px 18px, transparent 19px), var(--sw-chrome);
 }
@@ -4201,8 +4172,6 @@ tr:hover .share-bar {
   text-underline-offset: 2px;
 }
 
-/* Touch: 44px targets for the small controls, never inside the in-row editor.
-   :where() keeps this at zero specificity, so a control another rule hides stays hidden. */
 @media (pointer: coarse) {
   :where(.segment, .filter-trigger, .filter-toggle, .text-button, .mobile-actions > *):where(:not(.register-compose-row *, .register-compose-actions-row *)) {
     display: inline-flex;
@@ -4249,8 +4218,6 @@ tr:hover .share-bar {
     display: none;
   }
 
-  /* The drawer carries the accounts and the footer (Settings, Sign out), so the
-     masthead no longer needs its own Organise and Sign out. */
   .mobile-nav-open .account-list {
     display: block;
   }
@@ -4355,7 +4322,6 @@ tr:hover .share-bar {
     color: var(--masthead-negative);
   }
 
-  /* A paper chip on the chrome: keep its own ink rather than inheriting the masthead's. */
   .mobile-masthead .add-button {
     color: var(--ink);
   }
@@ -4573,8 +4539,6 @@ tr:hover .share-bar {
     text-align: left;
   }
 
-  /* Report headlines pair up instead of stacking one per line. The register
-     toolbar's pill row is also a .headline-row, so stay inside the header. */
   .report-header .headline-row:not(.register-balances) {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -4687,8 +4651,6 @@ tr:hover .share-bar {
     min-width: 680px;
   }
 
-  /* Scroll shadows: paper covers that travel with the content hide a shadow
-     pinned to each edge until there is more table to scroll to. */
   .table-wrap-wide {
     background:
       linear-gradient(to right, var(--paper) 40%, transparent) left center / 32px 100% no-repeat local,
@@ -4697,7 +4659,6 @@ tr:hover .share-bar {
       radial-gradient(farthest-side at 100% 50%, var(--scroll-shadow), transparent) right center / 12px 100% no-repeat scroll;
   }
 
-  /* The charts are drawn 960 units wide, so their labels need scaling up to stay legible. */
   .chart-axis text,
   .chart-grid text {
     font-size: 22px;

@@ -3,20 +3,11 @@ import type { RewardsReport } from "../api/types";
 import { configureMoney } from "./money";
 import { boardSummary, projectRow, roundedUpToCent, rowText, type RewardRowProjection, type RewardsRow } from "./reward-row-projection";
 
-/*
- * A port of RewardRowProjectionTests (apps/ios/HowMuchTests/RewardsReportTests.swift:1018-1417).
- * Each title carries the Swift test name. Expected values are worked out by hand from the
- * fixture numbers (SGD, as of 23 Sep 2026, a 1 to 30 Sep period unless noted), never read back
- * from the projection under test. "today" is pinned to the as-of day so the suite does not
- * depend on the clock.
- */
-
 const TODAY = "2026-09-23";
 
 beforeAll(() => {
   configureMoney({ iso_code: "SGD", decimal_digits: 2, decimal_separator: ".", group_separator: ",", currency_symbol: "$", symbol_first: true, display_symbol: true });
 });
-// Money formatting is module state: leave it as found for the files that run after this one.
 afterAll(() => configureMoney());
 
 type Json = Record<string, unknown>;
@@ -57,7 +48,6 @@ describe("RewardRowProjectionTests: minimum", () => {
     expect(p.tone).toBe("needs");
     expect(p.basis).toEqual({ spend: 698, target: 800 });
     expect(p.fill).toBeCloseTo(0.8725, 4);
-    // 23 Sep to 30 Sep inclusive.
     expect(p.deadline).toEqual({ end: "2026-09-30", days: 8, kind: "ends" });
     const t = text(p);
     expect(t.amount).toBe("$102.00");
@@ -108,7 +98,6 @@ describe("RewardRowProjectionTests: tiers and caps", () => {
     const p = project({ total_spend: 1340, maximum_spend: 1000, maximum_spend_exceeded: true, has_next_spending_tier: true, next_spending_tier_threshold: 1600, should_stop_using: false });
     expect(p.action).toEqual({ kind: "nextTier", remaining: 260 });
     expect(p.exceptions).toEqual([{ kind: "tierCapReached" }]);
-    // Not complete: the intermediate cap is an exception, not a finish.
     expect(p.tone).not.toBe("complete");
   });
 
@@ -126,7 +115,6 @@ describe("RewardRowProjectionTests: tiers and caps", () => {
   });
 
   test("testTopTierWithoutCardCapIsEarningAndFull", () => {
-    // $800 base minimum, $1,600 top tier, caps only on categories with room left.
     const p = project({
       minimum_spend: 1600, total_spend: 1650, counted_spend: 1650, reward_earned: 90, active_spending_tier_id: "level-1600", has_next_spending_tier: false,
       flags: [flag("Dining", 300, { maximum: 375 }), flag("Everywhere else", 1350)],
@@ -162,7 +150,6 @@ describe("RewardRowProjectionTests: tiers and caps", () => {
   });
 
   test("testPartialBlockHeadroomStillCountsAsCapReached", () => {
-    // Less than one block left: the server flags the cap as exceeded.
     const p = project({ total_spend: 996, counted_spend: 995, maximum_spend: 1000, maximum_spend_exceeded: true, should_stop_using: true });
     expect(p.action).toEqual({ kind: "capReached", beyond: 0, terminal: true });
     expect(p.fill).toBe(1);
@@ -214,7 +201,6 @@ describe("RewardRowProjectionTests: qualification", () => {
       const closed = project(calculation, { period: ["2026-07-01", "2026-09-30"] });
       expect(closed.tone).toBe("failed");
       expect(text(closed).actionLabel).toBe(sameYearLabel);
-      // The same card seen from another calendar year names the year.
       expect(rowText(closed, "2027-01-05").actionLabel).toBe(otherYearLabel);
       const historicalEnd = project(calculation, { asOf: end });
       expect(historicalEnd.tone).toBe("failed");
@@ -224,7 +210,6 @@ describe("RewardRowProjectionTests: qualification", () => {
       const range = project(calculation, { isRange: true });
       expect(range.tone).toBe("neutral");
     }
-    // The month ends today: it is still open until tomorrow.
     const current = project({
       qualification_status: "failed", minimum_spend_met: false,
       monthly_qualifications: [{ start: TODAY, end: TODAY, spend: 0, minimumSpend: 300, status: "failed" }],
@@ -234,7 +219,6 @@ describe("RewardRowProjectionTests: qualification", () => {
   });
 
   test("testPendingMonthBehindUsesTheMonthAndItsEnd", () => {
-    // Anchored three-month period; the month ends before the period does.
     const p = project({
       total_spend: 900, qualification_status: "pending", minimum_spend_met: false,
       monthly_qualifications: [
@@ -271,7 +255,6 @@ describe("RewardRowProjectionTests: qualification", () => {
   });
 
   test("testServerMinimumUnmetWithoutARawGapIsFlagged", () => {
-    // Spend reached the figure, but a tier minimum still withholds rewards.
     const p = project({ minimum_spend: 500, total_spend: 600, minimum_spend_met: false });
     expect(p.action).toEqual({ kind: "noTarget", categoryCaps: false });
     expect(p.exceptions).toEqual([{ kind: "minimumNotMet" }]);
@@ -323,7 +306,6 @@ describe("RewardRowProjectionTests: dates", () => {
     expect(endsText.isUrgent).toBe(true);
     const resets = project({ total_spend: 10 }, { period: ["2026-02-01", "2026-02-28"], asOf: "2026-02-28" });
     expect(text(resets).deadline).toBe("Resets tomorrow");
-    // A deadline in the past (days below one) reads "Period ended".
     const ended: RewardRowProjection = { ...ends, deadline: { end: "2026-02-28", days: 0, kind: "ends" } };
     expect(text(ended).deadline).toBe("Period ended");
   });
@@ -388,7 +370,6 @@ describe("RewardRowProjectionTests: range, summary", () => {
 });
 
 describe("Rewards Exposure spec: the state tables' words (card text and VoiceOver value)", () => {
-  // Rows 3, 5, 6, 7, 9, 11, 12 of the spec's "State table: words and VoiceOver".
   test("next tier, cap headroom, minimum met, top tier, terminal cap, failed month and no cap", () => {
     const tier = project({ total_spend: 1340, counted_spend: 1300, maximum_spend: 1600, has_next_spending_tier: true, next_spending_tier_threshold: 1600, reward_earned: 76 });
     expect(text(tier).accessibilityValue).toBe("$260.00 to next tier. $1,340.00 of $1,600.00, 84 per cent. 8 days left, ends 30 Sep. $76.00 earned");

@@ -66,8 +66,6 @@ final class APISettingsTests: XCTestCase {
     XCTAssertEqual(loaded.authenticatedUserID, "development-user")
   }
 
-  // MARK: - Local mode migration
-
   /// The exact shape every install saved before local mode existed: no `mode`.
   func testSettingsSavedBeforeLocalModeDecodeAsServer() throws {
     let saved = #"{"baseURLString":"https://ledger.example.test","username":"owner","sessionToken":"","authenticatedUserID":"user_1","planID":"plan_owner"}"#

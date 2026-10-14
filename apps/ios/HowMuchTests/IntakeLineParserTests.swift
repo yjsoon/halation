@@ -1,15 +1,8 @@
 import XCTest
 @testable import HowMuch
 
-/// Failure mode: malformed external input. OCR of bank and wallet screenshots
-/// is noisy in ways the E2E flows cannot cover exhaustively: two-line rows,
-/// header and total lines, foreign amounts, stray glyphs. The expectations are
-/// what a person reading each synthetic screenshot would write down, not what
-/// the parser happens to return. The worst outcomes guarded against are a
-/// foreign amount saved as dollars, a balance saved as a spend, and an amount
-/// attached to the wrong payee.
+/// Failure mode: malformed external input.
 final class IntakeLineParserTests: XCTestCase {
-  // MARK: Card statement lines
 
   func testDBSStyleCardLinesWithLeadingDateAndTrailingAmount() {
     let rows = extract("""
@@ -56,8 +49,6 @@ final class IntakeLineParserTests: XCTestCase {
     XCTAssertEqual(rows, [Row("COLD STORAGE", "9.30", .outflow, "2026-10-05")])
   }
 
-  // MARK: OCR look-alikes
-
   func testCyrillicLookalikesInAMostlyLatinLineAreFolded() {
     // Vision on the simulator read the month as Cyrillic O, S-like C and T.
     let rows = extract("05 \u{041E}\u{0421}\u{0422} KOPITIAM AMK -8.90")
@@ -82,8 +73,6 @@ final class IntakeLineParserTests: XCTestCase {
       [Row(pyaterochka, "120.00", .outflow, nil)]
     )
   }
-
-  // MARK: Wallet two-line rows
 
   func testWalletRowsWithPayeeAndAmountOnAdjacentLinesUnderADateHeader() {
     let rows = extract("""
@@ -121,8 +110,6 @@ final class IntakeLineParserTests: XCTestCase {
     """)
     XCTAssertEqual(rows, [Row("Grab", "8.90", .outflow, nil)])
   }
-
-  // MARK: Things that must not become spends
 
   func testForeignAmountWithoutASGDFigureIsSkipped() {
     XCTAssertEqual(extract("04 OCT NETFLIX USD 12.00"), [])
@@ -182,8 +169,6 @@ final class IntakeLineParserTests: XCTestCase {
     XCTAssertEqual(rows, [])
   }
 
-  // MARK: Running balances
-
   func testRunningBalanceColumnIsNotTheAmount() {
     XCTAssertEqual(
       extract("05/10/2026 FAST PAYMENT TO JOHN 50.00 1,234.56"),
@@ -204,8 +189,6 @@ final class IntakeLineParserTests: XCTestCase {
       XCTAssertEqual(extract("Grab\n\(line)\n-$8.90"), [], line)
     }
   }
-
-  // MARK: Foreign amounts
 
   func testForeignSymbolsAndCodesAreNeverReadAsSGD() {
     let foreign = [
@@ -301,8 +284,6 @@ final class IntakeLineParserTests: XCTestCase {
     }
     XCTAssertEqual(extract("EURO 12.00"), [])
   }
-
-  // MARK: Multi-line rows (synthetic layouts)
 
   func testCardListWithTheAmountInTheMiddleOfAWrappedDescriptor() {
     let rows = extract("""
@@ -466,8 +447,6 @@ final class IntakeLineParserTests: XCTestCase {
     XCTAssertEqual(extract("GrabMart order\n7-Eleven\n-$9.00"), [Row("7-Eleven", "9.00", .outflow, nil)])
   }
 
-  // MARK: Dates
-
   func testYearlessDateMoreThanAWeekAheadUsesThePreviousYear() {
     XCTAssertEqual(
       extract("28 Dec GRAB 8.90", now: Self.january),
@@ -496,8 +475,6 @@ final class IntakeLineParserTests: XCTestCase {
     XCTAssertEqual(extract("05.10.26\nGRAB -8.90"), [Row("GRAB", "8.90", .outflow, "2026-10-05")])
   }
 
-  // MARK: Mapping
-
   func testInterpretMapsDatesAndDirectionThroughTheSharedReaderMapping() {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(secondsFromGMT: 0)!
@@ -516,8 +493,6 @@ final class IntakeLineParserTests: XCTestCase {
     XCTAssertEqual(mapped.map { calendar.component(.day, from: $0.draft.date) }, [5, 6])
     XCTAssertEqual(mapped.map { calendar.component(.month, from: $0.draft.date) }, [10, 10])
   }
-
-  // MARK: Helpers
 
   private struct Row: Equatable {
     var payee: String

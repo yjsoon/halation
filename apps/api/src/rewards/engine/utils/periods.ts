@@ -33,16 +33,11 @@ function monthDistance(from: Date, to: Date): number {
     - from.getMonth();
 }
 
-/**
- * Parse ISO date string (YYYY-MM-DD) as local time with validation.
- * Returns null if the date string is invalid or malformed.
- */
 function parseLocalDate(dateStr: string): Date | null {
   if (!dateStr || typeof dateStr !== 'string') {
     return null;
   }
 
-  // Validate format: YYYY-MM-DD
   const datePattern = /^\d{4}-\d{2}-\d{2}$/;
   if (!datePattern.test(dateStr)) {
     return null;
@@ -56,7 +51,6 @@ function parseLocalDate(dateStr: string): Date | null {
   const [year, month, day] = parts;
   const date = new Date(year, month - 1, day);
 
-  // Verify the date components match (catches invalid dates like 2024-02-30)
   if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
     return null;
   }
@@ -109,18 +103,10 @@ export function calculateCardPeriod(card: CreditCard, targetDate: Date = new Dat
     }
   }
 
-  // Check for promotional period override first
-  // Promotional periods override the normal billing cycle only when:
-  // 1. A valid promotional period is configured with a parseable end date
-  // 2. The current reference date falls within the promotional window
-  // If either condition fails, we fall through to normal billing cycle calculation
   if (card.promotionalPeriod) {
-    // Parse end date with validation
     const promoEnd = parseLocalDate(card.promotionalPeriod.endDate);
 
-    // Only proceed if we have a valid end date
     if (promoEnd) {
-      // Determine start date: use provided start or calculate from billing cycle
       let promoStart: Date | undefined;
       let startLabel: string | undefined;
 
@@ -130,9 +116,7 @@ export function calculateCardPeriod(card: CreditCard, targetDate: Date = new Dat
           promoStart = parsedStart;
           startLabel = card.promotionalPeriod.startDate;
         }
-        // If parsedStart is null, promoStart/startLabel remain undefined and we fall through
       } else {
-        // No start date specified - calculate current period start based on billing cycle
         if (card.billingCycle?.type === 'billing' && card.billingCycle.dayOfMonth) {
           const requestedDay = card.billingCycle.dayOfMonth;
           const year = reference.getFullYear();
@@ -143,13 +127,11 @@ export function calculateCardPeriod(card: CreditCard, targetDate: Date = new Dat
             ? createCycleStart(year, month - 1, requestedDay)
             : currentStart;
         } else {
-          // Calendar month
           promoStart = new Date(reference.getFullYear(), reference.getMonth(), 1);
         }
         startLabel = formatLocalDate(promoStart);
       }
 
-      // Only return promotional period if we have valid start date and within range
       if (promoStart && startLabel && reference >= promoStart && reference <= promoEnd) {
         return {
           startDate: promoStart,

@@ -155,8 +155,6 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
   );
 }
 
-// ------------------------------------------------------------------ the markup
-
 const stops = (prefix: string, colour: string) =>
   [0, 1, 2, 3].map((i) => <stop key={i} data-p={`${prefix}${i}`} style={{ stopColor: colour }} offset="0" stopOpacity="0" />);
 
@@ -238,8 +236,6 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
   );
 });
 
-// -------------------------------------------------------------------- painting
-
 function collect(svg: SVGSVGElement): Record<string, SVGElement> {
   const out: Record<string, SVGElement> = {};
   svg.querySelectorAll<SVGElement>("[data-p]").forEach((el) => { out[el.dataset.p!] = el; });
@@ -260,7 +256,6 @@ function paint(e: Record<string, SVGElement>, svg: SVGSVGElement, s: Scene, uid:
   const set = (name: string, attr: string, value: string) => e[name]!.setAttribute(attr, value);
   const show = (name: string, on: boolean) => e[name]!.setAttribute("display", on ? "inline" : "none");
 
-  // Ridges.
   set("back", "d", s.backFill);
   set("bcrest", "d", s.backCrest);
   set("front", "d", s.lowerFill);
@@ -271,7 +266,6 @@ function paint(e: Record<string, SVGElement>, svg: SVGSVGElement, s: Scene, uid:
   svg.toggleAttribute("data-merged", s.merged);
   (e.crest as SVGElement).style.setProperty("--crest-k", n(s.v));
 
-  // The sun, its rings and the glow pouring from the top edge.
   set("sun", "transform", `translate(${n(s.sun.x)} ${n(s.sun.y)})`);
   set("sunDisc", "r", n(s.sun.r));
   set("sunDisc", "stroke-width", n(Math.max(1, s.w * 0.003)));
@@ -290,7 +284,6 @@ function paint(e: Record<string, SVGElement>, svg: SVGSVGElement, s: Scene, uid:
   (e.bloom as SVGElement).style.opacity = n(s.bloom);
   (e.hz2 as SVGElement).style.opacity = n(s.horizonBoost);
 
-  // Light: gold to the marker (daytime) and the underexposure beyond it.
   const g = s.gold;
   const goldOffsets = [0, g.from, g.to, 1];
   const past = g.whole ? 1 : g.beyond;
@@ -306,13 +299,11 @@ function paint(e: Record<string, SVGElement>, svg: SVGSVGElement, s: Scene, uid:
   setStops(e, "vm", veilOffsets, ramp);
   show("vDim", v.on); show("vGrey", v.on); show("vMult", v.on);
 
-  // The contrail: static, high in the right of the sky; the tokens leave it transparent in dark mode.
   show("trail", s.contrail.on);
   s.contrail.lines.forEach(([x0, y0, x1, y1], i) => set(`trail${i}`, "d", `M${n(x0)},${n(y0)} L${n(x1)},${n(y1)}`));
   set("trailGrad", "x1", n(s.contrail.x0));
   set("trailGrad", "x2", n(s.contrail.x1));
 
-  // The marker: two device pixels wide, snapped to the pixel grid, in two tones split at the target horizon.
   show("marker", s.marker.on);
   if (s.marker.on) {
     const x = Math.round(s.marker.x * dpr) / dpr;

@@ -72,8 +72,6 @@ final class OutboxStoreTests: XCTestCase {
     )
   }
 
-  // MARK: - Persistence
-
   func testNoFileLoadsEmpty() throws {
     XCTAssertEqual(try store().load(), [])
     XCTAssertNil(store().peek(), "a load with nothing to migrate writes nothing")
@@ -135,8 +133,6 @@ final class OutboxStoreTests: XCTestCase {
     XCTAssertEqual(names, [OutboxStore.fileName])
   }
 
-  // MARK: - Quarantine
-
   func testACorruptFileIsSetAsideAndTheOutboxStartsEmpty() throws {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let garbage = Data("{\"version\":1,\"commands\":[{\"broken\":".utf8)
@@ -168,8 +164,6 @@ final class OutboxStoreTests: XCTestCase {
     XCTAssertTrue(FileManager.default.fileExists(atPath: outbox.fileURL.path, isDirectory: &isDirectory))
     XCTAssertTrue(isDirectory.boolValue)
   }
-
-  // MARK: - Migration from UserDefaults
 
   /// Exactly what the previous build wrote: `JSONEncoder()` defaults, the
   /// request's own key names, dates as seconds since 2001, a rejected item,
@@ -260,7 +254,7 @@ final class OutboxStoreTests: XCTestCase {
   // Failure mode: the move's file write fails, the migrated commands are
   // used anyway while the old key stays, a later save (a Discard, say)
   // succeeds without clearing it, and the next launch moves the discarded
-  // capture in again. Until the move is on disk the store takes no writes.
+  // capture in again.
   func testAMoveThatCannotBeWrittenRefusesWritesUntilItIs() throws {
     let payload = Data(Self.legacyPayload.utf8)
     defaults.set(payload, forKey: OutboxStore.legacyDefaultsKey)
@@ -283,8 +277,7 @@ final class OutboxStoreTests: XCTestCase {
   }
 
   // Failure mode: removing a UserDefaults key is not flushed at once, so it
-  // can come back after the move reached the file. A capture discarded in
-  // between must not be moved in a second time.
+  // can come back after the move reached the file.
   func testADiscardedMovedCaptureIsNotMovedAgain() throws {
     let payload = Data(Self.legacyPayload.utf8)
     defaults.set(payload, forKey: OutboxStore.legacyDefaultsKey)

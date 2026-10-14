@@ -64,7 +64,6 @@ const router = createBrowserRouter([
   { path: "/docs", element: <ApiDocsPage /> },
 ]);
 
-// theme-boot.js normally sets these before first paint; this covers it failing to load.
 applyTheme(currentTheme());
 startThemeSync();
 

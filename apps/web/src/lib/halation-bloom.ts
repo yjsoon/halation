@@ -18,7 +18,6 @@ export function bloom(el: Element | null): void {
     if ((event as AnimationEvent).animationName === "hl-bloom") clear();
   };
   el.addEventListener("animationend", done);
-  // Safety net: the row unmounted, or animations are not running at all.
   const safety = window.setTimeout(clear, 1000);
 }
 

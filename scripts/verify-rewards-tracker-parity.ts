@@ -1,9 +1,4 @@
-/**
- * Differential check against the tracker WEB app's shared calculator.
- * Usage: bun scripts/verify-rewards-tracker-parity.ts /path/to/ynab-rewards-tracker
- * Reference: 60cd90ab8c44c4507515f56364ec00d0c97784d2 (MIT).
- * This reads synthetic data only; it does not contact either app or a provider.
- */
+/** Reference: 60cd90ab8c44c4507515f56364ec00d0c97784d2 (MIT). */
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { buildRewardsReport } from "../apps/api/src/rewards/build";

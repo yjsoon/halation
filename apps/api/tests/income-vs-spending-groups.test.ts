@@ -105,9 +105,6 @@ describe("income vs spending groups", () => {
 
       expect(periods.data.periods).toHaveLength(1);
       expect(periods.data.periods[0].period).toBe("2026-06");
-      // Independent expected totals: income 2_125_000, spending 650_000.
-      // Plain 100_000 transfer is excluded; categorised 40_000 transfer is in.
-      // Quiet-group Hidden fees 20_000 stays in. Split lines count as lines.
       expect(periods.data.periods[0].income).toBe(2_125_000);
       expect(periods.data.periods[0].spending).toBe(650_000);
       expect(groups.data.income).toBe(2_125_000);

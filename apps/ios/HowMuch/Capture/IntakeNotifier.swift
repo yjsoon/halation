@@ -86,8 +86,6 @@ final class IntakeNotifier {
     ])
   }
 
-  // MARK: Authorisation
-
   /// Asks the first time a job reaches Ready, or a share is first taken, and
   /// only while the owner can see the prompt. Denied means nothing more.
   private func authorisationStatus(requestIfNeeded: Bool) async -> UNAuthorizationStatus {
@@ -118,8 +116,6 @@ final class IntakeNotifier {
   func shareAdopted() {
     Task { _ = await authorisationStatus(requestIfNeeded: true) }
   }
-
-  // MARK: Badge
 
   /// The app badge is Ready plus Needs you. Called on every job change.
   func updateBadge(_ count: Int) {
@@ -156,8 +152,6 @@ final class IntakeNotifier {
     lastBadge = nil
     updateBadge(0)
   }
-
-  // MARK: Posting
 
   /// Runs `operation` as a task `settle()` waits for.
   private func track(_ operation: @escaping @MainActor () async -> Void) {
@@ -324,8 +318,6 @@ final class IntakeNotifier {
     IntakeBackgroundRefresh.shared.model?.settings.isAuthenticated == true
   }
 
-  // MARK: Responses
-
   /// A tap or an action button. Review, Open Inbox and a plain tap open the
   /// app; Later clears; Discard is the only thing that changes a job.
   func handle(action: String, jobID: UUID?, kind: String?) {
@@ -358,8 +350,6 @@ final class IntakeNotifier {
       break
     }
   }
-
-  // MARK: Copy
 
   static let readyTitle = "Ready to review"
   static let needsYouTitle = "Halation needs you"

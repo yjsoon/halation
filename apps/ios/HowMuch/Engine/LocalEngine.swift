@@ -101,7 +101,6 @@ final class LocalEngine: @unchecked Sendable {
   private let bundle: Bundle
   private let queue = DispatchQueue(label: "sg.soon.howmuch.local-engine", qos: .userInitiated)
 
-  // Confined to `queue`.
   private var database: LocalDatabase?
   private var context: JSContext?
   private var invoke: JSValue?
@@ -198,8 +197,6 @@ final class LocalEngine: @unchecked Sendable {
       }
     }
   }
-
-  // MARK: - Queue-confined
 
   private func ensureConfigured(_ config: LocalEngineConfig) throws {
     if context == nil {

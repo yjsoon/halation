@@ -1,13 +1,3 @@
-/**
- * Pure decision logic for the first paint of the app.
- *
- * `PlanProvider` fires the session check, the plans list and — when a plan is
- * remembered — the reference batch all at once. Because those requests race,
- * something has to decide afterwards which answers may be used and which must
- * be thrown away. That decision lives here, with no fetching and no state, so
- * the "discard" branches can be tested directly.
- */
-
 export interface BootstrapSessionStatus {
   user: { id: string } | null;
   setup_required: boolean;

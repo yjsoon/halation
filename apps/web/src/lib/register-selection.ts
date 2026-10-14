@@ -15,7 +15,6 @@ export type RegisterSelectionIntent =
   | { readonly kind: "extend"; readonly index: number }
   | { readonly kind: "all" }
   | { readonly kind: "none" }
-  /** Replace the selection outright, e.g. with the rows a bulk write left unresolved. */
   | { readonly kind: "only"; readonly ids: readonly string[] };
 
 export type RegisterSelectionRow = {

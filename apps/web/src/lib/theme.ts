@@ -1,7 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { withViewTransition } from "./view-transition";
 
-/** Keep in step with public/theme-boot.js, which applies the same prefs before first paint. */
 export const LOOKS = [
   { id: "dusk-ridge", name: "Dusk Ridge", note: "Plum dusk chrome, amber bloom. The mark, unfolded.", meta: ["#2b1f2c", "#120d13"] },
   { id: "ridge-charcoal", name: "Ridge Charcoal", note: "Quiet charcoal chrome with a safelight edge.", meta: ["#242722", "#0b0c0c"] },
@@ -30,7 +29,6 @@ function read(): ThemePrefs {
 
 const systemDark = () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
 
-/** Writes the resolved `data-theme` / `data-mode` attributes and the browser chrome colour. Idempotent. */
 export function applyTheme(prefs: ThemePrefs): void {
   const dark = prefs.mode === "dark" || (prefs.mode === "system" && systemDark());
   const root = document.documentElement;
@@ -40,11 +38,6 @@ export function applyTheme(prefs: ThemePrefs): void {
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", look.meta[dark ? 1 : 0]);
 }
 
-/**
- * Saves the choice on this device (not cleared on sign-out: it is not ledger
- * data) and cross-fades to it. The patch merges into the prefs current when the
- * transition applies it, so quick successive picks land in order.
- */
 export function setTheme(patch: Partial<ThemePrefs>): void {
   withViewTransition("theme", () => {
     current = { ...current, ...patch };
@@ -60,11 +53,6 @@ export function setTheme(patch: Partial<ThemePrefs>): void {
 
 let syncing = false;
 
-/**
- * Keeps the page in step for its whole life, not only while Settings is open:
- * "Match system" follows OS light/dark changes, and a change made in another
- * tab applies here. Called once from main.tsx.
- */
 export function startThemeSync(): void {
   if (syncing || typeof window === "undefined") return;
   syncing = true;
@@ -90,7 +78,6 @@ export function useTheme(): ThemePrefs {
   return useSyncExternalStore(subscribe, () => current);
 }
 
-/** The prefs read at module load, for the one-off `applyTheme` call in main.tsx. */
 export function currentTheme(): ThemePrefs {
   return current;
 }

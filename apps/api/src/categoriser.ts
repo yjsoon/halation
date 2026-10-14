@@ -343,7 +343,6 @@ export async function autoCategorise<T extends TransactionInput>(
         }
       });
     } catch (error) {
-      // Any failure here, including an unexpected one, leaves the rows uncategorised rather than failing the create.
       const reason = error instanceof CategoriserUnavailableError ? error.code : error instanceof Error ? error.name : "unknown";
       console.warn(JSON.stringify({ event: "auto_categorise_skipped", reason, count: chunk.length }));
     }
@@ -416,7 +415,6 @@ async function similarTransactions(
     .sort((a, b) => b.similarity - a.similarity || a.id.localeCompare(b.id))
     .slice(0, SIMILAR_PAYEES)
     .map((payee) => payee.id)]));
-  // Fetch each selected payee only once even when a batch names it repeatedly.
   const payeeIds = [...new Set([...payeesFor.values()].flat())];
   const payeePools = new Map(await Promise.all(payeeIds.map(async (payeeId) => {
     const page = await repo.listTransactionsPage(planId, { payeeId, limit: PAYEE_HISTORY_LIMIT });

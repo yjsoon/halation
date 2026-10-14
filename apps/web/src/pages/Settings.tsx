@@ -247,7 +247,6 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
     setError(null);
     setDone(false);
     try {
-      // Only what changed is sent, so an untouched custom format stays as it is.
       const seed = buildPlanSeed(currency, dateFormat as DateFormatChoice);
       const updated = await api.updatePlanFormats(planId, {
         ...(currency !== savedCurrency ? { currency_format: seed.currency_format } : {}),
@@ -255,7 +254,6 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
       } as Parameters<typeof api.updatePlanFormats>[1]);
       setDone(true);
       onSaved(updated);
-      // Re-reads the plan settings so amounts and dates repaint without a manual reload.
       reload();
     } catch (cause) {
       setError(messageOf(cause));

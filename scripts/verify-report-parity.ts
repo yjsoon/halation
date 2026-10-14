@@ -1,13 +1,3 @@
-/**
- * Compare the aggregate-backed net-worth and cached age-of-money reports with
- * the full-history reports, on a real SQLite export.
- *
- *   bun scripts/verify-report-parity.ts --db data/howmuch-real.sqlite
- *
- * The database is opened read-only and only aggregate counts are printed --
- * never a date, an account name, a payee, a memo or an amount -- so the output
- * is safe to paste into a pull request or an issue.
- */
 import { Database } from "bun:sqlite";
 import { AsyncReportService } from "../apps/api/src/async-reports";
 import type { AsyncSqlDatabase, SqlValues } from "../apps/api/src/async-sql";
@@ -15,7 +5,6 @@ import { ReportService } from "../apps/api/src/reports";
 
 type Row = Record<string, any>;
 
-/** The asynchronous read surface, served straight from a local SQLite file. */
 class LocalAsyncDatabase implements AsyncSqlDatabase {
   constructor(private readonly db: Database) {}
   async all<R = Row>(sql: string, values: SqlValues = []): Promise<R[]> {
@@ -38,7 +27,6 @@ function parseArguments(argv: string[]): { dbPath: string } {
   return { dbPath: argv[index + 1]! };
 }
 
-/** Count the leaf values that differ between two report payloads. */
 function countMismatches(expected: unknown, actual: unknown): number {
   if (JSON.stringify(expected) === JSON.stringify(actual)) return 0;
   if (Array.isArray(expected) && Array.isArray(actual)) {
@@ -75,7 +63,6 @@ for (const plan of plans) {
     (db.query("SELECT COUNT(*) AS n FROM transactions WHERE plan_id=? AND deleted=0").get(planId) as Row).n,
   );
 
-  // Aggregate drift: what the triggers hold versus a rebuild from history.
   const drift = Number(
     (db
       .query(

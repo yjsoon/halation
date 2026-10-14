@@ -8,16 +8,12 @@ import Foundation
 enum PayeeNames {
   /// Words that identify a rail, processor, legal form or place rather than a merchant.
   private static let noiseWords: Set<String> = [
-    // Payment rails and statement boilerplate
     "pos", "nets", "qr", "fast", "payment", "payments", "pay", "paynow", "mobile", "via", "to", "from", "othr", "trf",
     "transfer", "ibg", "giro", "bill", "bills", "debit", "credit", "card", "visa", "mastercard", "amex", "purchase",
     "ref", "inv", "invoice", "online", "ecom", "recurring", "contactless", "wallet",
-    // Processor and wallet prefixes
     "sq", "tst", "paypal", "stripe", "sumup", "zettle", "adyen", "ipay", "eghl", "mktp", "mp", "krispay", "globale",
-    // Legal forms (Singapore and Malaysia) and web boilerplate
     "pte", "ltd", "limited", "inc", "llc", "corp", "co", "company", "group", "holdings", "the", "and", "sdn", "bhd",
     "restoran", "kedai", "www", "com", "net", "org", "http", "https",
-    // Places that appear on almost every local or cross-border statement line
     "sg", "sgp", "sin", "singapore", "spore", "intl", "international", "malaysia", "mys", "johor", "bahru",
   ]
 
@@ -65,14 +61,12 @@ enum PayeeNames {
     text = replacing(ampersand, in: text, with: "&")
     text = replacing(apostropheEntity, in: text, with: "'")
     text = replacing(otherEntity, in: text, with: " ")
-    // PayNow payees: "TAN AH KOW (Mobile ending 1234)".
     text = replacing(mobileEnding, in: text, with: " ")
     // A place glued onto a truncated name: "Parka ServiSINGAPORE".
     text = replacing(gluedPlace, in: text, with: "$1 $2")
     text = text.decomposedStringWithCompatibilityMapping
     text = replacing(combiningMarks, in: text, with: "")
     text = text.lowercased()
-    // One chain, three spellings: "7-11", "7-Eleven", "7 ELEVEN-SENGKANG".
     text = replacing(sevenEleven, in: text, with: "seveneleven")
     text = replacing(apostrophes, in: text, with: "")
     var chunks: [String] = []
