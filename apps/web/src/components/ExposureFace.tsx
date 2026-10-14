@@ -1,4 +1,4 @@
-import { memo, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
+import { memo, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { cssEase, cssTime, tweenPose } from "../lib/exposure-tween";
 import { falls, type Exposure, type Pose } from "../lib/reward-exposure";
 import { exposureScene, type Scene, type SceneLayout } from "../lib/reward-exposure-scene";
@@ -67,7 +67,11 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
   const lastTarget = useRef(exposure.target);
   const lastLight = useRef(exposure.light);
 
-  const draw = (ex: Exposure, pose: Pose) => {
+  // Where the first showing sits and what it is remembered by; read once, on that showing.
+  const introRef = useRef({ index, memoryKey });
+  introRef.current = { index, memoryKey };
+
+  const draw = useCallback((ex: Exposure, pose: Pose) => {
     poseRef.current = pose;
     const svg = svgRef.current;
     const s = sizeRef.current;
@@ -75,7 +79,7 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
     cache.current ??= collect(svg);
     const scene = exposureScene(layoutOf(variant, s), ex, pose, { nightPrint: modeRef.current === "dark" && ex.miles });
     paint(cache.current, svg, scene, uid, window.devicePixelRatio || 1);
-  };
+  }, [variant, uid]);
 
   // Measure the face (and, on the strip, the name and the foot the ridges are placed from).
   useIsoLayoutEffect(() => {
@@ -105,6 +109,8 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
 
   // The pose: the first showing rises from the journey's start; a changed target glides, or crossfades where it would fall.
   useIsoLayoutEffect(() => {
+    const exposure = exposureRef.current;
+    const { index, memoryKey } = introRef.current;
     const target = exposure.pose;
     const first = !seen.current;
     const remembered = memoryKey ? SHOWN.get(memoryKey) : undefined;
@@ -137,15 +143,12 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
       onFrame: (pose) => draw(exposureRef.current, pose),
     });
     return () => cancel.current();
-    // The scene is drawn from these alone; index and the key only matter on the first showing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [exposure.target, exposure.stage, exposure.light, exposure.miles, exposure.pose.h, exposure.pose.v, variant]);
+  }, [draw, exposure.target, exposure.stage, exposure.light, exposure.miles, exposure.pose.h, exposure.pose.v]);
 
   // The face resized, or the mode switched: draw the pose it is at.
   useIsoLayoutEffect(() => {
     draw(exposureRef.current, poseRef.current);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [size, mode]);
+  }, [draw, size, mode]);
 
   return (
     <div className="rw-face" data-variant={variant} ref={faceRef}>
