@@ -380,26 +380,15 @@ export class LedgerRepository {
     const expectedName = `Transfer : ${account.name}`;
     if (!payee) {
       const payeeId = createId("payee");
-      try {
-        await this.db
-          .query("INSERT INTO payees (id, plan_id, name, transfer_account_id, external_ynab_id) VALUES (?, ?, ?, ?, ?)")
-          .run(payeeId, planId, expectedName, accountId, payeeId);
-      } catch {
-        // Duplicate account names collide on the payee name; disambiguate.
-        await this.db
-          .query("INSERT INTO payees (id, plan_id, name, transfer_account_id, external_ynab_id) VALUES (?, ?, ?, ?, ?)")
-          .run(payeeId, planId, `${expectedName} (${accountId.slice(-4)})`, accountId, payeeId);
-      }
+      await this.db
+        .query("INSERT INTO payees (id, plan_id, name, transfer_account_id, external_ynab_id) VALUES (?, ?, ?, ?, ?)")
+        .run(payeeId, planId, expectedName, accountId, payeeId);
       payee = await this.db.query("SELECT * FROM payees WHERE id = ?").get(payeeId) as Row;
     } else if (payee.name !== expectedName && String(payee.name ?? "").startsWith("Transfer : ")) {
-      try {
-        await this.db
-          .query("UPDATE payees SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-          .run(expectedName, payee.id);
-        payee.name = expectedName;
-      } catch {
-        // Another payee already holds the name; keep the stale label.
-      }
+      await this.db
+        .query("UPDATE payees SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
+        .run(expectedName, payee.id);
+      payee.name = expectedName;
     }
 
     if (account.transfer_payee_id !== payee.id) {
