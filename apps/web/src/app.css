@@ -1443,27 +1443,25 @@ a.page-eyebrow:hover {
   box-shadow: inset 3px 0 var(--plan-accent);
 }
 
-/* Idle-row hover, keyboard focus and selection. Colour only and never animated.
-   tabindex="0" marks idle ledger rows: the editor rows (tabindex -1), the compose
-   row, scheduled rows and deep-link targets keep their own treatment. */
-.register-table tbody tr[tabindex="0"]:not(.register-row-targeted):hover > td {
+/* Idle-row hover, keyboard focus and selection. Colour only and never animated. */
+.register-table tbody tr.register-row-idle:not(.register-row-targeted):hover > td {
   background: var(--row-hover);
 }
 
-.register-table tbody tr[tabindex="0"]:not(.register-row-targeted):focus-visible {
+.register-table tbody tr.register-row-idle:not(.register-row-targeted):focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 
-.register-table tbody tr[tabindex="0"]:not(.register-row-targeted):focus-visible > td {
+.register-table tbody tr.register-row-idle:not(.register-row-targeted):focus-visible > td {
   background: color-mix(in srgb, var(--plan-accent) 10%, var(--paper));
 }
 
-.register-table tbody tr[tabindex="0"]:not(.register-row-targeted):focus-visible > td:first-child {
+.register-table tbody tr.register-row-idle:not(.register-row-targeted):focus-visible > td:first-child {
   box-shadow: inset 3px 0 var(--plan-accent);
 }
 
-.register-table tbody tr[tabindex="0"]:not(.register-row-targeted):has(.register-select input:checked) > td {
+.register-table tbody tr.register-row-idle:not(.register-row-targeted):has(.register-select input:checked) > td {
   background: color-mix(in srgb, var(--plan-accent) 9%, var(--paper));
 }
 
