@@ -159,10 +159,6 @@ export function ScheduledTransactionsPage() {
       {mutationSuccess && <div className="status-panel" role="status"><p className="status-title">{mutationSuccess}</p></div>}
       {editor && (
         <ScheduleEditor
-          // The form copies its schedule into state once, so switching from one
-          // schedule's Edit to another's (or to Add) must remount it; otherwise
-          // the second schedule is saved with the first one's fields.
-          key={editor.mode === "edit" ? `edit-${editor.schedule.id}` : "create"}
           schedule={editor.mode === "edit" ? editor.schedule : undefined}
           accounts={accounts}
           categoryGroups={categoryGroups}
@@ -246,7 +242,14 @@ function SplitScheduleRow({ line, accounts, categories, payees }: { line: Schedu
   return <tr className="split-line-row schedule-split-row"><td aria-hidden="true" /><td className="split-line-cell"><span className="schedule-split-mark">Split</span> {payee}{line.memo ? ` · ${line.memo}` : ""}<div className="schedule-mobile-detail">{category}</div></td><td aria-hidden="true" /><td>{category}</td><td aria-hidden="true" /><td className={line.amount < 0 ? "num amount-negative" : line.amount > 0 ? "num amount-positive" : "num"}>{formatMoney(line.amount, { sign: line.amount > 0 })}</td><td aria-hidden="true" /></tr>;
 }
 
-function ScheduleEditor({ schedule, accounts, categoryGroups, payees, saving, firstFieldRef, onCancel, onSave }: { schedule?: ScheduledTransaction; accounts: Account[]; categoryGroups: CategoryGroup[]; payees: Payee[]; saving: boolean; firstFieldRef: React.Ref<HTMLSelectElement>; onCancel: () => void; onSave: (input: ScheduledTransactionInput, idempotencyKey: string) => Promise<void> }) {
+type ScheduleEditorProps = { schedule?: ScheduledTransaction; accounts: Account[]; categoryGroups: CategoryGroup[]; payees: Payee[]; saving: boolean; firstFieldRef: React.Ref<HTMLSelectElement>; onCancel: () => void; onSave: (input: ScheduledTransactionInput, idempotencyKey: string) => Promise<void> };
+
+// Keyed by schedule: the form seeds its state from `schedule` once, so each schedule (and Add) gets a fresh form.
+function ScheduleEditor(props: ScheduleEditorProps) {
+  return <ScheduleEditorForm key={props.schedule?.id ?? "create"} {...props} />;
+}
+
+function ScheduleEditorForm({ schedule, accounts, categoryGroups, payees, saving, firstFieldRef, onCancel, onSave }: ScheduleEditorProps) {
   const { planId } = usePlan();
   const rewardsSnapshot = useApi(`${planId}:reward-flag-names`, () => api.rewardsTrackerSnapshot(planId));
   const namesByAccount = useMemo(() => colourNamesByAccount(rewardsSnapshot.data?.cards), [rewardsSnapshot.data]);
