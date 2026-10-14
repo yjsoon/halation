@@ -35,6 +35,7 @@ import {
   planApproval,
   rowLooksApproved,
 } from "../lib/register-approval";
+import { useUnapprovedCount } from "../state/use-unapproved-count";
 import { fetchUnapprovedQueue } from "../lib/unapproved-queue";
 import { resolvedSinceCount, showsUnapprovedBadge, unapprovedBadgeCount, unapprovedBadgeLabel } from "../lib/unapproved-badge";
 import {
@@ -366,25 +367,16 @@ export function TransactionsPage() {
   const countMatchesRegisterScope = filters.accountIds.length <= 1;
   // The badge, eagerly: one bounded count, so the register never waits on the
   // queue behind it.
-  const unapprovedCountQuery = useApi(
-    // Keyed on the validated knowledge and cache epoch as well as the filters:
-    // a local write moves the ledger on, and a badge that outlived it would be
-    // exactly the stale count #144 forbids.
-    JSON.stringify({
-      planId,
-      selectedAccountId,
-      from: filters.from,
-      to: filters.to,
-      refreshGeneration,
-      validatedKnowledge,
-      cacheEpoch,
-      unapprovedCount: countMatchesRegisterScope,
-    }),
-    async () =>
-      countMatchesRegisterScope
-        ? await api.unapprovedCount(planId, { since_date: filters.from, until_date: fetchUntilDate }, selectedAccountId)
-        : null,
-  );
+  const unapprovedCountQuery = useUnapprovedCount({
+    planId,
+    accountId: selectedAccountId,
+    from: filters.from,
+    to: filters.to,
+    until: fetchUntilDate,
+    enabled: countMatchesRegisterScope,
+    refreshGeneration,
+    ledgerVersion: { validatedKnowledge, cacheEpoch },
+  });
   // Loaded only when the approval flow is open, or when the count cannot stand
   // in for it. `null` is "not loaded"; `[]` is "loaded, and empty".
   const approvalQueueNeeded = unapprovedOnly || !countMatchesRegisterScope;
