@@ -36,7 +36,7 @@ export function IncomePage() {
       />
       <div className="report-header">
         <h1>Income v spending</h1>
-        <div className="headline-row">
+        <div className="headline-row headline-row-paired">
           <div className="headline-figure">
             <span className="figure-label">Income</span>
             <span key={totals.income} className="figure-value figure-settle figure-positive">{formatAmount(totals.income)}</span>

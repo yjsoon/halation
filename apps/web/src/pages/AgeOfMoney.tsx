@@ -42,7 +42,7 @@ export function AgeOfMoneyPage() {
       />
       <div className="report-header">
         <h1>Money age</h1>
-        <div className="headline-row">
+        <div className="headline-row headline-row-paired">
           <div className="headline-figure">
             <span className="figure-label">
               {latest ? `Latest (${formatPeriod(latest.period)})` : "Latest"}
