@@ -6,7 +6,7 @@ import { join } from "node:path";
 // Execute only the real script's preflight. Never copy its archive/upload body
 // into a fixture, even on machines with Xcode or production credentials.
 const script = readFileSync(new URL("./speedflight.sh", import.meta.url), "utf8");
-const boundary = "# Uncomment for XcodeGen projects:";
+const boundary = "\nPREFLIGHT_COMPLETE=1\n";
 expect(script.split(boundary)).toHaveLength(2);
 const preflight = script.split(boundary)[0];
 expect(preflight).not.toMatch(/xcodebuild|curl|rm -rf/);

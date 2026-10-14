@@ -80,8 +80,8 @@ if ! git merge-base --is-ancestor "$COMMIT" 'FETCH_HEAD^{commit}'; then
 fi
 BRANCH="${SOURCE_REF#refs/*/}"
 
-# Uncomment for XcodeGen projects: the project file is generated and gitignored.
-# xcodegen generate --quiet
+# End of preflight. scripts/speedflight.test.ts runs everything above this line.
+PREFLIGHT_COMPLETE=1
 
 rm -rf "$OUT"
 mkdir -p "$OUT" "$DERIVED_DATA" "$XCODE_LOG_DIR"
