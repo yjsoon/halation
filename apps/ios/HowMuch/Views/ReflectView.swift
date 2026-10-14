@@ -343,7 +343,9 @@ struct ReflectCard<Destination: View, Content: View>: View {
 /// Retry runs in its own `Task` that nothing cancels, so cancellation alone
 /// cannot tell an obsolete request from the current one. A generation rather
 /// than a filter key also rejects the first of two requests for the same
-/// filter (A → B → A).
+/// filter (A → B → A). A superseded or cancelled fetch must not overwrite or
+/// clear the current report, nor flash an error, so `mayCommit` is the one
+/// check a fetch makes before touching the screen.
 struct ReportFetchGate {
   private(set) var generation = 0
 
@@ -354,6 +356,12 @@ struct ReportFetchGate {
 
   func isCurrent(_ token: Int) -> Bool {
     token == generation
+  }
+
+  /// True only while `token` is the latest request and the calling task has
+  /// not been cancelled.
+  func mayCommit(_ token: Int) -> Bool {
+    isCurrent(token) && !Task.isCancelled
   }
 }
 
