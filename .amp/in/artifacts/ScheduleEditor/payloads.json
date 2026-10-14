@@ -1,0 +1,71 @@
+[
+ {
+  "method": "PATCH",
+  "body": {
+   "scheduled_transaction": {
+    "account_id": "acct-everyday",
+    "date_first": "2026-11-01",
+    "date_next": "2026-11-02",
+    "frequency": "monthly",
+    "amount": -3000,
+    "memo": "SchedVerify B2",
+    "flag_color": null,
+    "category_id": null,
+    "subtransactions": [
+     {
+      "id": "scheduled_sub_5be6f9bc",
+      "amount": -2000,
+      "payee_id": null,
+      "category_id": null,
+      "transfer_account_id": null,
+      "memo": "line two"
+     },
+     {
+      "id": "scheduled_sub_5ce6fb4f",
+      "amount": -1000,
+      "payee_id": null,
+      "category_id": null,
+      "transfer_account_id": null,
+      "memo": "line one"
+     }
+    ]
+   }
+  }
+ },
+ {
+  "method": "PATCH",
+  "body": {
+   "scheduled_transaction": {
+    "account_id": "acct-everyday",
+    "date_first": "2026-11-01",
+    "date_next": "2026-11-01",
+    "frequency": "monthly",
+    "amount": -5000,
+    "memo": "SchedVerify A2",
+    "flag_color": null,
+    "payee_id": null,
+    "category_id": null,
+    "transfer_account_id": null,
+    "subtransactions": []
+   }
+  }
+ },
+ {
+  "method": "PATCH",
+  "body": {
+   "scheduled_transaction": {
+    "account_id": "acct-everyday",
+    "date_first": "2026-11-01",
+    "date_next": "2026-11-02",
+    "frequency": "monthly",
+    "amount": -3000,
+    "memo": "SchedVerify B2",
+    "flag_color": null,
+    "payee_id": null,
+    "category_id": null,
+    "transfer_account_id": null,
+    "subtransactions": []
+   }
+  }
+ }
+]
