@@ -1,0 +1,27 @@
+c1.a create no id with balance {"status":201,"id":"acct_<gen>","name":"Checking A","type":"checking","on_budget":true,"balance":5000,"cleared_balance":5000}
+c1.b create with id + balance (reseed) {"status":201,"id":"acct-shared","name":"Shared","type":"checking","on_budget":true,"balance":7000,"cleared_balance":7000}
+c1.c same id other plan {"status":400,"err":{"id":"400","name":"bad_request","detail":"Account belongs to another plan"}}
+c1.d reseed same id same plan {"status":201,"id":"acct-shared","name":"Shared renamed","type":"checking","on_budget":true,"balance":0,"cleared_balance":0}
+c1.e plan B own account {"status":201,"id":"acct-b","name":"B Account","type":"checking","on_budget":true,"balance":0,"cleared_balance":0}
+c1.f txn into other plan's account {"status":400,"err":{"id":"400","name":"bad_request","detail":"Account not found"}}
+c1.g plan A accounts [{"name":"Checking A","balance":5000},{"name":"Shared renamed","balance":0}]
+c2.a transfer payees plan A ["Transfer : Checking A","Transfer : Shared renamed"]
+c2.b after rename ["Transfer : Checking A","Transfer : Renamed Shared"]
+c2.c duplicate account names ["Transfer : Checking A","Transfer : Renamed Shared","Transfer : Twin","Transfer : Twin"]
+c2.d mid-import payee rows for acct-mid {"c":0}
+c3.a transfer create {"status":201}
+c3.a rows [{"id":"<gen>","account_id":"acct-dupe1","amount_milli":20000,"cleared":"uncleared","approved":1,"transfer_account_id":"acct-shared","category_id":null,"payee_name_snapshot":"Transfer : Renamed Shared"},{"id":"txn-x1","account_id":"acct-shared","amount_milli":-20000,"cleared":"cleared","approved":1,"transfer_account_id":"acct-dupe1","category_id":null,"payee_name_snapshot":"Transfer : Twin"}]
+c3.b after edit [{"id":"<gen>","account_id":"acct-dupe1","amount_milli":25000,"cleared":"uncleared","approved":1,"transfer_account_id":"acct-shared","category_id":null,"payee_name_snapshot":"Transfer : Renamed Shared"},{"id":"txn-x1","account_id":"acct-shared","amount_milli":-25000,"cleared":"cleared","approved":1,"transfer_account_id":"acct-dupe1","category_id":null,"payee_name_snapshot":"Transfer : Twin"}]
+c3.c split with transfer line {"status":201}
+c3.c rows [{"id":"<gen>","account_id":"acct-dupe1","amount_milli":25000,"cleared":"uncleared","approved":1,"transfer_account_id":"acct-shared","category_id":null,"payee_name_snapshot":"Transfer : Renamed Shared"},{"id":"<gen>","account_id":"acct-dupe2","amount_milli":10000,"cleared":"uncleared","approved":0,"transfer_account_id":"acct-shared","category_id":null,"payee_name_snapshot":"Transfer : Renamed Shared"},{"id":"txn-x1","account_id":"acct-shared","amount_milli":-25000,"cleared":"cleared","approved":1,"transfer_account_id":"acct-dupe1","category_id":null,"payee_name_snapshot":"Transfer : Twin"}]
+c3.d schedule create {"status":201}
+c3.d materialize {"status":200}
+c3.d rows to cash [{"id":"<gen>","account_id":"acct-cash","amount_milli":4000,"cleared":"cleared","approved":0,"transfer_account_id":"acct-shared","category_id":null,"payee_name_snapshot":"Transfer : Renamed Shared"},{"id":"<gen>","account_id":"acct-shared","amount_milli":-4000,"cleared":"uncleared","approved":0,"transfer_account_id":"acct-cash","category_id":null,"payee_name_snapshot":"Transfer : Wallet"}]
+c4.a q=coffee ["Coffee Beans","Coffee Shop"]
+c4.b q=coffee type=unapproved ["Coffee Shop"]
+c4.c q=amount:-35 []
+c4.d unapproved_count {"count":6,"server_knowledge":N}
+c4.e unapproved_count q=coffee 6
+c4.f unapproved_count last_knowledge=0 6
+c4.g account count 4
+c4.h q + type=approved ["Coffee Beans"]

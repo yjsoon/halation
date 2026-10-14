@@ -1,7 +1,17 @@
 import { createId } from "./ids";
-import type { ScheduledSubtransactionInput, ScheduledTransactionInput } from "./types";
+import type { ClearedState, ScheduledSubtransactionInput, ScheduledTransactionInput } from "./types";
 
 export class ScheduledTransactionValidationError extends Error {}
+
+/**
+ * Cleared state of a transfer's newly created other side, shared by the SQLite
+ * and D1 writers so they cannot drift. The source's own cleared or reconciled
+ * state says nothing about the target's statement, so the other side starts
+ * uncleared, except when a schedule is entered into a cash account.
+ */
+export function newLinkedSideCleared(sourceKind: string | null | undefined, targetAccountType: string): ClearedState {
+  return sourceKind === "scheduled-transaction" && targetAccountType === "cash" ? "cleared" : "uncleared";
+}
 
 const WRITABLE_FIELDS = new Set([
   "account_id", "date_first", "date_next", "frequency", "amount", "payee_id",
