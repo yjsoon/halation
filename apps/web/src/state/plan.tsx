@@ -69,15 +69,16 @@ export interface PlanContextValue {
    */
   provisional: boolean;
   /**
-   * Whether `ledgerKnowledge` may be used to validate a cached slot.
+   * `ledgerKnowledge` when it may validate a cached slot, otherwise `null`.
    *
-   * It is false during a provisional paint, where the number itself came from
-   * the cache, and false again after any local write, where the server has
-   * moved past the number this value still holds. Routes that see it false
-   * fetch and decline to store the result, rather than tagging fresh rows with
-   * knowledge that has already been superseded.
+   * It is `null` during a provisional paint, where the number itself came from
+   * the cache, and `null` again after any local write, where the server has
+   * moved past the number `ledgerKnowledge` still holds. Routes pass it straight
+   * to their cached reads, which fetch and decline to store the result when it
+   * is `null`, rather than tagging fresh rows with knowledge that has already
+   * been superseded.
    */
-  knowledgeTrusted: boolean;
+  validatedKnowledge: number | null;
   /**
    * Increments whenever the client cache is invalidated. Routes key their
    * cached reads on it so a local write makes them re-read an empty cache
@@ -162,7 +163,7 @@ function provisionalPlanValue(
     planSelectionError: null,
     userId: envelope.userId,
     provisional: true,
-    knowledgeTrusted: false,
+    validatedKnowledge: null,
     cacheEpoch: currentCacheEpoch(),
     accounts: accounts.filter((account) => !account.deleted),
     ledgerKnowledge: envelope.serverKnowledge,
@@ -241,7 +242,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       // behind the server, so nothing may be validated or stored against it
       // until the next bootstrap supplies a number the server has confirmed.
       setValue((current) => current
-        ? { ...current, knowledgeTrusted: false, cacheEpoch: currentCacheEpoch() }
+        ? { ...current, validatedKnowledge: null, cacheEpoch: currentCacheEpoch() }
         : current);
     });
     return () => {
@@ -447,7 +448,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
             : null,
           userId: decision.userId,
           provisional: false,
-          knowledgeTrusted: true,
+          validatedKnowledge: accountsSnapshot.server_knowledge,
           cacheEpoch: currentCacheEpoch(),
           accounts: accountsSnapshot.accounts.filter((account) => !account.deleted),
           ledgerKnowledge: accountsSnapshot.server_knowledge,

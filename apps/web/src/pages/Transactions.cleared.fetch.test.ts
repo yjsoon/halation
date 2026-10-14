@@ -12,7 +12,7 @@ mock.module("../state/plan", () => ({
     accounts: [{ id: "a", name: "Cash", closed: false, deleted: false,
       balance: -12000, cleared_balance: 0, uncleared_balance: -12000 }],
     categoryGroups: [], planId: "p", planSelectionError: null, userId: "u",
-    ledgerKnowledge: 1, knowledgeTrusted: true, cacheEpoch: 0, reload: () => {},
+    ledgerKnowledge: 1, validatedKnowledge: 1, cacheEpoch: 0, reload: () => {},
   }),
 }));
 mock.module("../state/use-cached-api", () => ({

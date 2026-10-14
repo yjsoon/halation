@@ -22,7 +22,7 @@ type SplitDraft = { key: string; sourceId?: string; amount: string; payeeId: str
 
 /** Future recurring transactions, with local overlays for imported YNAB rows. */
 export function ScheduledTransactionsPage() {
-  const { accounts, categoryGroups, categoryNames, planId, userId, ledgerKnowledge, knowledgeTrusted, cacheEpoch, reload } = usePlan();
+  const { accounts, categoryGroups, categoryNames, planId, userId, validatedKnowledge, cacheEpoch, reload } = usePlan();
   const [generation, setGeneration] = useState(0);
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
@@ -42,10 +42,7 @@ export function ScheduledTransactionsPage() {
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const cacheIdentity = useMemo(() => ({ userId, planId }), [userId, planId]);
   // A local mutation clears every slot and moves the epoch, so these reads
-  // re-run against an empty cache and genuinely refetch; `knowledgeTrusted` is
-  // false until the next bootstrap, so nothing is stored under a number the
-  // server has already moved past.
-  const validatedKnowledge = knowledgeTrusted ? ledgerKnowledge : null;
+  // re-run against an empty cache and genuinely refetch.
   const schedules = useCachedApi<ScheduledTransaction[]>({
     slot: "scheduled",
     key: `${planId}:scheduled:${generation}`,
