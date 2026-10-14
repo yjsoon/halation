@@ -106,10 +106,11 @@ export function RegisterEditableRow(props: {
   if (!active || !draft) {
     const linkedMirror = row.kind === "posted" && Boolean(row.transaction.parent_transaction_id);
     const className = [
+      "register-row-idle",
       split ? "split-line-row" : null,
       !split && !approved ? "register-row-unapproved" : null,
       targeted ? "register-row-targeted" : null,
-    ].filter(Boolean).join(" ") || undefined;
+    ].filter(Boolean).join(" ");
     return (
       <tr
         ref={rowRef}
