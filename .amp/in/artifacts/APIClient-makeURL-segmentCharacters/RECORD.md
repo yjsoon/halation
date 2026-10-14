@@ -9,4 +9,6 @@ Verification (macOS, Devin child session https://app.devin.ai/sessions/10c434fac
 - The new `private static let` CharacterSet compiles under Swift 6 concurrency with no warnings. The one APIClient.swift warning (line 320, "will never be executed") is outside the patch and identical on base.
 - Targeted suites passed: `RewardsReportTests` 7/7, `NarrowRefreshTests` 12/12, `ServerConnectionRulesTests` 3/3 and `ServerConnectionFlowTests` 9/9.
 
-Not verified: no dedicated test feeds an ID with reserved characters through `makeURL`, so the unchanged encoding is covered only by the request-building tests above.
+Existing coverage of the unchanged encoding: `RewardsAccountImportTests.testPUTPreservesRawConfigurationAndDecodesCard` (RewardsReportTests.swift) passes the account ID `card / 50%` through `importRewardsAccountConfig` and asserts the request path `/api/rewards/accounts/card%20%2F%2050%25/config` through a URLProtocol stub. It passed in the run above.
+
+Not verified: that coverage is mocked transport, not an end-to-end server test, and it exercises one reserved-character ID only.
