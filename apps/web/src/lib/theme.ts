@@ -30,7 +30,6 @@ function read(): ThemePrefs {
 
 const systemDark = () => window.matchMedia?.("(prefers-color-scheme: dark)").matches ?? false;
 
-/** Writes the resolved `data-theme` / `data-mode` attributes and the browser chrome colour. Idempotent. */
 export function applyTheme(prefs: ThemePrefs): void {
   const dark = prefs.mode === "dark" || (prefs.mode === "system" && systemDark());
   const root = document.documentElement;
@@ -60,11 +59,6 @@ export function setTheme(patch: Partial<ThemePrefs>): void {
 
 let syncing = false;
 
-/**
- * Keeps the page in step for its whole life, not only while Settings is open:
- * "Match system" follows OS light/dark changes, and a change made in another
- * tab applies here. Called once from main.tsx.
- */
 export function startThemeSync(): void {
   if (syncing || typeof window === "undefined") return;
   syncing = true;
@@ -90,7 +84,6 @@ export function useTheme(): ThemePrefs {
   return useSyncExternalStore(subscribe, () => current);
 }
 
-/** The prefs read at module load, for the one-off `applyTheme` call in main.tsx. */
 export function currentTheme(): ThemePrefs {
   return current;
 }

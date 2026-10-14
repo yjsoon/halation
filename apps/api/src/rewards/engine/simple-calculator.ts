@@ -1,6 +1,5 @@
 /**
  * Vendored from ynab-rewards-tracker SimpleRewardsCalculator (MIT).
- * Simplified rewards calculation using card earning rates.
  */
 
 import type {
@@ -232,9 +231,6 @@ function calculateMonthlyQualification(
 }
 
 export class SimpleRewardsCalculator {
-  /**
-   * Calculate reward for a single transaction based on card settings
-   */
   static calculateTransactionReward(
     amount: number,
     card: CreditCard,
@@ -320,9 +316,6 @@ export class SimpleRewardsCalculator {
     return { reward, rewardDollars, block, blockInfo, rewardRate };
   }
 
-  /**
-   * Calculate the current period for a card based on billing cycle
-   */
   static calculatePeriod(card: CreditCard, targetDate: Date = new Date()): CalculationPeriod {
     const period = calculateCardPeriod(card, targetDate);
     const useStartLabel = Boolean(card.billingCycle?.type === 'billing' && card.billingCycle.dayOfMonth);
@@ -330,9 +323,6 @@ export class SimpleRewardsCalculator {
     return toSimplePeriod(period, useStartLabel);
   }
 
-  /**
-   * Calculate rewards for a card based on its earning rate
-   */
   static calculateCardRewards(
     card: CreditCard,
     transactions: Transaction[],
@@ -702,17 +692,11 @@ export class SimpleRewardsCalculator {
     };
   }
 
-  /**
-   * Calculate effective reward rate as a percentage
-   */
   static calculateEffectiveRate(calculation: SimplifiedCalculation): number {
     if (calculation.totalSpend === 0) return 0;
     return (calculation.rewardEarnedDollars / calculation.totalSpend) * 100;
   }
 
-  /**
-   * Compare cards and find the best one for a given spending amount
-   */
   static findBestCard(
     cards: CreditCard[],
     transactions: Transaction[],

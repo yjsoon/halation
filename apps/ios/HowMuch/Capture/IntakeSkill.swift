@@ -2,10 +2,6 @@ import Foundation
 import Observation
 import os
 
-// The skill file and learned rules for document intake (docs/plans/share-intake.md
-// sections 8 and 9). On this device only in this version: no server sync, no
-// model reads the notes except the Apple Intelligence reader's prompt.
-
 /// Decodes one element, yielding nil (instead of failing the whole array) for a
 /// shape this build cannot read, so one rule from a newer build never loses the file.
 private struct LossyElement<Value: Decodable>: Decodable {
@@ -89,8 +85,6 @@ private extension KeyedDecodingContainer {
   }
 }
 
-// MARK: Structured settings
-
 enum IntakeDateOrder: String, Codable, CaseIterable, Equatable, Sendable {
   case dmy
   case mdy
@@ -173,8 +167,6 @@ struct IntakeAccountSkill: Codable, Equatable, Identifiable, Sendable {
     dedupeDayWindow = container.lenient(Int.self, forKey: .dedupeDayWindow).map(IntakeSkill.clampedWindow)
   }
 }
-
-// MARK: Rules
 
 enum IntakeAmountSign: String, Codable, Equatable, Sendable {
   case outflow
@@ -419,8 +411,6 @@ struct IntakeRule: Codable, Equatable, Identifiable, Sendable {
     overrides >= Self.overrideWarningCount
   }
 
-  // MARK: Matching
-
   var payeeWords: String? {
     if let token = when.payeeToken {
       return token
@@ -503,8 +493,6 @@ struct IntakeRule: Codable, Equatable, Identifiable, Sendable {
     accountLimit == nil || accountLimit == accountID
   }
 
-  // MARK: Words
-
   /// "KOPITIAM", or "Any outflow" for a direction-only rule.
   var matchText: String {
     if let words = payeeWords, !words.isEmpty {
@@ -553,8 +541,6 @@ struct IntakeRule: Codable, Equatable, Identifiable, Sendable {
     }
   }
 }
-
-// MARK: Skill
 
 struct IntakeSuppressedSuggestion: Codable, Equatable, Sendable {
   var key: String
@@ -675,8 +661,6 @@ struct IntakeSkill: Codable, Equatable, Sendable {
     return String(format: "%.1fk characters", Double(count) / 1_000)
   }
 
-  // MARK: Reading guidance
-
   /// The owner's notes for the reader's prompt: the account's first, then the
   /// global notes, cut to `promptGuidanceLimit`. Nil when there are none. Only
   /// the Apple Intelligence reader sees it; the line parser reads no notes.
@@ -694,8 +678,6 @@ struct IntakeSkill: Codable, Equatable, Sendable {
     }
     return String(parts.joined(separator: "\n\n").prefix(Self.promptGuidanceLimit))
   }
-
-  // MARK: Rules
 
   /// Adds a rule. The newer owner choice supersedes the older: a rule with the
   /// same match, reach and kind of action is replaced (a global rule with a payee
@@ -761,8 +743,6 @@ struct IntakeSkill: Codable, Equatable, Sendable {
     suppressed.append(IntakeSuppressedSuggestion(key: key, until: until))
   }
 }
-
-// MARK: Applying rules to a line
 
 struct IntakeTransferPayee: Equatable, Sendable {
   var id: String
@@ -996,8 +976,6 @@ enum IntakeRuleEngine {
   }
 }
 
-// MARK: Remember this?
-
 enum IntakeRuleScopeChoice: String, CaseIterable, Identifiable, Equatable, Sendable {
   case global
   case account
@@ -1179,8 +1157,6 @@ enum IntakeRuleSuggester {
   }
 }
 
-// MARK: Store
-
 /// Persists the skill file at `{appGroup}/Intake/skill.json`, written atomically.
 /// Main app only. Under the unit-test host the container is the same isolated
 /// temporary one `IntakeJobStore` uses, so tests never read a simulator's real skill.
@@ -1350,8 +1326,6 @@ final class IntakeSkillStore {
     }
   }
 }
-
-// MARK: Matcher
 
 extension IntakeMatcher {
   /// A matcher with the skill's duplicate windows: the global one, and each

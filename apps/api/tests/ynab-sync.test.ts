@@ -468,7 +468,6 @@ describe("YNAB similarity guard", () => {
     const seeded = Array.from({ length: 20 }, (_, i) => ynabTransaction(`txn-${i}`));
     await seedLedgerFromYnab(seeded);
 
-    // 20 existing, only 17 still present: 17 / 23 union ≈ 74% similar.
     const divergent = [
       ...seeded.slice(0, 17),
       ynabTransaction("other-1"),
@@ -502,7 +501,6 @@ describe("YNAB similarity guard", () => {
     const seeded = Array.from({ length: 40 }, (_, i) => ynabTransaction(`txn-${i}`));
     await seedLedgerFromYnab(seeded);
 
-    // 40 unchanged plus one new transaction: 40 / 41 ≈ 98% similar.
     stubYnabApi([...seeded, ynabTransaction("txn-new")]);
 
     const result = await importYnabFromApi(repo, {
@@ -526,7 +524,6 @@ describe("YNAB similarity guard", () => {
         { id: "b", date: "2026-06-02", amount: -2000 },
       ]),
     ).toBe(1);
-    // Same ids but rewritten amounts count as fully different data.
     expect(
       ynabSimilarity(existing, [
         { id: "a", date: "2026-06-01", amount: -9999 },

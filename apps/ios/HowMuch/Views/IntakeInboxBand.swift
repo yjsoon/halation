@@ -1,8 +1,6 @@
 import SwiftUI
 import UIKit
 
-/// The Inbox band at the top of Accounts: shown only when there is something
-/// in the Inbox, with the two most urgent batches.
 struct IntakeInboxBand: View {
   @Environment(AppModel.self) private var model
   var onSeeAll: () -> Void
@@ -76,7 +74,6 @@ struct IntakeInboxBand: View {
   }
 }
 
-/// One batch: thumbnail, source-derived title, status pill with summary, time.
 struct IntakeJobRow: View {
   let job: IntakeJob
   var accountName: String?
@@ -126,7 +123,6 @@ private extension IntakeJob {
 }
 
 enum IntakeTime {
-  /// "09:41" today, otherwise "6 Oct".
   static func label(for date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
     if calendar.isDate(date, inSameDayAs: now) {
       return date.formatted(date: .omitted, time: .shortened)
@@ -188,8 +184,6 @@ struct IntakeStatusPill: View {
   }
 }
 
-/// A small preview of the first image in a batch, or a symbol for a PDF, text,
-/// or a batch whose files have been deleted.
 struct IntakeJobThumbnail: View {
   let job: IntakeJob
   @Environment(\.displayScale) private var displayScale

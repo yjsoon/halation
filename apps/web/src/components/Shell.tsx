@@ -140,7 +140,6 @@ export function Shell() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [mobileNav]);
 
-  // The Reports group opens itself on a report route; otherwise the browser owns its toggles.
   const reportsRef = useRef<HTMLDetailsElement>(null);
   useLayoutEffect(() => {
     if (isReportPath(location.pathname) && reportsRef.current) reportsRef.current.open = true;
@@ -169,9 +168,6 @@ export function Shell() {
     }
     let cancelled = false;
     setAccountUsage((current) => ({ ...current, state: { phase: "loading", message: null } }));
-    // One grouped query per knowledge change, and only while a group is
-    // actually sorted by usage. The window ends on the viewer's local today, so
-    // the day boundary stays where the register scan used to put it.
     api.accountUsage(planId, { days: ACCOUNT_USAGE_DAYS, until: usageDate })
       .then((snapshot) => {
         if (cancelled) return;

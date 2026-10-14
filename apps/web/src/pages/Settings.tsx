@@ -255,7 +255,6 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
       } as Parameters<typeof api.updatePlanFormats>[1]);
       setDone(true);
       onSaved(updated);
-      // Re-reads the plan settings so amounts and dates repaint without a manual reload.
       reload();
     } catch (cause) {
       setError(messageOf(cause));

@@ -1,10 +1,3 @@
-// See docs/plans/offline-writes.md P1.
-//
-// One durable write waiting to reach the server. The outbox holds at most one
-// command per transaction that is not in flight; `OutboxPlanner.enqueue`
-// folds later changes into it. An in-flight command is never rewritten: a
-// change made while it is on the wire queues behind it instead.
-
 import Foundation
 
 struct OutboxCommand: Codable, Equatable, Identifiable {

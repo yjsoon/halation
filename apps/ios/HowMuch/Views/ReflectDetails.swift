@@ -464,8 +464,6 @@ struct CategoryScopePicker: View {
   }
 }
 
-// MARK: - Spending Breakdown
-
 struct SpendingBreakdownDetailView: View {
   @Environment(AppModel.self) private var model
   @State private var range = ReportRange()
@@ -700,8 +698,6 @@ struct SpendingBreakdownDetailView: View {
   }
 }
 
-// MARK: - Net Worth
-
 struct NetWorthDetailView: View {
   @Environment(AppModel.self) private var model
   @State private var range = ReportRange(mode: .preset, preset: .lastTwelveMonths)
@@ -894,8 +890,6 @@ struct NetWorthDetailView: View {
     }
   }
 }
-
-// MARK: - Income vs Spending
 
 struct IncomeVsSpendingDetailView: View {
   @Environment(AppModel.self) private var model
@@ -1114,8 +1108,6 @@ struct IncomeVsSpendingDetailView: View {
     }
   }
 }
-
-// MARK: - Age of Money
 
 struct AgeOfMoneyDetailView: View {
   @Environment(AppModel.self) private var model

@@ -83,7 +83,6 @@ struct RegisterSnapshot {
   }
 }
 
-/// Row counts behind the register's filter menu, taken once per render.
 private struct RegisterFilterCounts {
   let unapproved: Int
   let uncleared: Int
@@ -535,8 +534,6 @@ struct RegisterView: View {
       .accessibilityLabel("Actions for \(account.name)")
       .accessibilityHint(accountOverflowHint(account, counts: counts))
     } else if scope != .unapproved, !model.accounts.isEmpty {
-      // One menu, as on an account register, so the search button beside it
-      // leaves room for the title.
       Menu {
         if showsRegisterFilterMenu(counts) {
           registerFilterMenuItems(counts)

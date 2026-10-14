@@ -229,13 +229,11 @@ final class RewardsReportTests: XCTestCase {
     for zone in ["America/Los_Angeles", "Pacific/Kiritimati", "Asia/Singapore"] {
       NSTimeZone.default = try XCTUnwrap(TimeZone(identifier: zone))
       var filter = RewardsReportFilter()
-      // Midnight 10 April in Singapore is still 9 April in Los Angeles.
       filter.asOfDate = try singaporeDate(2025, 4, 10)
       filter.useAsOfDate = true
       XCTAssertEqual(filter.to, "2025-04-10", zone)
       XCTAssertEqual(RewardsCalendar.days(from: "2026-03-07", to: "2026-03-09"), 2, zone)
     }
-    // 17:30 UTC on 22 Sep is 01:30 on 23 Sep in Singapore.
     XCTAssertEqual(RewardsCalendar.isoString(Date(timeIntervalSince1970: 1_790_098_200)), "2026-09-23")
   }
 
@@ -729,8 +727,6 @@ final class RewardsSnapshotTests: XCTestCase {
     defer { surface.detach() }
     // Pixel assertions establish rendering independently of the in-process AX
     // traversal used by other tests; they do not establish accessibility.
-    // Pending monthly qualification, $830.80 of $1,000 in May, as of 24 May:
-    // $169.20 to go and eight days (24–31 May) left.
     let expected = ["Travel Fixture", "Cash Fixture", "$169.20", "monthly minimum", "8 days left",
       "$830.80 / $1,000.00", "3,323 miles earned", "$49.85 earned"]
     let board = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 5_000_000_000)
@@ -1050,15 +1046,12 @@ final class RewardRowProjectionTests: XCTestCase {
     decimalSeparator: ".", groupSeparator: ",", symbolFirst: true, currencySymbol: "$"
   )
 
-  // MARK: Minimum
-
   func testBelowMinimumShowsRemainderOnRawSpendWithPeriodDeadline() throws {
     let projection = try project(["minimum_spend": 800, "total_spend": 698, "counted_spend": 690, "minimum_spend_met": false])
     XCTAssertEqual(projection.action, .minimum(remaining: 102))
     XCTAssertEqual(projection.tone, .needsMinimum)
     XCTAssertEqual(projection.basis, .init(spend: 698, target: 800))
     XCTAssertEqual(try XCTUnwrap(projection.fill), 0.8725, accuracy: 0.0001)
-    // 23 Sep to 30 Sep inclusive.
     XCTAssertEqual(projection.deadline, .init(end: "2026-09-30", days: 8, kind: .ends))
     let text = RewardRowText(projection, currencyFormat: sgd)
     XCTAssertEqual(text.amount, "$102.00")
@@ -1091,8 +1084,6 @@ final class RewardRowProjectionTests: XCTestCase {
     XCTAssertEqual(RewardRowText.roundedUpToCent(102.0000000001), 102)
     XCTAssertEqual(RewardRowText.roundedUpToCent(101.001), 101.01)
   }
-
-  // MARK: Tiers and caps
 
   func testUnmetBaseMinimumOutranksNextTier() throws {
     let projection = try project([
@@ -1140,7 +1131,6 @@ final class RewardRowProjectionTests: XCTestCase {
   }
 
   func testTopTierWithoutCardCapIsEarningAndFull() throws {
-    // $800 base minimum, $1,600 top tier, caps only on categories with room left.
     let projection = try project([
       "minimum_spend": 1600, "total_spend": 1650, "counted_spend": 1650, "reward_earned": 90,
       "active_spending_tier_id": "level-1600", "has_next_spending_tier": false,
@@ -1180,7 +1170,6 @@ final class RewardRowProjectionTests: XCTestCase {
   }
 
   func testPartialBlockHeadroomStillCountsAsCapReached() throws {
-    // Less than one block left: the server flags the cap as exceeded.
     let projection = try project([
       "total_spend": 996, "counted_spend": 995, "maximum_spend": 1000, "maximum_spend_exceeded": true, "should_stop_using": true,
     ])
@@ -1200,8 +1189,6 @@ final class RewardRowProjectionTests: XCTestCase {
       XCTAssertEqual(RewardRowText(projection, currencyFormat: sgd).basisLine, "$420.00 spent · $8.40 earned")
     }
   }
-
-  // MARK: Qualification
 
   // A happy-path rendered row cannot catch false qualification from withheld
   // server flags, or treating finite category caps as the whole card's limit.
@@ -1258,7 +1245,6 @@ final class RewardRowProjectionTests: XCTestCase {
   }
 
   func testPendingMonthBehindUsesTheMonthAndItsEnd() throws {
-    // Anchored three-month period; the month ends before the period does.
     let projection = try project([
       "total_spend": 900, "qualification_status": "pending", "minimum_spend_met": false,
       "monthly_qualifications": [
@@ -1297,13 +1283,10 @@ final class RewardRowProjectionTests: XCTestCase {
   }
 
   func testServerMinimumUnmetWithoutARawGapIsFlagged() throws {
-    // Spend reached the figure, but a tier minimum still withholds rewards.
     let projection = try project(["minimum_spend": 500, "total_spend": 600, "minimum_spend_met": false])
     XCTAssertEqual(projection.action, .noTarget(categoryCaps: false))
     XCTAssertEqual(projection.exceptions, [.minimumNotMet])
   }
-
-  // MARK: Category exceptions
 
   func testCategoryOverCapShowsWhenCardCapIsNot() throws {
     let projection = try project(["total_spend": 400, "flags": [
@@ -1354,8 +1337,6 @@ final class RewardRowProjectionTests: XCTestCase {
     XCTAssertEqual(lines.last, "+1 more")
   }
 
-  // MARK: Dates
-
   func testLastDayAndResetTomorrowWording() throws {
     let ends = try project(["minimum_spend": 100, "total_spend": 10], period: ("2026-02-01", "2026-02-28"), asOf: "2026-02-28")
     XCTAssertEqual(ends.deadline?.days, 1)
@@ -1377,7 +1358,6 @@ final class RewardRowProjectionTests: XCTestCase {
     defer { NSTimeZone.default = original }
     for zone in ["America/Los_Angeles", "Europe/London", "Pacific/Kiritimati"] {
       NSTimeZone.default = try XCTUnwrap(TimeZone(identifier: zone))
-      // Across the March DST change in the US and the UK.
       let projection = try project(["minimum_spend": 800, "total_spend": 100], period: ("2026-03-01", "2026-03-31"), asOf: "2026-03-07")
       XCTAssertEqual(projection.deadline?.days, 25, zone)
     }
@@ -1388,8 +1368,6 @@ final class RewardRowProjectionTests: XCTestCase {
     XCTAssertNil(projection.deadline)
     XCTAssertEqual(projection.action, .minimum(remaining: 700))
   }
-
-  // MARK: Range, summary, ordering
 
   func testRangeRowsHaveNoFillDeadlineOrExceptions() throws {
     let projection = try project([
@@ -1431,15 +1409,12 @@ final class RewardRowProjectionTests: XCTestCase {
   }
 
   func testFallbackOrderPutsCardsNeedingSpendBeforeCappedOnes() throws {
-    // The capped card resets in 5 days (23–27 Sep); the minimum card has 8.
     let capped = try project(["maximum_spend": 2000, "total_spend": 2000, "counted_spend": 2000, "maximum_spend_exceeded": true,
       "should_stop_using": true], name: "Capped", id: "capped", period: ("2026-09-01", "2026-09-27"))
     let minimum = try project(["minimum_spend": 800], name: "Minimum", id: "minimum")
     let unlimited = try project([:], name: "Unlimited", id: "unlimited", period: ("2026-09-01", "2026-09-24"))
     XCTAssertEqual(RewardsBoardOrdering.fallbackOrder([capped, unlimited, minimum]), ["minimum", "unlimited", "capped"])
   }
-
-  // MARK: Fixtures
 
   @MainActor
   func testStatusRowsRenderLightDarkAndLargeText() async throws {

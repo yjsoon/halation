@@ -281,7 +281,6 @@ export class AsyncReportService {
         [planId, key, knowledge, JSON.stringify(payload)],
       );
     } catch {
-      // Ignore: the cache is an optimisation, never a correctness requirement.
     }
   }
 
@@ -327,9 +326,9 @@ export class AsyncReportService {
 
     return {
       interval,
+      periods: [...buckets.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([period, bucket]) => ({
       // Weekly cursors step seven days from `from`, so a year's last short
       // week (31 December) can be missing until a row creates it at the end.
-      periods: [...buckets.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([period, bucket]) => ({
         period,
         age_of_money_days: bucket.spent > 0 ? bucket.weightedAge / bucket.spent : null,
         spent: bucket.spent,

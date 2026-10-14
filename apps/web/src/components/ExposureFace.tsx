@@ -155,8 +155,6 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
   );
 }
 
-// ------------------------------------------------------------------ the markup
-
 const stops = (prefix: string, colour: string) =>
   [0, 1, 2, 3].map((i) => <stop key={i} data-p={`${prefix}${i}`} style={{ stopColor: colour }} offset="0" stopOpacity="0" />);
 
@@ -176,11 +174,21 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
         <linearGradient id={`${uid}-sr`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0" style={{ stopColor: "var(--sun-rise-1)" }} /><stop offset="1" style={{ stopColor: "var(--sun-rise-2)" }} />
         </linearGradient>
-        <linearGradient id={`${uid}-gs`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="gsGrad" x2="1" y2="0">{stops("gs", "var(--face-lit)")}</linearGradient>
-        <linearGradient id={`${uid}-gg`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="ggGrad" x2="1" y2="0">{stops("gg", "var(--face-lit)")}</linearGradient>
+        {/* The lit sky: a vertical pair of lighter blues, masked by the edge's horizontal ramp. */}
+        <linearGradient id={`${uid}-lit`} gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="0" data-p="litGrad" y2="1">
+          <stop offset="0" style={{ stopColor: "var(--face-lit-top)" }} /><stop offset="1" style={{ stopColor: "var(--face-lit-bottom)" }} />
+        </linearGradient>
+        <linearGradient id={`${uid}-gs`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="gsGrad" x2="1" y2="0">{stops("gs", "#fff")}</linearGradient>
+        <mask id={`${uid}-gsm`} maskUnits="userSpaceOnUse" x="0" y="0" width={w} height={h}><rect width={w} height={h} fill={ref("gs")} /></mask>
         <linearGradient id={`${uid}-vd`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="vdGrad" x2="1" y2="0">{stops("vd", "var(--face-veil-dim)")}</linearGradient>
         <linearGradient id={`${uid}-vg`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="vgGrad" x2="1" y2="0">{stops("vg", "var(--face-veil-grey)")}</linearGradient>
         <linearGradient id={`${uid}-vm`} gradientUnits="userSpaceOnUse" x1="0" y1="0" data-p="vmGrad" x2="1" y2="0">{stops("vm", "var(--rw-veil-multiply)")}</linearGradient>
+        {/* The strip's glow: the rings' palette as one smooth falloff, so nothing clips into arcs on a short frame. */}
+        <radialGradient id={`${uid}-glow`} cx="0.5" cy="0.5" r="0.5">
+          <stop offset="0" style={{ stopColor: "var(--face-ring-1)" }} /><stop offset="0.3" style={{ stopColor: "var(--face-ring-2)" }} />
+          <stop offset="0.6" style={{ stopColor: "var(--face-ring-3)" }} /><stop offset="0.82" style={{ stopColor: "var(--face-ring-4)" }} />
+          <stop offset="1" style={{ stopColor: "var(--face-ring-4)" }} stopOpacity="0" />
+        </radialGradient>
         <radialGradient id={`${uid}-pour`} gradientUnits="userSpaceOnUse" data-p="pourGrad" cx="0" cy="0" r="1">
           <stop offset="0" style={{ stopColor: "var(--sun-disc-1)" }} /><stop offset="0.3" style={{ stopColor: "var(--sun-core)" }} />
           <stop offset="1" style={{ stopColor: "var(--sun-core)" }} stopOpacity="0" />
@@ -198,12 +206,13 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
         <path data-p="trail0" d="" /><path data-p="trail1" d="" />
       </g>
       <g clipPath={ref("sky")}>
-        <rect data-p="goldSky" className="rw-gold" width={w} height={h} fill={ref("gs")} />
+        <rect data-p="goldSky" className="rw-gold" width={w} height={h} fill={ref("lit")} mask={`url(#${uid}-gsm)`} />
         <rect data-p="bloom" className="rw-bloom" width={w} height={h} />
         <rect data-p="pour" className="rw-pour" width={w} height={h} fill={ref("pour")} />
       </g>
       <g data-p="halo" className="rw-halo">
         <g data-p="haloAt">
+          <circle data-p="glow" className="rw-glow" r="0" fill={ref("glow")} />
           <circle data-p="ring0" className="rw-ring-4" r="0" /><circle data-p="ring1" className="rw-ring-3" r="0" />
           <circle data-p="ring2" className="rw-ring-2" r="0" /><circle data-p="ring3" className="rw-ring-1" r="0" />
           <circle data-p="core" className="rw-core" r="0" />
@@ -213,7 +222,6 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
       <path data-p="bcrest" className="rw-crest-target" d="" />
       <path data-p="front" className="rw-ridge-front" d="" />
       <path data-p="crest" className="rw-crest" d="" />
-      <g clipPath={ref("ground")}><rect data-p="goldGround" className="rw-gold" width={w} height={h} fill={ref("gg")} /></g>
       <rect data-p="vDim" className="rw-veil-dim" width={w} height={h} fill={ref("vd")} />
       <rect data-p="vGrey" className="rw-veil-grey" width={w} height={h} fill={ref("vg")} />
       <rect data-p="vMult" className="rw-veil-multiply" width={w} height={h} fill={ref("vm")} />
@@ -227,8 +235,6 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
     </svg>
   );
 });
-
-// -------------------------------------------------------------------- painting
 
 function collect(svg: SVGSVGElement): Record<string, SVGElement> {
   const out: Record<string, SVGElement> = {};
@@ -250,17 +256,16 @@ function paint(e: Record<string, SVGElement>, svg: SVGSVGElement, s: Scene, uid:
   const set = (name: string, attr: string, value: string) => e[name]!.setAttribute(attr, value);
   const show = (name: string, on: boolean) => e[name]!.setAttribute("display", on ? "inline" : "none");
 
-  // Ridges.
   set("back", "d", s.backFill);
   set("bcrest", "d", s.backCrest);
   set("front", "d", s.lowerFill);
   set("crest", "d", s.lowerCrest);
   set("skyClip", "d", s.skyClip);
   set("groundClip", "d", s.backFill);
+  svg.toggleAttribute("data-met", s.met);
   svg.toggleAttribute("data-merged", s.merged);
   (e.crest as SVGElement).style.setProperty("--crest-k", n(s.v));
 
-  // The sun, its rings and the glow pouring from the top edge.
   set("sun", "transform", `translate(${n(s.sun.x)} ${n(s.sun.y)})`);
   set("sunDisc", "r", n(s.sun.r));
   set("sunDisc", "stroke-width", n(Math.max(1, s.w * 0.003)));
@@ -269,7 +274,9 @@ function paint(e: Record<string, SVGElement>, svg: SVGSVGElement, s: Scene, uid:
   show("halo", s.halo.visible);
   set("haloAt", "transform", `translate(${n(s.sun.x)} ${n(s.sun.y)})`);
   (e.halo as SVGElement).style.opacity = n(s.halo.opacity);
-  s.halo.rings.forEach((r, i) => set(`ring${i}`, "r", n(r)));
+  show("glow", s.halo.soft);
+  set("glow", "r", n(s.halo.rings[0]));
+  s.halo.rings.forEach((r, i) => { show(`ring${i}`, !s.halo.soft); set(`ring${i}`, "r", n(r)); });
   set("core", "r", n(s.halo.core));
   set("pourGrad", "cx", n(s.pour.cx));
   set("pourGrad", "r", n(s.pour.radius));
@@ -277,27 +284,26 @@ function paint(e: Record<string, SVGElement>, svg: SVGSVGElement, s: Scene, uid:
   (e.bloom as SVGElement).style.opacity = n(s.bloom);
   (e.hz2 as SVGElement).style.opacity = n(s.horizonBoost);
 
-  // Light: gold to the marker (daytime) and the underexposure beyond it.
   const g = s.gold;
   const goldOffsets = [0, g.from, g.to, 1];
-  setStops(e, "gs", goldOffsets, [g.sky, g.sky, g.whole ? g.sky : 0, g.whole ? g.sky : 0]);
-  setStops(e, "gg", goldOffsets, [g.ground, g.ground, g.whole ? g.ground : 0, g.whole ? g.ground : 0]);
-  for (const name of ["gsGrad", "ggGrad", "vdGrad", "vgGrad", "vmGrad"]) set(name, "x2", n(s.w));
+  const past = g.whole ? 1 : g.beyond;
+  setStops(e, "gs", goldOffsets, [g.sky, g.sky, g.sky * past, g.sky * past]);
+  for (const name of ["gsGrad", "vdGrad", "vgGrad", "vmGrad"]) set(name, "x2", n(s.w));
+  set("litGrad", "y2", n(s.skyBottom));
   const v = s.veil;
   const veilOffsets = [0, v.from, v.to, 1];
-  const ramp = v.whole ? [1, 1, 1, 1] : [0, 0, 1, 1];
-  setStops(e, "vd", veilOffsets, ramp.map((k) => k * (v.failed ? 14 / 15 : 1)));
+  const ramp = (v.whole ? [1, 1, 1, 1] : [0, 0, 1, 1]).map((k) => k * v.strength);
+  // Light mode's unlit sky is the daytime blue itself; the daytime dim is for the failed face only, at 14%.
+  setStops(e, "vd", veilOffsets, v.failed ? ramp.map((k) => k * 14 / 15) : [0, 0, 0, 0]);
   setStops(e, "vg", veilOffsets, ramp.map((k) => k * 0.5));
   setStops(e, "vm", veilOffsets, ramp);
   show("vDim", v.on); show("vGrey", v.on); show("vMult", v.on);
 
-  // The contrail: static, high in the right of the sky; the tokens leave it transparent in dark mode.
   show("trail", s.contrail.on);
   s.contrail.lines.forEach(([x0, y0, x1, y1], i) => set(`trail${i}`, "d", `M${n(x0)},${n(y0)} L${n(x1)},${n(y1)}`));
   set("trailGrad", "x1", n(s.contrail.x0));
   set("trailGrad", "x2", n(s.contrail.x1));
 
-  // The marker: two device pixels wide, snapped to the pixel grid, in two tones split at the target horizon.
   show("marker", s.marker.on);
   if (s.marker.on) {
     const x = Math.round(s.marker.x * dpr) / dpr;

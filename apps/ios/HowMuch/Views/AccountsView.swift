@@ -107,7 +107,6 @@ struct AccountsView: View {
         ScreenshotOfferToast(
           offer: offer,
           onAdd: {
-            // The offer becomes an Inbox batch, read here like a share.
             try? screenshots.review()
             IntakeCoordinator.shared.drain(model: model)
           },
@@ -142,7 +141,6 @@ struct AccountsView: View {
       reconcilePane()
     }
     .onChange(of: chrome?.pendingIntakeDestination, initial: true) { _, route in
-      // An Inbox notification or link: the list, or that batch.
       guard let route else { return }
       chrome?.pendingIntakeDestination = nil
       switch route {
@@ -153,7 +151,6 @@ struct AccountsView: View {
       }
     }
     .onChange(of: chrome?.pendingAccountID, initial: true) { _, accountID in
-      // Opened from a Rewards card: show that account's register.
       guard let accountID else { return }
       chrome?.pendingAccountID = nil
       pane = .account(accountID)
@@ -237,7 +234,6 @@ struct AccountsView: View {
     case .intake:
       InboxListView()
     case .intakeBatch(let id):
-      // Close pops the push on a phone and returns to the Inbox list in the split layout.
       IntakeReviewView(jobID: id, onClose: { self.pane = usesSplit ? .intake : nil })
     case .scheduled:
       ScheduledTransactionsView()
@@ -747,7 +743,6 @@ struct AccountsView: View {
           Spacer()
           Button {
             Task {
-              // A successful drain schedules its own narrow refresh.
               await model.drainOutbox(trigger: .manual)
             }
           } label: {

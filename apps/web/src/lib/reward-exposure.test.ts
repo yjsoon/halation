@@ -3,15 +3,6 @@ import { configureMoney } from "./money";
 import { exposure, falls, gap, sunX, sunY, type Exposure } from "./reward-exposure";
 import { projectRow, type RewardsRow } from "./reward-row-projection";
 
-/*
- * The pure Sun Arc mapping (projection to h, v, marker, the sun's x and y, the ridge gap), tested
- * in isolation as docs/frontend/rewards-exposure-card.md "Isolated tests" asks. Two tests only:
- * the mapping walk (the hand-overs, the partial block and a cap that is exceeded, which no
- * fixture can sweep) and the edge-case table (inputs no fixture reaches). Expected values come
- * from the rules in that document, never from the implementation: every figure below is worked
- * out by hand.
- */
-
 const TODAY = "2026-09-23";
 const PERIOD: [string, string] = ["2026-09-01", "2026-09-30"];
 
@@ -42,13 +33,9 @@ function expose(calculation: Json, card: Json = {}, options: { period?: [string,
   return e;
 }
 
-// The sun's geometry is tested for a strip: a target horizon at 42 and a disc of radius 8.
 const HORIZON = 42, RADIUS = 8;
 
 describe("the mapping walk", () => {
-  // The shape of fixtures/rewards-account-config.json: a minimum of 100, one tier at 1,000, a cap
-  // of 2,400 at the base level and of 2,998 at the tier (the fixture's 3,000, moved off a multiple
-  // of the block so the walk crosses a partial-block cap), and earning blocks of 5.
   const TIER = 1000, MINIMUM = 100, BLOCK = 5, BASE_CAP = 2400, TIER_CAP = 2998;
   const card = {
     minimumSpend: MINIMUM, maximumSpend: BASE_CAP, earningBlockSize: BLOCK,
@@ -90,7 +77,6 @@ describe("the mapping walk", () => {
       expect(y).toBeLessThanOrEqual(HORIZON + 0.08 * RADIUS + 1e-9); expect(y).toBeGreaterThanOrEqual(-1.05 * RADIUS - 1e-9);
 
       if (spend < MINIMUM) {
-        // The way to the minimum: across.
         const expectedH = Math.max(0, spend / MINIMUM);
         expect(h).toBeCloseTo(expectedH, 9);
         expect(v).toBe(0);
@@ -105,21 +91,17 @@ describe("the mapping walk", () => {
         expect(sunX(e.pose)).toBe(0.85);
         expect(gap(e.pose)).toBe(0);
         if (spend < TIER) {
-          // The way to the tier: up to halfway, measured from the minimum.
           expect(v).toBeCloseTo(0.5 * (spend - MINIMUM) / (TIER - MINIMUM), 9);
         } else if (p.action.kind !== "capReached") {
-          // After the tier: halfway, then on to the cap, measured from the tier.
           expect(v).toBeCloseTo(0.5 + 0.5 * Math.min(1, Math.max(0, (counted - TIER) / (TIER_CAP - TIER))), 9);
         }
       }
 
-      // v is exactly 1 exactly when the action is capReached.
       expect(v === 1).toBe(p.action.kind === "capReached");
       if (p.action.kind === "capReached" && firstCapped === null) firstCapped = spend;
       if (p.action.kind === "capReached") expect(e.stage).toBe("capped");
 
       if (previous) {
-        // Nothing falls as spend grows, and the sun only ever moves up and to the right.
         expect(h).toBeGreaterThanOrEqual(previous.e.pose.h - 1e-12);
         expect(v).toBeGreaterThanOrEqual(previous.e.pose.v - 1e-12);
         expect(sunX(e.pose)).toBeGreaterThanOrEqual(sunX(previous.e.pose) - 1e-12);
@@ -128,7 +110,6 @@ describe("the mapping walk", () => {
       }
       previous = { spend, e, y };
     }
-    // The partial block: counted 2,995 of 2,998 is capped.
     expect(firstCapped).toBe(2995);
   });
 
@@ -166,7 +147,6 @@ describe("the edge cases", () => {
       for (const e of bad) {
         for (const value of [e.pose.h, e.pose.v, sunX(e.pose), sunY(e.pose, HORIZON, RADIUS), gap(e.pose)]) expect(Number.isFinite(value)).toBe(true);
       }
-      // A minimum that is not a number or is negative is no minimum: the cap climb is measured from 0.
       expect(bad[0]!.hasMinimum).toBe(false);
       expect(bad[0]!.pose).toEqual({ h: 1, v: 0.5 });
       expect(bad[1]!.hasMinimum).toBe(false);
@@ -215,7 +195,6 @@ describe("the edge cases", () => {
       const card = { minimumSpend: 100, spendingTiers: [{ id: "t500", spendThreshold: 500 }, { id: "t1000", spendThreshold: 1000 }] };
       const first = expose({ minimum_spend: 100, total_spend: 300, has_next_spending_tier: true, next_spending_tier_threshold: 500 }, card);
       expect(first.pose.v).toBeCloseTo(0.25, 9);
-      // The first tier reached: the one threshold the projection carries is that tier's, so the sun holds at halfway.
       const second = expose({ minimum_spend: 500, total_spend: 750, active_spending_tier_id: "t500", has_next_spending_tier: true, next_spending_tier_threshold: 1000 }, card);
       expect(second.pose.v).toBe(0.5);
       const top = expose({ minimum_spend: 1000, total_spend: 1200, active_spending_tier_id: "t1000", has_next_spending_tier: false }, card);
@@ -239,7 +218,6 @@ describe("the edge cases", () => {
       expect(pending.pose.h).toBeCloseTo(250 / 300, 9);
       expect(pending.pose.v).toBe(0);
       expect(pending.markerX).toBeCloseTo(250 / 300, 9);
-      // The month is met, with a cap of 1,000 and counted spend of 650: measured from the card's minimum (0), never the month's.
       const met = expose({
         total_spend: 650, counted_spend: 650, maximum_spend: 1000, qualification_status: "met", monthly_minimum_spend: 300,
         monthly_qualifications: [{ start: "2026-09-01", end: "2026-09-30", spend: 650, minimumSpend: 300, status: "met" }],

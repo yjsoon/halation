@@ -78,8 +78,9 @@ export function transactionSearchSql(query: RegisterQuery): { sql: string; param
   const asciiFolded = query.raw.replace(/[A-Z]+/g, (letters) => letters.toLowerCase());
   const needles = asciiFolded === query.text ? [query.text] : [query.text, asciiFolded];
   const textParts = needles.flatMap((needle) => {
-    params.push(needle, needle, needle, needle, needle, needle, needle);
-    return textSearchParts();
+    const search = textSearchParts(needle);
+    params.push(...search.params);
+    return search.parts;
   });
 
   const clauses = [`(${textParts.join(" OR ")})`];
@@ -96,9 +97,8 @@ export function transactionSearchSql(query: RegisterQuery): { sql: string; param
   return { sql: `(${clauses.join(" OR ")})`, params };
 }
 
-/** Seven `?` placeholders, all for the same needle. */
-function textSearchParts(): string[] {
-  return [
+function textSearchParts(needle: string): { parts: string[]; params: unknown[] } {
+  const parts = [
     "instr(lower(ifnull(p.name, ifnull(t.payee_name_snapshot, ''))), ?) > 0",
     "instr(lower(ifnull(t.memo, '')), ?) > 0",
     "instr(lower(ifnull(c.name, ifnull(t.category_name_snapshot, ''))), ?) > 0",
@@ -114,6 +114,8 @@ function textSearchParts(): string[] {
             )
           )`,
   ];
+  const placeholders = parts.reduce((count, part) => count + part.split("?").length - 1, 0);
+  return { parts, params: Array<unknown>(placeholders).fill(needle) };
 }
 
 function resolveMoneyFormat(format?: MoneyFormat | null): Required<Pick<MoneyFormat, "decimalDigits" | "decimalSeparator" | "groupSeparator" | "currencySymbol">> {

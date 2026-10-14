@@ -4,7 +4,6 @@ import XCTest
 /// The functional core of the offline outbox: coalescing, replay order,
 /// outcome mapping and balance deltas. No network, no model, no disk.
 final class OutboxPlannerTests: XCTestCase {
-  // MARK: - Fixtures
 
   private let epoch = Date(timeIntervalSince1970: 1_790_000_000)
   private var nextUUID = 0
@@ -104,8 +103,6 @@ final class OutboxPlannerTests: XCTestCase {
   private func delta(balance: Int = 0, cleared: Int = 0, uncleared: Int = 0) -> DeleteBalanceDelta.Delta {
     DeleteBalanceDelta.Delta(balance: balance, cleared: cleared, uncleared: uncleared)
   }
-
-  // MARK: - Coalescing
 
   func testCreateThenUpdateStaysACreateWithTheNewBodyAndOriginalImportID() {
     let queue = enqueueAll([
@@ -353,8 +350,6 @@ final class OutboxPlannerTests: XCTestCase {
     }
   }
 
-  // MARK: - Replay
-
   func testPlanSendsStagesInOrderAndKeepsQueueOrderWithinEach() {
     let queue = enqueueAll([
       command(.delete(expectedApproved: nil), id: "d1", base: row("d1")),
@@ -387,8 +382,6 @@ final class OutboxPlannerTests: XCTestCase {
     XCTAssertEqual(plan.batches.flatMap(\.commands).map(\.transactionID), ["t3"])
     XCTAssertEqual(plan.deferred.map(\.transactionID), ["t1"])
   }
-
-  // MARK: - Connections
 
   // Failure mode: two connections (servers, plans or users) can hold a row
   // with the same id -- server ids are only unique per database. Matching on
@@ -441,8 +434,6 @@ final class OutboxPlannerTests: XCTestCase {
     XCTAssertEqual(deltas["a2"], delta(balance: -3_000, uncleared: -3_000))
   }
 
-  // MARK: - Outcomes
-
   func testOutcomeMapping() {
     typealias Result = OutboxPlanner.ServerResult
     let create = OutboxCommand.Kind.create(request())
@@ -471,8 +462,6 @@ final class OutboxPlannerTests: XCTestCase {
       XCTAssertEqual(OutboxPlanner.action(for: kind, result: result), expected, "\(kind) / \(result)")
     }
   }
-
-  // MARK: - Balance deltas
 
   func testCreatedTransferMirrorsToTheResolvedAccount() {
     let deltas = OutboxPlanner.balanceDeltas(
@@ -632,8 +621,6 @@ final class OutboxPlannerTests: XCTestCase {
     XCTAssertEqual(OutboxPlanner.balanceDeltas(queue, rowsByID: [:]), [:])
   }
 
-  // MARK: - Attempted commands
-
   private func attempted(_ command: OutboxCommand) -> OutboxCommand {
     var command = command
     command.attempted = true
@@ -717,8 +704,6 @@ final class OutboxPlannerTests: XCTestCase {
     XCTAssertFalse(older.attempted)
     XCTAssertFalse(older.sentWithClientID)
   }
-
-  // MARK: - Codable
 
 }
 

@@ -5,7 +5,6 @@ import XCTest
 /// back-to-back refresh requests coalesce, and when the Reflect reports may be
 /// served from cache (#180). No network, no model, no view.
 final class RefreshPlanTests: XCTestCase {
-  // MARK: - Mutation → slice table
 
   func testNoMutationEverRefetchesReferenceDataOrReports() {
     let mutations: [MutationKind] = [
@@ -34,8 +33,6 @@ final class RefreshPlanTests: XCTestCase {
     }
   }
 
-  // MARK: - Tabs
-
   func testAccountsPullRetriesTheWholeBatchWhenReferenceDataIsNotLoaded() {
     XCTAssertEqual(
       TabRefresh.accounts(referencePhase: .loaded),
@@ -50,8 +47,6 @@ final class RefreshPlanTests: XCTestCase {
       )
     }
   }
-
-  // MARK: - Debounce / coalescing
 
   func testMergingKeepsTheUnionAndTheLoudestIntent() {
     let background = RefreshRequest(slices: [.accounts], quiet: true, force: false)
@@ -70,8 +65,6 @@ final class RefreshPlanTests: XCTestCase {
       "the reference batch already fetches accounts and payees; keeping both would double the requests"
     )
   }
-
-  // MARK: - Reports cache (#180)
 
   func testLoadedReportsAreServedFromCacheWhenNothingMoved() {
     XCTAssertFalse(
@@ -150,8 +143,6 @@ final class RefreshPlanTests: XCTestCase {
       )
     )
   }
-
-  // MARK: - Reflect detail fetch ordering
 
   func testReportFetchGateRejectsAStaleRetryAfterANewerFilterFetch() {
     var gate = ReportFetchGate()

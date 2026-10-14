@@ -45,7 +45,6 @@ export function generateYnabD1Bootstrap(inputPath: string, outputPath: string): 
   return generateBootstrap(inputPath, outputPath, "single") as BootstrapManifest;
 }
 
-/** Writes ordered, checkpointed SQL files that can be executed sequentially. */
 export function generateYnabD1BootstrapChunks(inputPath: string, outputDirectory: string): BootstrapChunkManifest {
   return generateBootstrap(inputPath, outputDirectory, "chunks") as BootstrapChunkManifest;
 }
@@ -68,19 +67,19 @@ function generateBootstrap(inputPath: string, outputPath: string, mode: "single"
         throw new Error("Source must not contain authentication or setup data");
       }
     }
+    if (scalar(source, "SELECT count(*) n FROM plan_month_assignments") !== 0) {
     // Assignments are a mutable HowMuch-local overlay, not YNAB provenance.
     // A clean initial migration must never transfer them implicitly.
-    if (scalar(source, "SELECT count(*) n FROM plan_month_assignments") !== 0) {
       throw new Error("Source must not contain local plan month assignments");
     }
     if (scalar(source, "SELECT count(*) n FROM plan_month_category_targets") !== 0) {
       throw new Error("Source must not contain local plan month category targets");
     }
+    if (scalar(source, "SELECT count(*) n FROM account_reconciliation_assertions") !== 0
     // Reconciliation changes normalised cleared states, but this initial
     // bootstrap intentionally does not copy its audit/assertion receipts.
     // Refuse such a source rather than silently preserving balances while
     // dropping the reconciliation provenance and idempotency history.
-    if (scalar(source, "SELECT count(*) n FROM account_reconciliation_assertions") !== 0
       || scalar(source, "SELECT count(*) n FROM audit_events WHERE action='account.reconcile'") !== 0) {
       throw new Error("Source must not contain account reconciliation history");
     }
@@ -315,7 +314,6 @@ function validateStatementGroups(source: Database, statementGroups: string[][], 
     const sync = db.query("SELECT * FROM ynab_sync_state").get() as any;
     if (sync.plan_id !== planId || sync.server_knowledge !== cursor || sync.lease_id !== null || sync.lease_until !== null) throw new Error("Invalid sync cursor");
     if (scalar(db, "SELECT write_version n FROM write_state") !== 0 || scalar(db, "SELECT count(*) n FROM write_commands") || scalar(db, "SELECT count(*) n FROM write_assertions")) throw new Error("Bootstrap contaminated guarded-write state");
-    // Exercise the canonical guarded-command state protocol after parity checks.
     db.exec(`INSERT INTO write_commands(id,expected_write_version,kind,plan_id,transaction_id,request_hash) VALUES('bootstrap-validation',0,'create','${planId.replaceAll("'","''")}','validation','validation'); UPDATE write_state SET write_version=1,last_command_id='bootstrap-validation' WHERE singleton=1; UPDATE write_commands SET status='applied',applied_at=CURRENT_TIMESTAMP WHERE id='bootstrap-validation';`);
     if (scalar(db, "SELECT write_version n FROM write_state") !== 1) throw new Error("Guarded command protocol validation failed");
   } finally { db.close(); }
@@ -431,18 +429,19 @@ function emptyCounts(): Record<string, number> {
   return Object.fromEntries([...COPY_TABLES, "ynab_sync_state"].map((table) => [table, 0]));
 }
 
-/**
- * A clean target makes this a no-op. Any mismatched checkpoint emits two
- * identical singleton rows in one statement; the second row violates the
- * existing primary key, so the file fails before its data statements run.
- */
 function checkpointGuard(expectedCounts: Record<string, number>): string[] {
-  const mismatches = [
+  const dirty = [
     ...EMPTY_TABLES.map((table) => `(SELECT count(*) FROM ${table})<>${expectedCounts[table] ?? 0}`),
     "NOT EXISTS(SELECT 1 FROM write_state WHERE singleton=1 AND write_version=0 AND last_command_id IS NULL)",
     "(SELECT count(*) FROM write_state)<>1",
   ].join(" OR ");
-  return [`INSERT INTO write_state(singleton,write_version) SELECT 1,0 WHERE ${mismatches} UNION ALL SELECT 1,0 WHERE ${mismatches};`];
+  return [abortWhen(dirty)];
+}
+
+/** SQL has no assert: two identical rows in one INSERT violate the primary key, so the file stops before its data runs. */
+function abortWhen(condition: string): string {
+  const row = `SELECT 1,0 WHERE ${condition}`;
+  return `INSERT INTO write_state(singleton,write_version) ${row} UNION ALL ${row};`;
 }
 function literal(value: unknown): string { if (value === null) return "NULL"; if (typeof value === "number") { if (!Number.isSafeInteger(value)) throw new Error("Unsafe integer in source"); return String(value); } if (typeof value !== "string" || value.includes("\0")) throw new Error("Unsupported or NUL-containing source value"); return `'${value.replaceAll("'", "''")}'`; }
 function validateScalars(row: Row, table: string) { for (const [key, value] of Object.entries(row)) { if (typeof value === "number" && !Number.isSafeInteger(value)) throw new Error(`Unsafe integer in ${table}.${key}`); if (typeof value === "string" && value.includes("\0")) throw new Error(`NUL text in ${table}.${key}`); } }

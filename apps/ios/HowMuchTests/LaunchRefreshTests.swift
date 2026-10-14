@@ -20,11 +20,6 @@ final class LaunchRefreshTests: XCTestCase {
   override func setUp() {
     super.setUp()
     previousCredentialService = APISettings.useCredentialService("HowMuch.LaunchRefreshTests.\(UUID().uuidString)")
-    // `applySettings`/`resolvePlanSelection` call through to `settings.save()`,
-    // which writes the fixture connection straight into `UserDefaults.standard`
-    // under the app's real keys. Save/restore those so this fixture host never
-    // leaks into other tests (e.g. CaptureOriginTests, IPadLayoutTests, which
-    // construct `AppModel()` from `APISettings.load()`) or the installed app.
     previousAPISettings = UserDefaults.standard.object(forKey: APISettings.userDefaultsKey)
     previousScopedViewPrefs = UserDefaults.standard.object(forKey: ScopedViewPrefsStore.userDefaultsKey)
     previousOutbox = UserDefaults.standard.object(forKey: OutboxStore.legacyDefaultsKey)
@@ -89,7 +84,7 @@ final class LaunchRefreshTests: XCTestCase {
     settings.baseURLString = LaunchProbeProtocol.fixtureBaseURL
     settings.authenticatedUserID = "launch-probe-\(UUID().uuidString)"
     settings.sessionToken = "token"
-    settings.planID = "" // fresh sign-in: no saved plan yet
+    settings.planID = ""
 
     let model = AppModel(outboxStore: .temporary(), settings: settings, viewPrefs: ViewPrefs(), snapshotStore: temporarySnapshotStore())
 
@@ -259,8 +254,6 @@ final class RefreshAllDedupeTests: XCTestCase {
   override func setUp() {
     super.setUp()
     previousCredentialService = APISettings.useCredentialService("HowMuch.RefreshAllDedupeTests.\(UUID().uuidString)")
-    // `resolvePlanSelection` saves the adopted plan into the app's real
-    // `UserDefaults` keys; keep this fixture host out of other tests.
     previousAPISettings = UserDefaults.standard.object(forKey: APISettings.userDefaultsKey)
     previousScopedViewPrefs = UserDefaults.standard.object(forKey: ScopedViewPrefsStore.userDefaultsKey)
     previousOutbox = UserDefaults.standard.object(forKey: OutboxStore.legacyDefaultsKey)
@@ -610,10 +603,6 @@ final class ApplySettingsRefreshTests: XCTestCase {
   override func setUp() {
     super.setUp()
     previousCredentialService = APISettings.useCredentialService("HowMuch.ApplySettingsRefreshTests.\(UUID().uuidString)")
-    // `applySettings()` calls through to `settings.save()`, which writes the
-    // fixture connection straight into `UserDefaults.standard` under the
-    // app's real key. Save/restore it so this fixture host never leaks into
-    // other tests or the installed app.
     previousAPISettings = UserDefaults.standard.object(forKey: APISettings.userDefaultsKey)
     previousScopedViewPrefs = UserDefaults.standard.object(forKey: ScopedViewPrefsStore.userDefaultsKey)
     previousOutbox = UserDefaults.standard.object(forKey: OutboxStore.legacyDefaultsKey)
@@ -975,8 +964,6 @@ final class UnapprovedCountLaunchTests: XCTestCase {
     }
     XCTAssertTrue(dropped, "approving three rows must take three off the plan-wide badge, saw \(model.unapprovedBadgeCount)")
 
-    // Now refresh a *different* scope. This must not touch the plan-wide
-    // baseline.
     await model.refreshUnapprovedCount(forAccountID: UnapprovedProbeProtocol.fixtureAccountID)
 
     XCTAssertEqual(
@@ -1068,8 +1055,6 @@ final class UnapprovedCountLaunchTests: XCTestCase {
     }
     XCTAssertTrue(dropped, "rejecting an unapproved row must take one off the badge, saw \(model.unapprovedBadgeCount)")
 
-    // And a refresh of a different scope must not undo that, exactly as for
-    // approvals.
     await model.refreshUnapprovedCount(forAccountID: UnapprovedProbeProtocol.fixtureAccountID)
     XCTAssertEqual(
       model.unapprovedBadgeCount,
@@ -1175,8 +1160,6 @@ final class UnapprovedCountLaunchTests: XCTestCase {
     XCTAssertTrue(optimistic, "the success toast and badge drop must land before the hung PATCH fails")
 
     UnapprovedProbeProtocol.releaseApprovePatch()
-    // The server could not be reached: the approvals stay queued and keep
-    // showing, because the outbox will send them later.
     let waiting = await surface.waitUntil(timeoutNanoseconds: 4_000_000_000) {
       !model.isApprovalInFlight && !model.isSyncingOutbox
     }
@@ -1185,7 +1168,6 @@ final class UnapprovedCountLaunchTests: XCTestCase {
     XCTAssertTrue(model.unapprovedTransactions.isEmpty)
     XCTAssertEqual(model.unapprovedBadgeCount, 0)
 
-    // Discarding them puts the rows and the badge back.
     for item in model.outboxItems {
       model.discardPending(item.id)
     }
@@ -1200,7 +1182,6 @@ final class UnapprovedCountLaunchTests: XCTestCase {
     XCTAssertTrue(URLProtocol.registerClass(UnapprovedProbeProtocol.self))
     defer { URLProtocol.unregisterClass(UnapprovedProbeProtocol.self) }
     UnapprovedProbeProtocol.reset()
-    // Let the walk finish, but slowly enough to close the flow underneath it.
     UnapprovedProbeProtocol.answerUnapprovedPageSlowly()
 
     let model = AppModel(outboxStore: .temporary(), settings: Self.fixtureSettings("queue-midload"), viewPrefs: ViewPrefs())
@@ -1227,7 +1208,6 @@ final class UnapprovedCountLaunchTests: XCTestCase {
     model.closeUnapprovedQueue(viewer: viewer)
     XCTAssertEqual(model.unapprovedQueuePhase, .idle, "closing the last viewer releases the queue")
 
-    // Now let the late response land. It must not resurrect the phase.
     await opening.value
     XCTAssertEqual(
       model.unapprovedQueuePhase,

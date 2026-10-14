@@ -1,7 +1,5 @@
 import SwiftUI
 
-/// Calculator semantics for the YNAB-style amount keypad. Values are
-/// milliunit magnitudes; digits shift in from the right as cents.
 struct AmountKeypadEngine: Equatable {
   enum Op: Equatable {
     case add
@@ -138,8 +136,6 @@ struct TransactionEditorSheet: View {
   }
 }
 
-/// What the keypad's confirm key does next: collapse the keypad, continue to
-/// the payee picker, or save outright — one downhill path from amount to done.
 enum KeypadPrimaryAction {
   case done
   case next
@@ -495,8 +491,6 @@ struct TransactionFormView: View {
     .sensoryFeedback(.selection, trigger: draft.direction)
   }
 
-  /// Lime sits behind any inflow, including a blank one, so the header
-  /// matches the lime Inflow toggle from the moment it is chosen.
   private var showsInflowHeader: Bool {
     displayedSignedAmount > 0 || (!draft.isSplit && draft.direction == .inflow)
   }
@@ -513,7 +507,6 @@ struct TransactionFormView: View {
   private var amountDisplay: String {
     let signed = displayedSignedAmount
     let text = MoneyCodec.displayString(for: signed, currencyFormat: model.currencyFormat)
-    // YNAB shows the minus even at zero while in outflow mode.
     if !draft.isSplit, draft.direction == .outflow, signed == 0 {
       return "−\(text)"
     }
@@ -635,8 +628,6 @@ struct TransactionFormView: View {
     .ynabCard()
   }
 
-  /// Category stays in the card even for splits and on-budget transfers so
-  /// Account / Date cannot jump when the field stops being editable.
   @ViewBuilder
   private var categoryRow: some View {
     if draft.isSplit {
@@ -683,8 +674,6 @@ struct TransactionFormView: View {
     }
   }
 
-  /// Transfers between two budget accounts carry no category (YNAB). The row
-  /// stays visible and read-only so the rows below cannot jump.
   private var hidesCategory: Bool {
     draft.isTransfer && model.accountsBothOnBudget(draft.accountID, draft.transferAccountID)
   }
@@ -897,7 +886,6 @@ struct TransactionFormView: View {
     }
   }
 
-  /// Memo is a system text field, so it owns the QWERTY keyboard.
   private var memoRow: some View {
     FormCardRow(
       icon: "note.text",
@@ -1408,8 +1396,6 @@ struct CalculatorKeypad: View {
   }
 }
 
-/// Keys light up under the finger like a physical calculator, alongside the
-/// haptic tick.
 private struct KeypadKeyStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
     configuration.label

@@ -128,8 +128,6 @@ struct IntakeProposalRow: View {
     .accessibilityElement(children: .contain)
   }
 
-  // MARK: Leading checkbox
-
   @ViewBuilder
   private var leadingControl: some View {
     if isAlreadyIn {
@@ -158,8 +156,6 @@ struct IntakeProposalRow: View {
       .accessibilityValue(isTicked ? "Included" : (canTick ? "Not included" : "Can’t be approved yet"))
     }
   }
-
-  // MARK: Summary
 
   private var summary: some View {
     VStack(alignment: .leading, spacing: 4) {
@@ -277,8 +273,6 @@ struct IntakeProposalRow: View {
         .foregroundStyle(Theme.textPrimary)
     }
   }
-
-  // MARK: Controls below the summary
 
   private var hasControls: Bool {
     isActionable || isAlreadyIn
@@ -449,8 +443,6 @@ struct IntakeProposalRow: View {
     }
     return live.filter { !$0.isQuiet && !$0.hidden } + live.filter { $0.isQuiet || $0.hidden }
   }
-
-  // MARK: Text
 
   private var accountName: String {
     model.accounts.first { $0.id == draft.accountID }?.name ?? "No account"

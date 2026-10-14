@@ -322,7 +322,6 @@ struct AddTransactionsView: View {
         }
       }
       .overlay(alignment: .bottom) {
-        // Animate only the pill; the transcript underneath keeps its own timing.
         VStack {
           if showJumpToLatest, !isNearBottom {
             Button("New response") {

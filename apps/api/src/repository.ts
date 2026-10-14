@@ -3527,7 +3527,6 @@ function assembleScheduledTransactions(editRows: Row[], editSubRows: Row[]): any
     return result.sort((left, right) => String(left.date_next ?? left.date_first ?? "9999-12-31").localeCompare(String(right.date_next ?? right.date_first ?? "9999-12-31")) || String(left.id).localeCompare(String(right.id)));
 }
 
-
 /** Split lines with their payee and category names; callers add the WHERE. */
 const SUBTRANSACTION_SELECT_SQL = `SELECT
              st.*,

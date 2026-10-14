@@ -12,7 +12,6 @@ export function categorisableRows(rows: readonly Transaction[]): Transaction[] {
   return rows.filter((txn) => !txn.transfer_account_id && !txn.parent_transaction_id && !(txn.subtransactions?.length));
 }
 
-/** Rows whose dedicated cleared toggle would actually change something. */
 export function clearedTargets(
   rows: readonly Transaction[],
   cleared: "cleared" | "uncleared",
@@ -88,7 +87,6 @@ export function bulkWriteTouchesReconciliation(kind: BulkWriteKind): boolean {
 }
 
 export type BulkDeleteFollowUp = {
-  /** Rows still unsettled, to keep selected for a fresh confirmation. */
   readonly retryIds: readonly string[];
   readonly complete: boolean;
 };

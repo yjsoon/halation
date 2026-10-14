@@ -17,6 +17,7 @@ extension Theme {
     static let skyMiles = [named("SkyMiles1"), named("SkyMiles2"), named("SkyMiles3")]
     static let skyOvercast = [named("SkyOvercast1"), named("SkyOvercast2"), named("SkyOvercast3")]
     static let skyLit = named("SkyLit")
+    static let skyLitBottom = named("SkyLitBottom")
     static let contrail = named("Contrail")
 
     static let inkCashback = named("InkCashback")
@@ -46,10 +47,6 @@ extension Theme {
     static let veilMiles = named("VeilMiles")
     static let bloom = named("Bloom")
 
-    static let markerCashback = named("MarkerCashback")
-    static let markerMiles = named("MarkerMiles")
-    static let markerRidge = named("MarkerRidge")
-    static let markerEdge = named("MarkerEdge")
   }
 }
 
@@ -94,9 +91,10 @@ struct RewardExposureFace: View, Animatable, Equatable {
 }
 
 /// Draws one frame of the scene, back to front: sky and horizon warmth, the
-/// contrail and the light (gold by day, bloom by night), the pour from the top
-/// edge, the halo, the two ridges, the ground's gold, the veil, the sun and the
-/// marker. Text is never inside the scene.
+/// contrail and the light (a lighter blue by day, bloom by night), the pour from the top
+/// edge, the glow, the two ridges, the veil and the sun. The
+/// phone draws no hairline marker: the sun rides at the fill and is the marker.
+/// Text is never inside the scene.
 private struct ExposurePainter {
   let scene: ExposureScene
   let increasedContrast: Bool
@@ -120,7 +118,6 @@ private struct ExposurePainter {
     drawGround(in: &context)
     drawVeil(in: &context)
     drawSun(in: &context)
-    drawMarker(in: &context)
   }
 
   // MARK: Paths
@@ -191,37 +188,51 @@ private struct ExposurePainter {
 
   // MARK: Light
 
-  /// A wash of `colour` across the whole frame: to the marker in the minimum
-  /// journey, with the soft falloff, and end to end from then on.
+  /// A wash of `colour` across the whole frame: to the lit edge in the minimum
+  /// journey, with the soft falloff, and end to end from then on. Beyond the edge it
+  /// keeps the share the sun's lift has already lit, so no sliver is left at the edge.
   private func wash(_ colour: Color, alpha: Double) -> GraphicsContext.Shading {
     let solid = colour.opacity(alpha)
     guard scene.inMinimumJourney else {
       return .color(solid)
     }
-    // The wash falls to the same colour at zero alpha, never to clear, so the falloff does not pass through grey.
+    // The wash falls to the same colour at a lower alpha, never to clear, so the falloff does not pass through grey.
     let lo = min(1, max(0, pose.h - 0.04))
     let hi = min(1, max(0, pose.h + 0.04))
+    let beyond = alpha * scene.lifted
     // Smoothstep between lo and hi: quarter points sit at 15.6% and 84.4% of the way.
     let quarter = lo + 0.25 * (hi - lo), threeQuarter = lo + 0.75 * (hi - lo)
     let gradient = Gradient(stops: [
       .init(color: solid, location: 0), .init(color: solid, location: lo),
-      .init(color: colour.opacity(alpha * 0.844), location: quarter),
-      .init(color: colour.opacity(alpha * 0.156), location: threeQuarter),
-      .init(color: colour.opacity(0), location: hi), .init(color: colour.opacity(0), location: 1),
+      .init(color: colour.opacity(beyond + (alpha - beyond) * 0.844), location: quarter),
+      .init(color: colour.opacity(beyond + (alpha - beyond) * 0.156), location: threeQuarter),
+      .init(color: colour.opacity(beyond), location: hi), .init(color: colour.opacity(beyond), location: 1),
     ])
     return .linearGradient(gradient, startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: width, y: 0))
   }
 
   private func drawLight(in context: inout GraphicsContext) {
     if daytime {
-      // The contrail first, so the gold is laid over it and it shows only on the blue.
+      // The contrail first, so the lit wash is laid over it and it shows only on the unlit blue.
       if exposure.miles, exposure.stage != .failed { drawContrail(in: &context) }
-      if let alpha = scene.litAlpha?.sky {
-        context.fill(Path(frame), with: wash(Theme.Face.skyLit, alpha: alpha))
+      if let alpha = scene.litAlpha {
+        // A lighter blue at the top of the sky down to a shade deeper at the horizon's lowest point,
+        // masked by the edge's ramp. The ridges are drawn over it, so it shows only on the sky.
+        let bottom = max(scene.horizonY(at: 0), scene.horizonY(at: 1))
+        context.drawLayer { layer in
+          layer.fill(
+            Path(frame),
+            with: .linearGradient(
+              Gradient(colors: [Theme.Face.skyLit, Theme.Face.skyLitBottom]),
+              startPoint: CGPoint(x: 0, y: 0), endPoint: CGPoint(x: 0, y: bottom)))
+          layer.blendMode = .destinationIn
+          layer.fill(Path(frame), with: wash(.white, alpha: alpha))
+        }
       }
     } else if scene.bloomAlpha > 0 {
       var bloom = context
-      bloom.blendMode = exposure.miles ? .screen : .normal
+      // Screened for both prints, as the web does (--face-cashback-blend): the bloom adds light.
+      bloom.blendMode = .screen
       bloom.fill(Path(frame), with: .color(Theme.Face.bloom.opacity(scene.bloomAlpha)))
     }
   }
@@ -264,23 +275,28 @@ private struct ExposurePainter {
 
   // MARK: Halo
 
+  /// One smooth glow in the rings' palette, inner to outer, plus the core under the disc. A
+  /// short frame clips posterised rings into arcs at its edges and along the ridges; a falloff
+  /// clipped the same way still reads as light.
   private func drawHalo(in context: inout GraphicsContext) {
     guard let sun = scene.sun else { return }
     var halo = context
     halo.opacity = scene.haloOpacity
     halo.blendMode = scene.glowScreens ? .screen : .normal
-    let base = scene.ringRadius
-    // Largest first, so each step reads as posterised light rather than a drawn line.
-    let rings: [(Double, Color)] = [
-      (0.92, Theme.Face.rings[3]), (0.68, Theme.Face.rings[2]), (0.46, Theme.Face.rings[1]),
-      (0.27, Theme.Face.rings[0]), (0.15, Theme.Face.sunCore),
-    ]
-    for (share, colour) in rings {
-      let radius = base * share
-      halo.fill(
-        Path(ellipseIn: CGRect(x: sun.x - radius, y: sun.y - radius, width: 2 * radius, height: 2 * radius)),
-        with: .color(colour))
-    }
+    let radius = 0.92 * scene.ringRadius
+    let centre = CGPoint(x: sun.x, y: sun.y)
+    let glow = Gradient(stops: [
+      .init(color: Theme.Face.rings[0], location: 0), .init(color: Theme.Face.rings[1], location: 0.3),
+      .init(color: Theme.Face.rings[2], location: 0.6), .init(color: Theme.Face.rings[3], location: 0.82),
+      .init(color: Theme.Face.rings[3].opacity(0), location: 1),
+    ])
+    halo.fill(
+      Path(ellipseIn: CGRect(x: sun.x - radius, y: sun.y - radius, width: 2 * radius, height: 2 * radius)),
+      with: .radialGradient(glow, center: centre, startRadius: 0, endRadius: radius))
+    let core = 0.15 * scene.ringRadius
+    halo.fill(
+      Path(ellipseIn: CGRect(x: sun.x - core, y: sun.y - core, width: 2 * core, height: 2 * core)),
+      with: .color(Theme.Face.sunCore))
   }
 
   // MARK: Ridges
@@ -297,7 +313,7 @@ private struct ExposurePainter {
     let crest: Double
     if increasedContrast {
       crest = 1
-    } else if scene.isMerged {
+    } else if scene.isMet {
       crest = 0.9 + 0.1 * pose.v
     } else {
       crest = 0.75
@@ -305,14 +321,11 @@ private struct ExposurePainter {
     context.stroke(line(spend), with: .color(Theme.Face.crest.opacity(crest)), lineWidth: 1.5)
   }
 
-  /// Light mode: the ground is sunlit to the marker. Dark mode, strip only: a scrim
-  /// keeps light ink off a light sky wherever the foot ends up.
+  /// Dark mode, strip only: a scrim keeps light ink off a light sky wherever the foot ends up.
+  /// Light mode's ground is never lit: it keeps one pair of greens across the whole floor.
   private func drawGround(in context: inout GraphicsContext) {
     if daytime {
-      guard let alpha = scene.litAlpha?.ground else { return }
-      var ground = context
-      ground.clip(to: below { scene.horizonY(at: $0) })
-      ground.fill(Path(frame), with: wash(Theme.Face.skyLit, alpha: alpha))
+      return
     } else if case .strip(_, let footTop) = scene.layout {
       let top = (footTop ?? 0.54 * height) - 8
       let scrim = Gradient(colors: [Theme.Face.ridgeFront.opacity(0), Theme.Face.ridgeFront.opacity(0.55)])
@@ -328,7 +341,8 @@ private struct ExposurePainter {
   /// Underexposes the art right of the marker in the minimum journey, and everything when failed.
   private func drawVeil(in context: inout GraphicsContext) {
     guard let edge = scene.veilEdge else { return }
-    let failed = exposure.stage == .failed
+    let strength = scene.veilStrength
+    guard strength > 0 else { return }
     let from = CGPoint(x: edge.from, y: 0), to = CGPoint(x: edge.to, y: 0)
     var veil = context
     switch scene.appearance {
@@ -338,21 +352,19 @@ private struct ExposurePainter {
       veil.fill(
         Path(frame),
         with: .linearGradient(
-          Gradient.smoothRamp(Theme.Face.veilGrey, peak: 0.5),
+          Gradient.smoothRamp(Theme.Face.veilGrey, peak: 0.5 * strength),
           startPoint: from, endPoint: to))
       veil.blendMode = .multiply
       let cast = exposure.miles ? Theme.Face.veilMiles : Theme.Face.veilCashback
       veil.fill(
         Path(frame),
-        with: .linearGradient(Gradient.smoothRamp(cast, peak: 1), startPoint: from, endPoint: to))
+        with: .linearGradient(Gradient.smoothRamp(cast, peak: strength), startPoint: from, endPoint: to))
     case .daytime:
-      // A cool dim that never darkens enough to break a floor.
-      let alpha = failed ? 0.14 : 0.15
-      veil.fill(
-        Path(frame),
-        with: .linearGradient(
-          Gradient.smoothRamp(Theme.Face.veilDim, peak: alpha),
-          startPoint: from, endPoint: to))
+      // The failed face only: a cool 14% dim over the whole frame, which never darkens enough to break
+      // a floor. The minimum journey's unlit sky is the daytime blue itself and the ground
+      // is one pair of greens throughout, so nothing else is dimmed.
+      guard exposure.stage == .failed else { return }
+      veil.fill(Path(frame), with: .color(Theme.Face.veilDim.opacity(0.14 * strength)))
     }
   }
 
@@ -373,30 +385,6 @@ private struct ExposurePainter {
       with: .linearGradient(
         Gradient(colors: colours), startPoint: CGPoint(x: sun.x, y: sun.y - r), endPoint: CGPoint(x: sun.x, y: sun.y + r)))
     sky.stroke(disc, with: .color(Theme.Face.sunRim.opacity(0.6)), lineWidth: max(0.75, 0.003 * width))
-  }
-
-  // MARK: Marker
-
-  /// The brand mark's hairline at exactly `h × W`: two device pixels wide and snapped to the pixel grid.
-  private func drawMarker(in context: inout GraphicsContext) {
-    guard let x = scene.markerX(scale: scale) else { return }
-    let pixel = 1 / max(scale, 1)
-    for segment in scene.markerSegments {
-      var path = Path()
-      path.move(to: CGPoint(x: x, y: segment.y0))
-      path.addLine(to: CGPoint(x: x, y: segment.y1))
-      if daytime {
-        // A faint dark edge, one device pixel either side, so the one warm white line reads on gold and on blue.
-        context.stroke(path, with: .color(Theme.Face.markerEdge), lineWidth: 4 * pixel)
-      }
-      let tone: Color
-      if segment.onSky {
-        tone = exposure.miles ? Theme.Face.markerMiles : Theme.Face.markerCashback
-      } else {
-        tone = Theme.Face.markerRidge
-      }
-      context.stroke(path, with: .color(tone), lineWidth: 2 * pixel)
-    }
   }
 }
 
@@ -509,15 +497,16 @@ struct RewardExposureAnimator: View {
 }
 
 extension Gradient {
-  /// A ramp from clear to `colour` at `peak` opacity, shaped like smoothstep so the veil's
+  /// A ramp from `colour` at `base` opacity (clear by default) to `peak` opacity, shaped like smoothstep so the veil's
   /// edge is soft at both ends rather than a straight line.
-  fileprivate static func smoothRamp(_ colour: Color, peak: Double) -> Gradient {
-    Gradient(stops: [
-      .init(color: colour.opacity(0), location: 0),
-      .init(color: colour.opacity(peak * 0.156), location: 0.25),
-      .init(color: colour.opacity(peak * 0.5), location: 0.5),
-      .init(color: colour.opacity(peak * 0.844), location: 0.75),
-      .init(color: colour.opacity(peak), location: 1),
+  fileprivate static func smoothRamp(_ colour: Color, base: Double = 0, peak: Double) -> Gradient {
+    let at = { (k: Double) in colour.opacity(base + (peak - base) * k) }
+    return Gradient(stops: [
+      .init(color: at(0), location: 0),
+      .init(color: at(0.156), location: 0.25),
+      .init(color: at(0.5), location: 0.5),
+      .init(color: at(0.844), location: 0.75),
+      .init(color: at(1), location: 1),
     ])
   }
 }

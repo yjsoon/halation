@@ -17,9 +17,6 @@ final class NarrowRefreshTests: XCTestCase {
     previousCredentialService = APISettings.useCredentialService(
       "HowMuch.NarrowRefreshTests.\(UUID().uuidString)"
     )
-    // The model writes its connection straight into `UserDefaults.standard`
-    // under the app's real keys; save and restore them so this fixture host
-    // never leaks into another test or the installed app.
     previousAPISettings = UserDefaults.standard.object(forKey: APISettings.userDefaultsKey)
     previousScopedViewPrefs = UserDefaults.standard.object(
       forKey: ScopedViewPrefsStore.userDefaultsKey
@@ -42,8 +39,6 @@ final class NarrowRefreshTests: XCTestCase {
     UserDefaults.standard.set(previousOutbox, forKey: OutboxStore.legacyDefaultsKey)
     super.tearDown()
   }
-
-  // MARK: - #179: a write costs one narrow read
 
   func testClearedToggleIssuesTheWriteAndAtMostOneRead() async throws {
     let model = makeModel()
@@ -79,8 +74,6 @@ final class NarrowRefreshTests: XCTestCase {
     )
   }
 
-  // MARK: - #179: a pull refreshes its own tab
-
   func testAccountsPullToRefreshTouchesNoOtherTab() async {
     let model = makeModel()
 
@@ -112,8 +105,6 @@ final class NarrowRefreshTests: XCTestCase {
     XCTAssertEqual(NarrowRefreshProtocol.reportRequestCount(), 0)
   }
 
-  // MARK: - #180 (iOS half): reports leave the launch path
-
   func testLaunchFetchesNoReports() async {
     let model = makeModel()
 
@@ -137,7 +128,6 @@ final class NarrowRefreshTests: XCTestCase {
     await model.refreshAll()
     XCTAssertEqual(NarrowRefreshProtocol.reportRequestCount(), 0)
 
-    // Reflect appears.
     await model.refreshReportsIfNeeded()
     let afterFirstAppearance = NarrowRefreshProtocol.reportRequestCount()
     XCTAssertEqual(model.reportsPhase, .loaded, "the fixture must serve all four reports")
@@ -147,7 +137,6 @@ final class NarrowRefreshTests: XCTestCase {
       "the first appearance fetches the four reports, saw \(afterFirstAppearance)"
     )
 
-    // Reflect appears again with nothing written in between.
     await model.refreshReportsIfNeeded()
     XCTAssertEqual(
       NarrowRefreshProtocol.reportRequestCount(),
@@ -155,7 +144,6 @@ final class NarrowRefreshTests: XCTestCase {
       "an unchanged server_knowledge and no local write must be served from the cache"
     )
 
-    // An explicit pull always re-reads, cache or no cache.
     await model.refreshReportsIfNeeded(force: true)
     XCTAssertEqual(
       NarrowRefreshProtocol.reportRequestCount(),
@@ -171,8 +159,6 @@ final class NarrowRefreshTests: XCTestCase {
     let afterFirstAppearance = NarrowRefreshProtocol.reportRequestCount()
     XCTAssertEqual(afterFirstAppearance, 4)
 
-    // A write this device made is applied locally and never moves the cursor,
-    // so the generation is what must invalidate the cache.
     let generationBefore = model.reportsRefreshGeneration
     try await model.deleteTransaction(NarrowRefreshProtocol.unclearedTransaction())
     _ = await waitUntil { model.reportsRefreshGeneration != generationBefore }
@@ -185,11 +171,7 @@ final class NarrowRefreshTests: XCTestCase {
     )
   }
 
-  // MARK: - The refresh queue
-
   func testAnOutboxSyncDuringAPullStillRefreshesBalances() async {
-    // A pull replays the outbox. The rows it creates move balances, and the
-    // drain runs inside the pull, so its follow-up must join that same pass.
     let model = makeModelWithOnePendingCapture()
 
     await model.refresh(slices: TabRefresh.register, quiet: false)
@@ -226,8 +208,6 @@ final class NarrowRefreshTests: XCTestCase {
     )
   }
 
-  // MARK: - Account refresh invalidates completed register coverage
-
   func testAccountsRefreshInvalidatesCompletedHorizon() async throws {
     try await assertHorizonRefresh(slices: [.accounts], offsetting: false)
   }
@@ -250,7 +230,6 @@ final class NarrowRefreshTests: XCTestCase {
     XCTAssertEqual(model.transactions.map(\.id), ["initial"])
     model.endFocusedRegisterAccount("a")
 
-    // Reappearing without a refresh still benefits from the memoized fill.
     model.beginFocusedRegisterAccount("a")
     try await Task.sleep(for: .milliseconds(100))
     XCTAssertEqual(state.reads, 1)
@@ -307,8 +286,6 @@ final class NarrowRefreshTests: XCTestCase {
     settings.planID = "p"
     return AppModel(outboxStore: .temporary(), settings: settings, viewPrefs: ViewPrefs(), snapshotStore: temporarySnapshotStore())
   }
-
-  // MARK: - Helpers
 
   private func makeModelWithOnePendingCapture() -> AppModel {
     var settings = APISettings()
@@ -367,7 +344,6 @@ final class NarrowRefreshTests: XCTestCase {
     let deadline = DispatchTime.now().uptimeNanoseconds + timeoutNanoseconds
     while DispatchTime.now().uptimeNanoseconds < deadline {
       if condition() {
-        // Let anything that fired alongside the condition land too.
         try? await Task.sleep(nanoseconds: 100_000_000)
         return true
       }

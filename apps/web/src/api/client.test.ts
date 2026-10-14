@@ -128,7 +128,6 @@ describe("bulk transaction commands", () => {
     const requests: Array<{ path: string; init?: RequestInit }> = [];
     globalThis.fetch = (async (path: string | URL | Request, init?: RequestInit) => {
       requests.push({ path: String(path), init });
-      // The server echoes the rows it committed; a matching category confirms.
       const body = JSON.parse(String(init?.body)) as { transactions: Array<{ id: string; category_id: string | null }> };
       return new Response(JSON.stringify({ data: { transaction_ids: [], transactions: body.transactions } }), {
         headers: { "content-type": "application/json" },
@@ -216,7 +215,6 @@ describe("bulk transaction commands", () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async (_path: string | URL | Request, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { transactions: Array<{ id: string; category_id: string | null }> };
-      // The second row became a split parent on the server, so its category was dropped.
       const transactions = body.transactions.map((item) => (
         item.id === "txn-1" ? { id: item.id, category_id: null } : item
       ));

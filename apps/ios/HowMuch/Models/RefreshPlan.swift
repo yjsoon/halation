@@ -65,9 +65,6 @@ enum TabRefresh {
 /// that no single-transaction response returns.
 enum MutationKind: Equatable, Sendable {
   case clearedToggled
-  /// `changesAccount`: the row moved to a different account. `touchesTransfer`:
-  /// the row is, was, or became one half of a transfer pair. `hasNewPayee`:
-  /// the save named a payee the server had to provision.
   case transactionEdited(changesAccount: Bool, touchesTransfer: Bool, hasNewPayee: Bool)
   case transactionsCreated(hasTransfer: Bool, hasNewPayee: Bool)
   case transactionDeleted
@@ -80,21 +77,12 @@ enum MutationKind: Equatable, Sendable {
   case scheduledOccurrenceEntered(isTransfer: Bool)
 }
 
-/// The functional core of #179: mutation kind in, set of slices to refetch
-/// out. Every rule here assumes the caller has already applied the server's
-/// returned row(s) locally; a slice is listed only for state the response
-/// could not carry back.
 enum RefreshPlanner {
   static func slices(after mutation: MutationKind) -> Set<RefreshSlice> {
     switch mutation {
-    // The PATCH returns the saved row; only the account's cleared/uncleared
-    // balances are recomputed server-side. One follow-up GET, no more.
     case .clearedToggled:
       return [.accounts]
 
-    // The PATCH returns the edited row. Balances move, so accounts must be
-    // refetched; a transfer's mirror row and a row that changed account both
-    // leave ledger state the response cannot describe.
     case .transactionEdited(let changesAccount, let touchesTransfer, let hasNewPayee):
       var slices: Set<RefreshSlice> = [.accounts]
       if changesAccount || touchesTransfer {
@@ -105,9 +93,6 @@ enum RefreshPlanner {
       }
       return slices
 
-    // Created rows are inserted from their POST responses. A transfer's
-    // mirror row is not returned, and a payee created by name is not in the
-    // local payee list.
     case .transactionsCreated(let hasTransfer, let hasNewPayee):
       var slices: Set<RefreshSlice> = [.accounts]
       if hasTransfer {
@@ -118,43 +103,24 @@ enum RefreshPlanner {
       }
       return slices
 
-    // The delete path already removes the row and every linked transfer id
-    // it knows about, so only balances need refetching.
     case .transactionDeleted:
       return [.accounts]
 
-    // The batch response returns only requested rows, while approving a split
-    // also changes its parent and transfer mirrors. The model applies the
-    // graph it can resolve locally, then reloads the bounded first page and
-    // unapproved count for any unloaded companion.
     case .transactionsApproved:
       return [.ledger]
 
-    // The POST returns the new account, which the caller inserts. The server
-    // also provisions the account's "Transfer : …" payee, which it does not
-    // return; it holds no opening-balance transaction, so the ledger is
-    // untouched.
     case .accountCreated:
       return [.payees]
 
-    // The PATCH returns the updated account and the transfer payee rename is
-    // mirrored locally, so nothing is left to fetch.
     case .accountUpdated:
       return []
 
-    // Reconciling flips many rows to reconciled and can write an adjustment
-    // transaction; the response names the ids but returns no rows. Its
-    // `account` payload is applied directly, so no accounts GET is needed.
     case .accountReconciled:
       return [.ledger]
 
-    // Both responses carry the saved (or deleted) schedule, which the caller
-    // applies to the local list.
     case .scheduleSaved, .scheduleDeleted:
       return []
 
-    // The response carries both the created transaction and the advanced
-    // schedule; only balances, and a transfer's mirror row, are left.
     case .scheduledOccurrenceEntered(let isTransfer):
       return isTransfer ? [.accounts, .ledger] : [.accounts]
     }
@@ -165,8 +131,6 @@ enum RefreshPlanner {
   /// fetches: the destinations reload when they next become visible.
   static func invalidatesPlanAndReports(after mutation: MutationKind) -> Bool {
     switch mutation {
-    // Clearing moves no money and changes no category assignment: the plan
-    // and every report read amounts, not cleared state.
     case .clearedToggled, .transactionsApproved, .accountUpdated,
          .scheduleSaved, .scheduleDeleted:
       return false

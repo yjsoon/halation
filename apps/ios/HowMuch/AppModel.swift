@@ -34,26 +34,18 @@ private enum AccountUsageScanError: LocalizedError {
   }
 }
 
-/// One local delete, kept only while a ledger read that started before it can
-/// still land. `removedIDs` are the rows the server tombstoned; `mirror` names
-/// the split line the server unlinked on the surviving parent.
 private struct LedgerDelete {
   let generation: Int
   let removedIDs: Set<String>
   let mirror: SplitMirrorLink
 }
 
-/// One acknowledged outbox write, kept on the same terms as `LedgerDelete`:
-/// a read issued before it landed gets this row in place of the one it
-/// fetched (or, for a create, gets the row added to its first page).
 private struct LedgerWrite {
   let generation: Int
   let row: Transaction
   let isCreate: Bool
 }
 
-/// The balance effect of an acknowledged command, and the accounts read
-/// sequence at the moment it was acknowledged.
 private struct AcknowledgedDelta {
   let sequence: Int
   let deltas: [String: DeleteBalanceDelta.Delta]
@@ -183,7 +175,6 @@ final class AppModel {
   /// register must not leak into Rewards/Assistant or Home Screen.
   var activeCaptureSurface: CaptureSurface = .accounts
   private var focusedRegisters: [(surface: CaptureSurface, accountID: String)] = []
-  // MARK: Outbox (docs/plans/offline-writes.md P1)
 
   /// Every transaction write not yet acknowledged by the server, for every
   /// connection, exactly as it is on disk. Only commands stamped for the
@@ -283,8 +274,6 @@ final class AppModel {
   @ObservationIgnored private var accountPreferenceMutationGenerations: [String: Int] = [:]
   @ObservationIgnored private var accountPreferenceSyncedGenerations: [String: Int] = [:]
 
-  // MARK: - #176: the on-device reference snapshot
-
   @ObservationIgnored private let snapshotStore: SnapshotStore
   /// The Reflect overview and the default Rewards board, in the same
   /// directory as the reference snapshot and discarded with it.
@@ -344,9 +333,6 @@ final class AppModel {
     self.activeViewPrefsScope = scope
     self.viewPrefs = scope.map { scopedStore.activate(scope: $0, legacy: viewPrefs) } ?? ViewPrefs()
     self.scopedViewPrefsStore = scopedStore
-    // A revoked session is persisted as signed out. Do not let a cold launch
-    // fall back to tabs that can only render tokenless API errors. Only an
-    // install that has never saved settings sees the welcome screen.
     switch LaunchRoute.resolve(hasSavedSettings: hasSavedSettings, isAuthenticated: settings.isAuthenticated) {
     case .welcome:
       self.isShowingWelcome = true
@@ -365,10 +351,7 @@ final class AppModel {
         self?.handleAuthenticationExpiry(expiredSessionToken: expiredSessionToken)
       }
     }
-    // Before the snapshot, so the first frame already shows unsent changes.
     loadOutbox()
-    // #176: before the first frame, and off the network. A snapshot that does
-    // not belong to this connection is deleted rather than shown.
     restoreSnapshot()
     restoreReports()
   }
@@ -480,8 +463,6 @@ final class AppModel {
       return
     }
     guard SnapshotPolicy.shouldApply(snapshot: snapshot, settings: settings) else {
-      // Wrong user, wrong plan, wrong endpoint or an older schema: it can
-      // never be applied, so there is no reason to keep reading it.
       snapshotStore.delete()
       return
     }
@@ -493,12 +474,6 @@ final class AppModel {
     lastSyncedAccountPreferences = snapshot.accountPreferences
     serverKnowledge = snapshot.serverKnowledge
     snapshotKnowledge = snapshot.serverKnowledge
-    // #181's badge: the tile shows the last count the server gave rather than
-    // flashing 0 while `refreshUnapprovedCount` is in flight. It is a plain
-    // number with no rows behind it. The restored outbox supplies pending
-    // approvals/deletes, which `unapprovedBadgeCount` subtracts once.
-    // Per-account counts are not restored: a narrowed register fetches its own
-    // when it opens, and a stale per-account number has no tile to sit on.
     if let unapprovedCount = snapshot.unapprovedCount {
       serverUnapprovedCount = unapprovedCount
     }
@@ -548,8 +523,6 @@ final class AppModel {
         planID: settings.planID,
         serverKnowledge: serverKnowledge,
         planSettings: planSettings,
-        // The server's balances plus what it has acknowledged since: a
-        // restore adds back only what is still in the outbox.
         accounts: acknowledgedAccounts,
         categoryGroups: categoryGroups,
         payees: payees,
@@ -586,7 +559,6 @@ final class AppModel {
   /// one endpoint, user and plan, so any change to those discards it outright.
   private func discardSnapshot() {
     snapshotStore.delete()
-    // The reports cache belongs to the same endpoint, user and plan.
     reportsStore.delete()
     cachedRewardsOverview = nil
     reflectMonth = nil
@@ -618,7 +590,6 @@ final class AppModel {
     settings.authenticatedUserID = ""
     settings.save()
     switchViewPrefsScope()
-    // #176: a revoked session is a sign-out. The snapshot belongs to it.
     discardSnapshot()
     planSettings = nil
     accounts = []
@@ -640,8 +611,6 @@ final class AppModel {
     netWorth = nil
     ageOfMoney = nil
     clearRewards()
-    // The outbox itself stays: it is keyed by connection, and its commands
-    // wait for this connection to sign in again.
     drainScheduleToken &+= 1
     isDrainScheduled = false
     acknowledgedBalanceDeltas = []
@@ -797,8 +766,6 @@ final class AppModel {
       serverAccounts.append(created)
       rebuildLookups()
     }
-    // The new account is already applied, so the sheet need not wait for the
-    // follow-up read (as with `updateAccount`).
     scheduleRefresh(after: .accountCreated)
     showSaveMessage("Added \(created.name)")
     return created
@@ -1009,10 +976,6 @@ final class AppModel {
     case .alphabetical:
       return source.sorted(by: accountNameOrder)
     case .mostUsedLast30Days:
-      // Every ledger refresh drops the counts and rescans them. Until they are
-      // back, rank by the last counts this plan and scope loaded rather than
-      // flashing the group into name order and back. Never the manual drag
-      // order in `accountOrderByGroup`.
       let usage = accountUsagePhase == .loaded ? accountUsageLast30Days : lastLoadedAccountUsageForCurrentScope
       return source.sorted { first, second in
         let firstUsage = usage[first.id, default: 0]
@@ -1427,15 +1390,10 @@ final class AppModel {
   /// Rows approved here since the matching count was taken. Scoped counts only
   /// move for rows in their own account.
   private func resolvedSinceCount(forAccountID accountID: String?) -> Int {
-    // A row approved and then dropped from both arrays is not subtracted here;
-    // the next count of this scope reconciles it.
     let since = locallyResolvedUnapprovedIDs.subtracting(confirmedWhenCounted[countScopeKey(accountID)] ?? [])
     guard let accountID else { return since.count }
     guard !since.isEmpty else { return 0 }
     let queuedRejections = queuedUnapprovedRejections
-    // One pass over the rows instead of a linear search per resolved ID. The
-    // ledger's row wins over the queue's, as the old `first ?? first` did, and
-    // an outbox command's saved row is the last resort.
     var accountByID: [String: String] = [:]
     for row in serverUnapprovedTransactions where since.contains(row.id) {
       accountByID[row.id] = accountByID[row.id] ?? row.accountID
@@ -1448,7 +1406,6 @@ final class AppModel {
       accountByID[command.transactionID] = accountByID[command.transactionID] ?? command.baseSnapshot?.accountID
     }
     return since.count { id in
-      // A rejected row is gone from both arrays, so its account was recorded.
       if let rejectedFrom = rejectedUnapprovedAccounts[id] ?? queuedRejections[id] {
         return rejectedFrom == accountID
       }
@@ -1476,8 +1433,6 @@ final class AppModel {
     let count = eligibleApprovalCount(in: rows)
     return count == 0 ? nil : RegisterApproval.approveAllLabel(count)
   }
-
-  // MARK: - Outbox: what is on screen
 
   /// The commands this connection owns. Commands stamped for another
   /// connection stay on disk, untouched, until that connection is back.
@@ -1639,7 +1594,6 @@ final class AppModel {
       rows[row.id] = row
       wanted.formUnion(row.linkedTransferIDs)
     }
-    // Far sides named only by a row found above.
     for row in serverUnapprovedTransactions + serverTransactions where wanted.contains(row.id) && rows[row.id] == nil {
       rows[row.id] = row
     }
@@ -1832,8 +1786,6 @@ final class AppModel {
     }
   }
 
-  // MARK: - Local mode
-
   /// "Start on this iPhone": creates the on-device plan, gives it starter
   /// categories, then switches to it. Nothing is saved until the engine has
   /// answered, so a failure leaves the welcome screen as it was.
@@ -1882,8 +1834,6 @@ final class AppModel {
     isShowingWelcome = true
   }
 
-  // MARK: - Connecting a local install to a server
-
   /// Moves this install to a signed-in server. The on-device database stays
   /// where it is, untouched, and is recorded as an archive.
   func adoptServerConnection(_ server: APISettings) async {
@@ -1928,13 +1878,9 @@ final class AppModel {
       throw APIClientError.validation(reason)
     }
     let server = settings
-    // Local mode always runs on the shared engine's database, so only an
-    // archive of that file can become live again.
     guard archive.databaseURL.standardizedFileURL == LocalEngine.shared.databaseURL.standardizedFileURL else {
       throw APIClientError.validation("The records from before you connected are not where Halation expects them.")
     }
-    // Opens the database before anything is saved, so a failure leaves
-    // server mode exactly as it was.
     try await LocalEngine.shared.prepare(config: archive.engineSettings.localEngineConfig)
     guard let local = ConnectionSwitch.returnToArchive(leaving: server) else {
       return
@@ -2050,8 +1996,6 @@ final class AppModel {
     async let schedules: Void = refreshScheduledTransactions(quiet: quiet)
     _ = await (sent, reference, ledger, schedules)
   }
-
-  // MARK: - Narrow refreshes (#179)
 
   /// Refreshes only the slices a write could not reproduce locally, and marks
   /// the plan and reports stale when the write can have changed them.
@@ -2383,7 +2327,6 @@ final class AppModel {
         return
       }
       pushHorizonFill()
-      // The plan cursor the reports cache is keyed on (#180).
       if let knowledge = page.serverKnowledge {
         serverKnowledge = knowledge
       }
@@ -2400,8 +2343,6 @@ final class AppModel {
         responseRowIDs: fetchedFirstPage.map(\.id)
       )
       if !applyIsRedundant {
-        // Rows are replaced below, so a fill that completed (or is still
-        // running) under this generation no longer describes them.
         invalidateAccountHorizonFills()
         // Mutation refreshes must not drop already-loaded rows; List would clamp to top.
         // Provisional rows are the exception, in both directions: the response
@@ -2431,8 +2372,6 @@ final class AppModel {
         nextOffset: page.nextOffset
       )
       persistSnapshot()
-      // The badge, and the rows only if the approval flow is already open. Both
-      // run alongside the horizon fill below rather than in front of it.
       Task { await self.refreshUnapprovedCount(generation: generation, planID: planID) }
       if unapprovedQueuePhase == .loaded || unapprovedQueuePhase.isLoading {
         Task { await self.loadUnapprovedQueue(generation: generation, planID: planID) }
@@ -2507,9 +2446,6 @@ final class AppModel {
     }
     confirmedWhenCounted[countScopeKey(accountID)] = resolvedAtRequest
     if accountID == nil {
-      // The count lands after the ledger page that spawned it, so the snapshot
-      // written there carries the previous number. Rewrite it with this one,
-      // once the rows it already reflects are no longer subtracted from it.
       persistSnapshot()
     }
   }
@@ -2542,8 +2478,6 @@ final class AppModel {
   /// so a sibling register closing cannot release rows this one is showing.
   func openUnapprovedQueue(viewer: String) async {
     unapprovedQueueViewers.insert(viewer)
-    // `.failed` is retried: otherwise the flow shows its error with no way out
-    // short of a pull-to-refresh.
     guard unapprovedQueuePhase == .idle || unapprovedQueuePhase.errorMessage != nil else { return }
     await loadUnapprovedQueue(generation: ledgerPageGeneration, planID: settings.planID)
   }
@@ -2626,8 +2560,6 @@ final class AppModel {
     netWorth = nil
     ageOfMoney = nil
     clearRewards()
-    // The outbox itself stays: it is keyed by connection, and its commands
-    // wait for this connection to sign in again.
     drainScheduleToken &+= 1
     isDrainScheduled = false
     acknowledgedBalanceDeltas = []
@@ -2655,8 +2587,6 @@ final class AppModel {
     inFlightLedgerReads.removeAll()
     ledgerDeletes.removeAll()
     ledgerWrites.removeAll()
-    // A cursor and a reports cache belong to one plan; carrying them across a
-    // connection change would serve the previous plan's reports.
     serverKnowledge = nil
     reportsKnowledge = nil
     reportsGenerationAtLastFetch = nil
@@ -2887,8 +2817,6 @@ final class AppModel {
       enteredDate: enteredDate
     )
 
-    // The response carries both halves of the write, so apply them rather
-    // than re-reading the ledger and the schedule list to find them.
     serverTransactions = sortedUniqueTransactions([result.transaction] + serverTransactions)
     if !result.transaction.approved {
       serverUnapprovedTransactions = sortedUniqueTransactions(
@@ -2900,7 +2828,6 @@ final class AppModel {
       scheduledTransactions.append(result.scheduledTransaction)
       scheduledTransactions.sort { ($0.dateNext, $0.id) < ($1.dateNext, $1.id) }
     }
-    // Both halves are applied above; the follow-up read runs behind the dismissal.
     scheduleRefresh(after: .scheduledOccurrenceEntered(isTransfer: isTransfer(result.transaction)))
     showSaveMessage(result.completed ? "Entered final scheduled transaction" : "Entered scheduled transaction")
     return result
@@ -2914,8 +2841,6 @@ final class AppModel {
   ) async throws -> AccountReconciliationPayload {
     isSubmitting = true
     defer { isSubmitting = false }
-    // The server checks the statement against what it holds, so the changes
-    // to this account go first.
     if reconcileBlockReason(accountID: accountID) != nil {
       await waitForOutboxDrain()
       await drainOutbox(trigger: .manual)
@@ -2932,8 +2857,6 @@ final class AppModel {
       statementBalance: statementBalance
     )
 
-    // The response already carries the account with its new balances, and
-    // every acknowledged change to it (Reconcile waits for the outbox).
     if let index = serverAccounts.firstIndex(where: { $0.id == result.account.id }) {
       acknowledgedBalanceDeltas = acknowledgedBalanceDeltas.map { entry in
         AcknowledgedDelta(sequence: entry.sequence, deltas: entry.deltas.filter { $0.key != result.account.id })
@@ -2941,8 +2864,6 @@ final class AppModel {
       serverAccounts[index] = result.account
       rebuildLookups()
     }
-    // Waits, unlike the other saves: until the read lands, rows would still
-    // show as merely cleared (and tappable) and any adjustment would be missing.
     await refresh(after: .accountReconciled)
 
     let accountName = result.account.name
@@ -2995,7 +2916,6 @@ final class AppModel {
     // external transactions that the register has not loaded yet.
     let fillKey = "\(generation)|\(planID)|\(startDate)"
     if completedAccountHorizonFills[accountID] == fillKey {
-      // Reappearing still clears a stale error, as a fresh fill would.
       olderTransactionsError = nil
       return
     }
@@ -3195,12 +3115,6 @@ final class AppModel {
     }
   }
 
-  // MARK: - Transaction writes (docs/plans/offline-writes.md P1)
-  //
-  // Every transaction write goes into the outbox first: it is on disk before
-  // it is on screen, and on screen before any request is made. Replay sends it
-  // later, in batches, and the overlay shows it until the server has it.
-
   func commit(_ draft: TransactionDraft) throws {
     try commit([draft])
   }
@@ -3224,7 +3138,6 @@ final class AppModel {
       let importID = request.importID ?? UUID().uuidString.lowercased()
       request.importID = importID
       request.id = nil
-      // A capture saved twice is still one transaction.
       guard !hasPendingCreate(importID: importID), seenImportIDs.insert(importID).inserted else {
         continue
       }
@@ -3262,8 +3175,6 @@ final class AppModel {
   }
 
   func toggleTransactionCleared(_ transaction: Transaction) async throws {
-    // The compare-and-set guard is the status the server will hold when this
-    // is sent: the row as shown, which already includes anything on the wire.
     let current = displayedRow(transaction.id) ?? transaction
     guard current.cleared != .reconciled else {
       throw APIClientError.validation("Reconciled transactions stay locked.")
@@ -3359,7 +3270,6 @@ final class AppModel {
       }
       outbox = next
     }
-    // Only this change was retried: a plain pass, not "Sync Now".
     Task { await drainOutbox(trigger: .refresh) }
   }
 
@@ -3372,8 +3282,6 @@ final class AppModel {
       showSaveMessage("This change is still sending. Wait for it to finish.", kind: .failure)
       return
     }
-    // Discarding a create discards the row: the changes queued behind it
-    // have nothing to apply to.
     let next = outbox.filter { other in
       if other.id == id { return false }
       return !(command.kind.isCreate && other.rowKey == command.rowKey && !other.isInFlight)
@@ -3389,7 +3297,6 @@ final class AppModel {
       serverTransactions = sortedUniqueTransactions([base] + serverTransactions)
     }
     if case .rejected = command.state {
-      // The server refused it, so its copy may differ from ours.
       enqueue(RefreshRequest(slices: [.ledger, .accounts]))
     }
   }
@@ -3415,8 +3322,6 @@ final class AppModel {
       baseSnapshot: base
     )
   }
-
-  // MARK: - Outbox: storage
 
   private func loadOutbox() {
     do {
@@ -3523,8 +3428,6 @@ final class AppModel {
     }
   }
 
-  // MARK: - Outbox: replay
-
   @ObservationIgnored private var drainScheduleToken = 0
   @ObservationIgnored private var isDrainScheduled = false
 
@@ -3616,7 +3519,6 @@ final class AppModel {
     drainScheduleToken &+= 1
     isDrainScheduled = false
     if trigger == .manual, outboxLoadFailure == nil {
-      // "Sync Now" asks for everything, refused changes included.
       let refused = Set(currentOutbox.filter { command in
         if case .rejected = command.state { return true }
         return false
@@ -3674,7 +3576,6 @@ final class AppModel {
           guard settings.connectionFingerprint == fingerprint else {
             break passes
           }
-          // Folded, discarded or retried while earlier commands were out.
           guard let command = outbox.first(where: { $0.id == planned.id }),
                 command.state == .queued,
                 OutboxPlanner.stage(of: command.kind) == batch.stage else {
@@ -4121,8 +4022,6 @@ final class AppModel {
       guard settings.connectionFingerprint == fingerprint else {
         return .stop
       }
-      // Rows the server had unapproved, whether or not they are loaded: the
-      // badge keeps subtracting them until its next count.
       let knownUnapproved = locallyUnapprovedIDs(in: graphIDs)
         .union(commands.filter { $0.baseSnapshot?.approved == false }.map(\.transactionID))
       applyApprovedIDs(graphIDs)
@@ -4336,9 +4235,6 @@ final class AppModel {
       let links = Set(deleted.linkedTransferIDs)
       removedIDs.formUnion(links.isEmpty ? Set(fallback.linkedTransferIDs) : links)
     }
-    // Rejecting a row awaiting approval takes it off the "New" badge, the same
-    // as approving it would. Recorded before the arrays are cleared, and also
-    // from the row in hand -- with the queue lazy it is usually not in them.
     for row in serverUnapprovedTransactions where removedIDs.contains(row.id) {
       rejectedUnapprovedAccounts[row.id] = row.accountID
     }
@@ -4388,8 +4284,6 @@ final class AppModel {
       snapshotStore.delete()
     }
   }
-
-  // MARK: - Read-order ownership for acknowledged writes
 
   /// One HTTP page of the ledger, with the read-order fence captured for that
   /// request alone and applied before the page leaves this function. A page
@@ -4546,8 +4440,6 @@ final class AppModel {
   }
 }
 
-// MARK: - Intake candidates (docs/plans/share-intake.md section 6)
-
 /// The rows an intake match compares against, and whether the search was whole.
 struct IntakeCandidateSet {
   var rows: [IntakeCandidateRow]
@@ -4605,7 +4497,6 @@ extension AppModel {
     transactions.forEach(add)
     unapprovedTransactions.forEach(add)
 
-    // Creates the server has not seen yet are still money in the register.
     for command in currentOutbox {
       guard case .create(let request) = command.kind, rows[command.transactionID] == nil,
             request.date >= fromISO, request.date <= toISO,
@@ -4629,8 +4520,6 @@ extension AppModel {
   /// changes applied. Never the cached copy when a server is in play, because
   /// an edit is sent as a whole row and stale data would overwrite newer changes.
   func intakeLiveTransaction(id: String) async -> IntakeLiveRow {
-    // On-device mode answers from the engine, which is the authoritative read;
-    // signed out there is nothing to ask, and the cached page is not a source.
     guard settings.isAuthenticated else {
       return .unavailable
     }
@@ -4645,7 +4534,6 @@ extension AppModel {
       // JSON body (a proxy, a wrong address) or a 5xx is not that answer.
       return .gone
     } catch {
-      // Unreachable or failing: the row cannot be checked right now.
       return .unavailable
     }
   }

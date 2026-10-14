@@ -1,9 +1,6 @@
 import CryptoKit
 import Foundation
 
-// Moving an on-device ledger to a server. The rules here are pure; the
-// requests that feed them live in `ServerConnector` and `AppModel`.
-
 /// What a server plan already holds, counted the way `import_snapshot`
 /// decides whether a plan is empty.
 struct ServerPlanContents: Equatable {

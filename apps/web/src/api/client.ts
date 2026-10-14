@@ -608,7 +608,6 @@ export const api = {
     }
     return suggestions;
   },
-  /** Bulk cleared with a per-row compare-and-set, in bounded chunks. */
   bulkClearedTransactions: (planId: string, items: readonly TransactionClearedBulkItem[]) => {
     if (items.length === 0) throw new Error("Transactions to update must not be empty.");
     return runBulkChunks(items, async (chunk) => {
@@ -625,7 +624,6 @@ export const api = {
       return result.outcomes;
     }, dedicatedCommandFailure);
   },
-  /** Bulk delete reusing the single-row guard and cascade, in bounded chunks. */
   bulkDeleteTransactions: (planId: string, items: readonly TransactionDeleteBulkItem[]) => {
     if (items.length === 0) throw new Error("Transactions to delete must not be empty.");
     return runBulkChunks(items, async (chunk) => {

@@ -36,7 +36,6 @@ struct APISettings: Codable, Equatable {
   private static let debugBootstrapAppliedKey = "HowMuch.DebugBootstrapApplied"
 #endif
 
-  /// Empty on a fresh install: the person enters their own server.
   var baseURLString = ""
   var username = ""
   var sessionToken = ""
@@ -51,9 +50,7 @@ struct APISettings: Codable, Equatable {
   var mode: Mode = .server
 
   enum Mode: String, Codable {
-    /// A HowMuch server, reached over the network.
     case server
-    /// The embedded engine and on-device database (`LocalEngine`).
     case local
   }
 
@@ -367,12 +364,10 @@ struct APISettings: Codable, Equatable {
     defaults.set(data, forKey: Self.userDefaultsKey)
   }
 
-  /// The session saved in the Keychain for a server, if any.
   static func savedSessionToken(forBaseURL baseURLString: String) -> String? {
     normalizedBaseURLString(from: baseURLString).flatMap(CredentialStore.load(for:))
   }
 
-  /// Drops the session saved in the Keychain for a server.
   static func forgetSavedSession(forBaseURL baseURLString: String) {
     guard let normalized = normalizedBaseURLString(from: baseURLString) else {
       return
@@ -390,8 +385,6 @@ struct APISettings: Codable, Equatable {
   }
 #endif
 }
-
-// MARK: - Local mode
 
 extension APISettings {
   /// Local requests are addressed as though to this server, so endpoint-scoped
@@ -587,8 +580,6 @@ private enum CredentialStore {
 
 }
 
-/// View options remembered across launches, persisted like the connection
-/// settings. Defaults apply whenever a stored blob is missing or unreadable.
 struct ViewPrefs: Codable, Equatable {
   /// Legacy unscoped key. It remains readable for one-time migration but all
   /// new writes go through the scoped preference store.
@@ -598,8 +589,6 @@ struct ViewPrefs: Codable, Equatable {
   /// Whether the spending report includes bookkeeping ("quiet") category
   /// groups; mirrors the web app's persisted includeQuietSpending pref.
   var includeQuietSpending: Bool?
-  /// Account presentation preferences are cached locally and synced separately
-  /// from the server's immutable account source list.
   var favouriteAccountIDs: [String] = []
   /// Legacy global order retained so existing installs can seed every new
   /// group's manual order deterministically.
@@ -2558,6 +2547,8 @@ struct RewardsCalculation: Codable, Sendable {
   let minimumSpend: Double?
   let minimumSpendMet: Bool
   let minimumSpendProgress: Double?
+  /// The first day of the period on which the minimum was met; nil when not met or there is none.
+  var minimumMetOn: String? = nil
   let maximumSpend: Double?
   let maximumSpendExceeded: Bool
   let maximumSpendProgress: Double?
@@ -3141,7 +3132,6 @@ struct TransactionDraft: Equatable, Codable {
   /// Set when the chosen payee is another account's transfer payee; the API
   /// keeps the mirrored transaction on that account in step.
   var transferAccountID: String?
-  /// Editable signed allocations for split transactions.
   var subtransactions: [TransactionSubtransactionDraft] = []
   var date = Date.now
   var isCleared = false
@@ -3197,8 +3187,6 @@ struct TransactionDraft: Equatable, Codable {
     memo = transaction.memo ?? ""
   }
 
-  /// A fresh draft copying an existing transaction's details, dated today and
-  /// uncleared. Split allocations duplicate too, but always get fresh IDs.
   init(duplicating transaction: Transaction) {
     direction = transaction.amount < 0 ? .outflow : .inflow
     amountMagnitudeMilli = abs(transaction.amount)
@@ -3297,7 +3285,6 @@ struct TransactionDraft: Equatable, Codable {
     id != nil && changesReconciliationGraph && (wasReconciled || linkedReconciled)
   }
 
-  /// Editing keeps a reconciled transaction reconciled while the toggle is on.
   var clearedState: ClearedState {
     guard isCleared else {
       return .uncleared

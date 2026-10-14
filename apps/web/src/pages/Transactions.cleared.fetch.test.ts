@@ -138,8 +138,6 @@ for (const initial of ["uncleared", "cleared"] as const) {
       const intermediate = initial === "cleared" ? "uncleared" : "cleared";
       expectStatus(intermediate);
 
-      // Capture a GET at the intermediate state and delay its delivery until
-      // after the bulk write and its fresh reads. It must not undo the result.
       holdNextItemRead = true;
       await interact(() => navigate("/transactions?range=all&accounts=all&plan=p&transaction=t"));
       expect(releaseItemRead).toBeDefined();

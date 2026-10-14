@@ -496,7 +496,6 @@ function buildPeriods(from: string, to: string, interval: string): Array<{ label
     } else if (interval === "week") {
       periodEnd.setUTCDate(periodEnd.getUTCDate() + 6);
     } else if (interval === "day") {
-      // already the day end for date-based comparison
     } else {
       periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1, 0);
     }

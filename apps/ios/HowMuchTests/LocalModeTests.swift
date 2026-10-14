@@ -212,10 +212,7 @@ final class LocalModeTests: XCTestCase {
   }
 
   /// Failure mode: one engine run enters at most 25 occurrences, as the
-  /// Worker's daily cron does, and says `has_more` when more are due. A phone
-  /// that was away for a month entered only the first 25 of a daily schedule,
-  /// and the register and balances stayed short until the app next came to
-  /// the front.
+  /// Worker's daily cron does, and says `has_more` when more are due.
   @MainActor
   func testLocalCatchUpEntersEveryDueOccurrence() async throws {
     let settings = APISettings.local(in: defaults)

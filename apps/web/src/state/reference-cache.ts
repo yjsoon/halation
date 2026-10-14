@@ -221,7 +221,6 @@ export function decideReferenceRefresh<T>(
   return planCachedFetch(envelope, identity, serverKnowledge).use === "cache" ? "keep" : "refetch";
 }
 
-// --- Storage shell -------------------------------------------------------
 // Everything below touches `localStorage`. Storage may be unavailable or full
 // (private browsing, quota), so every path is best-effort: a failure means the
 // app fetches, which is exactly what it did before this cache existed.

@@ -14,7 +14,6 @@ import XCTest
 /// that falls as spend grows, a partial-block cap drawn below the top, and
 /// amounts that are not finite reaching the picture.
 final class RewardExposureTests: XCTestCase {
-  // MARK: The walk
 
   /// The shape of `fixtures/rewards-account-config.json`: a minimum of 100, one
   /// tier at 1,000, a cap of 2,400 at the base level and 2,998 at the tier, and
@@ -104,8 +103,6 @@ final class RewardExposureTests: XCTestCase {
     }
     XCTAssertTrue(seenCap)
   }
-
-  // MARK: Edge cases
 
   func testRefundsClampTheMinimumJourneyAtZero() throws {
     let exposure = try picture(["minimum_spend": 500, "total_spend": -40, "minimum_spend_met": false])
@@ -275,7 +272,7 @@ final class RewardExposureTests: XCTestCase {
   }
 
   /// Failure mode: the two sun formulas (across, then up) disagree at the hand-over, so the disc
-  /// jumps, or dips, when the minimum is met. The sun only ever rises, and never leaps.
+  /// jumps, or dips, when the minimum is met.
   func testSunNeverSinksOrLeapsThroughTheWholeJourney() {
     let horizon = 42.0, radius = 8.0
     let across = (0...200).map { RewardExposure.Pose(h: Double($0) / 200, v: 0) }
@@ -326,8 +323,6 @@ final class RewardExposureTests: XCTestCase {
   func testRangeRowsDrawNoPicture() throws {
     XCTAssertNil(RewardExposure(try project(["total_spend": 1000], isRange: true)))
   }
-
-  // MARK: Helpers
 
   private static let fixtureCard: [String: Any] = [
     "minimumSpend": 100, "spendingTiers": [["id": "tier-1000", "spendThreshold": 1000]],

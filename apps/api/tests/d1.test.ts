@@ -1067,7 +1067,6 @@ describe("D1 foundation", () => {
       const repo = makeRepo();
       const other = makeRepo();
       await repo.patchRewardsTrackerSettings("p", { milesValuation: 0.01 });
-      // Save on another connection after the import has read its destination.
       const getSnapshot = repo.getRewardsTrackerSnapshot.bind(repo);
       repo.getRewardsTrackerSnapshot = async (planId) => {
         const result = await getSnapshot(planId);
@@ -1660,9 +1659,9 @@ describe("D1 foundation", () => {
     await metadata.updateAccount("p", "a", { name: "Daily", icon: "🐷" }, { operationId: "account-identity" });
     expect(db.query("SELECT name, icon FROM accounts WHERE id = 'a'").get()).toEqual({ name: "Daily", icon: "🐷" });
     expect(db.query("SELECT name FROM payees WHERE id = ?").get(account.transfer_payee_id)).toEqual({ name: "Transfer : Daily" });
+    const knowledgeBeforePayee = (db.query("SELECT server_knowledge FROM plans WHERE id='p'").get() as { server_knowledge: number }).server_knowledge;
     // Clients revalidate cached accounts and payees against `server_knowledge`
     // (#175), so an import touching only those has to move it.
-    const knowledgeBeforePayee = (db.query("SELECT server_knowledge FROM plans WHERE id='p'").get() as { server_knowledge: number }).server_knowledge;
     await metadata.upsertPayee("p", { id: "payee-import", name: "Imported Shop" }, { operationId: "payee-import" });
     expect((db.query("SELECT server_knowledge FROM plans WHERE id='p'").get() as { server_knowledge: number }).server_knowledge).toBeGreaterThan(knowledgeBeforePayee);
     const knowledgeBeforeAccountUpsert = (db.query("SELECT server_knowledge FROM plans WHERE id='p'").get() as { server_knowledge: number }).server_knowledge;
@@ -1800,7 +1799,6 @@ describe("D1 bulk transaction commands", () => {
       { id: "c3", cleared: "uncleared" },
       { id: "c4", cleared: "reconciled" },
     ]);
-    // The reconciled row still counts toward the cleared balance, untouched.
     expect(db.query("SELECT cleared_balance_milli, uncleared_balance_milli FROM accounts WHERE id='a'").get()).toEqual({
       cleared_balance_milli: -500,
       uncleared_balance_milli: -500,
@@ -1864,9 +1862,9 @@ describe("D1 bulk transaction commands", () => {
       ["leg-a", "applied"],
       [mirror, "already_removed"],
     ]);
-    // Only the first leg is this command's work; the cascade is observed, not claimed.
     expect(result.applied_count).toBe(1);
     expect(result.already_removed_count).toBe(1);
+    // Only the first leg is this command's work; the cascade is observed, not claimed.
     expect(result.conflict_count).toBe(0);
     expect(db.query("SELECT id, deleted FROM transactions ORDER BY id").all()).toEqual([
       { id: "leg-a", deleted: 1 },
@@ -1905,7 +1903,6 @@ describe("D1 bulk transaction commands", () => {
     const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
     await repo.createTransaction("p", { id: "x1", account_id: "a", date: "2026-07-01", amount: -100 });
     await repo.createTransaction("p", { id: "x2", account_id: "a", date: "2026-07-02", amount: -200 });
-    // Another client removed x1 before this command reached it.
     db.run("UPDATE transactions SET deleted=1 WHERE id='x1'");
 
     const result = await repo.deleteTransactions("p", [{ id: "x1" }, { id: "x2" }]);
@@ -1956,12 +1953,12 @@ describe("D1 bulk transaction commands", () => {
       { id: "leg-a", expected_approved: false },
     ]);
 
-    // The mirror's own command was rejected; the later leg-a delete happens to
-    // cascade over it, but this command has no committed-deletion ids to prove
-    // that, so it must not restate the item as its own removal.
     expect(result.outcomes.map((outcome) => [outcome.id, outcome.status])).toEqual([
       [mirror, "conflict"],
       ["leg-a", "applied"],
+    // The mirror's own command was rejected; the later leg-a delete happens to
+    // cascade over it, but this command has no committed-deletion ids to prove
+    // that, so it must not restate the item as its own removal.
     ]);
     expect(result.applied_count).toBe(1);
     expect(result.conflict_count).toBe(1);
@@ -1993,19 +1990,19 @@ describe("D1 bulk transaction commands", () => {
       ["d2", "unresolved"],
       ["d3", "unattempted"],
     ]);
-    // A 200 bulk body must not carry what a 500 would redact.
     expect(result.outcomes[1]!.detail).toBe("This row's write could not be confirmed");
     expect(JSON.stringify(result)).not.toContain(sentinel);
     expect(db.query("SELECT id, deleted FROM transactions ORDER BY id").all()).toEqual([
+    // A 200 bulk body must not carry what a 500 would redact.
       { id: "d1", deleted: 1 },
       { id: "d2", deleted: 0 },
       { id: "d3", deleted: 0 },
     ]);
-    // The unresolved write left no receipt and was not replayed; the row behind
-    // it was never attempted.
     expect(db.query("SELECT COUNT(*) count FROM write_commands WHERE kind='transaction.delete'").get()).toEqual({ count: 1 });
     expect(db.query("SELECT COUNT(*) count FROM write_commands WHERE kind='transaction.delete' AND transaction_id='d2'").get()).toEqual({ count: 0 });
   });
+    // The unresolved write left no receipt and was not replayed; the row behind
+    // it was never attempted.
 
   test("bulk update hydrates each row once instead of once per write and once per response", async () => {
     const db = await ledgerSqlite();
@@ -2021,12 +2018,12 @@ describe("D1 bulk transaction commands", () => {
     ]);
 
     expect(batch.transactions.map((row) => row.memo)).toEqual(["one", "two"]);
-    // Two lookup reads, two guarded writes (each a batch read + a batch write),
-    // one hydration read per row, and one knowledge read. The discarded
-    // per-write hydration the batch used to do would add two more.
     const hydrationReads = counting.roundTrips.filter((trip) => trip.kind === "all" && trip.sql.includes("st.*"));
     expect(hydrationReads).toHaveLength(2);
     expect(counting.count).toBe(15);
+    // Two lookup reads, two guarded writes (each a batch read + a batch write),
+    // one hydration read per row, and one knowledge read. The discarded
+    // per-write hydration the batch used to do would add two more.
   });
 });
 
