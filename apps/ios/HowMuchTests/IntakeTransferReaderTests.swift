@@ -72,6 +72,48 @@ final class IntakeTransferReaderTests: XCTestCase {
     XCTAssertEqual(rows, [])
   }
 
+  func testAReceiptNamingSourceAndDestinationIsDeclined() {
+    let rows = IntakeTransferReader.read(
+      text: """
+      Transfer successful
+      From
+      UOB One Savings
+      To
+      Citi Rewards
+      669.54 SGD
+      """,
+      note: "transfer to my citi card",
+      accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
+  func testTwoTrackedAccountsInOneBlockAreDeclined() {
+    let rows = IntakeTransferReader.read(
+      text: "Scheduled transfers\nOct\n16\nUOB One Savings\nCiti Rewards\n669.54 SGD",
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
+  func testAmountsWithAPrefixAndSpaceStillRead() {
+    let rows = IntakeTransferReader.read(
+      text: Self.ocr.replacingOccurrences(of: "906.21 SGD", with: "S$ 906.21"),
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows.map(\.draft.amountMagnitudeMilli), [669_540, 906_210, 1_139_000])
+  }
+
+  func testAnAmountOnTheTitleLineIsNeverLeftOutOfAPartialRead() {
+    // Row two's title and amount share a line: this reader cannot place it, so
+    // it must decline the screen rather than return rows one and three alone.
+    let rows = IntakeTransferReader.read(
+      text: Self.ocr.replacingOccurrences(of: "Citi Cashback\nCitibank Credit Cards\n5222748001803910\n906.21 SGD", with: "Citi Cashback 906.21 SGD"),
+      note: nil, accounts: Self.accounts, payees: Self.payees, calendar: Self.calendar, now: Self.now
+    )
+    XCTAssertEqual(rows, [])
+  }
+
   // MARK: Fixtures
 
   private static let accounts = [

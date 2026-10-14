@@ -26,7 +26,8 @@ enum IntakeTransferReader {
     let lines = text.components(separatedBy: .newlines)
       .map { $0.trimmingCharacters(in: .whitespaces) }
       .filter { !$0.isEmpty }
-    guard looksLikeTransfers(lines: lines, note: note) else {
+    guard looksLikeTransfers(lines: lines, note: note), !hasSourceAndDestination(lines),
+          !hasUnreadAmount(lines) else {
       return []
     }
     let open = accounts.filter { !$0.closed && !$0.deleted }
@@ -44,7 +45,11 @@ enum IntakeTransferReader {
       }
       let block = lines[max(previousAmount + 1, index - window)..<index]
       previousAmount = index
-      let account = destination(in: block, accounts: open)
+      guard case .some(let found) = destinationResult(in: block, accounts: open) else {
+        // Two tracked accounts printed in one block: which is the destination is a guess.
+        return []
+      }
+      let account = found
       let payee = account?.name ?? title(in: block) ?? ""
       extractions.append(SlipReaderMapping.Extraction(
         amount: amount,
@@ -85,8 +90,26 @@ enum IntakeTransferReader {
   }
 
   private static let amountLine = try! NSRegularExpression(
-    pattern: #"^(?:S\$|\$|SGD\s*)?((?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})\s*(?:SGD)?$"#, options: [.caseInsensitive]
+    pattern: #"^(?:S\$|\$|SGD)?\s*((?:\d{1,3}(?:,\d{3})+|\d+)\.\d{2})\s*(?:SGD)?$"#, options: [.caseInsensitive]
   )
+  /// Any money-looking figure on a line. A line with one that `amountLine` does not
+  /// accept is a row this reader cannot place.
+  private static let moneyFigure = try! NSRegularExpression(pattern: #"\d[\d,]*\.\d{2}\b"#)
+  /// "From" / "To" labels: a receipt names a source and a destination, not just a destination.
+  private static let directionLabel = try! NSRegularExpression(
+    pattern: #"^(?:from|to)(?:\s+account)?:?$"#, options: [.caseInsensitive]
+  )
+
+  private static func hasSourceAndDestination(_ lines: [String]) -> Bool {
+    lines.contains { directionLabel.firstMatch(in: $0, options: [], range: NSRange($0.startIndex..., in: $0)) != nil }
+  }
+
+  private static func hasUnreadAmount(_ lines: [String]) -> Bool {
+    lines.contains { line in
+      amount(in: line) == nil
+        && moneyFigure.firstMatch(in: line, options: [], range: NSRange(line.startIndex..., in: line)) != nil
+    }
+  }
 
   private static func amount(in line: String) -> String? {
     let range = NSRange(line.startIndex..., in: line)
@@ -125,19 +148,33 @@ enum IntakeTransferReader {
     text.lowercased().split { !$0.isLetter && !$0.isNumber }.map(String.init)
   }
 
-  /// The tracked account named by the most words of one line of the block.
-  private static func destination(in block: ArraySlice<String>, accounts: [Account]) -> Account? {
-    var best: (account: Account, words: Int)?
-    for line in block.reversed() {
+  /// The tracked account the block names: `.some(nil)` when none, `nil` when two
+  /// different accounts are named by different lines (or tie on one) so that the
+  /// destination cannot be told.
+  private static func destinationResult(in block: ArraySlice<String>, accounts: [Account]) -> Account?? {
+    var named: [Account] = []
+    for line in block {
       let lineWords = Set(tokens(line))
-      for account in accounts {
+      let matching = accounts.compactMap { account -> (Account, Int)? in
         let words = Set(tokens(account.name))
-        if !words.isEmpty, words.isSubset(of: lineWords), words.count > (best?.words ?? 0) {
-          best = (account, words.count)
-        }
+        return !words.isEmpty && words.isSubset(of: lineWords) ? (account, words.count) : nil
+      }
+      guard let most = matching.map(\.1).max() else {
+        continue
+      }
+      let best = matching.filter { $0.1 == most }.map(\.0)
+      guard best.count == 1 else {
+        return nil
+      }
+      if !named.contains(where: { $0.id == best[0].id }) {
+        named.append(best[0])
       }
     }
-    return best?.account
+    switch named.count {
+    case 0: return .some(nil)
+    case 1: return .some(named[0])
+    default: return nil
+    }
   }
 
   /// The first line that is neither a date tile nor a number: the row's title.
