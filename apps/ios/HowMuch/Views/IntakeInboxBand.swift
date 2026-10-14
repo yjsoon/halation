@@ -48,9 +48,16 @@ struct IntakeInboxBand: View {
             Button {
               onOpen(job)
             } label: {
-              IntakeJobRow(job: job, accountName: accountName(for: job))
+              IntakeJobRow(job: job, accountName: accountName(for: job), showsAura: false)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
+                .background {
+                  // Full-bleed under the row so the card is one surface; the
+                  // card's own clip rounds the corners.
+                  if job.isWorking {
+                    IntelligenceAura(intensity: 0.3)
+                  }
+                }
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -73,6 +80,9 @@ struct IntakeInboxBand: View {
 struct IntakeJobRow: View {
   let job: IntakeJob
   var accountName: String?
+  /// The list draws the aura behind the row itself; the Inbox band draws it
+  /// edge to edge behind the padded row instead.
+  var showsAura = true
 
   var body: some View {
     HStack(spacing: 12) {
@@ -97,7 +107,7 @@ struct IntakeJobRow: View {
         .foregroundStyle(.secondary)
     }
     .background {
-      if job.state == .reading || job.state == .queued {
+      if showsAura, job.isWorking {
         // The aura is the only "working" signal; it holds still under Reduce Motion.
         IntelligenceAura(intensity: 0.3)
           .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.control, style: .continuous))
@@ -109,6 +119,10 @@ struct IntakeJobRow: View {
         + "\(job.spokenStatusSummary), \(IntakeTime.label(for: job.createdAt))"
     )
   }
+}
+
+private extension IntakeJob {
+  var isWorking: Bool { state == .reading || state == .queued }
 }
 
 enum IntakeTime {
