@@ -1901,13 +1901,11 @@ export class LedgerRepository {
    * them once, server-side, instead of shipping every row to the client.
    */
   async countUnapprovedTransactions(planId: string, filters: TransactionFilters = {}): Promise<UnapprovedCount> {
-    // `q` needs the plan's currency format, a round trip the count will not pay,
-    // and `last_knowledge_of_server` would swap "live rows" for "rows changed
-    // since", deleted ones included. Neither applies to a badge.
+    // `last_knowledge_of_server` would swap "live rows" for "rows changed
+    // since", deleted ones included, which does not apply to a badge.
     const { clauses, params } = transactionFilterClauses(planId, {
       ...filters,
       type: "unapproved",
-      q: null,
       lastKnowledgeOfServer: null,
     });
     const [knowledgeRows, countRows] = await this.db.batchRead([
@@ -3418,11 +3416,11 @@ function withOpeningBalance(account: any): any {
 
 /**
  * Every non-search WHERE clause a transaction query applies, in one place, so
- * the register page and the unapproved count can never drift apart. `q` is
- * deliberately excluded: it needs the plan's currency format, which costs a
- * round trip the count does not want to pay.
+ * the register page and the unapproved count can never drift apart. The type
+ * leaves out `q`: the text search needs the plan's currency format, so only
+ * the register page adds it.
  */
-function transactionFilterClauses(planId: string, filters: TransactionFilters): { clauses: string[]; params: any[] } {
+function transactionFilterClauses(planId: string, filters: Omit<TransactionFilters, "q">): { clauses: string[]; params: any[] } {
     const clauses = ["t.plan_id = ?"];
     const params: any[] = [planId];
 
