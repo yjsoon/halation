@@ -99,12 +99,7 @@ export default {
       scheduledTime: controller.scheduledTime,
     });
     console.log(JSON.stringify({ event: "scheduled_materialization", ...result }));
-    // The repository has already given unrelated schedules their bounded chance
-    // to run. Fail after the count-only log so Cloudflare records a retryable,
-    // observable cron failure without exposing schedule or transaction data.
-    if (result.failure_count > 0) {
-      throw new Error("Scheduled materialisation completed with schedule failures");
-    }
+    failAfterScheduleFailures(result.failure_count);
   },
 };
 
@@ -122,6 +117,17 @@ function workerConfig(env: Env): ApiConfig & { timeZone: string } {
     typesafeModel: optional(env.TYPESAFE_MODEL),
     timeZone: required(env.HOWMUCH_TIME_ZONE, "HOWMUCH_TIME_ZONE"),
   };
+}
+
+/**
+ * The repository has already given unrelated schedules their bounded chance to
+ * run. Failing after the count-only log lets Cloudflare record a retryable,
+ * observable cron failure without exposing schedule or transaction data.
+ */
+function failAfterScheduleFailures(failureCount: number): void {
+  if (failureCount > 0) {
+    throw new Error("Scheduled materialisation completed with schedule failures");
+  }
 }
 
 /**
