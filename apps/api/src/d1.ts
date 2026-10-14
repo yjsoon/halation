@@ -57,8 +57,6 @@ export class D1Database implements AsyncSqlDatabase, RepositoryDatabase {
    */
   async batchRead(statements: BatchStatement[]): Promise<Record<string, any>[][]> {
     if (statements.length === 0) return [];
-    // Deliberately not via atomicBatch(): the two are separate entry points so
-    // a wrapper can instrument either without the other counting twice.
     const results = await this.sendBatch(statements);
     return results.map((result) => (result.results ?? []) as Record<string, any>[]);
   }
@@ -72,7 +70,7 @@ export class D1Database implements AsyncSqlDatabase, RepositoryDatabase {
     return this.sendBatch<Row>(statements);
   }
 
-  /** One binding.batch call: one round trip, run as a single transaction. */
+  /** The one binding.batch call behind both public batch entry points: one round trip, run as a single transaction. */
   private sendBatch<Row = Record<string, unknown>>(
     statements: Array<{ sql: string; values?: SqlValues }>,
   ): Promise<D1Result<Row>[]> {
