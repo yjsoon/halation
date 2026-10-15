@@ -12,6 +12,7 @@
 #   PERF_LOCAL_DB    local mode: seeded howmuch.sqlite (default ../fixture/howmuch.sqlite)
 #   PERF_WORK        scratch root (default ~/perf-work)
 #   PERF_ONLY        optional extra -only-testing filter suffix, e.g. test03_OpenAllRegister
+#   PERF_PATCH       optional patch applied to the worktree before building (diagnostics)
 #
 # Each run builds the revision in Release with the throwaway UI-test target,
 # reinstalls the app from scratch (so every revision starts from the same
@@ -49,6 +50,11 @@ git -C "$ROOT" worktree add --force --detach "$SRC" "$REV" >>"$OUT/run.log" 2>&1
 RESOLVED="$(git -C "$SRC" rev-parse HEAD)"
 log "worktree $SRC at $RESOLVED"
 echo "$RESOLVED" >"$OUT/revision.txt"
+if [[ -n "${PERF_PATCH:-}" ]]; then
+  # Diagnostics only: apply a local patch (e.g. extra logging) to the worktree.
+  git -C "$SRC" apply "$PERF_PATCH"
+  log "applied $PERF_PATCH"
+fi
 ruby "$HARNESS/add-perf-target.rb" "$SRC" "$HARNESS/HowMuchPerfUITests.swift" | tee -a "$OUT/run.log"
 
 # 2. Release build for testing, signed ad hoc for the simulator (no team, no profile).

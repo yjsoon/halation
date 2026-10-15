@@ -223,17 +223,7 @@ final class HowMuchPerfUITests: XCTestCase {
       allTile.tap()
       waitFor(firstRegisterRow, "All register rows")
       startMeasuring()
-      let header = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", target)).firstMatch
-      var swipes = 0
-      while !header.exists, swipes < 200 {
-        if loadOlder.exists, loadOlder.isHittable {
-          loadOlder.tap()
-        } else {
-          register.swipeUp(velocity: .fast)
-          swipes += 1
-        }
-      }
-      XCTAssertTrue(header.exists, "never reached \(target)")
+      walkBack(to: target, maxSteps: 300, scope: "All")
       stopMeasuring()
     }
   }
@@ -247,19 +237,44 @@ final class HowMuchPerfUITests: XCTestCase {
       quietAccount.tap()
       waitFor(firstRegisterRow, "Savings Pot 2 rows")
       startMeasuring()
-      let header = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", target)).firstMatch
-      var steps = 0
-      while !header.exists, steps < 300 {
-        if loadOlder.exists, loadOlder.isHittable {
-          loadOlder.tap()
-        } else {
-          register.swipeUp(velocity: .fast)
-        }
-        steps += 1
-      }
-      XCTAssertTrue(header.exists, "never reached \(target) in Savings Pot 2")
+      walkBack(to: target, maxSteps: 300, scope: "Savings Pot 2")
       stopMeasuring()
     }
+  }
+
+  /// Flings down the register, tapping Load older whenever it is on screen,
+  /// until a date header in `target` ("Apr 2026") shows. Every step counts
+  /// towards the cap, and a tap that leaves the list unchanged three times in
+  /// a row ends the walk with a failure and a screenshot rather than spinning.
+  private func walkBack(to target: String, maxSteps: Int, scope: String) {
+    let header = app.staticTexts.matching(NSPredicate(format: "label CONTAINS %@", target)).firstMatch
+    let loading = button(containing: "Loading older transactions")
+    var steps = 0
+    var idleTaps = 0
+    while !header.exists, steps < maxSteps {
+      steps += 1
+      if loadOlder.exists, loadOlder.isHittable {
+        let before = loadOlder.frame
+        loadOlder.tap()
+        _ = loading.waitForNonExistence(timeout: 30)
+        if loadOlder.exists, loadOlder.isHittable, loadOlder.frame == before {
+          idleTaps += 1
+          if idleTaps >= 3 {
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = "load-older-no-op-\(scope)"
+            shot.lifetime = .keepAlways
+            add(shot)
+            XCTFail("Load older did nothing three times in a row in \(scope) (step \(steps))")
+            return
+          }
+        } else {
+          idleTaps = 0
+        }
+      } else {
+        register.swipeUp(velocity: .fast)
+      }
+    }
+    XCTAssertTrue(header.exists, "never reached \(target) in \(scope) after \(steps) steps")
   }
 
   /// Load older pages: tap, then wait for the next page to settle.
