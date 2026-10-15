@@ -326,8 +326,9 @@ final class HowMuchPerfUITests: XCTestCase {
   /// One manual Load older: tap the idle button, then wait until the page has
   /// landed. Every sample must be a tap that loaded a page: prefetch can get
   /// to the next page first, so before each tap the test lets any page in
-  /// flight land and scrolls on to an idle button, and a tap that leaves the
-  /// button where it was fails the test (the parser then drops its samples).
+  /// flight land and scrolls on to an idle button, and a tap that has not
+  /// moved the button within 30 s fails the test (the parser then drops its
+  /// samples).
   /// The walks above measure prefetch itself.
   func test09_LoadOlderPage() throws {
     launchToAccounts()
@@ -351,12 +352,17 @@ final class HowMuchPerfUITests: XCTestCase {
     measure(metrics: [XCTClockMetric(), XCTCPUMetric(application: app), XCTMemoryMetric(application: app)], options: options(5, manualStop: true)) {
       let before = loadOlder.frame
       loadOlder.tap()
-      let settled = loading.waitForNonExistence(timeout: 30)
-      // A landed page sits above the button, pushing it down or off screen.
-      let landed = !loadOlder.exists || !loadOlder.isHittable || loadOlder.frame != before
+      // Landed: nothing loading, and the new rows have pushed the button down
+      // or off screen. Polled, because the loading label may not be up yet
+      // when the wait starts, and waiting for it to go would end at once.
+      let deadline = Date().addingTimeInterval(30)
+      var landed = false
+      while !landed, Date() < deadline {
+        landed = !loading.exists
+          && (!loadOlder.exists || !loadOlder.isHittable || loadOlder.frame != before)
+      }
       stopMeasuring()
-      XCTAssertTrue(settled, "older page never finished loading")
-      XCTAssertTrue(landed, "Load older loaded nothing")
+      XCTAssertTrue(landed, "Load older loaded nothing within 30 s")
       XCTAssertTrue(reachIdleLoadOlder(), "Load older never came back on screen: fixture exhausted?")
     }
   }
