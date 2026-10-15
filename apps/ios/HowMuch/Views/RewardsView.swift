@@ -1061,7 +1061,7 @@ struct RewardFilledRow: View {
   private func headlineText(_ text: RewardRowText, surface: Surface) -> Text {
     let ink = headlineInk(surface)
     if let amount = text.amount {
-      let figure = Text(amount).font(.system(.headline, design: .monospaced).weight(.semibold))
+      let figure = Text(amount).font(.system(.headline, design: .monospaced).weight(.medium))
         .foregroundStyle(projection.tone == .needsMinimum ? urgentInk(surface) : ink)
       return Text("\(figure) \(text.actionLabel)")
         .font(.subheadline)

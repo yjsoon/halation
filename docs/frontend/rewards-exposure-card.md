@@ -416,7 +416,7 @@ Height budget at `.large`: top padding 9, name 23, sky band 34 (the two slopes: 
 | Element | Type | Ink |
 | --- | --- | --- |
 | Account emoji and name | Instrument Serif Italic 19pt, relative to `.title3`; at most 2 lines, then a tail truncation; at most 0.72 W | `InkCashback` or `InkMiles`, which resolve by appearance: dark on every light-mode sky, light on both prints |
-| Amount | IBM Plex Mono SemiBold 17pt, relative to `.headline` | `FootInk`; `UrgentInk` while the tone is needs-minimum (the reward is at stake, not a bonus); `FailedInk` for a failed card |
+| Amount | IBM Plex Mono Medium 17pt, relative to `.headline` (Medium, not SemiBold: the heavier weight read as shouting in the urgent amber, and the web loads Plex Mono only in Regular and Medium) | `FootInk`; `UrgentInk` while the tone is needs-minimum (the reward is at stake, not a bonus); `FailedInk` for a failed card |
 | Action label | IBM Plex Sans 15pt, relative to `.subheadline` | `FootInk` |
 | Deadline, trailing | IBM Plex Sans 13pt, relative to `.footnote`; SemiBold when urgent | `FootInkSoft`; `UrgentInk` when urgent |
 | Basis line | IBM Plex Mono 12pt, relative to `.caption1`; may wrap | `FootInkSoft` |
