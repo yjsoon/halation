@@ -1,0 +1,70 @@
+diff --git a/apps/ios/HowMuch/AppModel.swift b/apps/ios/HowMuch/AppModel.swift
+index 524a476..97306e8 100644
+--- a/apps/ios/HowMuch/AppModel.swift
++++ b/apps/ios/HowMuch/AppModel.swift
+@@ -2388,6 +2388,8 @@ final class AppModel {
+           popHorizonFill()
+         }
+       }
++      // The plan-wide fill stays at the first page's size: it stops at the
++      // horizon, and a larger page would only load rows past it.
+       while RegisterHorizon.standard.shouldFetchMore(
+         oldestLoadedDate: RegisterHorizon.coverageOldestDate(in: serverTransactions, accountID: nil),
+         hasMore: hasMoreTransactions,
+@@ -2953,7 +2955,8 @@ final class AppModel {
+           planID: planID,
+           accountID: accountID,
+           offset: offset,
+-          sinceDate: startDate
++          sinceDate: startDate,
++          limit: APIClient.largestTransactionPageSize
+         )
+         guard
+           generation == ledgerPageGeneration,
+@@ -3017,7 +3020,7 @@ final class AppModel {
+     }
+ 
+     do {
+-      let page = try await fetchLedgerPage(planID: planID, offset: offset)
++      let page = try await fetchLedgerPage(planID: planID, offset: offset, limit: APIClient.largestTransactionPageSize)
+       guard
+         generation == ledgerPageGeneration,
+         planID == settings.planID,
+@@ -4303,7 +4306,8 @@ final class AppModel {
+     accountID: String? = nil,
+     offset: Int = 0,
+     sinceDate: String? = nil,
+-    untilDate: String? = nil
++    untilDate: String? = nil,
++    limit: Int = APIClient.transactionPageSize
+   ) async throws -> TransactionPage {
+     let generation = beginLedgerRead()
+     defer { endLedgerRead(generation) }
+@@ -4312,7 +4316,8 @@ final class AppModel {
+       accountID: accountID,
+       offset: offset,
+       sinceDate: sinceDate,
+-      untilDate: untilDate
++      untilDate: untilDate,
++      limit: limit
+     )
+     return TransactionPage(
+       transactions: repairingStaleRead(
+diff --git a/apps/ios/HowMuch/Services/APIClient.swift b/apps/ios/HowMuch/Services/APIClient.swift
+index 35b0337..c5aa976 100644
+--- a/apps/ios/HowMuch/Services/APIClient.swift
++++ b/apps/ios/HowMuch/Services/APIClient.swift
+@@ -83,7 +83,12 @@ enum ExportEverythingFormat {
+ 
+ struct APIClient {
+   let settings: APISettings
+-  private static let transactionPageSize = 100
++  static let transactionPageSize = 100
++  /// The largest page the API serves. The first page and the plan-wide
++  /// horizon fill stay at `transactionPageSize`, so launch loads no more rows
++  /// than before; Load older and a focused account's date-bounded fill use
++  /// this, so walking back takes fewer requests.
++  static let largestTransactionPageSize = 250
+   /// The largest request body `import_snapshot` accepts.
+   static let snapshotByteLimit = 8 * 1024 * 1024
+ 
