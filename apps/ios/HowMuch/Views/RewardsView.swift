@@ -873,6 +873,7 @@ struct RewardFilledRow: View {
           .padding(.bottom, skyBand)
         foot(text, surface: .ridge)
           .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).minY } action: { footTop = $0 }
+        exceptions(text, surface: .ridge)
       }
       .padding(.horizontal, horizontalPadding)
       .padding(.vertical, stripPadding)
@@ -887,7 +888,6 @@ struct RewardFilledRow: View {
       .coordinateSpace(.named(Self.space))
       .clipShape(.rect(cornerRadius: Theme.Radius.card, style: .continuous))
       .overlay { outline }
-      slip(text)
     }
   }
 
@@ -917,43 +917,23 @@ struct RewardFilledRow: View {
         titleLine(surface: .paper)
       }
       foot(text, surface: .paper)
-      exceptions(text)
+      exceptions(text, surface: .paper)
     }
     .padding(.vertical, paperPadding)
     .padding(.horizontal, horizontalPadding)
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  /// The name, kept to the left half so the sun's column and its rings stay clear of it.
-  /// Without a name (the detail sheet) it is an empty line, so the ridges still have a sky.
+  /// The name may run to 72% of the width: the sun's column at 85% stays clear of it, and a half-sun
+  /// riding under the name's tail only grazes the line box. Without a name (the detail sheet) it is
+  /// an empty line, so the ridges still have a sky.
   @ViewBuilder
   private var nameBox: some View {
     if showsTitle {
       titleLine(surface: .ridge)
-        .frame(maxWidth: width > 0 ? width * 0.5 : .infinity, alignment: .leading)
+        .frame(maxWidth: width > 0 ? width * 0.72 : .infinity, alignment: .leading)
     } else {
       Color.clear.frame(height: 0)
-    }
-  }
-
-  /// Exceptions go on a paper slip tucked under the frame; the frame's height never changes for them.
-  @ViewBuilder
-  private func slip(_ text: RewardRowText) -> some View {
-    if !text.exceptionLines.isEmpty {
-      VStack(alignment: .leading, spacing: 2) {
-        exceptions(text)
-      }
-      .padding(.horizontal, horizontalPadding)
-      .padding(.top, 16)
-      .padding(.bottom, 8)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(
-        Theme.card,
-        in: UnevenRoundedRectangle(bottomLeadingRadius: 12, bottomTrailingRadius: 12, style: .continuous)
-      )
-      .padding(.horizontal, 8)
-      .padding(.top, -10)
-      .zIndex(-1)
     }
   }
 
@@ -993,33 +973,37 @@ struct RewardFilledRow: View {
     .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: text.accessibilityValue)
   }
 
+  /// On the strip the exceptions are more lines of the foot, on the ground in its own inks, so the
+  /// card stays one surface; the frame grows a line for each.
   @ViewBuilder
-  private func exceptions(_ text: RewardRowText) -> some View {
+  private func exceptions(_ text: RewardRowText, surface: Surface) -> some View {
     ForEach(Array(text.exceptionLines.enumerated()), id: \.element) { index, line in
       HStack(alignment: .firstTextBaseline, spacing: 6) {
         Image(systemName: "exclamationmark.triangle.fill")
           .accessibilityHidden(true)
         Text(line)
-          .foregroundStyle(exceptionInk(at: index, forText: true))
+          .foregroundStyle(exceptionInk(at: index, surface: surface, forText: true))
           .fixedSize(horizontal: false, vertical: true)
       }
-      .foregroundStyle(exceptionInk(at: index))
+      .foregroundStyle(exceptionInk(at: index, surface: surface))
       .font(.footnote.weight(.medium))
-      .padding(.top, 2)
+      .padding(.top, surface == .ridge ? 4 : 2)
     }
   }
 
-  private func exceptionInk(at index: Int, forText: Bool = false) -> Color {
+  private func exceptionInk(at index: Int, surface: Surface, forText: Bool = false) -> Color {
     guard index < RewardRowText.visibleExceptionLimit, index < projection.exceptions.count else {
-      return Theme.rowSecondary
+      return secondaryInk(surface)
     }
     switch projection.exceptions[index] {
     case .categoriesAtCap, .tierCapReached:
+      if surface == .ridge { return forText ? Theme.Face.footInk : Theme.Face.urgentInk }
       return RewardTonePalette.palette(for: .complete).ink
     case .categoriesBelowMinimum, .minimumNotMet:
+      if surface == .ridge { return forText ? Theme.Face.footInk : Theme.Face.urgentInk }
       return forText ? Theme.textPrimary : RewardTonePalette.palette(for: .needsMinimum).ink
     case .rewardsLocked:
-      return Theme.rowSecondary
+      return secondaryInk(surface)
     }
   }
 
@@ -1072,10 +1056,13 @@ struct RewardFilledRow: View {
     }
   }
 
+  /// An unmet minimum's figure takes the urgent amber, the ink the deadline takes in its last days:
+  /// the reward is at stake, not just a bonus.
   private func headlineText(_ text: RewardRowText, surface: Surface) -> Text {
     let ink = headlineInk(surface)
     if let amount = text.amount {
-      let figure = Text(amount).font(.system(.headline, design: .monospaced).weight(.semibold))
+      let figure = Text(amount).font(.system(.headline, design: .monospaced).weight(.medium))
+        .foregroundStyle(projection.tone == .needsMinimum ? urgentInk(surface) : ink)
       return Text("\(figure) \(text.actionLabel)")
         .font(.subheadline)
         .foregroundStyle(ink)

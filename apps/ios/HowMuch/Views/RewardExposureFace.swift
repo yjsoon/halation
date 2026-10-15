@@ -197,8 +197,8 @@ private struct ExposurePainter {
       return .color(solid)
     }
     // The wash falls to the same colour at a lower alpha, never to clear, so the falloff does not pass through grey.
-    let lo = min(1, max(0, pose.h - 0.04))
-    let hi = min(1, max(0, pose.h + 0.04))
+    let lo = min(1, max(0, scene.litEdge - 0.04))
+    let hi = min(1, max(0, scene.litEdge + 0.04))
     let beyond = alpha * scene.lifted
     // Smoothstep between lo and hi: quarter points sit at 15.6% and 84.4% of the way.
     let quarter = lo + 0.25 * (hi - lo), threeQuarter = lo + 0.75 * (hi - lo)
@@ -416,8 +416,9 @@ final class ExposureMemory {
 /// - First shown: the lit edge sweeps right and the sun rides the marker; a card with a
 ///   minimum sweeps first and then rises, and one without it climbs straight up.
 /// - New figures, same target: the pose glides. Across in the minimum journey, up in the climb.
-/// - A fall (a new period or month) or a change of light: the face crossfades. The marker
-///   never glides backwards and the sun never sinks.
+/// - A fall (a new period or month), a change of light, or the minimum being met: the face
+///   crossfades. The marker never glides backwards and the sun never sinks, and the gate keeps
+///   its dusk and its half-sun to the end, so the met face is a new picture.
 /// - Reduce Motion: the pose jumps.
 @MainActor
 struct RewardExposureAnimator: View {
@@ -457,7 +458,8 @@ struct RewardExposureAnimator: View {
     }
     .onChange(of: exposure) { old, new in
       ExposureMemory.shared.remember(new, key: key)
-      if new.target != old.target, new.pose.falls(from: old.pose) || new.light != old.light {
+      let relit = (new.stage == .gate) != (old.stage == .gate)
+      if relit || (new.target != old.target && (new.pose.falls(from: old.pose) || new.light != old.light)) {
         glideTask?.cancel()
         withAnimation(reduceMotion ? nil : Theme.Motion.standard) {
           faceID = new.target
