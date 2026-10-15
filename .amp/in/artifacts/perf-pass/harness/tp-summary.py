@@ -5,10 +5,13 @@ Usage:
   xcrun xctrace export --input X.trace \
     --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' > tp.xml
   python3 tp-summary.py tp.xml [--process HowMuch] [--top 40]
+  python3 tp-summary.py tp.xml --callers '_os_log_impl' [--depth 8]
 
 Prints, for the chosen process: total sampled CPU, main-thread CPU, CPU by
 binary, the hottest leaf frames (self time), and the hottest app frames by
-inclusive time (each frame counted once per sample).
+inclusive time (each frame counted once per sample). With --callers, also
+prints who calls the first frame matching a pattern on the main thread, as
+caller chains `depth` frames deep plus the nearest app frame above it.
 """
 import argparse
 import collections
@@ -17,7 +20,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 
-def parse(path, process_filter):
+def parse(path, process_filter, callers=None, depth=8):
     ids = {}  # id -> parsed value
     totals = collections.Counter()
     main_total = collections.Counter()
@@ -29,6 +32,9 @@ def parse(path, process_filter):
     app_incl_main = collections.Counter()
     any_incl_main = collections.Counter()
     processes = collections.Counter()
+    caller_chains = collections.Counter()
+    caller_app = collections.Counter()
+    caller_pattern = re.compile(callers) if callers else None
 
     def resolve(el):
         ref = el.get("ref")
@@ -121,6 +127,14 @@ def parse(path, process_filter):
         totals["all"] += ms
         if is_main:
             main_total["main"] += ms
+        if frames and caller_pattern and is_main:
+            for index, (name, _binary) in enumerate(frames):
+                if caller_pattern.search(name):
+                    above = frames[index + 1:]
+                    caller_chains[" < ".join(short(n, 60) for n, _ in above[:depth])] += ms
+                    app = next((n for n, b in above if b == "HowMuch"), "(no app frame)")
+                    caller_app[app] += ms
+                    break
         if frames:
             leaf = frames[0]
             leaf_self[leaf] += ms
@@ -146,7 +160,7 @@ def parse(path, process_filter):
         totals=totals, main_total=main_total, by_binary_self=by_binary_self,
         by_binary_incl=by_binary_incl, leaf_self=leaf_self, leaf_self_main=leaf_self_main,
         app_incl=app_incl, app_incl_main=app_incl_main, any_incl_main=any_incl_main,
-        processes=processes,
+        processes=processes, caller_chains=caller_chains, caller_app=caller_app,
     )
 
 
@@ -160,8 +174,18 @@ def main():
     ap.add_argument("xml")
     ap.add_argument("--process", default="HowMuch")
     ap.add_argument("--top", type=int, default=40)
+    ap.add_argument("--callers", help="regex for a frame whose main-thread callers to list")
+    ap.add_argument("--depth", type=int, default=8)
     args = ap.parse_args()
-    r = parse(args.xml, args.process)
+    r = parse(args.xml, args.process, args.callers, args.depth)
+    if args.callers:
+        print(f"== Main-thread callers of /{args.callers}/ (nearest app frame) ==")
+        for (name, ms) in r["caller_app"].most_common(args.top):
+            print(f"{ms:9.0f} ms  {short(name)}")
+        print(f"\n== Main-thread caller chains of /{args.callers}/, {args.depth} deep ==")
+        for (chain, ms) in r["caller_chains"].most_common(args.top):
+            print(f"{ms:9.0f} ms  {chain}")
+        return 0
     total = r["totals"]["all"]
     main_ms = r["main_total"]["main"]
     print(f"process filter: {args.process!r}")

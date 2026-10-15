@@ -57,6 +57,20 @@ final class HowMuchPerfUITests: XCTestCase {
     return tabBarButton.exists ? tabBarButton : app.buttons[name].firstMatch
   }
 
+  /// After a register scroll the tab bar can stay minimised to the current
+  /// tab, hiding the others. Tapping that tab or scrolling up expands it.
+  private func expandedTab(_ name: String) -> XCUIElement {
+    if !tab(name).exists, tab("Accounts").exists {
+      tab("Accounts").tap()
+    }
+    var tries = 0
+    while !tab(name).exists, tries < 3 {
+      app.collectionViews.firstMatch.swipeDown(velocity: .slow)
+      tries += 1
+    }
+    return tab(name)
+  }
+
   @discardableResult
   private func waitFor(_ element: XCUIElement, _ what: String, timeout: TimeInterval = 20) -> XCUIElement {
     XCTAssertTrue(element.waitForExistence(timeout: timeout), "timed out waiting for \(what)")
@@ -393,7 +407,8 @@ final class HowMuchPerfUITests: XCTestCase {
     quietAccount.tap()
     waitFor(firstRegisterRow, "quiet rows")
     goBack()
-    tab("Reflect").tap()
+    waitFor(everydayAccount, "Accounts")
+    expandedTab("Reflect").tap()
     waitFor(app.staticTexts["Top Categories"].firstMatch, "Reflect")
     button(containing: "Spending Breakdown").tap()
     waitFor(app.navigationBars["Spending Breakdown"].firstMatch, "Spending Breakdown detail")
