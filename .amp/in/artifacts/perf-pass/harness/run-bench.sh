@@ -13,6 +13,8 @@
 #   PERF_WORK        scratch root (default ~/perf-work)
 #   PERF_ONLY        optional extra -only-testing filter suffix, e.g. test03_OpenAllRegister
 #   PERF_PATCH       optional patch applied to the worktree before building (diagnostics)
+#   XCTRACE          xctrace binary to record with (default: xcrun xctrace); Xcode 26.6's
+#                    records empty traces on some hosts, so point this at a working one
 #
 # Each run builds the revision in Release with the throwaway UI-test target,
 # reinstalls the app from scratch (so every revision starts from the same
@@ -27,6 +29,7 @@ HARNESS="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(git -C "$HARNESS" rev-parse --show-toplevel)"
 WORK="${PERF_WORK:-$HOME/perf-work}"
 UDID="${SIMULATOR_UDID:?set SIMULATOR_UDID}"
+read -r -a XCTRACE_CMD <<<"${XCTRACE:-xcrun xctrace}"
 MODE="${PERF_MODE:-local}"
 ITER="${PERF_ITERATIONS:-8}"
 LOCAL_DB="${PERF_LOCAL_DB:-$HARNESS/../fixture/howmuch.sqlite}"
@@ -145,7 +148,7 @@ if [[ "$WHAT" == profile || "$WHAT" == both ]]; then
   xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
   sleep 2
   log "xctrace: cold launch"
-  xcrun xctrace record --template 'Time Profiler' --device "$UDID" --all-processes \
+  "${XCTRACE_CMD[@]}" record --template 'Time Profiler' --device "$UDID" --all-processes \
     --time-limit 15s --output "$OUT/launch.trace" >>"$OUT/run.log" 2>&1 &
   TRACE_PID=$!
   sleep 4
@@ -154,7 +157,7 @@ if [[ "$WHAT" == profile || "$WHAT" == both ]]; then
   xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
 
   log "xctrace: register/reflect tour"
-  xcrun xctrace record --template 'Time Profiler' --device "$UDID" --all-processes \
+  "${XCTRACE_CMD[@]}" record --template 'Time Profiler' --device "$UDID" --all-processes \
     --time-limit 150s --output "$OUT/tour.trace" >>"$OUT/run.log" 2>&1 &
   TRACE_PID=$!
   sleep 4
@@ -164,7 +167,7 @@ if [[ "$WHAT" == profile || "$WHAT" == both ]]; then
 
   for name in launch tour; do
     if [[ -d "$OUT/$name.trace" ]]; then
-      xcrun xctrace export --input "$OUT/$name.trace" \
+      "${XCTRACE_CMD[@]}" export --input "$OUT/$name.trace" \
         --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' \
         --output "$OUT/$name-tp.xml" >>"$OUT/run.log" 2>&1 || log "export failed for $name"
       if [[ -f "$OUT/$name-tp.xml" ]]; then

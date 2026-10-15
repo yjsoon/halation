@@ -264,6 +264,7 @@ final class HowMuchPerfUITests: XCTestCase {
             shot.name = "load-older-no-op-\(scope)"
             shot.lifetime = .keepAlways
             add(shot)
+            probeStuckLoadOlder(scope: scope)
             XCTFail("Load older did nothing three times in a row in \(scope) (step \(steps))")
             return
           }
@@ -275,6 +276,32 @@ final class HowMuchPerfUITests: XCTestCase {
       }
     }
     XCTAssertTrue(header.exists, "never reached \(target) in \(scope) after \(steps) steps")
+  }
+
+  /// When Load older stops responding, records where the button and the bars
+  /// around it are, then taps the button by screen coordinate at several
+  /// points, so the log shows whether something else is taking the touch.
+  private func probeStuckLoadOlder(scope: String) {
+    let window = app.windows.firstMatch.frame
+    let frame = loadOlder.frame
+    var notes = ["window \(window)", "loadOlder \(frame) hittable=\(loadOlder.isHittable)"]
+    for bar in [app.tabBars.firstMatch, app.navigationBars.firstMatch, app.toolbars.firstMatch] where bar.exists {
+      notes.append("\(bar.elementType.rawValue) \(bar.frame)")
+    }
+    let origin = app.coordinate(withNormalizedOffset: .zero)
+    for (name, x, y) in [("centre", 0.5, 0.5), ("left", 0.15, 0.5), ("right", 0.85, 0.5), ("top", 0.5, 0.15)] {
+      let point = CGVector(dx: frame.minX + frame.width * x, dy: frame.minY + frame.height * y)
+      origin.withOffset(point).tap()
+      Thread.sleep(forTimeInterval: 2)
+      let moved = !loadOlder.exists || loadOlder.frame != frame
+      notes.append("coordinate tap \(name) at \(point): list changed=\(moved)")
+      if moved { break }
+    }
+    let tree = XCTAttachment(string: notes.joined(separator: "\n") + "\n\n" + app.debugDescription)
+    tree.name = "load-older-probe-\(scope)"
+    tree.lifetime = .keepAlways
+    add(tree)
+    print("LOAD-OLDER-PROBE \(scope):\n" + notes.joined(separator: "\n"))
   }
 
   /// Load older pages: tap, then wait for the next page to settle.
