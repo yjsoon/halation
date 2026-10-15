@@ -93,6 +93,9 @@ if [[ "$MODE" == local ]]; then
   cp "$LOCAL_DB" "$DATA/Library/Application Support/HowMuch/Local/howmuch.sqlite"
   rm -f "$DATA/Library/Application Support/HowMuch/Local/howmuch.sqlite-wal" \
     "$DATA/Library/Application Support/HowMuch/Local/howmuch.sqlite-shm"
+  # Adopting the seeded plan would otherwise add the starter categories to it
+  # (duplicate "Everyday", "Bills", "Groceries"), which server mode never sees.
+  xcrun simctl spawn "$UDID" defaults write "$BUNDLE" HowMuch.StarterCategoriesSeeded.plan_perfbench0000 -bool YES
   log "seeded local ledger into $DATA"
 fi
 
