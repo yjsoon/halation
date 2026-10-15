@@ -938,6 +938,14 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
     var isSuppressed = false
     private var assistantButton: UIButton?
     private var displayLink: CADisplayLink?
+    /// The pins the last full walk found. Display ticks re-read their frames
+    /// instead of walking the window again: with accessibility on (VoiceOver,
+    /// UI tests) that walk visits every element on screen, ten times a second.
+    private var trackedPins: [TrackedPin] = []
+    private var ticksSinceWalk = 0
+    /// Ticks between full walks while the tracked pins still check out, so a
+    /// pin that appears beside them is picked up within a couple of seconds.
+    private static let ticksPerWalk = 20
 
     override func loadView() {
       view = UIView()
@@ -963,7 +971,7 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
       install()
     }
 
-    func install() {
+    func install(fullWalk: Bool = true) {
       if isSuppressed || CaptureRouter.shared.hidesTabRowOverlay {
         hideAssistant()
         return
@@ -973,7 +981,7 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
       }
       // Hide when the tab-row Add pin is gone, not when a leftover system
       // UITabBarController.tabBar happens to be hidden.
-      guard let addFrame = addPinFrame(in: window) else {
+      guard let addFrame = addPinFrame(in: window, fullWalk: fullWalk) else {
         hideAssistant()
         return
       }
@@ -1053,13 +1061,28 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
     }
 
     @objc private func onDisplayTick() {
-      install()
+      install(fullWalk: false)
     }
 
     /// Same AX walk the snapshot tests use. iOS 26 tab buttons often exist only
     /// as accessibility elements, not as labelled UIView / UITabBar children.
-    private func addPinFrame(in window: UIWindow) -> CGRect? {
+    /// A display tick reuses the last walk's pins while they still pass its
+    /// checks and still give a frame; anything else walks again.
+    private func addPinFrame(in window: UIWindow, fullWalk: Bool) -> CGRect? {
+      ticksSinceWalk += 1
+      if !fullWalk, ticksSinceWalk < Self.ticksPerWalk,
+         let tracked = refreshedTrackedPins(in: window),
+         let frame = addPinFrame(from: tracked, in: window)
+      {
+        return frame
+      }
+      ticksSinceWalk = 0
       let pins = accessibilityPins(in: window)
+      trackedPins = pins.map(TrackedPin.init)
+      return addPinFrame(from: pins, in: window)
+    }
+
+    private func addPinFrame(from pins: [AccessibilityPin], in window: UIWindow) -> CGRect? {
       let accounts = pins.last { $0.label == AppTab.accounts.title && $0.frame.midY > window.bounds.midY }
         ?? pins.last { $0.label == AppTab.accounts.title }
       let addTitle = CompactRootBar.action.title
@@ -1076,10 +1099,74 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
     private struct AccessibilityPin {
       let label: String
       let frame: CGRect
+      let object: NSObject
+      let owner: UITabBar?
     }
 
-    /// Runs on every display tick, so only the labels `addPinFrame` reads pay
-    /// for the frame and exposure checks; each exposure check walks the window.
+    /// A pin from the last full walk, held weakly so a torn-down tab bar
+    /// sends the next tick back to a full walk.
+    private struct TrackedPin {
+      let label: String
+      weak var object: NSObject?
+      weak var owner: UITabBar?
+      let hadOwner: Bool
+
+      init(_ pin: AccessibilityPin) {
+        label = pin.label
+        object = pin.object
+        owner = pin.owner
+        hadOwner = pin.owner != nil
+      }
+    }
+
+    /// The tracked pins at their current frames, or nil when any of them
+    /// fails a check the full walk made, so the caller walks again.
+    private func refreshedTrackedPins(in window: UIWindow) -> [AccessibilityPin]? {
+      guard !trackedPins.isEmpty else {
+        return nil
+      }
+      var pins: [AccessibilityPin] = []
+      for tracked in trackedPins {
+        guard
+          let object = tracked.object,
+          object.accessibilityLabel == tracked.label,
+          hostView(of: object)?.window === window,
+          let frame = accessibilityFrame(of: object, in: window),
+          frame.width > 1 || frame.height > 1,
+          isExposedInContainerChain(object)
+        else {
+          return nil
+        }
+        if tracked.hadOwner {
+          guard
+            let owner = tracked.owner,
+            owner.window === window,
+            owner.convert(owner.bounds, to: window).intersects(frame),
+            isShownInHierarchy(owner)
+          else {
+            return nil
+          }
+        }
+        pins.append(AccessibilityPin(label: tracked.label, frame: frame, object: object, owner: tracked.owner))
+      }
+      return pins
+    }
+
+    /// The nearest view at or above an accessibility node.
+    private func hostView(of object: NSObject) -> UIView? {
+      var current: NSObject? = object
+      var seen = Set<ObjectIdentifier>()
+      while let node = current, seen.insert(ObjectIdentifier(node)).inserted {
+        if let view = node as? UIView {
+          return view
+        }
+        current = accessibilityContainer(of: node)
+      }
+      return nil
+    }
+
+    /// Only the labels `addPinFrame` reads pay for the frame and exposure
+    /// checks; each exposure check walks the window.
     private func accessibilityPins(in window: UIWindow) -> [AccessibilityPin] {
       let pinLabels: Set<String> = [AppTab.accounts.title, CompactRootBar.action.title]
       var pins: [AccessibilityPin] = []
@@ -1100,9 +1187,13 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
         if pinLabels.contains(label),
            let frame = accessibilityFrame(of: object, in: window),
            frame.width > 1 || frame.height > 1,
-           isExposed(object, frame: frame, in: window)
+           isExposedInContainerChain(object)
         {
-          pins.append(AccessibilityPin(label: label, frame: frame))
+          // Drop a pin whose frame sits in a hidden tab bar that owns the row.
+          let owner = rowOwningTabBar(containing: frame, in: window)
+          if owner.map(isShownInHierarchy) ?? true {
+            pins.append(AccessibilityPin(label: label, frame: frame, object: object, owner: owner))
+          }
         }
         let count = object.accessibilityElementCount()
         if count != NSNotFound, count > 0 {
@@ -1131,18 +1222,7 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
     /// Window-level AX objects are often neither `UIView` nor
     /// `UIAccessibilityElement`. The iOS SDK exposes `accessibilityContainer`
     /// on `UIAccessibilityElement`, not `NSObject`, so non-view nodes use a
-    /// responds-to lookup. Drop a pin whose frame sits in a hidden tab bar
-    /// that owns the row.
-    private func isExposed(_ object: NSObject, frame: CGRect, in window: UIWindow) -> Bool {
-      if !isExposedInContainerChain(object) {
-        return false
-      }
-      if let owner = rowOwningTabBar(containing: frame, in: window), !isShownInHierarchy(owner) {
-        return false
-      }
-      return true
-    }
-
+    /// responds-to lookup.
     private func isExposedInContainerChain(_ object: NSObject) -> Bool {
       var current: NSObject? = object
       var seen = Set<ObjectIdentifier>()
