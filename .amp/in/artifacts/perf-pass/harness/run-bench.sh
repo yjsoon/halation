@@ -2,7 +2,7 @@
 # Benchmarks one revision of the HowMuch iOS app on a simulator.
 #
 # Usage (from anywhere inside the repo):
-#   SIMULATOR_UDID=<udid> run-bench.sh <label> <git-rev> [measure|profile|both|idle]
+#   SIMULATOR_UDID=<udid> run-bench.sh <label> <git-rev> [measure|profile|both|idle|placement]
 #
 # Environment:
 #   PERF_MODE        local (default: seeded on-device ledger) or server
@@ -143,7 +143,8 @@ if [[ "$WHAT" == measure || "$WHAT" == both ]]; then
     done
     run_tests measure "${ONLY[@]}"
   else
-    run_tests measure -only-testing:"$T" -skip-testing:"$T/test00_Setup" -skip-testing:"$T/testZZ_ProfileTour"
+    run_tests measure -only-testing:"$T" -skip-testing:"$T/test00_Setup" \
+      -skip-testing:"$T/testYY_AssistantPlacement" -skip-testing:"$T/testZZ_ProfileTour"
   fi
   python3 "$HARNESS/parse-measure.py" "$LABEL" "$OUT/measure.log" >"$OUT/results.json"
   log "results: $OUT/results.json"
@@ -182,6 +183,13 @@ if [[ "$WHAT" == profile || "$WHAT" == both ]]; then
       fi
     fi
   done
+fi
+
+if [[ "$WHAT" == placement ]]; then
+  # Floating Assistant placement on Accounts, in a scrolled register and back
+  # at the top, then a tap. Screenshots stay in placement.xcresult.
+  run_tests placement -only-testing:"$T/testYY_AssistantPlacement"
+  grep PERFPLACE "$OUT/placement.log" | tee -a "$OUT/run.log" || true
 fi
 
 if [[ "$WHAT" == idle ]]; then

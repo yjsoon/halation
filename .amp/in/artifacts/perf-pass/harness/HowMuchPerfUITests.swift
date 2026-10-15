@@ -381,6 +381,59 @@ final class HowMuchPerfUITests: XCTestCase {
     }
   }
 
+  // MARK: Floating Assistant (not measured; run with run-bench.sh placement)
+
+  /// The floating Assistant sits above the tab row's Add on Accounts, in a
+  /// scrolled register (bar minimised) and back at the top, then opens the
+  /// Assistant. Prints a PERFPLACE line per state for the run record.
+  func testYY_AssistantPlacement() throws {
+    continueAfterFailure = true
+    launchToAccounts()
+    let assistant = app.buttons.matching(NSPredicate(format: "label == 'Assistant'")).firstMatch
+    func check(_ state: String) {
+      let addButton = tab("Add Transaction")
+      let hasAdd = addButton.waitForExistence(timeout: 5)
+      let hasAssistant = assistant.waitForExistence(timeout: 5)
+      let shot = XCTAttachment(screenshot: app.screenshot())
+      shot.name = "assistant-\(state)"
+      shot.lifetime = .keepAlways
+      add(shot)
+      let addFrame = hasAdd ? addButton.frame : .null
+      let assistantFrame = hasAssistant ? assistant.frame : .null
+      print("PERFPLACE \(state) add=\(addFrame) assistant=\(assistantFrame) hittable=\(hasAssistant && assistant.isHittable)")
+      guard hasAdd else {
+        XCTAssertFalse(hasAssistant, "Assistant must hide with Add (\(state))")
+        return
+      }
+      XCTAssertTrue(hasAssistant, "floating Assistant missing (\(state))")
+      guard hasAssistant else { return }
+      XCTAssertTrue(assistant.isHittable, "Assistant not hittable (\(state))")
+      XCTAssertLessThan(assistantFrame.maxY, addFrame.minY - 4, "Assistant must float above Add (\(state))")
+      XCTAssertEqual(assistantFrame.midX, addFrame.midX, accuracy: 18, "Assistant must centre on Add (\(state))")
+      XCTAssertGreaterThanOrEqual(assistantFrame.width, 44, "Assistant hit target (\(state))")
+    }
+    Thread.sleep(forTimeInterval: 2)
+    check("accounts")
+    allTile.tap()
+    waitFor(firstRegisterRow, "All register rows")
+    Thread.sleep(forTimeInterval: 2)
+    register.swipeUp(velocity: .fast)
+    register.swipeUp(velocity: .fast)
+    Thread.sleep(forTimeInterval: 2)
+    check("register-scrolled")
+    register.swipeDown(velocity: .fast)
+    register.swipeDown(velocity: .fast)
+    register.swipeDown(velocity: .fast)
+    Thread.sleep(forTimeInterval: 2)
+    check("register-top")
+    assistant.tap()
+    waitFor(app.navigationBars["Assistant"].firstMatch, "Assistant screen after tapping the floating button")
+    let opened = XCTAttachment(screenshot: app.screenshot())
+    opened.name = "assistant-opened"
+    opened.lifetime = .keepAlways
+    add(opened)
+  }
+
   // MARK: Profiling tour (no measure block; run under xctrace)
 
   func testZZ_ProfileTour() throws {
