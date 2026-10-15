@@ -11,7 +11,7 @@
 #   PERF_ITERATIONS  iterations per measured test (default 8)
 #   PERF_LOCAL_DB    local mode: seeded howmuch.sqlite (default ../fixture/howmuch.sqlite)
 #   PERF_WORK        scratch root (default ~/perf-work)
-#   PERF_ONLY        optional extra -only-testing filter suffix, e.g. test03_OpenAllRegister
+#   PERF_ONLY        optional space-separated test names to measure, e.g. "test03_OpenAllRegister test09_LoadOlderPage"
 #   PERF_PATCH       optional patch applied to the worktree before building (diagnostics)
 #   XCTRACE          xctrace binary to record with (default: xcrun xctrace); Xcode 26.6's
 #                    records empty traces on some hosts, so point this at a working one
@@ -135,7 +135,11 @@ run_tests setup -only-testing:"$T/test00_Setup"
 
 if [[ "$WHAT" == measure || "$WHAT" == both ]]; then
   if [[ -n "${PERF_ONLY:-}" ]]; then
-    run_tests measure -only-testing:"$T/$PERF_ONLY"
+    ONLY=()
+    for name in $PERF_ONLY; do
+      ONLY+=(-only-testing:"$T/$name")
+    done
+    run_tests measure "${ONLY[@]}"
   else
     run_tests measure -only-testing:"$T" -skip-testing:"$T/test00_Setup" -skip-testing:"$T/testZZ_ProfileTour"
   fi
