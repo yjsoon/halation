@@ -2397,7 +2397,7 @@ final class AppModel {
           break
         }
         do {
-          let older = try await fetchLedgerPage(planID: planID, offset: offset)
+          let older = try await fetchLedgerPage(planID: planID, offset: offset, limit: APIClient.largestTransactionPageSize)
           guard
             generation == ledgerPageGeneration,
             planID == settings.planID,
@@ -2953,7 +2953,8 @@ final class AppModel {
           planID: planID,
           accountID: accountID,
           offset: offset,
-          sinceDate: startDate
+          sinceDate: startDate,
+          limit: APIClient.largestTransactionPageSize
         )
         guard
           generation == ledgerPageGeneration,
@@ -3017,7 +3018,7 @@ final class AppModel {
     }
 
     do {
-      let page = try await fetchLedgerPage(planID: planID, offset: offset)
+      let page = try await fetchLedgerPage(planID: planID, offset: offset, limit: APIClient.largestTransactionPageSize)
       guard
         generation == ledgerPageGeneration,
         planID == settings.planID,
@@ -4303,7 +4304,8 @@ final class AppModel {
     accountID: String? = nil,
     offset: Int = 0,
     sinceDate: String? = nil,
-    untilDate: String? = nil
+    untilDate: String? = nil,
+    limit: Int = APIClient.transactionPageSize
   ) async throws -> TransactionPage {
     let generation = beginLedgerRead()
     defer { endLedgerRead(generation) }
@@ -4312,7 +4314,8 @@ final class AppModel {
       accountID: accountID,
       offset: offset,
       sinceDate: sinceDate,
-      untilDate: untilDate
+      untilDate: untilDate,
+      limit: limit
     )
     return TransactionPage(
       transactions: repairingStaleRead(

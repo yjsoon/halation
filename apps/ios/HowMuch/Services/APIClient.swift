@@ -83,7 +83,11 @@ enum ExportEverythingFormat {
 
 struct APIClient {
   let settings: APISettings
-  private static let transactionPageSize = 100
+  static let transactionPageSize = 100
+  /// The largest page the API serves. A register's first page stays at
+  /// `transactionPageSize` so it lands (and is snapshotted) quickly; the
+  /// pages that follow it use this, so walking back takes fewer requests.
+  static let largestTransactionPageSize = 250
   /// The largest request body `import_snapshot` accepts.
   static let snapshotByteLimit = 8 * 1024 * 1024
 
