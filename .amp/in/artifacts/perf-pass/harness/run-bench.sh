@@ -12,7 +12,7 @@
 #   PERF_LOCAL_DB    local mode: seeded howmuch.sqlite (default ../fixture/howmuch.sqlite)
 #   PERF_WORK        scratch root (default ~/perf-work)
 #   PERF_ONLY        optional space-separated test names to measure, e.g. "test03_OpenAllRegister test09_LoadOlderPage"
-#   PERF_PATCH       optional patch applied to the worktree before building (diagnostics)
+#   PERF_PATCH       optional space-separated patches applied to the worktree before building
 #   XCTRACE          xctrace binary to record with (default: xcrun xctrace); Xcode 26.6's
 #                    records empty traces on some hosts, so point this at a working one
 #
@@ -54,9 +54,11 @@ RESOLVED="$(git -C "$SRC" rev-parse HEAD)"
 log "worktree $SRC at $RESOLVED"
 echo "$RESOLVED" >"$OUT/revision.txt"
 if [[ -n "${PERF_PATCH:-}" ]]; then
-  # Diagnostics only: apply a local patch (e.g. extra logging) to the worktree.
-  git -C "$SRC" apply "$PERF_PATCH"
-  log "applied $PERF_PATCH"
+  # Apply local patches (extra logging, or one fix on its own) to the worktree.
+  for patch in $PERF_PATCH; do
+    git -C "$SRC" apply "$patch"
+    log "applied $patch"
+  done
 fi
 ruby "$HARNESS/add-perf-target.rb" "$SRC" "$HARNESS/HowMuchPerfUITests.swift" | tee -a "$OUT/run.log"
 
