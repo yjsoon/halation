@@ -2388,6 +2388,8 @@ final class AppModel {
           popHorizonFill()
         }
       }
+      // The plan-wide fill stays at the first page's size: it stops at the
+      // horizon, and a larger page would only load rows past it.
       while RegisterHorizon.standard.shouldFetchMore(
         oldestLoadedDate: RegisterHorizon.coverageOldestDate(in: serverTransactions, accountID: nil),
         hasMore: hasMoreTransactions,
@@ -2397,7 +2399,7 @@ final class AppModel {
           break
         }
         do {
-          let older = try await fetchLedgerPage(planID: planID, offset: offset, limit: APIClient.largestTransactionPageSize)
+          let older = try await fetchLedgerPage(planID: planID, offset: offset)
           guard
             generation == ledgerPageGeneration,
             planID == settings.planID,
