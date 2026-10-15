@@ -280,10 +280,10 @@ struct ExposureScene {
 
   var haloOpacity: Double { 0.4 + 0.6 * pose.v }
 
-  /// The light is still spreading towards the marker. This follows the animated pose, not
-  /// the stage, so when the minimum is met the lit edge sweeps to the right edge and the
-  /// marker goes with it, instead of the whole band lighting at once.
-  var inMinimumJourney: Bool { exposure.light == .journey && pose.h < 0.999 }
+  /// The light is still spreading towards the marker: the whole of the gate, however close the fill
+  /// (a card $2 short of $2,000 keeps its dusk), and a met card's first showing while its sweep runs,
+  /// so the lit edge sweeps to the right edge instead of the whole band lighting at once.
+  var inMinimumJourney: Bool { exposure.stage == .gate || (exposure.light == .journey && pose.h < 0.999) }
 
   /// The veil's soft edge, in points: full light to the left of `from`, full veil right of `to`.
   /// A failed card is veiled everywhere. Nil once there is no minimum journey to show.
