@@ -68,9 +68,9 @@ if ! git check-ref-format "$SOURCE_REF"; then
   echo "publication prerequisite unmet: invalid origin branch or tag" >&2
   exit 1
 fi
-if ! git fetch --no-tags origin "$SOURCE_REF"; then
 # Fetch exactly the selected ref; cached tracking refs are not publication proof.
 # This does not check out, merge, rebase, commit, or push anything.
+if ! git fetch --no-tags origin "$SOURCE_REF"; then
   echo "publication prerequisite unmet: could not fetch the selected origin branch or tag" >&2
   exit 1
 fi
@@ -159,10 +159,10 @@ CREATED="$(create "$BASE" || create "$FALLBACK_BASE")"
 BUILD_ID="$(jq -r .buildId <<<"$CREATED")"
 PAGE_URL="$(jq -r .pageUrl <<<"$CREATED")"
 
-upload() {
-  curl -sfS --http1.1 --retry 5 --retry-all-errors --retry-delay 5 \
 # 2. Upload the IPA. The server reads name, version, and build number from
 #    its Info.plist and rejects it if the bundle id does not match.
+upload() {
+  curl -sfS --http1.1 --retry 5 --retry-all-errors --retry-delay 5 \
     -X PUT "$1/api/apps/$SPEEDFLIGHT_SECRET/$BUNDLE_ID/builds/$BUILD_ID/app.ipa" \
     --data-binary @"$OUT/signed.ipa" >/dev/null
 }
