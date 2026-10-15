@@ -19,6 +19,11 @@ final class HowMuchPerfUITests: XCTestCase {
   override func setUp() {
     continueAfterFailure = false
     app = XCUIApplication()
+    // xcodebuild launches the app with its logging mirrored to stderr, and
+    // XCTest's in-app queries log on every attribute they read; a phone does
+    // neither. Mirroring cost about a tenth of the app's main thread in the
+    // base profile, on every revision alike.
+    app.launchEnvironment["OS_ACTIVITY_DT_MODE"] = "NO"
   }
 
   private func options(_ count: Int? = nil, manualStop: Bool = false, manualStart: Bool = false) -> XCTMeasureOptions {
