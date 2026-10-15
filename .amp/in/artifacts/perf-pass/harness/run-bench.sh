@@ -110,6 +110,10 @@ if [[ "$MODE" == local ]]; then
   log "seeded local ledger into $DATA"
 fi
 
+# Steps whose tests failed. Their logs stay; the script exits non-zero at the
+# end, and parse-measure.py keeps a failed test's samples out of results.
+FAILED_STEPS=""
+
 run_tests() {
   local name="$1"
   shift
@@ -129,11 +133,17 @@ run_tests() {
   set -e
   log "$name exit=$status; $(grep -E 'Executed [0-9]+ tests?' "$OUT/$name.log" | tail -1)"
   grep -E "error:|failed|Failing tests|timed out" "$OUT/$name.log" | head -20 | tee -a "$OUT/run.log" || true
-  return 0
+  if [[ $status -ne 0 ]]; then
+    FAILED_STEPS="$FAILED_STEPS $name"
+  fi
+  return $status
 }
 
 T=HowMuchPerfUITests/HowMuchPerfUITests
-run_tests setup -only-testing:"$T/test00_Setup"
+if ! run_tests setup -only-testing:"$T/test00_Setup"; then
+  log "SETUP FAILED; nothing measured (see $OUT/setup.log)"
+  exit 1
+fi
 
 if [[ "$WHAT" == measure || "$WHAT" == both ]]; then
   if [[ -n "${PERF_ONLY:-}" ]]; then
@@ -141,13 +151,14 @@ if [[ "$WHAT" == measure || "$WHAT" == both ]]; then
     for name in $PERF_ONLY; do
       ONLY+=(-only-testing:"$T/$name")
     done
-    run_tests measure "${ONLY[@]}"
+    run_tests measure "${ONLY[@]}" || true
   else
     run_tests measure -only-testing:"$T" -skip-testing:"$T/test00_Setup" \
-      -skip-testing:"$T/testYY_AssistantPlacement" -skip-testing:"$T/testZZ_ProfileTour"
+      -skip-testing:"$T/testYY_AssistantPlacement" -skip-testing:"$T/testZZ_ProfileTour" || true
   fi
   python3 "$HARNESS/parse-measure.py" "$LABEL" "$OUT/measure.log" >"$OUT/results.json"
-  log "results: $OUT/results.json"
+  FAILED_TESTS="$(python3 -c 'import json, sys; print(" ".join(json.load(open(sys.argv[1]))["failed_tests"]) or "none")' "$OUT/results.json")"
+  log "results: $OUT/results.json; failed tests, left out: $FAILED_TESTS"
 fi
 
 if [[ "$WHAT" == profile || "$WHAT" == both ]]; then
@@ -168,7 +179,7 @@ if [[ "$WHAT" == profile || "$WHAT" == both ]]; then
     --time-limit 150s --output "$OUT/tour.trace" >>"$OUT/run.log" 2>&1 &
   TRACE_PID=$!
   sleep 4
-  run_tests tour -only-testing:"$T/testZZ_ProfileTour"
+  run_tests tour -only-testing:"$T/testZZ_ProfileTour" || true
   kill -INT "$TRACE_PID" 2>/dev/null || true
   wait "$TRACE_PID" || true
 
@@ -188,7 +199,7 @@ fi
 if [[ "$WHAT" == placement ]]; then
   # Floating Assistant placement on Accounts, in a scrolled register and back
   # at the top, then a tap. Screenshots stay in placement.xcresult.
-  run_tests placement -only-testing:"$T/testYY_AssistantPlacement"
+  run_tests placement -only-testing:"$T/testYY_AssistantPlacement" || true
   grep PERFPLACE "$OUT/placement.log" | tee -a "$OUT/run.log" || true
 fi
 
@@ -218,4 +229,8 @@ if [[ "$WHAT" == idle ]]; then
   fi
 fi
 
+if [[ -n "$FAILED_STEPS" ]]; then
+  log "FAILED:$FAILED_STEPS (logs in $OUT)"
+  exit 1
+fi
 log "done: $OUT"

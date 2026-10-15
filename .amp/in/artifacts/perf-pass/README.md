@@ -92,22 +92,25 @@ drift between rounds was up to about 10%.
 | three fast flings down All, CPU | 2.74 s | 1.66 s (-39%) |
 | open Reflect, CPU | 0.60 s | 0.28 s (-53%) |
 | open Spending Breakdown, CPU | 0.71 s | 0.34 s (-52%) |
-| Load older until the page shows, clock | 2.37 s | 1.19 s (-50%) |
-| Load older until the page shows, CPU | 0.69 s | 0.15 s (-79%) |
 | quiet account: scroll back six months, clock | 28.7 s | 14.7 s (-49%) |
 | quiet account: scroll back six months, CPU | 13.3 s | 5.9 s (-56%) |
 | All: scroll back six months, clock | 324.8 s | 301.9 s (-7%) |
 | All: scroll back six months, CPU | 111.1 s | 71.9 s (-35%) |
 | open a screen, clock (All, account, Reflect, Breakdown) | 2.2 to 2.8 s | unchanged (within 2%) |
 | launch to Accounts list, clock | 4.36 s | 4.23 s (-3%) |
-| peak memory after Load older | 120 MB | 140 MB (+17%) |
 
 Every head launch (1.09 to 1.15 s) was faster than every base launch (1.22 to
 1.51 s). The launch, screen-open and scrolling gains come from removing the
 Assistant's accessibility scan, so they are measured with accessibility on
 (UI tests); on a phone without VoiceOver the scan was cheap, and those gains
-are small there. The older-content gains apply everywhere. The memory rise is
-the prefetched page being in memory by the time the test taps Load older.
+are small there. The older-content gains apply everywhere.
+
+A manual Load older tap (`test09`) is left out above. In these runs it did not
+always tap: with prefetch, the next page was often already loading when the
+button came on screen, so a sample could time the tail of a prefetch rather
+than a tap (review on #339). The harness now fails any sample that is not a
+tap loading a page, and base and head are being re-measured with it. The walks
+above are unaffected: each must reach the six-month-old header to pass.
 
 ## Results: one fix at a time (local mode)
 
@@ -119,12 +122,14 @@ Base pooled as above; `fix-pins` and `fix-prefetch` pool two rounds.
 | open busy account, CPU | 0.85 s | 0.60 s (-29%) | 0.85 s (0%) | 0.85 s (0%) |
 | three fast flings, CPU | 2.74 s | 1.92 s (-30%) | 2.92 s (+7%) | 2.91 s (+6%) |
 | open Reflect, CPU | 0.60 s | 0.35 s (-41%) | 0.55 s (-9%) | 0.60 s (0%) |
-| Load older until the page shows, clock | 2.37 s | 2.38 s (+1%) | 1.22 s (-48%) | 1.69 s (-29%) |
-| Load older until the page shows, CPU | 0.69 s | 0.47 s (-33%) | 0.30 s (-57%) | 0.66 s (-5%) |
+| Load older until the page shows, clock | 2.37 s | 2.38 s (+1%) | not comparable | 1.69 s (-29%) |
+| Load older until the page shows, CPU | 0.69 s | 0.47 s (-33%) | not comparable | 0.66 s (-5%) |
 | launch to first responsive frame | 1.34 s | 1.33 s (0%) | 1.48 s (+10%) | 1.42 s (+6%) |
 
 Prefetch and page size do not touch launch or screen opens; their launch
-columns are within the drift between rounds.
+columns are within the drift between rounds. The prefetch column's Load older
+samples are left out for the reason above; without prefetch every sample was a
+tap. Prefetch is measured by its own six-month walks (`walk-fix-prefetch`).
 
 ## Accessibility off (no UI automation)
 

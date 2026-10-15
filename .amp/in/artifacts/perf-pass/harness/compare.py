@@ -56,6 +56,9 @@ def fmt(median, unit):
 
 def main(paths):
     runs = [(p.rsplit("/", 1)[-1].removesuffix(".json"), json.load(open(p))) for p in paths]
+    for name, data in runs:
+        if data.get("failed_tests"):
+            print(f"{name}: failed, left out: {', '.join(data['failed_tests'])}", file=sys.stderr)
     print("| Measure | " + " | ".join(name for name, _ in runs) + " |")
     print("|---|" + "---|" * len(runs))
     for test, metric, label in KEYS:

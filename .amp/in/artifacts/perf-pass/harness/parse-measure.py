@@ -6,8 +6,10 @@ Usage:
   python3 parse-measure.py --table results-a.json results-b.json ...
 
 The first form prints one JSON document: {label, metrics: {test: {metric:
-{unit, values, median, mean, min, stdev}}}}. The second prints a Markdown
-table comparing medians across result files (first file is the baseline).
+{unit, values, median, mean, min, stdev}}}, failed_tests, failed_metrics}.
+A test that failed keeps its samples under failed_metrics only, so no
+comparison reads them as results. The second form prints a Markdown table
+comparing medians across result files (first file is the baseline).
 """
 import json
 import re
@@ -19,13 +21,18 @@ LINE = re.compile(
     r"average: (?P<avg>[-\d.]+), relative standard deviation: (?P<rsd>[-\d.]+)%, "
     r"values: \[(?P<values>[^\]]*)\]"
 )
+OUTCOME = re.compile(r"Test Case '-\[(?P<cls>[\w.]+) (?P<test>\w+)\]' (?P<outcome>passed|failed)")
 
 
 def collect(label, paths):
     metrics = {}
+    failed = set()
     for path in paths:
         with open(path, errors="replace") as handle:
             for line in handle:
+                outcome = OUTCOME.search(line)
+                if outcome and outcome.group("outcome") == "failed":
+                    failed.add(outcome.group("test"))
                 m = LINE.search(line)
                 if not m:
                     continue
@@ -42,7 +49,8 @@ def collect(label, paths):
             entry["mean"] = statistics.fmean(v)
             entry["min"] = min(v)
             entry["stdev"] = statistics.stdev(v) if len(v) > 1 else 0.0
-    return {"label": label, "metrics": metrics}
+    failed_metrics = {test: metrics.pop(test) for test in sorted(failed) if test in metrics}
+    return {"label": label, "metrics": metrics, "failed_tests": sorted(failed), "failed_metrics": failed_metrics}
 
 
 KEY_METRICS = [
