@@ -168,9 +168,11 @@ export function gap(pose: Pose): number {
  * The sun's centre y for a target horizon at `horizon` and a disc of radius `r` (y points down).
  * `seat` is how far below the horizon the disc's centre sits while it rides it, as a share of `r`:
  * a hair below on the face, and exactly on it on the phone strip, where the disc is a clean half-sun.
+ * `liftK` is how far it has lifted clear: the pose's own lift by default, and 0 for a card whose
+ * minimum is unmet, whose sun stays on the horizon however close the spend is.
  */
-export function sunY(pose: Pose, horizon: number, r: number, seat = 0.08): number {
+export function sunY(pose: Pose, horizon: number, r: number, seat = 0.08, liftK = lift(pose)): number {
   const sit = horizon + seat * r;
   const rest = horizon - 1.15 * r;
-  return pose.h < 1 ? sit + (rest - sit) * lift(pose) : rest + (-1.05 * r - rest) * pose.v;
+  return pose.h < 1 ? sit + (rest - sit) * liftK : rest + (-1.05 * r - rest) * pose.v;
 }

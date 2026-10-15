@@ -66,6 +66,7 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
   const cancel = useRef<() => void>(() => {});
   const lastTarget = useRef(exposure.target);
   const lastLight = useRef(exposure.light);
+  const lastGate = useRef(exposure.stage === "gate");
 
   // Where the first showing sits and what it is remembered by; read once, on that showing.
   const introRef = useRef({ index, memoryKey });
@@ -116,14 +117,18 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
     const remembered = memoryKey ? SHOWN.get(memoryKey) : undefined;
     // Never glide backwards or sink the sun: a new target that falls, or relights, swaps the face.
     // A changed light always swaps (failed, calm and journey can share a target string); a changed target only where it would fall.
+    // Meeting the minimum relights too: the gate keeps its dusk and its half-sun to the end, so the met face is a new picture.
+    const gate = exposure.stage === "gate";
     const crossfade = !first
-      && (exposure.light !== lastLight.current || (exposure.target !== lastTarget.current && falls(target, poseRef.current)));
+      && (exposure.light !== lastLight.current || gate !== lastGate.current
+        || (exposure.target !== lastTarget.current && falls(target, poseRef.current)));
     let start: Pose;
     if (first) start = remembered ? (remembered.target === exposure.target ? remembered.pose : target) : exposure.journeyStart;
     else start = crossfade ? target : poseRef.current;
     seen.current = true;
     lastTarget.current = exposure.target;
     lastLight.current = exposure.light;
+    lastGate.current = gate;
     if (memoryKey) SHOWN.set(memoryKey, { target: exposure.target, pose: target });
     cancel.current();
     if (crossfade) {

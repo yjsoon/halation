@@ -739,10 +739,12 @@
   padding: 9px 16px;
 }
 
+/* The name may run to 72% of the width: the sun's column at 85% stays clear of it, and a half-sun riding
+   under the name's tail only grazes the line box. */
 .rw-face[data-variant="strip"] .rw-face-name {
   align-self: flex-start;
   margin: 0 0 34px;
-  max-width: 50%;
+  max-width: 72%;
 }
 
 .rw-face[data-variant="strip"] .rw-badge {
@@ -797,6 +799,24 @@
 .rw-deadline[data-urgent] {
   font-weight: 600;
   color: var(--face-urgent-ink);
+}
+
+/* An unmet minimum's figure takes the urgent amber: the reward is at stake, not just a bonus. */
+.rw-card[data-tone="needs"] .rw-face .rw-amount {
+  color: var(--face-urgent-ink);
+}
+
+/* Exceptions on the strip sit on the ground as more lines of the foot, in its own inks. */
+.rw-strip-foot .rw-exceptions {
+  margin-top: 4px;
+}
+
+.rw-strip-foot .rw-exceptions li {
+  color: var(--face-foot-ink);
+}
+
+.rw-strip-foot .rw-exceptions li::before {
+  border-bottom-color: var(--face-urgent-ink);
 }
 
 .rw-basis {

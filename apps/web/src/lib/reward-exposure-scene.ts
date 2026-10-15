@@ -1,4 +1,4 @@
-import { COLUMN, lift, sunX, sunY, type Exposure, type Pose } from "./reward-exposure";
+import { COLUMN, RIDE_MAX, lift, sunX, sunY, type Exposure, type Pose } from "./reward-exposure";
 
 /*
  * The Sun Arc scene as plain numbers and path strings (docs/frontend/rewards-exposure-card.md
@@ -175,25 +175,30 @@ export function exposureScene(layout: SceneLayout, ex: Exposure, pose: Pose, opt
   // On the strip the lines coincide only from the met day on, so the target keeps its crest to the left.
   const merged = met && (!strip || metAt >= 1);
 
-  // The sun.
+  // The sun. An unmet minimum keeps it on the horizon: the lift exists for the hand-over to the climb
+  // (a met card's first showing sweeps h to 1), never for a gate card, however close its spend is.
+  const gate = ex.stage === "gate";
+  const liftK = gate ? 0 : lift(pose);
   const column = sunX(pose);
   const horizon = upper(column);
   // On the strip the disc sits exactly on the horizon, a clean half-sun, and lifts clear from there.
-  const sunPx = { x: column * w, y: sunY(pose, horizon, r, strip ? 0 : 0.08) };
+  const sunPx = { x: column * w, y: sunY(pose, horizon, r, strip ? 0 : 0.08, liftK) };
   const v = clamp01(pose.v);
   // The strip has no room for a hairline or a sliver: the sun is the marker, and the last of the band
   // lights as the sun lifts.
-  const lifted = strip ? lift(pose) : 0;
+  const lifted = strip ? liftK : 0;
 
   // Rings grow continuously with v; on the strip they are also capped by the frame's height.
   let R = (0.14 + 0.24 * v) * w;
   if (strip) R = Math.min(R, (0.42 + 0.6 * v) * H);
 
   // Light: lit from the left edge to the marker and underexposed to its right, with a 4% falloff either side.
-  const gate = ex.stage === "gate";
+  // On the strip the sun is the marker, so the light reaches no further than the sun: the last of the band
+  // stays dusk until the minimum is met, and a card at 98% still shows what is left.
+  const edge = strip && gate ? Math.min(pose.h, RIDE_MAX) : pose.h;
   const failed = ex.stage === "failed";
   const even = ex.light === "even";
-  const from = clamp01(pose.h - 0.04), to = clamp01(pose.h + 0.04);
+  const from = clamp01(edge - 0.04), to = clamp01(edge + 0.04);
   const whole = !gate;
   // The lit wash (light mode: a lighter blue over the daytime blue) peaks at version 3's figure (0.76 + 0.16 v;
   // calm 0.42). Beyond the lit edge the sky is the daytime blue itself; the strip's lift lets the wash past the

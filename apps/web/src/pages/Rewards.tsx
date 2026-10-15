@@ -758,7 +758,7 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
             <>
               <h3 className="rw-face-name" id={`${id}-name`} data-rw="name">{row.card.name}</h3>
               {badge}
-              <div className="rw-strip-foot" data-rw="foot"><Statement text={text} /></div>
+              <div className="rw-strip-foot" data-rw="foot"><Statement text={text} /><Exceptions lines={text.exceptionLines} /></div>
             </>
           ) : (
             <>
@@ -772,15 +772,13 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
           )}
         </ExposureFace>
         <span id={`${id}-value`} className="sr-only">{text.accessibilityValue}</span>
-        {phone
-          ? text.exceptionLines.length > 0 && <div className="rw-slip"><Exceptions lines={text.exceptionLines} /></div>
-          : (
-            <div className="rw-slip">
-              <Statement text={text} />
-              <Exceptions lines={text.exceptionLines} />
-              <FlagList calc={calc} />
-            </div>
-          )}
+        {!phone && (
+          <div className="rw-slip">
+            <Statement text={text} />
+            <Exceptions lines={text.exceptionLines} />
+            <FlagList calc={calc} />
+          </div>
+        )}
       </Link>
       <details className="rw-more">
         <summary>Targets, periods and tiers</summary>

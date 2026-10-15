@@ -139,10 +139,12 @@ extension RewardExposure.Pose {
   /// The sun's centre y for a target horizon at `horizon` and a disc of radius `r` (y points down).
   /// `seat` is how far below the horizon the centre sits while the sun rides it, as a share of `r`:
   /// a hair below on the hero, and exactly on it on the phone strip, where the disc is a clean half-sun.
-  func sunY(horizon: Double, r: Double, seat: Double = 0.08) -> Double {
+  /// `lift` is how far it has lifted clear: the pose's own by default, and 0 for a card whose minimum
+  /// is unmet, whose sun stays on the horizon however close the spend is.
+  func sunY(horizon: Double, r: Double, seat: Double = 0.08, lift: Double? = nil) -> Double {
     let sit = horizon + seat * r
     let rest = horizon - 1.15 * r
-    return h < 1 ? sit + (rest - sit) * lift : rest + (-1.05 * r - rest) * v
+    return h < 1 ? sit + (rest - sit) * (lift ?? self.lift) : rest + (-1.05 * r - rest) * v
   }
 }
 
@@ -253,11 +255,11 @@ struct ExposureScene {
   var isMerged: Bool { isMet && (exposure.metAt ?? 1) >= 1 }
 
   /// The sun's centre, nil when there is none. On the phone it sits exactly on the horizon, a clean
-  /// half-sun, and lifts clear from there.
+  /// half-sun, and lifts clear from there once the minimum is met.
   var sun: (x: Double, y: Double)? {
     guard exposure.hasSun else { return nil }
     let u = pose.sunX
-    return (u * width, pose.sunY(horizon: horizonY(at: u), r: sunRadius, seat: 0))
+    return (u * width, pose.sunY(horizon: horizonY(at: u), r: sunRadius, seat: 0, lift: lifted))
   }
 
   /// The glow's radius `R`: grows with the climb, capped by the frame's height. The phone draws one
@@ -266,9 +268,15 @@ struct ExposureScene {
     min((0.14 + 0.24 * pose.v) * width, (0.42 + 0.6 * pose.v) * height)
   }
 
-  /// How far the sun has lifted clear of the horizon. The phone has no room for a hairline marker or
-  /// an unlit sliver at the edge, so the last of the band lights as the sun lifts.
-  var lifted: Double { pose.lift }
+  /// How far the sun has lifted clear of the horizon. The lift exists for the hand-over to the climb (a
+  /// met card's first showing sweeps `h` to 1 and lights the last of the band as the sun lifts), never
+  /// for a gate card: an unmet minimum keeps its half-sun on the horizon however close the spend is.
+  var lifted: Double { exposure.stage == .gate ? 0 : pose.lift }
+
+  /// Where the light ends, as a share of the width. The phone's sun is the marker, so the light reaches
+  /// no further than the sun's column: the last of the band stays dusk until the minimum is met, and a
+  /// card at 98% still shows what is left. A met card's first showing sweeps to the edge as before.
+  var litEdge: Double { exposure.stage == .gate ? min(pose.h, RewardExposure.ride.upperBound) : pose.h }
 
   var haloOpacity: Double { 0.4 + 0.6 * pose.v }
 
@@ -282,7 +290,7 @@ struct ExposureScene {
   var veilEdge: (from: Double, to: Double)? {
     if exposure.stage == .failed { return (-0.08 * width, 0) }
     guard inMinimumJourney else { return nil }
-    return ((pose.h - 0.04) * width, (pose.h + 0.04) * width)
+    return ((litEdge - 0.04) * width, (litEdge + 0.04) * width)
   }
 
   /// The veil's peak, 0 to 1: full while the sun rides, fading as it lifts; a failed card keeps it.
