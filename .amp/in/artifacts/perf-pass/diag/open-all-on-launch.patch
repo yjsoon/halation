@@ -1,0 +1,18 @@
+diff --git a/apps/ios/HowMuch/Views/AccountsView.swift b/apps/ios/HowMuch/Views/AccountsView.swift
+index 8d47343..32af871 100644
+--- a/apps/ios/HowMuch/Views/AccountsView.swift
++++ b/apps/ios/HowMuch/Views/AccountsView.swift
+@@ -100,6 +100,13 @@ struct AccountsView: View {
+                 .id(selected)
+             }
+         }
++        // Benchmark diagnostics only: open the All register without UI
++        // automation, so a profile sees the app with accessibility off.
++        .task {
++          guard ProcessInfo.processInfo.arguments.contains("-PerfOpenAll") else { return }
++          try? await Task.sleep(for: .seconds(3))
++          pane = .all
++        }
+       }
+     }
+     .overlay(alignment: .bottom) {

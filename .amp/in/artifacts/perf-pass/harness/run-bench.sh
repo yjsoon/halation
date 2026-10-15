@@ -2,7 +2,7 @@
 # Benchmarks one revision of the HowMuch iOS app on a simulator.
 #
 # Usage (from anywhere inside the repo):
-#   SIMULATOR_UDID=<udid> run-bench.sh <label> <git-rev> [measure|profile|both]
+#   SIMULATOR_UDID=<udid> run-bench.sh <label> <git-rev> [measure|profile|both|idle]
 #
 # Environment:
 #   PERF_MODE        local (default: seeded on-device ledger) or server
@@ -182,6 +182,32 @@ if [[ "$WHAT" == profile || "$WHAT" == both ]]; then
       fi
     fi
   done
+fi
+
+if [[ "$WHAT" == idle ]]; then
+  # No UI automation: launch straight into the All register (needs
+  # diag/open-all-on-launch.patch in PERF_PATCH) and profile it sitting idle,
+  # so accessibility stays off as on most phones.
+  xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
+  sleep 2
+  log "xctrace: All register, idle, no UI automation"
+  "${XCTRACE_CMD[@]}" record --template 'Time Profiler' --device "$UDID" --all-processes \
+    --time-limit 30s --output "$OUT/idle.trace" >>"$OUT/run.log" 2>&1 &
+  TRACE_PID=$!
+  sleep 4
+  xcrun simctl launch "$UDID" "$BUNDLE" -PerfOpenAll >>"$OUT/run.log" 2>&1 || true
+  wait "$TRACE_PID" || true
+  xcrun simctl io "$UDID" screenshot "$OUT/idle.png" >/dev/null 2>&1 || true
+  xcrun simctl terminate "$UDID" "$BUNDLE" 2>/dev/null || true
+  "${XCTRACE_CMD[@]}" export --input "$OUT/idle.trace" \
+    --xpath '/trace-toc/run[@number="1"]/data/table[@schema="time-profile"]' \
+    --output "$OUT/idle-tp.xml" >>"$OUT/run.log" 2>&1 || log "export failed for idle"
+  if [[ -f "$OUT/idle-tp.xml" ]]; then
+    python3 "$HARNESS/tp-summary.py" "$OUT/idle-tp.xml" --process HowMuch >"$OUT/idle-summary.txt" 2>&1 || true
+    python3 "$HARNESS/tp-summary.py" "$OUT/idle-tp.xml" --process HowMuch --callers 'onDisplayTick' --depth 4 \
+      >"$OUT/idle-display-tick.txt" 2>&1 || true
+    log "profile summary: $OUT/idle-summary.txt"
+  fi
 fi
 
 log "done: $OUT"
