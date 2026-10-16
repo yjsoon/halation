@@ -1,0 +1,49 @@
+{
+ "label": "hang-fix-assistant",
+ "metrics": {
+  "test08_ReachSixMonthsBack": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     117.234539
+    ],
+    "median": 117.234539,
+    "mean": 117.234539,
+    "min": 117.234539,
+    "stdev": 0.0
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     348.034828
+    ],
+    "median": 348.034828,
+    "mean": 348.034828,
+    "min": 348.034828,
+    "stdev": 0.0
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0.0
+    ],
+    "median": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "stdev": 0.0
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0.0
+    ],
+    "median": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "stdev": 0.0
+   }
+  }
+ },
+ "failed_tests": [],
+ "failed_metrics": {}
+}

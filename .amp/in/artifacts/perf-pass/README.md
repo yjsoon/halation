@@ -63,12 +63,17 @@ export SIMULATOR_UDID=<perf-iphone17> XCTRACE=/Applications/Xcode-27.0-RC.app/Co
 SHORT="test01_ColdLaunch test02_LaunchToAccountsContent test03_OpenAllRegister test04_OpenBusyAccountRegister test05_OpenQuietAccountRegister test06_FirstRegisterOpenAfterLaunch test07_ScrollAllRegister test09_LoadOlderPage test10_OpenReflectTab test11_OpenSpendingBreakdown"
 PERF_ONLY="$SHORT" PERF_ITERATIONS=6 $H/run-bench.sh r1-base-b f2bdc3f measure   # base, round 1
 PERF_ONLY="$SHORT" PERF_ITERATIONS=6 PERF_PATCH="$D/fix-prefetch.patch" $H/run-bench.sh r1-fix-prefetch f2bdc3f measure
-PERF_ONLY="test08_ReachSixMonthsBack test08b_QuietAccountReachSixMonthsBack" $H/run-bench.sh walk-base f2bdc3f measure
+WALKS="test08_ReachSixMonthsBack test08b_QuietAccountReachSixMonthsBack"
+PERF_ONLY="$WALKS" $H/run-bench.sh walk-base f2bdc3f measure
+PERF_ONLY="$WALKS" PERF_PATCH="$D/fix-pages.patch" $H/run-bench.sh walk-fix-pages f2bdc3f measure   # likewise fix-prefetch, fix-assistant
+PERF_ONLY=test09_LoadOlderPage PERF_ITERATIONS=6 $H/run-bench.sh t09-base f2bdc3f measure   # tap re-measure, stricter harness
+PERF_ONLY=test08_ReachSixMonthsBack PERF_WALK_ITERATIONS=1 PERF_PATCH="$D/fix-assistant.patch" $H/run-bench.sh hang-fix-assistant f2bdc3f measure
 $H/run-bench.sh final-r1 89ff898 measure                                    # head round 1, all tests incl. walks
 $H/run-bench.sh final-r2 bfbf4f0 measure                                    # head round 2
-PERF_ONLY="test08_ReachSixMonthsBack test08b_QuietAccountReachSixMonthsBack" $H/run-bench.sh walk-final 89ff898 measure
+PERF_ONLY="$WALKS" $H/run-bench.sh walk-final 89ff898 measure
 PERF_PATCH="$D/open-all-on-launch.patch" $H/run-bench.sh idle-base f2bdc3f idle   # accessibility off
 $H/run-bench.sh assist-place b7b6a45 placement                              # Assistant placement
+PERF_MODE=server PERF_SERVER_URL=http://127.0.0.1:8900 PERF_ITERATIONS=6 PERF_ONLY="..." $H/run-bench.sh srv-base f2bdc3f measure   # and srv-final bfbf4f0
 python3 $H/compare.py results/<base>.json results/<other>.json ...
 ```
 
@@ -107,10 +112,11 @@ The two head rounds agree within 2%, except the All walk's CPU (71.9 s and
 78.0 s medians; one round-2 sample took 94 s).
 
 Every head launch (1.09 to 1.21 s over both rounds) was faster than every
-base launch (1.22 to 1.51 s). The launch, screen-open and scrolling gains come from removing the
-Assistant's accessibility scan, so they are measured with accessibility on
-(UI tests); on a phone without VoiceOver the scan was cheap, and those gains
-are small there. The older-content gains apply everywhere.
+base launch (1.22 to 1.51 s). The launch, screen-open and fling gains come
+from removing the Assistant's accessibility scan, so they are measured with
+accessibility on (UI tests); on a phone without VoiceOver the scan was cheap,
+and those gains are small there. The six-month walks need the paging fixes
+(see one fix at a time below), and those gains apply everywhere.
 
 A manual Load older tap (`test09`) is left out above. In round 1 it did not
 always tap: with prefetch, the next page was often already loading when the
@@ -146,22 +152,50 @@ head has none to time, as above.
 
 ## Results: one fix at a time (local mode)
 
-Base pooled as above; `fix-pins` and `fix-prefetch` pool two rounds.
+Base plus one patch from [`diag/`](diag/). Base and head pooled as above;
+prefetch and pages pool two rounds of short tests and one walk run each. The
+Assistant column is one round (`r1-fix-assistant`), its quiet walk
+`walk-fix-assistant` and its All walk a single walk (`hang-fix-assistant`, see
+below). The Load older rows use the stricter harness only: `t09-base`,
+`r1-fix-assistant` and `r2-fix-pages`.
 
-| Measure | Base | Assistant scan cached (first version) | Prefetch | 250-row pages |
-| --- | --- | --- | --- | --- |
-| open All register, CPU | 0.70 s | 0.47 s (-33%) | 0.73 s (+5%) | 0.73 s (+4%) |
-| open busy account, CPU | 0.85 s | 0.60 s (-29%) | 0.85 s (0%) | 0.85 s (0%) |
-| three fast flings, CPU | 2.74 s | 1.92 s (-30%) | 2.92 s (+7%) | 2.91 s (+6%) |
-| open Reflect, CPU | 0.60 s | 0.35 s (-41%) | 0.55 s (-9%) | 0.60 s (0%) |
-| Load older until the page shows, clock | 2.37 s | 2.38 s (+1%) | not comparable | 1.69 s (-29%) |
-| Load older until the page shows, CPU | 0.69 s | 0.47 s (-33%) | not comparable | 0.66 s (-5%) |
-| launch to first responsive frame | 1.34 s | 1.33 s (0%) | 1.48 s (+10%) | 1.42 s (+6%) |
+| Measure | Base | Assistant fix | Prefetch | 250-row pages | Head (all three) |
+| --- | --- | --- | --- | --- | --- |
+| launch to first responsive frame | 1.34 s | 1.15 s (-14%) | 1.48 s (+10%) | 1.36 s (+1%) | 1.13 s (-16%) |
+| launch to Accounts list, CPU | 2.36 s | 1.88 s (-20%) | 2.37 s (0%) | 2.31 s (-2%) | 1.80 s (-24%) |
+| open All register, CPU | 0.70 s | 0.39 s (-44%) | 0.73 s (+5%) | 0.71 s (+2%) | 0.39 s (-44%) |
+| open busy account, CPU | 0.85 s | 0.54 s (-36%) | 0.85 s (0%) | 0.82 s (-4%) | 0.51 s (-40%) |
+| three fast flings, CPU | 2.74 s | 1.67 s (-39%) | 2.92 s (+7%) | 2.75 s (+1%) | 1.65 s (-40%) |
+| open Reflect, CPU | 0.60 s | 0.29 s (-51%) | 0.55 s (-9%) | 0.58 s (-4%) | 0.28 s (-53%) |
+| one Load older tap until the page shows, clock | 1.76 s | 1.43 s (-18%) | no tap | 1.43 s (-19%) | no tap |
+| one Load older tap, CPU | 0.58 s | 0.41 s (-30%) | no tap | 0.58 s (0%) | no tap |
+| quiet account: six months back, clock | 28.7 s | 27.7 s (-4%) | 29.1 s (+1%) | 14.5 s (-50%) | 14.2 s (-50%) |
+| quiet account: six months back, CPU | 13.3 s | 9.1 s (-32%) | 13.2 s (-1%) | 8.2 s (-38%) | 5.9 s (-56%) |
+| All: six months back, clock | 324.8 s | 348.0 s (+7%, one walk) | 304.8 s (-6%) | 312.8 s (-4%) | 303.2 s (-7%) |
+| All: six months back, CPU | 111.1 s | 117.2 s (+5%, one walk) | 104.9 s (-6%) | 107.5 s (-3%) | 72.0 s (-35%) |
 
-Prefetch and page size do not touch launch or screen opens; their launch
-columns are within the drift between rounds. The prefetch column's Load older
-samples are left out for the reason above; without prefetch every sample was a
-tap. Prefetch is measured by its own six-month walks (`walk-fix-prefetch`).
+- The Assistant fix carries the launch, screen-open and fling gains. Prefetch
+  and page size do not touch launch or screen opens; their launch columns are
+  within the drift between rounds.
+- Prefetch takes about 20 s off the All walk, roughly the time base spent
+  waiting on its Load older taps. With prefetch there is no idle Load older to
+  tap (see above).
+- 250-row pages halve the quiet account's walk, and one tap brings 250 rows in
+  less time than base took for 100.
+- No single fix cuts the All walk's CPU by much; the head's 35% needs the three
+  together. This pass did not isolate why.
+
+### Stalls in the Assistant-only All walk
+
+Two of three full-length Assistant-only All walk runs (`walk-fix-assistant`,
+`walk-fix-assistant-2`: base plus `fix-assistant.patch`, so 100-row pages and
+no prefetch) stopped late in the test, 837 s and 969 s in, with the app never
+going idle after a Load older tap; XCTest then ended the test without metrics.
+A 704 s run with a stall watcher (`hang-fix-assistant`) did not stall. No other
+run stalled, including eight full-length All walk runs (1,260 to 1,360 s each)
+on base, the head (local and server mode) and the other one-fix builds. A
+full-length repeat with the watcher is running to capture the app's state if
+it stalls again.
 
 ## Accessibility off (no UI automation)
 
