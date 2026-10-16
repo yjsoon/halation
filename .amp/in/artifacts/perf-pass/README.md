@@ -4,7 +4,9 @@ What was measured, how, and what came out, for the perf pass on branch
 `claude/perf-pass-3hgk4z`. All data is synthetic; no real ledger was used.
 
 - Base: `f2bdc3f` (main when the pass started).
-- Head: `89ff898` (app code as of `de7d578`; later commits only touch this folder).
+- Head: round 1 at `89ff898` (app code as of `de7d578`), round 2 at `bfbf4f0`
+  (adds the review fixes to prefetch in `d3369f6`); later commits only touch
+  this folder.
 - One fix at a time: base plus one patch from [`diag/`](diag/), so each fix has its own before and after.
 
 ## Where the time went
@@ -62,7 +64,9 @@ SHORT="test01_ColdLaunch test02_LaunchToAccountsContent test03_OpenAllRegister t
 PERF_ONLY="$SHORT" PERF_ITERATIONS=6 $H/run-bench.sh r1-base-b f2bdc3f measure   # base, round 1
 PERF_ONLY="$SHORT" PERF_ITERATIONS=6 PERF_PATCH="$D/fix-prefetch.patch" $H/run-bench.sh r1-fix-prefetch f2bdc3f measure
 PERF_ONLY="test08_ReachSixMonthsBack test08b_QuietAccountReachSixMonthsBack" $H/run-bench.sh walk-base f2bdc3f measure
-$H/run-bench.sh final-r1 89ff898 measure                                    # head, all tests incl. walks
+$H/run-bench.sh final-r1 89ff898 measure                                    # head round 1, all tests incl. walks
+$H/run-bench.sh final-r2 bfbf4f0 measure                                    # head round 2
+PERF_ONLY="test08_ReachSixMonthsBack test08b_QuietAccountReachSixMonthsBack" $H/run-bench.sh walk-final 89ff898 measure
 PERF_PATCH="$D/open-all-on-launch.patch" $H/run-bench.sh idle-base f2bdc3f idle   # accessibility off
 $H/run-bench.sh assist-place b7b6a45 placement                              # Assistant placement
 python3 $H/compare.py results/<base>.json results/<other>.json ...
@@ -72,7 +76,7 @@ Each run's parsed values and medians are in [`results/`](results/). Short
 tests ran 6 iterations in the base and one-fix runs and 8 in the head runs
 (launch metrics report a few more), walks 3. Base and fixes were run
 interleaved over two rounds; base below pools `r1-base-b`, `r2-base` and
-`walk-base`.
+`walk-base`, and head pools `final-r1`, `final-r2` and `walk-final`.
 
 ## Results: head against base (local mode)
 
@@ -81,26 +85,29 @@ clock times for opening a screen are mostly XCTest's own waiting and the
 navigation animation, so they barely move whatever the app does. Run-to-run
 drift between rounds was up to about 10%.
 
-| Measure | Base | Head (round 1) |
+| Measure | Base | Head |
 | --- | --- | --- |
-| launch to first responsive frame | 1.34 s | 1.12 s (-16%) |
-| launch to Accounts list, CPU | 2.36 s | 1.78 s (-24%) |
-| open All register, CPU | 0.70 s | 0.39 s (-43%) |
+| launch to first responsive frame | 1.34 s | 1.13 s (-16%) |
+| launch to Accounts list, CPU | 2.36 s | 1.80 s (-24%) |
+| open All register, CPU | 0.70 s | 0.39 s (-44%) |
 | open busy account, CPU | 0.85 s | 0.51 s (-40%) |
 | open quiet account, CPU | 0.78 s | 0.45 s (-42%) |
 | launch then open an account, CPU | 3.17 s | 2.38 s (-25%) |
-| three fast flings down All, CPU | 2.74 s | 1.66 s (-39%) |
+| three fast flings down All, CPU | 2.74 s | 1.65 s (-40%) |
 | open Reflect, CPU | 0.60 s | 0.28 s (-53%) |
 | open Spending Breakdown, CPU | 0.71 s | 0.34 s (-52%) |
-| quiet account: scroll back six months, clock | 28.7 s | 14.7 s (-49%) |
+| quiet account: scroll back six months, clock | 28.7 s | 14.2 s (-50%) |
 | quiet account: scroll back six months, CPU | 13.3 s | 5.9 s (-56%) |
-| All: scroll back six months, clock | 324.8 s | 301.9 s (-7%) |
-| All: scroll back six months, CPU | 111.1 s | 71.9 s (-35%) |
+| All: scroll back six months, clock | 324.8 s | 303.2 s (-7%) |
+| All: scroll back six months, CPU | 111.1 s | 72.0 s (-35%) |
 | open a screen, clock (All, account, Reflect, Breakdown) | 2.2 to 2.8 s | unchanged (within 2%) |
-| launch to Accounts list, clock | 4.36 s | 4.23 s (-3%) |
+| launch to Accounts list, clock | 4.36 s | 4.24 s (-3%) |
 
-Every head launch (1.09 to 1.15 s) was faster than every base launch (1.22 to
-1.51 s). The launch, screen-open and scrolling gains come from removing the
+The two head rounds agree within 2%, except the All walk's CPU (71.9 s and
+78.0 s medians; one round-2 sample took 94 s).
+
+Every head launch (1.09 to 1.21 s over both rounds) was faster than every
+base launch (1.22 to 1.51 s). The launch, screen-open and scrolling gains come from removing the
 Assistant's accessibility scan, so they are measured with accessibility on
 (UI tests); on a phone without VoiceOver the scan was cheap, and those gains
 are small there. The older-content gains apply everywhere.
