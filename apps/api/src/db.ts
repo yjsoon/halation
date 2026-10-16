@@ -119,6 +119,10 @@ export function applyMigrations(db: Database): void {
       version: "022_own_imported_ynab_schedules",
       path: join(migrationsDir, "022_own_imported_ynab_schedules.sql"),
     },
+    {
+      version: "023_drop_budgeting_tables",
+      path: join(migrationsDir, "023_drop_budgeting_tables.sql"),
+    },
   ];
 
   for (const migration of migrations) {

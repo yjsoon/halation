@@ -5,7 +5,7 @@ import { dirname, resolve } from "node:path";
 import { mkdirSync } from "node:fs";
 
 const COPY_TABLES = ["plans", "category_groups", "categories", "payees", "accounts", "import_sessions", "transactions", "subtransactions", "source_events", "import_rows", "ynab_raw_objects", "scheduled_transaction_edits", "scheduled_subtransaction_edits"] as const;
-const EMPTY_TABLES = ["plans","category_groups","categories","payees","accounts","transactions","subtransactions","source_events","import_sessions","import_rows","ynab_raw_objects","plan_month_assignments","plan_month_category_targets","scheduled_transaction_edits","scheduled_subtransaction_edits","scheduled_transaction_snapshot_assertions","account_reconciliation_assertions","ynab_sync_state","sync_runs","sync_attempts","sync_transition_receipts","sync_renewal_receipts","audit_events","write_commands","write_assertions","users","auth_identities","sessions","personal_api_tokens","plan_memberships","password_credentials","auth_setup","login_rate_limits"];
+const EMPTY_TABLES = ["plans","category_groups","categories","payees","accounts","transactions","subtransactions","source_events","import_sessions","import_rows","ynab_raw_objects","scheduled_transaction_edits","scheduled_subtransaction_edits","scheduled_transaction_snapshot_assertions","account_reconciliation_assertions","ynab_sync_state","sync_runs","sync_attempts","sync_transition_receipts","sync_renewal_receipts","audit_events","write_commands","write_assertions","users","auth_identities","sessions","personal_api_tokens","plan_memberships","password_credentials","auth_setup","login_rate_limits"];
 const SOURCE_AUTH_TABLES = ["users", "auth_identities", "sessions", "personal_api_tokens", "plan_memberships", "password_credentials", "auth_setup", "login_rate_limits"];
 // `wrangler d1 execute --file` is checkpointed through a Durable Object.
 // Small statements keep each checkpoint well below its CPU budget even for
@@ -66,14 +66,6 @@ function generateBootstrap(inputPath: string, outputPath: string, mode: "single"
       if (scalar(source, `SELECT count(*) n FROM ${table}`) !== 0) {
         throw new Error("Source must not contain authentication or setup data");
       }
-    }
-    if (scalar(source, "SELECT count(*) n FROM plan_month_assignments") !== 0) {
-    // Assignments are a mutable HowMuch-local overlay, not YNAB provenance.
-    // A clean initial migration must never transfer them implicitly.
-      throw new Error("Source must not contain local plan month assignments");
-    }
-    if (scalar(source, "SELECT count(*) n FROM plan_month_category_targets") !== 0) {
-      throw new Error("Source must not contain local plan month category targets");
     }
     if (scalar(source, "SELECT count(*) n FROM account_reconciliation_assertions") !== 0
     // Reconciliation changes normalised cleared states, but this initial
@@ -228,6 +220,7 @@ function validateStatementGroups(source: Database, statementGroups: string[][], 
     db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0016_query_covering_indexes.sql", import.meta.url), "utf8"));
     db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0017_ynab_source_month_activity.sql", import.meta.url), "utf8"));
     db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0019_own_imported_ynab_schedules.sql", import.meta.url), "utf8"));
+    db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0020_drop_budgeting_tables.sql", import.meta.url), "utf8"));
     for (const statements of statementGroups) db.exec(statements.join("\n"));
     if ((db.query("PRAGMA foreign_key_check").all() as any[]).length) throw new Error("Generated database has foreign-key violations");
     for (const table of COPY_TABLES) {
