@@ -174,6 +174,7 @@ XCTest attached.
 | base `f2bdc3f` | 1292 ms | 976 ms | 189 ms | no |
 | scan cached (`fix-pins`) | 1229 ms | 957 ms | 177 ms | no |
 | geometry anchor `b7b6a45` | 1124 ms | 837 ms | 35 ms | yes, 56 pt above Add |
+| head `bfbf4f0` (`idle-final`) | 1048 ms | 791 ms | 31 ms | yes, above Add |
 
 ## Floating Assistant checks (E2E)
 
