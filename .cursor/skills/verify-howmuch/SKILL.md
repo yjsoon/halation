@@ -11,7 +11,7 @@ HowMuch has two user surfaces in this repo. Drive the one the change actually to
 
 **Web** (`apps/web`) is the React ledger: first-owner setup, Ledger (the register), Scheduled, Rewards and four Reports (Spending, Income v spending, Net worth, Money age), `/add` quick entry, schedules, tokens, sidebar accounts. There is no monthly Plan edit on the web.
 
-**iOS** (`apps/ios`) is the SwiftUI companion: Accounts / Rewards / Reflect on iPhone, Plan in trailing **More**, a trailing **Add Transaction** button on the iPhone tab bar, a floating **Assistant** (speech bubble with a plus) above that Add button, Plan and Assistant in the iPad sidebar (with the floating plus on regular width), the **Add Transaction** capture sheet, Duplicate for Today, and (when built) typed intake, the `N > 1` review list, Shortcuts App Intents, share, and the screenshot offer. Specs: `docs/frontend/intake-ui.md`, `docs/frontend/app-intents.md`. Issues: [#87](https://github.com/yjsoon/howmuch/issues/87), [#96](https://github.com/yjsoon/howmuch/issues/96) and their children.
+**iOS** (`apps/ios`) is the SwiftUI companion: Accounts / Rewards / Reflect on iPhone, Assistant in trailing **More**, a trailing **Add Transaction** button on the iPhone tab bar, a floating **Assistant** (speech bubble with a plus) above that Add button, Assistant in the iPad sidebar (with the floating plus on regular width), the **Add Transaction** capture sheet, Duplicate for Today, and (when built) typed intake, the `N > 1` review list, Shortcuts App Intents, share, and the screenshot offer. Specs: `docs/frontend/intake-ui.md`, `docs/frontend/app-intents.md`. Issues: [#87](https://github.com/yjsoon/howmuch/issues/87), [#96](https://github.com/yjsoon/howmuch/issues/96) and their children.
 
 Not covered here:
 
@@ -135,7 +135,7 @@ Web browser:
 iOS Simulator:
 
 - Prefer tab titles, navigation titles, and accessibility labels over coordinates.
-- Tab bar (iPhone): **Accounts**, **Rewards**, **Reflect**, plus one trailing **Add Transaction** button. Add opens the manual form and does not change the selected tab. A floating **Assistant** (speech bubble with a plus) sits above Add and opens the More overlay. There is no in-row chat bubble and no tap-and-hold on Add. Plan remains a **More** menu item. iPad regular-width sidebar lists Accounts, Rewards, Reflect, Plan, and Assistant, and keeps the floating plus.
+- Tab bar (iPhone): **Accounts**, **Rewards**, **Reflect**, plus one trailing **Add Transaction** button. Add opens the manual form and does not change the selected tab. A floating **Assistant** (speech bubble with a plus) sits above Add and opens the More overlay. There is no in-row chat bubble and no tap-and-hold on Add. Assistant is also a **More** menu item. iPad regular-width sidebar lists Accounts, Rewards, Reflect and Assistant, and keeps the floating plus.
 - Capture title is **Add Transaction**. Leading **Cancel**. Trailing glass **Save** when the keypad is down. `canSave` is amount + account; payee is optional.
 - Web `/add` is a different product. It does not prove iOS capture.
 
@@ -162,9 +162,9 @@ Stable iOS handles:
 
 | Thing | Handle |
 | --- | --- |
-| Tabs | iPhone `Accounts`, `Rewards`, `Reflect`, plus tab-row `Add Transaction` and a floating `Assistant` above Add. iPad sidebar also `Plan`, `Assistant`, with the floating plus |
+| Tabs | iPhone `Accounts`, `Rewards`, `Reflect`, plus tab-row `Add Transaction` and a floating `Assistant` above Add. iPad sidebar also `Assistant`, with the floating plus |
 | New account | Accounts trailing `New Account` (plus). Sheet title `New Account` |
-| More | `More` (ellipsis). iPhone items `Plan`, `Assistant`, `Connection settings`. iPad regular: `Connection settings` only |
+| More | `More` (ellipsis). iPhone items `Assistant`, `Connection settings`. iPad regular: `Connection settings` only |
 | Connection | `Connection settings` (inside More). Sheet title `Connection` |
 | Server field | placeholder `http://192.168.1.10:8787` under header `Server` |
 | Access | `Username`, `Password`, button `Sign in` / `Sign in again` |
