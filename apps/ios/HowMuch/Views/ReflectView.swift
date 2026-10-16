@@ -452,16 +452,23 @@ struct MonthToDate: Equatable {
 
   init?(_ spending: DailySpending, includeQuiet: Bool, now: Date, calendar: Calendar = .current) {
     guard let days = calendar.range(of: .day, in: .month, for: now)?.count else { return nil }
-    let month = ReportsSnapshot.month(of: now)
     let all = Self.byDate(spending.all)
     let quiet = includeQuiet ? [:] : spending.quiet.map(Self.byDate) ?? [:]
-    let today = calendar.component(.day, from: now)
-    day = today
-    daysInMonth = days
-    daily = (1...today).map { dayOfMonth in
-      let key = String(format: "%@-%02d", month, dayOfMonth)
-      return max(0, (all[key] ?? 0) - (quiet[key] ?? 0))
+    // Walk the same dates the overview requested, from this calendar's month
+    // start, and key them as the server does (ISO dates). The device calendar
+    // need not be Gregorian, so its day numbers are not ISO day numbers.
+    var amounts: [Int] = []
+    var date = now.startOfMonth(calendar: calendar)
+    while date <= now, amounts.count < days {
+      let key = date.isoDateString
+      amounts.append(max(0, (all[key] ?? 0) - (quiet[key] ?? 0)))
+      guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
+      date = next
     }
+    guard !amounts.isEmpty else { return nil }
+    day = amounts.count
+    daysInMonth = days
+    daily = amounts
   }
 
   init(day: Int, daysInMonth: Int, daily: [Int]) {

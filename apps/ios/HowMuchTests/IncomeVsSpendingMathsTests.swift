@@ -2,6 +2,31 @@ import XCTest
 @testable import HowMuch
 
 final class IncomeVsSpendingMathsTests: XCTestCase {
+  /// The month-to-date card must read the same days the overview asked the
+  /// server for. On a non-Gregorian device calendar the month starts mid
+  /// Gregorian month, and the server keys days by ISO date (PR #340 review).
+  func testMonthToDateReadsTheRequestedDaysOnAHebrewCalendar() {
+    let hebrew = Calendar(identifier: .hebrew)
+    let now = ISO8601DateFormatter().date(from: "2026-10-16T12:00:00Z")!
+    var keys: [String] = []
+    var day = now.startOfMonth(calendar: hebrew)
+    while day <= now {
+      keys.append(day.isoDateString)
+      day = hebrew.date(byAdding: .day, value: 1, to: day)!
+    }
+    let spending = DailySpending(
+      all: IncomeVsSpendingReport(
+        interval: "day",
+        periods: keys.map { period($0, income: 0, spending: 10_000, net: -10_000, cumulative: 0) }
+      ),
+      quiet: nil
+    )
+    let pace = MonthToDate(spending, includeQuiet: false, now: now, calendar: hebrew)
+    XCTAssertEqual(pace?.daily.count, keys.count)
+    XCTAssertEqual(pace?.total, keys.count * 10_000)
+    XCTAssertEqual(pace?.today, 10_000)
+  }
+
   func testYearToDateNetSumsOnlyCurrentYearKeysAndIgnoresCumulative() {
     let periods = [
       period("2025-11", income: 100, spending: 40, net: 60, cumulative: 60),
