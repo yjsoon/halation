@@ -222,6 +222,10 @@ struct SettingsView: View {
   @State private var planRequestID = UUID()
   @State private var isEditingConnection = false
   @State private var isConfirmingSignOut = false
+  /// The settings a sign-in on the Connection form returned, exactly as that
+  /// server issued them. Later edits to the draft never touch it, so cleanup
+  /// only ever sends the session back to the server that issued it.
+  @State private var formSession: APISettings?
   private let wasInitiallyAuthenticated: Bool
   /// Read once: an archive appears only when an install connects, which
   /// happens outside this sheet.
@@ -674,6 +678,7 @@ struct SettingsView: View {
             isSaving = true
             await onSave(draft)
             saved = draft
+            formSession = nil
             isSaving = false
             dismiss()
           }
@@ -764,6 +769,10 @@ struct SettingsView: View {
           return
         }
         setupState = .ready
+        if let previous = formSession, previous.sessionToken != saved.sessionToken {
+          Task { try? await APIClient(settings: previous).logout() }
+        }
+        formSession = signedIn
         draft.sessionToken = signedIn.sessionToken
         draft.authenticatedUserID = signedIn.authenticatedUserID
         draft.username = signedIn.username
@@ -887,10 +896,10 @@ struct SettingsView: View {
   /// Going back from the Connection form without saving restores the saved
   /// server, account and plan.
   private func discardConnectionEdits() {
-    let abandoned = draft
-    if abandoned.isAuthenticated, abandoned.sessionToken != saved.sessionToken {
+    if let abandoned = formSession, abandoned.sessionToken != saved.sessionToken {
       Task { try? await APIClient(settings: abandoned).logout() }
     }
+    formSession = nil
     draft = saved
     authenticatedBaseURL = saved.trimmedBaseURL
     authenticatedUsername = saved.username
