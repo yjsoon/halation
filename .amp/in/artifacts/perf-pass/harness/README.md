@@ -19,7 +19,7 @@ synthetic ledger from `../fixture/`):
 | `test06_FirstRegisterOpenAfterLaunch` | cold launch, then tap Everyday Account until rows show | clock, app CPU |
 | `test07_ScrollAllRegister` | three fast flings down the All register | scroll hitch/frame metrics, app CPU |
 | `test08_ReachSixMonthsBack` | from the top of All, fling (tapping Load older when it is on screen) until a row from six months back shows | clock, app CPU |
-| `test09_LoadOlderPage` | tap an idle Load older until the page has landed; a tap that loads nothing fails the test (prefetch is measured by the walks) | clock, app CPU, memory |
+| `test09_LoadOlderPage` | tap an idle Load older until the page has landed; a tap that loads nothing fails the test. With prefetch the button is never idle on screen, so the test fails before measuring; prefetch is measured by the walks | clock, app CPU, memory |
 | `test10_OpenReflectTab` | switch to Reflect until the Spending card shows Top Categories | clock, app CPU |
 | `test11_OpenSpendingBreakdown` | open the Spending Breakdown detail | clock, app CPU |
 | `testZZ_ProfileTour` | an unmeasured tour of the above, recorded with the Time Profiler | – |

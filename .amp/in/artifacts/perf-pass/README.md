@@ -105,12 +105,37 @@ Assistant's accessibility scan, so they are measured with accessibility on
 (UI tests); on a phone without VoiceOver the scan was cheap, and those gains
 are small there. The older-content gains apply everywhere.
 
-A manual Load older tap (`test09`) is left out above. In these runs it did not
+A manual Load older tap (`test09`) is left out above. In round 1 it did not
 always tap: with prefetch, the next page was often already loading when the
 button came on screen, so a sample could time the tail of a prefetch rather
 than a tap (review on #339). The harness now fails any sample that is not a
-tap loading a page, and base and head are being re-measured with it. The walks
-above are unaffected: each must reach the six-month-old header to pass.
+tap loading a page. With that harness the head has no tap to time: in
+`srv-final`, 120 fast flings down All (389 s) never found Load older idle on
+screen, because the next page was always already loaded or loading. The tap
+itself is compared without prefetch, base against the 250-row pages fix (one
+fix at a time, below). The walks above are unaffected: each must reach the
+six-month-old header to pass.
+
+## Results: head against base (server mode)
+
+The real API on a fresh SQLite file behind a proxy adding 60 ms per request
+(`srv-base` at `f2bdc3f`, `srv-final` at `bfbf4f0`, both with harness
+`a4df340`; short tests 6 iterations, walks 3).
+
+| Measure | Base | Head |
+| --- | --- | --- |
+| launch to Accounts list, CPU | 2.15 s | 1.76 s (-18%) |
+| open All register, CPU | 0.67 s | 0.38 s (-43%) |
+| open quiet account, CPU | 0.73 s | 0.45 s (-39%) |
+| launch then open an account, CPU | 3.03 s | 2.29 s (-24%) |
+| quiet account: scroll back six months, clock | 28.2 s | 13.6 s (-52%) |
+| quiet account: scroll back six months, CPU | 13.2 s | 5.9 s (-56%) |
+| All: scroll back six months, clock | 323.6 s | 301.3 s (-7%) |
+| All: scroll back six months, CPU | 110.3 s | 71.1 s (-36%) |
+| open a screen or launch, clock | 2.3 to 6.8 s | unchanged (within 3%) |
+
+Base's single Load older tap took 1.77 s (0.58 s CPU) against the API; the
+head has none to time, as above.
 
 ## Results: one fix at a time (local mode)
 
