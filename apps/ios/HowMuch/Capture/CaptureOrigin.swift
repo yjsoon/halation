@@ -5,7 +5,7 @@ import Foundation
 enum CaptureOrigin: Equatable, Codable, Sendable {
   /// + from a specific account register.
   case visibleRegister(accountID: String)
-  /// + from overview, Rewards, Assistant, Plan, or Reflect.
+  /// + from overview, Rewards, Assistant, or Reflect.
   case lastUsedOpen
   /// Home Screen Add Expense quick action. Ignores a leftover visible register.
   case homeScreenShortcut

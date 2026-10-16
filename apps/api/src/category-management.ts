@@ -6,7 +6,7 @@
  * repository runs them in one guarded batch. Neither backend adds rules of its
  * own, so the two stay identical.
  *
- * A plan is "native" when it has no YNAB `month` raw objects. The owner's
+ * A plan is "native" when the importer has not marked it `ynab_sourced`. The owner's
  * production plan is a YNAB mirror; every write here refuses to touch it.
  */
 
@@ -37,7 +37,7 @@ export class EntityConflictError extends Error {}
  * YNAB's category structure, so category edits are refused. The importer sets
  * `plans.ynab_sourced`; the raw mirror is not consulted.
  */
-export const YNAB_MONTH_PRESENT_SQL =
+export const YNAB_SOURCED_SQL =
   "SELECT 1 AS present FROM plans WHERE id = ? AND ynab_sourced = 1";
 
 /**
