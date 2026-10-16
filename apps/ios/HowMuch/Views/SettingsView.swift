@@ -203,6 +203,23 @@ private struct LocalArchiveSection: View {
 /// The app's settings sheet. Signed in, it lists the account and the settings
 /// that apply straight away, with Done. The server, account and plan are a
 /// draft edited on the Connection form, which applies them only on Save.
+/// Counts sign-in attempts so a result can tell whether it was abandoned
+/// (form discarded, sheet closed) while the request was out. A reference type
+/// so the answer is still readable after the view has gone.
+@MainActor
+private final class SignInAttempts {
+  private(set) var current = 0
+
+  func start() -> Int {
+    current += 1
+    return current
+  }
+
+  func abandon() {
+    current += 1
+  }
+}
+
 struct SettingsView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
@@ -226,6 +243,7 @@ struct SettingsView: View {
   /// server issued them. Later edits to the draft never touch it, so cleanup
   /// only ever sends the session back to the server that issued it.
   @State private var formSession: APISettings?
+  @State private var signInAttempts = SignInAttempts()
   private let wasInitiallyAuthenticated: Bool
   /// Read once: an archive appears only when an install connects, which
   /// happens outside this sheet.
@@ -335,6 +353,9 @@ struct SettingsView: View {
       if !isTesting && sessionMatchesDraft {
         loadPlans()
       }
+    }
+    .onDisappear {
+      signInAttempts.abandon()
     }
     .onChange(of: draft.planID) {
       applyPlanChoice()
@@ -750,16 +771,21 @@ struct SettingsView: View {
     planState = .idle
     planRequestID = UUID()
     let attempt = draft
+    let attemptID = signInAttempts.start()
+    let attempts = signInAttempts
     Task {
       do {
         let outcome = try await ServerSignIn.signIn(attempt, password: password)
-        // The draft can be discarded while the request is out; a session for
-        // one server must never be attached to another.
-        guard draft.trimmedBaseURL == attempt.trimmedBaseURL, draft.username == attempt.username else {
+        // The form can be discarded or the sheet closed while the request is
+        // out. Such a session is logged out, never attached to the draft.
+        guard attempts.current == attemptID,
+              draft.trimmedBaseURL == attempt.trimmedBaseURL, draft.username == attempt.username else {
           if case .signedIn(let orphan) = outcome {
             try? await APIClient(settings: orphan).logout()
           }
-          isTesting = false
+          if attempts.current == attemptID {
+            isTesting = false
+          }
           return
         }
         guard case .signedIn(let signedIn) = outcome else {
@@ -798,6 +824,7 @@ struct SettingsView: View {
           planState = .failure(error.localizedDescription)
         }
       } catch {
+        guard attempts.current == attemptID else { return }
         testResult = .failure(error.localizedDescription)
       }
       isTesting = false
@@ -896,6 +923,8 @@ struct SettingsView: View {
   /// Going back from the Connection form without saving restores the saved
   /// server, account and plan.
   private func discardConnectionEdits() {
+    signInAttempts.abandon()
+    isTesting = false
     if let abandoned = formSession, abandoned.sessionToken != saved.sessionToken {
       Task { try? await APIClient(settings: abandoned).logout() }
     }
