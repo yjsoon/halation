@@ -453,7 +453,7 @@ struct MonthToDate: Equatable {
   init?(_ spending: DailySpending, includeQuiet: Bool, now: Date, calendar: Calendar = .current) {
     // The app can stay open into a new month without a refetch; last
     // month's days would read as nothing spent, so show no card until then.
-    guard spending.month == String(now.startOfMonth(calendar: calendar).isoDateString.prefix(7)),
+    guard spending.monthStart == now.startOfMonth(calendar: calendar).isoDateString,
           let days = calendar.range(of: .day, in: .month, for: now)?.count
     else { return nil }
     let all = Self.byDate(spending.all)
