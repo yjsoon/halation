@@ -9,12 +9,14 @@ import XCTest
 ///   PERF_USERNAME     server mode username
 ///   PERF_PASSWORD     server mode password
 ///   PERF_ITERATIONS   iterations per measured test (default 8)
+///   PERF_WALK_ITERATIONS  iterations per six-month walk (default 3)
 final class HowMuchPerfUITests: XCTestCase {
   private var app: XCUIApplication!
 
   private var env: [String: String] { ProcessInfo.processInfo.environment }
   private var mode: String { env["PERF_MODE"] ?? "local" }
   private var iterations: Int { Int(env["PERF_ITERATIONS"] ?? "") ?? 8 }
+  private var walkIterations: Int { Int(env["PERF_WALK_ITERATIONS"] ?? "") ?? 3 }
 
   override func setUp() {
     continueAfterFailure = false
@@ -237,7 +239,7 @@ final class HowMuchPerfUITests: XCTestCase {
   /// is on screen) until a row from six months back is visible.
   func test08_ReachSixMonthsBack() throws {
     let target = Self.monthLabel(monthsBack: 6)
-    measure(metrics: [XCTClockMetric(), XCTCPUMetric(application: app)], options: options(3, manualStop: true, manualStart: true)) {
+    measure(metrics: [XCTClockMetric(), XCTCPUMetric(application: app)], options: options(walkIterations, manualStop: true, manualStart: true)) {
       launchToAccounts()
       allTile.tap()
       waitFor(firstRegisterRow, "All register rows")
@@ -251,7 +253,7 @@ final class HowMuchPerfUITests: XCTestCase {
   /// plan-wide page belongs to other accounts.
   func test08b_QuietAccountReachSixMonthsBack() throws {
     let target = Self.monthLabel(monthsBack: 6)
-    measure(metrics: [XCTClockMetric(), XCTCPUMetric(application: app)], options: options(3, manualStop: true, manualStart: true)) {
+    measure(metrics: [XCTClockMetric(), XCTCPUMetric(application: app)], options: options(walkIterations, manualStop: true, manualStart: true)) {
       launchToAccounts()
       quietAccount.tap()
       waitFor(firstRegisterRow, "Savings Pot 2 rows")

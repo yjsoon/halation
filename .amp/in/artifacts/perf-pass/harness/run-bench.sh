@@ -9,6 +9,7 @@
 #   PERF_SERVER_URL  server mode: API (or latency proxy) URL reachable from the simulator
 #   PERF_USERNAME / PERF_PASSWORD  server mode credentials
 #   PERF_ITERATIONS  iterations per measured test (default 8)
+#   PERF_WALK_ITERATIONS  iterations per six-month walk (default 3)
 #   PERF_LOCAL_DB    local mode: seeded howmuch.sqlite (default ../fixture/howmuch.sqlite)
 #   PERF_WORK        scratch root (default ~/perf-work)
 #   PERF_ONLY        optional space-separated test names to measure, e.g. "test03_OpenAllRegister test09_LoadOlderPage"
@@ -122,6 +123,7 @@ run_tests() {
   env \
     TEST_RUNNER_PERF_MODE="$MODE" \
     TEST_RUNNER_PERF_ITERATIONS="$ITER" \
+    TEST_RUNNER_PERF_WALK_ITERATIONS="${PERF_WALK_ITERATIONS:-3}" \
     TEST_RUNNER_PERF_SERVER_URL="${PERF_SERVER_URL:-}" \
     TEST_RUNNER_PERF_USERNAME="${PERF_USERNAME:-perf}" \
     TEST_RUNNER_PERF_PASSWORD="${PERF_PASSWORD:-perf-bench-password-15}" \
