@@ -3,6 +3,7 @@ import SwiftUI
 struct ReflectView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   var body: some View {
     ScrollView {
@@ -28,29 +29,26 @@ struct ReflectView: View {
             }
           }
 
-          LazyVGrid(columns: [GridItem(.adaptive(minimum: 280), spacing: 12)], spacing: 12) {
-            ReflectCard(icon: "chart.pie.fill", title: "Spending Breakdown") {
-              SpendingBreakdownDetailView()
-            } content: {
-              spendingContent
+          // Two columns on a regular-width iPad, in a Grid so each row's
+          // cards share the taller one's height instead of floating at
+          // their own sizes.
+          if horizontalSizeClass == .regular {
+            Grid(horizontalSpacing: 12, verticalSpacing: 12) {
+              GridRow {
+                spendingCard
+                incomeCard
+              }
+              GridRow {
+                netWorthCard
+                ageCard
+              }
             }
-
-            ReflectCard(icon: "arrow.left.arrow.right", title: "Income vs Spending") {
-              IncomeVsSpendingDetailView()
-            } content: {
-              incomeContent
-            }
-
-            ReflectCard(icon: "building.columns.fill", title: "Net Worth") {
-              NetWorthDetailView()
-            } content: {
-              netWorthContent
-            }
-
-            ReflectCard(icon: "clock.fill", title: "Age of Money") {
-              AgeOfMoneyDetailView()
-            } content: {
-              ageContent
+          } else {
+            VStack(spacing: 12) {
+              spendingCard
+              incomeCard
+              netWorthCard
+              ageCard
             }
           }
         }
@@ -75,6 +73,38 @@ struct ReflectView: View {
     }
     .refreshable {
       await model.refresh(slices: TabRefresh.reflect, quiet: false, force: true)
+    }
+  }
+
+  private var spendingCard: some View {
+    ReflectCard(icon: "chart.pie.fill", title: "Spending Breakdown") {
+      SpendingBreakdownDetailView()
+    } content: {
+      spendingContent
+    }
+  }
+
+  private var incomeCard: some View {
+    ReflectCard(icon: "arrow.left.arrow.right", title: "Income vs Spending") {
+      IncomeVsSpendingDetailView()
+    } content: {
+      incomeContent
+    }
+  }
+
+  private var netWorthCard: some View {
+    ReflectCard(icon: "building.columns.fill", title: "Net Worth") {
+      NetWorthDetailView()
+    } content: {
+      netWorthContent
+    }
+  }
+
+  private var ageCard: some View {
+    ReflectCard(icon: "clock.fill", title: "Age of Money") {
+      AgeOfMoneyDetailView()
+    } content: {
+      ageContent
     }
   }
 
@@ -343,7 +373,8 @@ struct ReflectCard<Destination: View, Content: View>: View {
         content()
       }
       .padding(16)
-      .frame(maxWidth: .infinity, alignment: .leading)
+      // Fill the row's height in the iPad grid, content pinned to the top.
+      .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
       .ynabCard()
       .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
     }
