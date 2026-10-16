@@ -411,6 +411,8 @@ struct ReportsSnapshot: Codable, ConnectionScopedSnapshot {
   var incomeVsSpending: IncomeVsSpendingReport?
   var netWorth: NetWorthReport?
   var ageOfMoney: AgeOfMoneyReport?
+  /// Optional so a file written before the month-to-date card still loads.
+  var dailySpending: DailySpending?
   /// The month the four Reflect reports were fetched for (`yyyy-MM`).
   var reflectMonth: String?
   /// Only the board's default request: current card periods, today, every
@@ -427,6 +429,7 @@ struct ReportsSnapshot: Codable, ConnectionScopedSnapshot {
     incomeVsSpending: IncomeVsSpendingReport?,
     netWorth: NetWorthReport?,
     ageOfMoney: AgeOfMoneyReport?,
+    dailySpending: DailySpending? = nil,
     reflectMonth: String?,
     rewards: RewardsReport?
   ) {
@@ -439,6 +442,7 @@ struct ReportsSnapshot: Codable, ConnectionScopedSnapshot {
     self.incomeVsSpending = incomeVsSpending
     self.netWorth = netWorth
     self.ageOfMoney = ageOfMoney
+    self.dailySpending = dailySpending
     self.reflectMonth = reflectMonth
     self.rewards = rewards
   }
