@@ -105,9 +105,11 @@ struct CaptureAISettingsView: View {
     }
     .onChange(of: draft.providerID) { _, _ in
       draft.modelID = provider?.models.first?.id ?? ""
+      draft.providerBaseURL = nil
       clearEndpointEdits()
     }
     .onChange(of: draft.customBaseURL) { _, _ in clearEndpointEdits() }
+    .onChange(of: draft.providerBaseURL) { _, _ in clearEndpointEdits() }
     .onChange(of: apiKey) { _, value in if !value.isEmpty { removeKey = false } }
   }
 
@@ -134,12 +136,26 @@ struct CaptureAISettingsView: View {
           }
         }
         .pickerStyle(.navigationLink)
-        Text(provider.baseURL).font(.footnote).foregroundStyle(.secondary)
+        if provider.allowsCustomBaseURL == true {
+          TextField("Endpoint", text: providerBaseURL, prompt: Text(provider.baseURL))
+            .keyboardType(.URL)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
+            .accessibilityLabel("AI base URL")
+          Text("Leave empty to use \(provider.baseURL). A saved key belongs to the endpoint it was saved for.")
+            .font(.footnote).foregroundStyle(.secondary)
+        } else {
+          Text(provider.baseURL).font(.footnote).foregroundStyle(.secondary)
+        }
         Text(draft.modelID).font(.caption).foregroundStyle(.secondary)
       } else {
         Text("This provider is no longer in the catalog. Choose another provider.")
       }
     }
+  }
+
+  private var providerBaseURL: Binding<String> {
+    Binding(get: { draft.providerBaseURL ?? "" }, set: { draft.providerBaseURL = $0.isEmpty ? nil : $0 })
   }
 
   private func clearEndpointEdits() {

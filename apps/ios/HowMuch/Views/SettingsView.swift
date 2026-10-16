@@ -40,9 +40,10 @@ private struct ExportEverythingDocument: FileDocument {
   }
 }
 
-/// Saves the whole current plan as a file: the JSON archive (ledger, formats,
-/// account organisation, Rewards cards) or a transactions CSV.
-private struct ExportEverythingSection: View {
+/// Rewards import and export, and saving the whole current plan as a file:
+/// the JSON archive (ledger, formats, account organisation, Rewards cards) or
+/// a transactions CSV.
+private struct DataSection: View {
   /// False while Settings holds an unsaved server or plan: export reads the
   /// saved connection, so it waits until the selection is saved.
   var isSelectionSaved = true
@@ -55,27 +56,37 @@ private struct ExportEverythingSection: View {
 
   var body: some View {
     Section {
-      Button("Export archive (JSON)") {
+      NavigationLink {
+        RewardsImportView()
+      } label: {
+        Label("Rewards import & export", systemImage: "creditcard")
+      }
+      Button {
         export(.archive)
+      } label: {
+        Label("Export everything (JSON)", systemImage: "archivebox")
       }
-      Button("Export transactions (CSV)") {
+      .disabled(isWorking || !isSelectionSaved)
+      Button {
         export(.transactionsCSV)
+      } label: {
+        Label("Export transactions (CSV)", systemImage: "tablecells")
       }
+      .disabled(isWorking || !isSelectionSaved)
       if let errorMessage {
         Text(errorMessage)
           .font(.caption)
           .foregroundStyle(Theme.outflow)
       }
     } header: {
-      Text("Export everything")
+      Text("Data")
     } footer: {
       if isSelectionSaved {
-        Text("The archive holds every account, transaction, schedule, category and payee, the plan formats, your account organisation and the Rewards cards. The CSV lists every transaction, one row per split line. Passwords and tokens are never included.")
+        Text("Rewards import and export moves Rewards Tracker settings as a file and does not connect to YNAB. The JSON export holds every account, transaction, schedule, category and payee, the plan formats, your account organisation and the Rewards cards. The CSV has one row per split line. Passwords and tokens are never included.")
       } else {
-        Text("Save to export the plan you have selected.")
+        Text("Tap Done to save the plan you chose, then export.")
       }
     }
-    .disabled(isWorking || !isSelectionSaved)
     .fileExporter(
       isPresented: $isExporting,
       document: exportDocument,
@@ -189,10 +200,17 @@ private struct LocalArchiveSection: View {
   }
 }
 
+/// The app's settings sheet. Signed in, it lists the account and the settings
+/// that apply straight away, with Done. The server, account and plan are a
+/// draft edited on the Connection form, which applies them only on Save.
 struct SettingsView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
   @State private var draft: APISettings
+  /// The settings last handed to `onSave`. Decides whether the sheet opens on
+  /// the signed-in list or the Connection form, so editing the draft never
+  /// swaps the list out from under the form.
+  @State private var saved: APISettings
   @State private var password = ""
   @State private var authenticatedBaseURL: String
   @State private var authenticatedUsername: String
@@ -202,6 +220,8 @@ struct SettingsView: View {
   @State private var setupState: SetupState = .idle
   @State private var planState: PlanState = .idle
   @State private var planRequestID = UUID()
+  @State private var isEditingConnection = false
+  @State private var isConfirmingSignOut = false
   private let wasInitiallyAuthenticated: Bool
   /// Read once: an archive appears only when an install connects, which
   /// happens outside this sheet.
@@ -209,6 +229,7 @@ struct SettingsView: View {
 
   let onSave: @MainActor (APISettings) async -> Void
   private let screenshots: ScreenshotOfferController
+  private let device = UIDevice.current.model
 
   private enum TestResult: Equatable {
     case success
@@ -238,6 +259,7 @@ struct SettingsView: View {
     self.onSave = onSave
     self.screenshots = screenshots ?? .shared
     self.draft = settings
+    self.saved = settings
     self.authenticatedBaseURL = settings.trimmedBaseURL
     self.authenticatedUsername = settings.username
     self.wasInitiallyAuthenticated = settings.isAuthenticated
@@ -266,237 +288,359 @@ struct SettingsView: View {
     return plans.contains { $0.id == draft.planID }
   }
 
+  private var serverHost: String {
+    URL(string: draft.trimmedBaseURL)?.host() ?? draft.trimmedBaseURL
+  }
+
   var body: some View {
-    if draft.isLocal {
-      localBody
-    } else {
-      serverBody
-    }
-  }
-
-  private static let clipboardImagesFooter = "Offers only the image currently on your clipboard. iOS may ask for paste permission. Images are checked on this device; your Photos library is never read. Off by default."
-
-  private var clipboardImagesButton: some View {
-    Button {
-      let next = !screenshots.isEnabled
-      screenshots.applyEnabledPreference(next)
-      Task { await screenshots.refresh() }
-    } label: {
-      HStack {
-        Text("Offer clipboard images")
-          .foregroundStyle(Theme.textPrimary)
-        Spacer()
-        Text(screenshots.isEnabled ? "On" : "Off")
-          .foregroundStyle(screenshots.isEnabled ? Theme.accent : .secondary)
+    NavigationStack {
+      Group {
+        if draft.isLocal {
+          localBody
+        } else if saved.isAuthenticated {
+          signedInBody
+        } else {
+          connectionForm
+        }
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .contentShape(Rectangle())
+      .navigationDestination(isPresented: $isEditingConnection) {
+        connectionForm
+      }
     }
-    .accessibilityIdentifier("offer-clipboard-images")
-    .accessibilityLabel("Offer clipboard images")
-    .accessibilityValue(screenshots.isEnabled ? "On" : "Off")
+    .task {
+      guard !draft.isLocal else { return }
+      checkSetupStatus()
+      if sessionMatchesDraft {
+        loadPlans()
+      }
+    }
+    .onChange(of: draft.baseURLString) {
+      setupState = .idle
+      testResult = nil
+      planState = .idle
+      planRequestID = UUID()
+      // Discarding Connection edits can restore the signed-in server.
+      if !isTesting && sessionMatchesDraft {
+        loadPlans()
+      }
+    }
+    .onChange(of: draft.username) {
+      testResult = nil
+      planState = .idle
+      planRequestID = UUID()
+      if !isTesting && sessionMatchesDraft {
+        loadPlans()
+      }
+    }
+    .onChange(of: isEditingConnection) { _, isEditing in
+      if !isEditing && !isSaving {
+        discardConnectionEdits()
+      }
+    }
   }
+
+  // MARK: Shared sections
+
+  private var assistantSection: some View {
+    Section {
+      NavigationLink {
+        CaptureAISettingsView(settings: model.captureAI)
+      } label: {
+        LabeledContent {
+          Text(model.captureAI.displayName)
+        } label: {
+          Label("AI provider", systemImage: "sparkles")
+        }
+      }
+      NavigationLink {
+        SkillAndMemoryView()
+      } label: {
+        Label("Skill & Memory", systemImage: "text.book.closed")
+      }
+    } header: {
+      Text("Assistant")
+    }
+  }
+
+  private static let clipboardImagesFooter = "Offers only the image currently on your clipboard. iOS may ask for paste permission. Images are checked on this device, and your Photos library is never read."
+
+  private var captureSection: some View {
+    Section {
+      Toggle(isOn: Binding(
+        get: { screenshots.isEnabled },
+        set: { next in
+          screenshots.applyEnabledPreference(next)
+          Task { await screenshots.refresh() }
+        }
+      )) {
+        Label("Offer clipboard images", systemImage: "doc.on.clipboard")
+      }
+      .tint(Theme.accent)
+      .accessibilityIdentifier("offer-clipboard-images")
+    } header: {
+      Text("Capture")
+    } footer: {
+      Text(Self.clipboardImagesFooter)
+    }
+  }
+
+  // MARK: Local mode
 
   /// Local mode has no server session to manage: no sign-in, plan choice or
   /// sign-out. "Connect to a server" signs in and moves the ledger there.
   private var localBody: some View {
-    NavigationStack {
-      Form {
-        Section {
-          Label("Records are kept on this \(UIDevice.current.model)", systemImage: "iphone")
-            .foregroundStyle(Theme.textPrimary)
-          NavigationLink("Connect to a server") {
-            ServerConnectView(local: draft)
-          }
-        } header: {
-          Text("Storage")
+    Form {
+      Section {
+        Label("Records are kept on this \(device)", systemImage: "iphone")
+          .foregroundStyle(Theme.textPrimary)
+        NavigationLink {
+          ServerConnectView(local: draft)
+        } label: {
+          Label("Connect to a server", systemImage: "server.rack")
         }
-        Section("Intelligence") {
-          NavigationLink("AI provider") {
-            CaptureAISettingsView(settings: model.captureAI)
-          }
-          NavigationLink("Skill & Memory") {
-            SkillAndMemoryView()
-          }
-        }
-        Section {
-          NavigationLink {
-            RewardsImportView()
-          } label: {
-            Text("Rewards Import & Export")
-          }
-        } header: {
-          Text("Tools")
-        } footer: {
-          Text("Import or export Rewards Tracker settings. Does not connect to live YNAB.")
-        }
-        ExportEverythingSection()
-        Section {
-          clipboardImagesButton
-        } footer: {
-          Text(Self.clipboardImagesFooter)
-        }
+      } header: {
+        Text("Storage")
       }
-      .navigationTitle("Settings")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar {
-        ToolbarItem(placement: .topBarTrailing) {
-          Button("Done") {
-            dismiss()
-          }
+      assistantSection
+      captureSection
+      DataSection()
+    }
+    .navigationTitle("Settings")
+    .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Done") {
+          dismiss()
         }
       }
     }
   }
 
-  private var serverBody: some View {
-    NavigationStack {
-      Form {
-        Section {
-          TextField("https://halation.example.com", text: $draft.baseURLString)
-            .keyboardType(.URL)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-        } header: {
-          Text("Server")
-        } footer: {
-          if !draft.trimmedBaseURL.isEmpty && !draft.isConfigured {
-            Text(draft.refusesPublicHTTP
-              ? "HTTP is only for this device or this LAN."
-              : "Enter a complete HTTP or HTTPS URL with a host.")
-              .foregroundStyle(Theme.outflow)
-          } else {
-            Text("Enter the address of your own Halation server. HTTP is allowed only for this device or this network. First-time setup must be opened from the website.")
+  // MARK: Signed in
+
+  private var signedInBody: some View {
+    Form {
+      Section {
+        HStack(spacing: 12) {
+          Image(systemName: "person.crop.circle.fill")
+            .font(.largeTitle)
+            .foregroundStyle(Theme.accent)
+            .accessibilityHidden(true)
+          VStack(alignment: .leading, spacing: 2) {
+            Text(draft.username)
+              .font(.headline)
+              .foregroundStyle(Theme.textPrimary)
+            Text(serverHost)
+              .font(.subheadline)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .truncationMode(.middle)
           }
         }
-        .disabled(isTesting)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Signed in as \(draft.username) on \(serverHost)")
+        planRows
+        Button("Change server or account") {
+          isEditingConnection = true
+        }
+        .disabled(isSaving)
+      } header: {
+        Text("Account")
+      } footer: {
+        planFooter
+      }
+      assistantSection
+      captureSection
+      DataSection(isSelectionSaved: exportSelectionSaved)
+      if let localArchive {
+        LocalArchiveSection(archive: localArchive)
+      }
+      Section {
+        Button("Sign out", role: .destructive) {
+          isConfirmingSignOut = true
+        }
+        .disabled(isSaving || isTesting)
+      }
+    }
+    .navigationTitle("Settings")
+    .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Done") {
+          finish()
+        }
+        .disabled(isSaving)
+      }
+    }
+    .confirmationDialog(
+      "Sign out of \(serverHost)?",
+      isPresented: $isConfirmingSignOut,
+      titleVisibility: .visible
+    ) {
+      Button("Sign out", role: .destructive) {
+        signOut()
+      }
+    } message: {
+      Text("Your records stay on the server. Sign in again to use them on this \(device).")
+    }
+  }
 
-        if setupState == .required {
-          SetupRequiredSection(setupURL: draft.browserSetupURL) {
+  /// The plan inside the Account section: a value when there is one, a
+  /// picker when there are several. A new choice applies on Done.
+  @ViewBuilder
+  private var planRows: some View {
+    switch planState {
+    case .idle, .loading:
+      LabeledContent("Plan") {
+        ProgressView()
+      }
+    case .loaded(let plans) where plans.isEmpty:
+      LabeledContent("Plan", value: "None available")
+      Button("Try again") {
+        loadPlans()
+      }
+    case .loaded(let plans) where plans.count == 1:
+      LabeledContent("Plan", value: plans[0].name)
+    case .loaded(let plans):
+      Picker("Plan", selection: $draft.planID) {
+        if !plans.contains(where: { $0.id == draft.planID }) {
+          Text("Choose a plan").tag(draft.planID)
+        }
+        ForEach(plans) { plan in
+          let duplicate = plans.contains { $0.id != plan.id && $0.name == plan.name }
+          Text(duplicate ? "\(plan.name) (\(plan.id))" : plan.name).tag(plan.id)
+        }
+      }
+      .pickerStyle(.navigationLink)
+    case .failure:
+      LabeledContent("Plan", value: "Couldn’t load")
+      Button("Try again") {
+        loadPlans()
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var planFooter: some View {
+    switch planState {
+    case .loaded(let plans) where plans.isEmpty:
+      Text("This account doesn’t have access to a plan yet. Ask for access, then try again.")
+    case .loaded(let plans) where plans.count > 1 && !hasValidPlanSelection:
+      Text("Choose a plan to continue.")
+        .foregroundStyle(Theme.outflow)
+    case .loaded(let plans) where plans.count > 1 && draft.planID != saved.planID:
+      Text("The new plan is used when you tap Done.")
+    case .failure(let message):
+      Text(message)
+        .foregroundStyle(Theme.outflow)
+    default:
+      EmptyView()
+    }
+  }
+
+  // MARK: Connection form
+
+  /// The server, account and plan, edited as a draft. Signed out, this is
+  /// the whole sheet; signed in, it is pushed from "Change server or account"
+  /// and going back discards the draft.
+  private var connectionForm: some View {
+    Form {
+      Section {
+        TextField("https://halation.example.com", text: $draft.baseURLString)
+          .keyboardType(.URL)
+          .textInputAutocapitalization(.never)
+          .autocorrectionDisabled()
+      } header: {
+        Text("Server")
+      } footer: {
+        if !draft.trimmedBaseURL.isEmpty && !draft.isConfigured {
+          Text(draft.refusesPublicHTTP
+            ? "HTTP works only on this device or your local network."
+            : "Enter a complete HTTP or HTTPS address with a host.")
+            .foregroundStyle(Theme.outflow)
+        } else {
+          Text("The address of your own Halation server. HTTP works only on this device or your local network.")
+        }
+      }
+      .disabled(isTesting)
+
+      if setupState == .required {
+        SetupRequiredSection(setupURL: draft.browserSetupURL) {
+          checkSetupStatus()
+        }
+      } else if case .failure(let message) = setupState {
+        Section {
+          Text(message)
+            .foregroundStyle(Theme.outflow)
+          Button("Check again") {
             checkSetupStatus()
           }
-        } else if case .failure(let message) = setupState {
-          Section {
-            Text(message)
-              .foregroundStyle(Theme.outflow)
-            Button("Retry Server Check") {
-              checkSetupStatus()
-            }
-          } header: {
-            Text("Server check")
-          }
-        }
-
-        Section {
-          TextField("Username", text: $draft.username)
-            .textContentType(.username)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-
-          SecureField("Password", text: $password)
-            .textContentType(.password)
         } header: {
-          Text("Access")
-        } footer: {
-          Text(sessionMatchesDraft ? "Signed in as \(draft.username)." : "Sign in stores an opaque session in this device's Keychain. Your password is never saved.")
+          Text("Server unavailable")
         }
-        .disabled(isTesting)
+      }
 
-        if sessionMatchesDraft {
-          planSection
-          Section("Intelligence") {
-            NavigationLink("AI provider") {
-              CaptureAISettingsView(settings: model.captureAI)
-            }
-            NavigationLink("Skill & Memory") {
-              SkillAndMemoryView()
-            }
-          }
-          Section {
-            NavigationLink {
-              RewardsImportView()
-            } label: {
-              Text("Rewards Import & Export")
-            }
-          } header: {
-            Text("Tools")
-          } footer: {
-            Text("Import or export Rewards Tracker settings. Does not connect to live YNAB.")
-          }
-          ExportEverythingSection(isSelectionSaved: exportSelectionSaved)
-        }
+      Section {
+        TextField("Username", text: $draft.username)
+          .textContentType(.username)
+          .textInputAutocapitalization(.never)
+          .autocorrectionDisabled()
+        SecureField("Password", text: $password)
+          .textContentType(.password)
+      } header: {
+        Text("Account")
+      } footer: {
+        Text("Halation keeps a sign-in session in this device’s Keychain. Your password is never saved.")
+      }
+      .disabled(isTesting)
 
-        if let localArchive {
-          LocalArchiveSection(archive: localArchive)
-        }
-
-        Section {
-          Button {
-            signIn()
-          } label: {
-            HStack {
-              Text(sessionMatchesDraft ? "Sign in again" : "Sign in")
-              Spacer()
-              if isTesting {
-                ProgressView()
-              } else if let testResult {
-                switch testResult {
-                case .success:
-                  Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(Theme.inflow)
-                case .failure:
-                  Image(systemName: "xmark.circle.fill")
-                    .foregroundStyle(Theme.outflow)
-                }
+      Section {
+        Button {
+          signIn()
+        } label: {
+          HStack {
+            Text(sessionMatchesDraft ? "Sign in again" : "Sign in")
+            Spacer()
+            if isTesting {
+              ProgressView()
+            } else if let testResult {
+              switch testResult {
+              case .success:
+                Image(systemName: "checkmark.circle.fill")
+                  .foregroundStyle(Theme.inflow)
+              case .failure:
+                Image(systemName: "xmark.circle.fill")
+                  .foregroundStyle(Theme.outflow)
               }
             }
           }
-          .disabled(isTesting || setupState == .checking || setupState == .required || !draft.isConfigured || draft.username.isEmpty || password.isEmpty)
+        }
+        .disabled(isTesting || setupState == .checking || setupState == .required || !draft.isConfigured || draft.username.isEmpty || password.isEmpty)
+      } footer: {
+        if case .failure(let message) = testResult {
+          Text(message)
+            .foregroundStyle(Theme.outflow)
+        } else if sessionMatchesDraft {
+          Text(testResult == .success ? "Signed in successfully." : "Signed in as \(draft.username).")
+        }
+      }
 
-          if sessionMatchesDraft {
-            Button("Sign out / Use another account", role: .destructive) {
-              signOut()
-            }
-            .disabled(isSaving || isTesting)
-          }
+      if sessionMatchesDraft {
+        planSection
+      }
 
-          clipboardImagesButton
-        } footer: {
-          VStack(alignment: .leading, spacing: 8) {
-            if case .failure(let message) = testResult {
-              Text(message)
-                .foregroundStyle(Theme.outflow)
-            } else if testResult == .success {
-              Text("Signed in successfully.")
-            }
-            Text(Self.clipboardImagesFooter)
-          }
+      if !isEditingConnection {
+        if let localArchive {
+          LocalArchiveSection(archive: localArchive)
         }
+        captureSection
       }
-      .navigationTitle("Connection")
-      .navigationBarTitleDisplayMode(.inline)
-      .task {
-        checkSetupStatus()
-        if sessionMatchesDraft {
-          loadPlans()
-        }
-      }
-      .onChange(of: draft.baseURLString) {
-        setupState = .idle
-        testResult = nil
-        planState = .idle
-        planRequestID = UUID()
-      }
-      .onChange(of: draft.username) {
-        testResult = nil
-        planState = .idle
-        planRequestID = UUID()
-        if !isTesting && sessionMatchesDraft {
-          loadPlans()
-        }
-      }
-      .toolbar {
-        ToolbarItem(placement: .topBarLeading) {
+    }
+    .navigationTitle("Connection")
+    .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      if !isEditingConnection {
+        ToolbarItem(placement: .cancellationAction) {
           if !wasInitiallyAuthenticated && model.canReturnToWelcome {
             Button("Back") {
               model.returnToWelcome()
@@ -505,21 +649,21 @@ struct SettingsView: View {
             Button("Cancel") {
               dismiss()
             }
-            .disabled(!wasInitiallyAuthenticated || !draft.isAuthenticated)
+            .disabled(!saved.isAuthenticated)
           }
         }
-
-        ToolbarItem(placement: .topBarTrailing) {
-          Button("Save") {
-            Task {
-              isSaving = true
-              await onSave(draft)
-              isSaving = false
-              dismiss()
-            }
+      }
+      ToolbarItem(placement: .confirmationAction) {
+        Button("Save") {
+          Task {
+            isSaving = true
+            await onSave(draft)
+            saved = draft
+            isSaving = false
+            dismiss()
           }
-          .disabled(isSaving || isTesting || !draft.isConfigured || !sessionMatchesDraft || !hasValidPlanSelection)
         }
+        .disabled(isSaving || isTesting || !draft.isConfigured || !sessionMatchesDraft || !hasValidPlanSelection)
       }
     }
   }
@@ -695,8 +839,36 @@ struct SettingsView: View {
     isSaving = true
     Task {
       await onSave(draft)
+      saved = draft
       try? await APIClient(settings: current).logout()
       isSaving = false
     }
+  }
+
+  /// Done on the signed-in list: applies a new plan choice, if there is one.
+  private func finish() {
+    guard draft.planID != saved.planID, hasValidPlanSelection else {
+      dismiss()
+      return
+    }
+    Task {
+      isSaving = true
+      await onSave(draft)
+      saved = draft
+      isSaving = false
+      dismiss()
+    }
+  }
+
+  /// Going back from the Connection form without saving restores the saved
+  /// server, account and plan.
+  private func discardConnectionEdits() {
+    draft = saved
+    authenticatedBaseURL = saved.trimmedBaseURL
+    authenticatedUsername = saved.username
+    password = ""
+    testResult = nil
+    checkSetupStatus()
+    loadPlans()
   }
 }

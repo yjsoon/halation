@@ -1,6 +1,6 @@
 # Capture AI providers
 
-In Add or an Assistant conversation, tap the **AI provider** (sparkles) toolbar button, or open **Connection → AI provider**. Choose a provider and model, enter a personal API key, and save. Saving settings does not make an inference request. Keys are device-only Keychain items scoped to the provider and normalized endpoint. An empty replacement field keeps a saved key; **Remove saved key → Save** deletes it. Choosing an external provider is enough to send capture text; there is no separate consent switch.
+In Add or an Assistant conversation, tap the **AI provider** (sparkles) toolbar button, or open **Settings → AI provider**. Choose a provider and model, enter a personal API key, and save. Saving settings does not make an inference request. Keys are device-only Keychain items scoped to the provider and normalized endpoint. An empty replacement field keeps a saved key; **Remove saved key → Save** deletes it. Choosing an external provider is enough to send capture text; there is no separate consent switch.
 
 The default remains on-device Apple Intelligence. External providers do not require Apple Intelligence hardware or a PCC entitlement. A missing key or retired model blocks that provider; HowMuch never silently switches to another service. Changes apply to the next request, including an explicit Retry.
 
@@ -10,11 +10,17 @@ The source of truth is [`AIModels.json`](../apps/ios/HowMuch/Capture/AIModels.js
 
 | Provider | Model IDs | API |
 | --- | --- | --- |
-| OpenCode Go | `gpt-5.6-luna` | Responses |
-| OpenCode Go | `deepseek-v4-flash-vision-exp` | Chat Completions |
+| OpenCode Go | `gpt-6-luna`, `gpt-5.6-luna`, `grok-4.7` | Responses |
+| OpenCode Go | `claude-haiku-5-5` | Anthropic Messages |
+| OpenCode Go | `deepseek-v4.1-flash`, `glm-5.3-flash` | Chat Completions |
+| Claude | `claude-opus-5-5`, `claude-sonnet-5-5`, `claude-haiku-5-5` | Anthropic Messages |
 | OpenRouter | `openai/gpt-5.6-luna`, `deepseek/deepseek-v4-flash-vision-exp` | Chat Completions |
 | OpenAI | `gpt-5.6-luna` | Responses |
 | DeepSeek | `deepseek-v4-flash-vision-exp` | Chat Completions |
+
+OpenCode Go no longer offers `deepseek-v4-flash-vision-exp`, so it was removed from that provider; an install that had chosen it is asked to choose another model rather than being moved silently. Go lists more models than the catalog carries. The catalog leaves out models whose data is used for training (Muse Spark, Gemini Argon), models without documented structured output, and Qwen, whose Messages-API options are unverified.
+
+**Claude** uses `https://api.anthropic.com/v1` by default. Its endpoint can be replaced with a gateway that speaks the Anthropic Messages API (`"allowsCustomBaseURL": true`); the key is then stored for that endpoint only. Requests send `x-api-key` and `anthropic-version: 2023-06-01`; other providers on the Messages API (OpenCode Go, custom endpoints) also get the bearer token. Current Claude models think adaptively and reject a disabled-thinking setting, so the `anthropic` preset sends `output_config.effort: low` with `output_config.format` for structured output, and allows 8,192 output tokens because thinking shares that budget. Only text blocks form the answer; a stream completes only after `stop_reason: end_turn` and `message_stop`.
 
 “DeepSeek V4 Flash Exp” is shown by its documented name, **DeepSeek V4 Flash Vision Exp**. This integration sends extracted receipt **text**, not images, even for vision-capable models. Vision upload is not part of BYOK.
 
@@ -25,14 +31,14 @@ OpenCode Go's [client policy](https://opencode.ai/docs/go/#where-can-i-use-it) e
 1. Verify the provider's current official docs and exact API model ID. OpenRouter prefixes IDs with the model vendor; direct providers and Go do not. Do not invent aliases or assume OpenAI-compatible means every parameter is supported.
 2. Add/edit an entry in `AIModels.json`:
    - `id`: exact API model ID; `name`: visible label.
-   - `api`: `responses` or `chatCompletions`.
+   - `api`: `responses`, `chatCompletions` or `messages` (Anthropic Messages).
    - `format`: `jsonSchema` for verified structured-output support; otherwise `jsonObject` for a provider supporting JSON mode. Both require complete, validated capture JSON locally.
-   - `reasoning`: `openAI` disables reasoning with `effort: none`; `openRouter` uses `reasoning.enabled: false`; `deepSeek` uses `thinking.type: disabled`; `providerDefault` adds no reasoning parameter. These presets prioritize short extraction latency, not deep reasoning.
+   - `reasoning`: `openAI` disables reasoning with `effort: none`; `openRouter` uses `reasoning.enabled: false`; `deepSeek` uses `thinking.type: disabled`; `lowEffort` sends `reasoning.effort: low` (Responses) or `reasoning_effort: low` (Chat Completions) for models with no off switch; `anthropic` sends `output_config.effort: low`; `providerDefault` adds no reasoning parameter. These presets prioritize short extraction latency, not deep reasoning.
 3. Update the provider's `notice` and documentation link when its privacy or usage contract changes. Preserve provider IDs and endpoint scoping; changing an endpoint must not forward an existing key to it. No runtime catalog downloads or automatic model substitution.
 4. Update catalog assertions in `CaptureAITests` if an explicitly supported model is retired. Run the catalog/request/stream/validation tests and representative Settings screenshots at default and accessibility text sizes. Use `scripts/ios-xcodebuild.sh` per the iOS guidance, with matching build/test products.
 5. Live smoke tests need explicit authorization and a securely supplied key. Use synthetic text, never a personal ledger or uploaded financial image. Record latency, actual model ID, and result validation, without logging keys or raw private prompts. Mocked tests are not evidence of a live provider response.
 
-Adding another model with an existing capability combination requires only catalog data and tests/docs—not transport or SwiftUI branching. A genuinely new wire protocol needs a separate transport implementation and contract tests. **Custom endpoint** supports an HTTPS base URL, exact model ID, and either existing protocol using JSON-object output; it does not infer undocumented model-specific options.
+Adding another model with an existing capability combination requires only catalog data and tests/docs—not transport or SwiftUI branching. A genuinely new wire protocol needs a separate transport implementation and contract tests. **Custom endpoint** supports an HTTPS base URL, exact model ID, and any of the three protocols, using JSON-object output (or, on the Messages API, the schema in the instructions); it does not infer undocumented model-specific options.
 
 ### Simulator Keychain validation
 
@@ -55,7 +61,7 @@ This is Xcode's normal simulator packaging/link/sign pipeline. It needs no Apple
 - The model proposes drafts or a read-only query specification. Existing mapping, ambiguity resolution, account/transfer rules, and explicit Save remain authoritative. No model tool calls are executed.
 - Responses requests set `store: false`. OpenRouter requests `provider.data_collection: deny` and `require_parameters: true`. These are not blanket zero-retention guarantees; gateway and upstream provider policies still apply.
 - Each request uses an ephemeral URLSession with no cache, cookies, credential storage, or redirects. HTTP/provider failures use app-owned messages instead of echoing provider bodies.
-- The UI shows real waiting/receiving/checking/fetching stages and elapsed time, not fabricated thoughts or unfinished financial fields. Output is applied only after a successful terminal event and full payload validation. There is a 120-second whole-turn watchdog, a 45-second transport inactivity limit, a 64 KiB prompt limit, a 1 MiB response limit, and a 4,096-token output budget. Truncated output fails without changing drafts.
+- The UI shows real waiting/receiving/checking/fetching stages and elapsed time, not fabricated thoughts or unfinished financial fields. Output is applied only after a successful terminal event and full payload validation. There is a 120-second whole-turn watchdog, a 45-second transport inactivity limit, a 64 KiB prompt limit, a 1 MiB response limit, and a 4,096-token output budget (8,192 on the Anthropic Messages API, where thinking shares it). Truncated output fails without changing drafts.
 - Stop and timeout invalidate the generation before a late result can apply. Input and drafts survive for Retry or Add manually; closing the conversation still preserves workspace-owned work.
 
 ## Official API references
@@ -64,5 +70,6 @@ This is Xcode's normal simulator packaging/link/sign pipeline. It needs no Apple
 - [OpenRouter models](https://openrouter.ai/api/v1/models) and [structured output](https://openrouter.ai/docs/guides/features/structured-outputs)
 - [OpenAI GPT 5.6 Luna](https://developers.openai.com/api/docs/models/gpt-5.6-luna) and [structured output](https://developers.openai.com/api/docs/guides/structured-outputs)
 - [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion)
+- [Claude models](https://platform.claude.com/docs/en/about-claude/models/overview), [effort](https://platform.claude.com/docs/en/build-with-claude/effort) and [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
 
 PCC is tracked separately in [#142](https://github.com/yjsoon/howmuch/issues/142); this implementation addresses [#143](https://github.com/yjsoon/howmuch/issues/143).

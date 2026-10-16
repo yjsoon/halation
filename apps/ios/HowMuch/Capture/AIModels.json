@@ -4,11 +4,28 @@
       "id": "opencode-go",
       "name": "OpenCode Go",
       "baseURL": "https://opencode.ai/zen/go/v1",
-      "notice": "Go is intended for coding-agent traffic. Confirm your subscription permits Halation before use. Retention varies by model; Luna currently has up to 30-day abuse-monitoring retention.",
+      "notice": "Go is intended for coding-agent traffic. Confirm your subscription permits Halation before use. Retention varies by model: GPT and Grok models keep up to 30 days of abuse-monitoring logs, and Claude follows Anthropic's 30-day policy.",
       "documentationURL": "https://opencode.ai/docs/go/",
       "models": [
+        { "id": "gpt-6-luna", "name": "GPT 6 Luna", "api": "responses", "format": "jsonSchema", "reasoning": "openAI" },
         { "id": "gpt-5.6-luna", "name": "GPT 5.6 Luna", "api": "responses", "format": "jsonSchema", "reasoning": "openAI" },
-        { "id": "deepseek-v4-flash-vision-exp", "name": "DeepSeek V4 Flash Vision Exp", "api": "chatCompletions", "format": "jsonObject", "reasoning": "deepSeek" }
+        { "id": "claude-haiku-5-5", "name": "Claude Haiku 5.5", "api": "messages", "format": "jsonSchema", "reasoning": "anthropic" },
+        { "id": "deepseek-v4.1-flash", "name": "DeepSeek V4.1 Flash", "api": "chatCompletions", "format": "jsonSchema", "reasoning": "lowEffort" },
+        { "id": "glm-5.3-flash", "name": "GLM-5.3-Flash", "api": "chatCompletions", "format": "jsonSchema", "reasoning": "lowEffort" },
+        { "id": "grok-4.7", "name": "Grok 4.7", "api": "responses", "format": "jsonSchema", "reasoning": "lowEffort" }
+      ]
+    },
+    {
+      "id": "anthropic",
+      "name": "Claude",
+      "baseURL": "https://api.anthropic.com/v1",
+      "notice": "Uses separately billed Claude API access from the Claude Console, not a Claude subscription. Anthropic's commercial terms and data retention policy apply. A replacement endpoint must speak the Anthropic Messages API, and its own policies then apply.",
+      "documentationURL": "https://platform.claude.com/docs/en/about-claude/models/overview",
+      "allowsCustomBaseURL": true,
+      "models": [
+        { "id": "claude-opus-5-5", "name": "Claude Opus 5.5", "api": "messages", "format": "jsonSchema", "reasoning": "anthropic" },
+        { "id": "claude-sonnet-5-5", "name": "Claude Sonnet 5.5", "api": "messages", "format": "jsonSchema", "reasoning": "anthropic" },
+        { "id": "claude-haiku-5-5", "name": "Claude Haiku 5.5", "api": "messages", "format": "jsonSchema", "reasoning": "anthropic" }
       ]
     },
     {

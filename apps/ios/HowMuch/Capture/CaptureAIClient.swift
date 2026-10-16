@@ -122,18 +122,28 @@ struct CaptureAIClient: Sendable {
     let format: [String: Any] = model.format == .jsonSchema
       ? ["type": "json_schema", "name": "capture_turn", "strict": true, "schema": schema]
       : ["type": "json_object"]
-    if model.api == .responses {
+    switch model.api {
+    case .responses:
       body["instructions"] = instructions
       body["input"] = prompt
       body["text"] = ["format": format]
       body["max_output_tokens"] = 4096
       body["store"] = false
-    } else {
+    case .chatCompletions:
       body["messages"] = [["role": "system", "content": instructions], ["role": "user", "content": prompt]]
       body["max_tokens"] = 4096
       body["response_format"] = model.format == .jsonSchema
         ? ["type": "json_schema", "json_schema": ["name": "capture_turn", "strict": true, "schema": schema]]
         : ["type": "json_object"]
+    case .messages:
+      body["system"] = instructions
+      body["messages"] = [["role": "user", "content": prompt]]
+      // Current Claude models think adaptively and cannot always turn it off;
+      // thinking shares this budget, so it is larger than the other APIs'.
+      body["max_tokens"] = 8192
+      if model.format == .jsonSchema {
+        body["output_config"] = ["format": ["type": "json_schema", "schema": schema]]
+      }
     }
     switch model.reasoning {
     case .openAI:
@@ -141,6 +151,13 @@ struct CaptureAIClient: Sendable {
       else { body["reasoning_effort"] = "none" }
     case .openRouter: body["reasoning"] = ["enabled": false]
     case .deepSeek: body["thinking"] = ["type": "disabled"]
+    case .lowEffort:
+      if model.api == .responses { body["reasoning"] = ["effort": "low"] }
+      else { body["reasoning_effort"] = "low" }
+    case .anthropic:
+      var output = body["output_config"] as? [String: Any] ?? [:]
+      output["effort"] = "low"
+      body["output_config"] = output
     case .providerDefault: break
     }
     if configuration.providerID == "openrouter" {
@@ -148,7 +165,15 @@ struct CaptureAIClient: Sendable {
     }
     var request = URLRequest(url: base.appendingPathComponent(model.api.path))
     request.httpMethod = "POST"
-    request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+    if model.api == .messages {
+      request.setValue(configuration.apiKey, forHTTPHeaderField: "x-api-key")
+      request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+    }
+    // Anthropic's own API authenticates with x-api-key alone; gateways that
+    // speak its Messages API usually expect a bearer token as well.
+    if configuration.providerID != "anthropic" {
+      request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
+    }
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
     request.setValue("HowMuch/1.0", forHTTPHeaderField: "User-Agent")
@@ -198,7 +223,9 @@ struct CaptureAIStream {
         throw CaptureAIError.invalidResponse
       }
       if let error = value["error"], !(error is NSNull) { throw CaptureAIError.rejected }
-      if api == .responses {
+      if api == .messages {
+        try consumeMessagesEvent(value)
+      } else if api == .responses {
         switch value["type"] as? String {
         case "response.output_text.delta":
           guard let delta = value["delta"] as? String else { throw CaptureAIError.invalidResponse }
@@ -232,12 +259,55 @@ struct CaptureAIStream {
     }
   }
 
+  /// Anthropic Messages events. Only text blocks form the answer; thinking
+  /// blocks are skipped, and only end_turn followed by message_stop completes.
+  private mutating func consumeMessagesEvent(_ value: [String: Any]) throws {
+    switch value["type"] as? String {
+    case "content_block_start":
+      guard let block = value["content_block"] as? [String: Any] else { throw CaptureAIError.invalidResponse }
+      guard ["text", "thinking", "redacted_thinking"].contains(block["type"] as? String ?? "") else {
+        throw CaptureAIError.rejected
+      }
+    case "content_block_delta":
+      guard let delta = value["delta"] as? [String: Any] else { throw CaptureAIError.invalidResponse }
+      if delta["type"] as? String == "text_delta" {
+        guard !stopped, let piece = delta["text"] as? String else { throw CaptureAIError.invalidResponse }
+        text += piece
+      }
+    case "message_delta":
+      guard let delta = value["delta"] as? [String: Any] else { throw CaptureAIError.invalidResponse }
+      if let reason = delta["stop_reason"] as? String {
+        guard reason == "end_turn" else { throw CaptureAIError.incomplete }
+        stopped = true
+      }
+    case "message_stop":
+      guard stopped else { throw CaptureAIError.incomplete }
+      isComplete = true
+    case "error":
+      throw CaptureAIError.rejected
+    default: break
+    }
+  }
+
   static func nonStreaming(_ data: Data, api: CaptureAIAPI) throws -> String {
     guard let value = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
       throw CaptureAIError.invalidResponse
     }
     if let error = value["error"], !(error is NSNull) { throw CaptureAIError.rejected }
     if api == .responses { return try responseText(value) }
+    if api == .messages {
+      guard value["stop_reason"] as? String == "end_turn",
+            let content = value["content"] as? [[String: Any]] else { throw CaptureAIError.incomplete }
+      var text = ""
+      for block in content {
+        switch block["type"] as? String {
+        case "text": text += block["text"] as? String ?? ""
+        case "thinking", "redacted_thinking": continue
+        default: throw CaptureAIError.rejected
+        }
+      }
+      return text
+    }
     guard let choices = value["choices"] as? [[String: Any]], choices.count == 1,
           choices[0]["finish_reason"] as? String == "stop",
           let message = choices[0]["message"] as? [String: Any],

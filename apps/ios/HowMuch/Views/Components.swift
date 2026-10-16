@@ -1342,7 +1342,7 @@ struct DestinationsMenu<Leading: View>: View {
       Button {
         model.isShowingSettings = true
       } label: {
-        Label(model.settings.isLocal ? "Settings" : "Connection settings", systemImage: "gearshape")
+        Label("Settings", systemImage: "gearshape")
       }
     } label: {
       Label("More", systemImage: "ellipsis.circle")
