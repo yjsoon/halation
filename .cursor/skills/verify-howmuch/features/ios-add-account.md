@@ -24,7 +24,7 @@ Preconditions:
 - Use name `Verify Card` so the row is unique.
 
 - **Open.** On `Accounts`, choose `New Account`. Sheet title `New Account`. Leading `Cancel`. Fields `Name`, `Type` (`Checking` with the bank emoji), `Icon`, `Current balance`.
-- **Card.** Name `Verify Card`. Type `Credit Card` (under `Budget`; footer mentions cards on the plan). Type row then reads `Credit Card`. Balance label becomes `Amount owed`. Enter `12.50`. Footnote `Listed as` a negative `12.50`. Leave the default card icon.
+- **Card.** Name `Verify Card`. Type `Credit Card` (under `Budget`; footer mentions cards you spend from). Type row then reads `Credit Card`. Balance label becomes `Amount owed`. Enter `12.50`. Footnote `Listed as` a negative `12.50`. Leave the default card icon.
 - **Save.** Trailing `Save` is enabled. Choose `Save`. Toast `Added Verify Card`. Sheet dismisses. Accounts lists `Verify Card` under `Credit` with a negative `12.50`.
 - **HTTP match.** `control-howmuch http GET /v1/plans/local-plan/accounts` includes `name` `Verify Card`, `type` `creditCard`, `balance` `-12500`, `on_budget` true. `control-howmuch http GET /v1/plans/local-plan/payees` includes `Transfer : Verify Card` with that account id.
 - **Capture destination.** Tap the tab-row plus `Add Transaction`. Payee list includes `Transfer : Verify Card`. Cancel without saving.

@@ -50,8 +50,8 @@ enum AccountKind: String, CaseIterable, Identifiable, Hashable {
 
     var footer: String {
       switch self {
-      case .budget: "Cash, savings, and cards on the plan."
-      case .tracking: "Loans and assets that sit off the plan."
+      case .budget: "Cash, savings, and cards you spend from."
+      case .tracking: "Loans and assets you track but don’t spend from."
       }
     }
   }

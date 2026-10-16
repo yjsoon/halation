@@ -45,7 +45,7 @@ import {
   CATEGORY_IN_USE_CONDITION,
   CategoryInUseError,
   EntityConflictError,
-  YNAB_MONTH_PRESENT_SQL,
+  YNAB_SOURCED_SQL,
   YnabMirrorPlanError,
   categoryCommandStatements,
   categoryInUseValues,
@@ -853,7 +853,7 @@ export class LedgerRepository {
 
   /** Plan-level gate: a native plan has no YNAB `month` raw object at all. */
   async isNativePlan(planId: string): Promise<boolean> {
-    return !(await this.db.query(YNAB_MONTH_PRESENT_SQL).get(planId));
+    return !(await this.db.query(YNAB_SOURCED_SQL).get(planId));
   }
 
   protected async requireNativePlan(planId: string): Promise<void> {
