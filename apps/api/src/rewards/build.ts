@@ -281,10 +281,6 @@ function attributeCalculation(
   };
 }
 
-export function milliunitsToUnits(amountMilli: number): number {
-  return amountMilli / MILLIUNITS_PER_UNIT;
-}
-
 function groupTransactions(
   transactions: Transaction[],
   groupBy: RewardGroupBy,

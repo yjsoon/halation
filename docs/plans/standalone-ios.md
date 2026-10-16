@@ -40,7 +40,7 @@ Constraints:
 
 ## No budgeting
 
-HowMuch has no budgeting. The app is Accounts, Rewards and Reflect, plus capture. Categories are tags on transactions, used by Reflect and the rewards rules. The iOS Plan tab (Ready to Assign, assigning money) was removed in this phase. The API side went too (e605ef8); only three unused tables from it remain in the schema. Nothing ports or extends them.
+HowMuch has no budgeting. The app is Accounts, Rewards and Reflect, plus capture. Categories are tags on transactions, used by Reflect and the rewards rules. The iOS Plan tab (Ready to Assign, assigning money) was removed in this phase. The API side went too (e605ef8); and migration 0020 dropped its last three tables. Nothing ports or extends them.
 
 A new local plan starts with a set of categories the user can edit. Native plans are plans with no YNAB `month` raw objects. Creating and editing categories and category groups is allowed only on native plans. A YNAB-mirror plan, such as the owner's production plan, returns 409, so its mirror stays untouched.
 

@@ -552,15 +552,13 @@ describe("YNAB-compatible API", () => {
     expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
   });
 
-  test("budgeting month routes are gone and leave the retained overlay tables untouched", async () => {
+  test("budgeting month routes are gone", async () => {
     const repo = new LedgerRepository(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertCategoryGroup("plan-test", { id: "group-food", name: "Food" });
     await repo.upsertCategory("plan-test", { id: "category-food", category_group_id: "group-food", name: "Groceries" });
     await repo.upsertYnabRawObject("plan-test", "month", "2026-06-01", { month: "2026-06-01", budgeted: 5000, categories: [] });
     await repo.upsertYnabRawObject("plan-test", "month_category", "2026-06-01\u001fcategory-food", { id: "category-food", budgeted: 5000, balance: 5000, deleted: false });
-    db.run("INSERT INTO plan_month_assignments (plan_id, month, category_id, budgeted_milli) VALUES ('plan-test', '2026-06-01', 'category-food', 7000)");
-    const before = db.query("SELECT * FROM plan_month_assignments").all();
 
     expect((await request("/v1/plans/plan-test/months/2026-06")).status).toBe(404);
     expect((await request("/v1/plans/plan-test/months/2026-06/transactions")).status).toBe(404);
@@ -568,8 +566,6 @@ describe("YNAB-compatible API", () => {
       const response = await request("/v1/plans/plan-test/months/2026-06/categories/category-food", { method: "PATCH", body });
       expect(response.status).toBe(404);
     }
-    expect(db.query("SELECT * FROM plan_month_assignments").all()).toEqual(before);
-    expect(db.query("SELECT COUNT(*) AS count FROM plan_month_category_targets").get()).toEqual({ count: 0 });
   });
 
   test("does not create default plans on handler boot or plan reads", async () => {

@@ -1437,10 +1437,6 @@ final class AppModel {
     currentOutbox.contains { $0.isInFlight && $0.carriesApproval }
   }
 
-  func isApprovalPending(_ transactionID: String) -> Bool {
-    approvalSession.pending.contains(transactionID)
-  }
-
   func approveAllTitle(for rows: [Transaction]) -> String? {
     let count = eligibleApprovalCount(in: rows)
     return count == 0 ? nil : RegisterApproval.approveAllLabel(count)

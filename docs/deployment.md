@@ -84,6 +84,13 @@ environment `tk` in `wrangler.jsonc`:
   applies D1 migrations. If a release includes a migration, apply it manually
   (`wrangler d1 migrations apply DB --env tk --remote --profile tinkertanker`)
   before tagging, following the verification order in this document.
+- Migration `0020_drop_budgeting_tables.sql` drops `plan_month_assignments`,
+  `plan_month_category_targets` and `ynab_source_month_activity`, which no code
+  has read since budgeting was removed. Run `scripts/backup-d1.sh` first, then
+  note what is about to go with this read-only count:
+  `SELECT (SELECT count(*) FROM plan_month_assignments) AS assignments, (SELECT count(*) FROM plan_month_category_targets) AS targets, (SELECT count(*) FROM ynab_source_month_activity) AS month_activity`.
+  The Worker already running in production does not touch these tables, so
+  applying it before the next tag is safe.
 - Migration `0019_own_imported_ynab_schedules.sql` copies every mirrored YNAB
   schedule into HowMuch's own schedule tables and adds `plans.ynab_sourced`. It
   must be applied **before** the Worker that reads them is deployed (the new

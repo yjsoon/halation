@@ -1,10 +1,7 @@
 import type {
-  CardSpendingTier,
   CreditCard,
-  RewardCalculation,
   SpendingTierSubcategory,
 } from '../../types';
-import { createSpendingTierId } from '../../ids';
 
 export interface CardSpendingLevel {
   id: string | null;
@@ -21,30 +18,6 @@ export interface ResolvedCardSpendingTier {
   hasNextSpendingTier: boolean;
   effectiveCard: CreditCard;
   minimumSpendMet: boolean;
-}
-
-export const SPENDING_TIER_CALCULATION_VERSION = 1;
-
-export function isSpendingTierCalculationCompatible(
-  card: CreditCard,
-  calculation: RewardCalculation,
-): boolean {
-  if (!card.spendingTiers?.length) {
-    return true;
-  }
-
-  const hasActiveLevel = Object.prototype.hasOwnProperty.call(
-    calculation,
-    'activeSpendingTierId',
-  );
-  const expectedActiveLevelId = resolveCardSpendingTier(
-    card,
-    calculation.totalSpend,
-  ).activeLevel?.id ?? null;
-
-  return hasActiveLevel &&
-    calculation.activeSpendingTierId === expectedActiveLevelId &&
-    calculation.spendingTierCalculationVersion === SPENDING_TIER_CALCULATION_VERSION;
 }
 
 function configuredThreshold(value: number | null | undefined): number {
@@ -156,18 +129,5 @@ export function resolveCardSpendingTier(
     // threshold is reached and remain at the highest configured level.
     effectiveCard: applyCaps(earningCard, capCard),
     minimumSpendMet: activeLevel !== null,
-  };
-}
-
-export function createSpendingTier(
-  card: CreditCard,
-  spendThreshold: number,
-): CardSpendingTier {
-  return {
-    id: createSpendingTierId(),
-    spendThreshold,
-    earningRate: configuredNumber(card.earningRate),
-    maximumSpend: configuredNumber(card.maximumSpend),
-    subcategories: baseSubcategories(card),
   };
 }

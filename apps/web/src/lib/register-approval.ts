@@ -84,10 +84,6 @@ export function planApproval(
   return chunks;
 }
 
-export function approveSelectedLabel(count: number): string {
-  return `Approve ${count} selected`;
-}
-
 export function approveAllLabel(count: number): string {
   return `Approve all (${count})`;
 }

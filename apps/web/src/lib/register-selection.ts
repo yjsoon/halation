@@ -27,8 +27,6 @@ export function emptySelection(scopeKey: string): RegisterSelection {
   return { scopeKey, committed: new Set<string>(), range: null };
 }
 
-export const EMPTY_SELECTION = emptySelection("");
-
 function scopedSelection(selection: RegisterSelection, scopeKey: string): RegisterSelection {
   return selection.scopeKey === scopeKey ? selection : emptySelection(scopeKey);
 }

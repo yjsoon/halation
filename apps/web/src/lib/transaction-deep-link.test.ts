@@ -2,7 +2,6 @@ import { describe, expect, test } from "bun:test";
 import type { Transaction } from "../api/types";
 import {
   applyDeepLinkedTransactionMutation,
-  buildTransactionDeepLink,
   deepLinkedTransactionForRegister,
   deepLinkTargetsRow,
   mergeDeepLinkedTransaction,
@@ -54,13 +53,6 @@ describe("transaction deep links", () => {
     expect(parseTransactionDeepLink(new URLSearchParams("plan=plan-1&transaction=%20txn-1")).kind).toBe("invalid");
     expect(parseTransactionDeepLink(new URLSearchParams(`plan=plan-1&transaction=${"x".repeat(257)}`)).kind).toBe("invalid");
     expect(parseTransactionDeepLink(new URLSearchParams("plan=plan-1&plan=plan-2&transaction=txn-1")).kind).toBe("invalid");
-  });
-
-  test("builds the canonical URL while preserving supported filters and unrelated parameters", () => {
-    expect(buildTransactionDeepLink(
-      { planId: "plan 1", transactionId: "txn/1", subtransactionId: "sub:2" },
-      new URLSearchParams("range=all&accounts=acct-1&categories=cat-1&flow=outflow&plan=old&transaction=old"),
-    )).toBe("/transactions?plan=plan+1&transaction=txn%2F1&subtransaction=sub%3A2&range=all&accounts=acct-1&categories=cat-1&flow=outflow");
   });
 
   test("merges an older or filtered direct result without duplication", () => {

@@ -19,12 +19,4 @@ enum RegisterCurrent {
     }
     return working - upcoming
   }
-
-  static func partitionDates(_ dates: [String], today: String) -> (upcoming: [String], current: [String]) {
-    let unique = Array(Set(dates))
-    return (
-      upcoming: unique.filter { isUpcomingDate($0, today: today) }.sorted(by: >),
-      current: unique.filter { !isUpcomingDate($0, today: today) }.sorted(by: >)
-    )
-  }
 }

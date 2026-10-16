@@ -7,20 +7,6 @@ extension Notification.Name {
   static let howMuchAuthenticationExpired = Notification.Name("HowMuch.AuthenticationExpired")
 }
 
-struct BulkApprovalError: LocalizedError {
-  let approvedCount: Int
-  let underlying: Error?
-
-  init(approvedCount: Int, underlying: Error? = nil) {
-    self.approvedCount = approvedCount
-    self.underlying = underlying
-  }
-
-  var errorDescription: String? {
-    underlying?.localizedDescription ?? "Couldn’t approve transactions."
-  }
-}
-
 enum APIClientError: LocalizedError {
   case invalidBaseURL
   case invalidResponse
@@ -128,12 +114,6 @@ struct APIClient {
       payees: payees,
       accountPreferences: accountPreferences
     )
-  }
-
-  /// Cheap connectivity and auth check used by the settings sheet.
-  func fetchUser() async throws -> APIUser {
-    let response: APIEnvelope<UserPayload> = try await request(path: "/v1/user")
-    return response.data.user
   }
 
   func fetchPlans() async throws -> [PlanSummary] {
@@ -594,53 +574,11 @@ struct APIClient {
     return response.data.transaction
   }
 
-  func updateTransaction(planID: String, transactionID: String, request body: TransactionWriteRequest) async throws -> Transaction {
-    let response: APIEnvelope<TransactionPayload> = try await request(
-      path: "/v1/plans/\(planID)/transactions/\(transactionID)",
-      method: "PUT",
-      body: TransactionWriteEnvelope(transaction: body)
-    )
-    return response.data.transaction
-  }
-
   func approveTransaction(planID: String, transactionID: String) async throws -> Transaction {
     let response: APIEnvelope<TransactionPayload> = try await request(
       path: "/v1/plans/\(planID)/transactions/\(transactionID)",
       method: "PATCH",
       body: TransactionApprovalEnvelope(transaction: TransactionApprovalRequest(approved: true))
-    )
-    return response.data.transaction
-  }
-
-  func approveTransactionBatch(planID: String, transactionIDs: [String]) async throws -> [Transaction] {
-    guard !transactionIDs.isEmpty else {
-      throw APIClientError.validation("Transaction approval batch must not be empty.")
-    }
-    guard transactionIDs.count <= RegisterApproval.batchLimit else {
-      throw APIClientError.validation(
-        "Transaction approval batch cannot exceed \(RegisterApproval.batchLimit) items."
-      )
-    }
-    let response: APIEnvelope<TransactionCollectionPayload> = try await request(
-      path: "/v1/plans/\(planID)/transactions",
-      method: "PATCH",
-      body: TransactionCollectionApprovalEnvelope(
-        transactions: transactionIDs.map { .init(id: $0, approved: true) }
-      )
-    )
-    return response.data.transactions
-  }
-
-  func updateTransactionCleared(
-    planID: String,
-    transactionID: String,
-    expectedCleared: ClearedState,
-    cleared: ClearedState
-  ) async throws -> Transaction {
-    let response: APIEnvelope<TransactionPayload> = try await request(
-      path: "/v1/plans/\(planID)/transactions/\(transactionID)/cleared",
-      method: "PATCH",
-      body: ClearedUpdateRequest(expectedCleared: expectedCleared, cleared: cleared)
     )
     return response.data.transaction
   }

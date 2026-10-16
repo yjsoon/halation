@@ -110,20 +110,12 @@ enum RegisterApproval {
     return Session(confirmed: confirmed, pending: pending)
   }
 
-  static func approveSelectedLabel(_ count: Int) -> String {
-    "Approve \(count) selected"
-  }
-
   static func approveAllLabel(_ count: Int) -> String {
     "Approve all (\(count))"
   }
 
   static func approvedToast(_ count: Int) -> String {
     "\(count) transaction\(count == 1 ? "" : "s") approved."
-  }
-
-  static func interruptedToast(approvedCount: Int, uncertainCount: Int) -> String {
-    "\(approvedToast(approvedCount)) \(uncertainCount) may not have been approved."
   }
 }
 

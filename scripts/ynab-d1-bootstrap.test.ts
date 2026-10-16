@@ -75,6 +75,7 @@ function migratedTarget(): Database {
   target.exec(readFileSync(new URL("../apps/api/d1-migrations/0016_query_covering_indexes.sql", import.meta.url), "utf8"));
   target.exec(readFileSync(new URL("../apps/api/d1-migrations/0017_ynab_source_month_activity.sql", import.meta.url), "utf8"));
   target.exec(readFileSync(new URL("../apps/api/d1-migrations/0019_own_imported_ynab_schedules.sql", import.meta.url), "utf8"));
+  target.exec(readFileSync(new URL("../apps/api/d1-migrations/0020_drop_budgeting_tables.sql", import.meta.url), "utf8"));
   return target;
 }
 
@@ -174,8 +175,6 @@ describe("offline YNAB D1 bootstrap", () => {
       expect(() => executeGuard(claimedState, guard)).toThrow(); claimedState.close();
       const contaminated = migratedTarget(); contaminated.exec("INSERT INTO users(id) VALUES('u')");
       expect(() => executeGuard(contaminated, guard)).toThrow(); contaminated.close();
-      const assigned = migratedTarget(); assigned.exec("INSERT INTO plans(id,name) VALUES('p','Plan'); INSERT INTO category_groups(id,plan_id,name) VALUES('g','p','Group'); INSERT INTO categories(id,plan_id,category_group_id,name) VALUES('c','p','g','Category'); INSERT INTO plan_month_assignments(plan_id,month,category_id,budgeted_milli) VALUES('p','2026-01-01','c',1)");
-      expect(() => executeGuard(assigned, guard)).toThrow(); assigned.close();
       const missingGuardedTable = migratedTarget(); missingGuardedTable.exec("DROP TABLE users");
       expect(() => executeGuard(missingGuardedTable, guard)).toThrow(); missingGuardedTable.close();
     } finally { rmSync(dir, { recursive: true, force: true }); }
@@ -224,7 +223,6 @@ describe("offline YNAB D1 bootstrap", () => {
   test("rejects contaminated or reordered source provenance", () => {
     const cases: Array<[string, string]> = [
       ["INSERT INTO users(id) VALUES('u')", "authentication or setup"],
-      ["INSERT INTO plan_month_assignments(plan_id,month,category_id,budgeted_milli) VALUES('p','2026-01-01','c',1)", "local plan month assignments"],
       ["INSERT INTO audit_events(id,plan_id,action,source) VALUES('reconcile-audit','p','account.reconcile','howmuch-local')", "account reconciliation history"],
       ["INSERT INTO account_reconciliation_assertions(command_id,plan_id,account_id,statement_date,prior_reconciled_balance_milli,projected_reconciled_balance_milli,candidate_ids_json) VALUES('reconcile-assertion','p','a','2026-01-31',100,100,'[]')", "account reconciliation history"],
       ["UPDATE import_rows SET row_index=row_index+1", "zero-based"],

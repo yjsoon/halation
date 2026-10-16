@@ -250,7 +250,7 @@ SQLite checks and writes in one immediate transaction. D1 repeats every check in
 
 Halation has no budgeting. The YNAB month routes (`GET /v1/plans/{plan_id}/months/{month}`, `PATCH …/months/{month}/categories/{category_id}` for assignments and targets, and `GET …/months/{month}/transactions`) and the money-movement routes now return `404`.
 
-The YNAB importer still mirrors months, month categories and money movements into `ynab_raw_objects`, which is provenance only: nothing that serves schedules or gates category edits reads it. The importer records a plan that carried months in `plans.ynab_sourced`. The tables behind the old overlays (`plan_month_assignments`, `plan_month_category_targets`) and the materialised `ynab_source_month_activity` baseline are retained legacy tables: no migration drops them and no code reads or writes them.
+The YNAB importer still mirrors months, month categories and money movements into `ynab_raw_objects`, which is provenance only: nothing that serves schedules or gates category edits reads it. The importer records a plan that carried months in `plans.ynab_sourced`. Migration 0020 dropped the tables behind the old overlays (`plan_month_assignments`, `plan_month_category_targets`) and the materialised `ynab_source_month_activity` baseline.
 
 ### Scheduled transactions
 

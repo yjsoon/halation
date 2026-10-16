@@ -42,14 +42,3 @@ export function asOfTodayBalance(
   }, 0);
   return working - upcoming;
 }
-
-export function partitionRegisterDates(dates: string[], today: string): {
-  upcoming: string[];
-  current: string[];
-} {
-  const unique = [...new Set(dates)];
-  return {
-    upcoming: unique.filter((date) => isUpcomingRegisterDate(date, today)).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)),
-    current: unique.filter((date) => !isUpcomingRegisterDate(date, today)).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)),
-  };
-}

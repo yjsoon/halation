@@ -1,12 +1,5 @@
 import type { ScheduledTransaction } from "../api/types";
 
-export function activeSchedulesForAccount(
-  schedules: ScheduledTransaction[],
-  accountId: string,
-): ScheduledTransaction[] {
-  return activeSchedulesForScope(schedules, new Set([accountId]));
-}
-
 export function activeSchedulesForScope(
   schedules: ScheduledTransaction[],
   accountIds: ReadonlySet<string>,

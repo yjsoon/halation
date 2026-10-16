@@ -553,15 +553,4 @@ enum LedgerQueryRunner {
       isCancelled: isCancelled
     )
   }
-
-  static func matchingMerchant(_ transactions: [Transaction], query: String) -> [Transaction] {
-    let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !needle.isEmpty else {
-      return []
-    }
-    return transactions.filter { transaction in
-      (transaction.payeeName ?? "").localizedStandardContains(needle)
-        || (transaction.importPayeeName ?? "").localizedStandardContains(needle)
-    }
-  }
 }
