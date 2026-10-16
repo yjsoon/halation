@@ -1,0 +1,58 @@
+diff --git a/apps/ios/HowMuch/AppModel.swift b/apps/ios/HowMuch/AppModel.swift
+index 524a476..458cda9 100644
+--- a/apps/ios/HowMuch/AppModel.swift
++++ b/apps/ios/HowMuch/AppModel.swift
+@@ -2310,6 +2310,7 @@ final class AppModel {
+   }
+ 
+   func refreshLedger(quiet: Bool = false) async {
++    Self.logger.notice("PERFDIAG refreshLedger quiet=\(quiet) rows=\(self.serverTransactions.count) cursor=\(self.nextTransactionOffset ?? -1)")
+     invalidateAccountUsage()
+     ledgerPageGeneration += 1
+     let generation = ledgerPageGeneration
+@@ -2996,6 +2997,7 @@ final class AppModel {
+   /// scopes and drill-downs filter this common ordered page locally, so their
+   /// navigation cannot leave a separate filter-specific offset behind.
+   func loadOlderTransactions() async {
++    Self.logger.notice("PERFDIAG loadOlder enter phase=\(String(describing: self.ledgerPhase), privacy: .public) hasMore=\(self.hasMoreTransactions) offset=\(self.nextTransactionOffset ?? -1) loading=\(self.isLoadingOlderTransactions) filling=\(self.isFillingHorizon) fillCount=\(self.horizonFillCount) rows=\(self.serverTransactions.count) gen=\(self.ledgerPageGeneration)")
+     guard
+       ledgerPhase == .loaded,
+       hasMoreTransactions,
+@@ -3018,15 +3020,19 @@ final class AppModel {
+ 
+     do {
+       let page = try await fetchLedgerPage(planID: planID, offset: offset)
++      Self.logger.notice("PERFDIAG loadOlder fetched offset=\(offset) got=\(page.transactions.count) hasMore=\(page.hasMore) next=\(page.nextOffset ?? -1) genNow=\(self.ledgerPageGeneration) genAt=\(generation) cursorNow=\(self.nextTransactionOffset ?? -1)")
+       guard
+         generation == ledgerPageGeneration,
+         planID == settings.planID,
+         nextTransactionOffset == offset
+       else {
++        Self.logger.notice("PERFDIAG loadOlder discarded")
+         return
+       }
+       applyOlderTransactionPage(page, generation: generation)
++      Self.logger.notice("PERFDIAG loadOlder applied rows=\(self.serverTransactions.count) hasMore=\(self.hasMoreTransactions) cursor=\(self.nextTransactionOffset ?? -1)")
+     } catch {
++      Self.logger.notice("PERFDIAG loadOlder error \(error.localizedDescription, privacy: .public)")
+       guard generation == ledgerPageGeneration, planID == settings.planID else {
+         return
+       }
+diff --git a/apps/ios/HowMuch/Views/RegisterView.swift b/apps/ios/HowMuch/Views/RegisterView.swift
+index 7f0fe8e..047d0d9 100644
+--- a/apps/ios/HowMuch/Views/RegisterView.swift
++++ b/apps/ios/HowMuch/Views/RegisterView.swift
+@@ -1,4 +1,5 @@
+ import SwiftUI
++import OSLog
+ 
+ enum RegisterScope: Hashable {
+   case all
+@@ -966,6 +967,7 @@ struct RegisterView: View {
+     } else if model.hasMoreTransactions, !showingUnapprovedQueue, !model.isFillingHorizon, model.ledgerPhase == .loaded {
+       Section {
+         Button {
++          Logger(subsystem: "sg.soon.howmuch", category: "PerfDiag").notice("PERFDIAG load older button action")
+           Task { await model.loadOlderTransactions() }
+         } label: {
+           HStack(spacing: 8) {

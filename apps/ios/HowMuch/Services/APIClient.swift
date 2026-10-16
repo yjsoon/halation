@@ -83,7 +83,12 @@ enum ExportEverythingFormat {
 
 struct APIClient {
   let settings: APISettings
-  private static let transactionPageSize = 100
+  static let transactionPageSize = 100
+  /// The largest page the API serves. The first page and the plan-wide
+  /// horizon fill stay at `transactionPageSize`, so launch loads no more rows
+  /// than before; Load older and a focused account's date-bounded fill use
+  /// this, so walking back takes fewer requests.
+  static let largestTransactionPageSize = 250
   /// The largest request body `import_snapshot` accepts.
   static let snapshotByteLimit = 8 * 1024 * 1024
 

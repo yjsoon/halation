@@ -1,0 +1,145 @@
+# Linux verification run
+revision: cebf827a4042e7036486f83978fc393287aba332 (fixture files untracked at this revision)
+date: 2026-10-15T12:02:23Z
+bun 1.4.2; Linux x86_64; GNU bash, version 5.2.21(1)-release (x86_64-pc-linux-gnu)
+
+$ bun .amp/in/artifacts/perf-pass/fixture/make-snapshot.ts
+wrote /home/user/howmuch/.amp/in/artifacts/perf-pass/fixture/perf-snapshot.json
+bytes 7512523 (wrapped import body 7512536 of 8388608 max; memo limit 200 chars)
+parsePlanSnapshot counts {"category_groups":14,"categories":95,"payees":728,"accounts":28,"transactions":14000,"subtransactions":2574,"scheduled_transactions":32}
+category groups 14 (1 internal, 1 hidden), categories 95 (2 internal, 3 hidden, 2 deleted)
+payees 728: 690 live named, 10 deleted, 28 transfer; payees used by transactions 688
+transactions 14000 from 2020-10-01 to 2026-10-14
+  splits 1120 (8.0%; 786 two-line, 334 three-line; 2574 lines, 24 of them transfers)
+  transfer rows 610 (4.4%; 634 transfer sides incl. split lines = 317 pairs)
+  memos 4210 (30.1%), flags 725 (5.2%), import ids 7866
+  unapproved 40 (dates 2026-09-24..2026-10-14)
+  cleared: reconciled 13235, cleared 693, uncleared 72
+scheduled 32 (date_next 2026-10-16..2027-03-02; 2 split, 7 transfer)
+accounts (name | type | on budget | closed | transactions | balance SGD):
+  Everyday Account | checking | yes | no | 4222 | 31224.70
+  Card A | creditCard | yes | no | 3011 | -685.66
+  Card B | creditCard | yes | no | 2296 | -1623.80
+  Card C | creditCard | yes | no | 837 | -2184.22
+  Bills Account | checking | yes | no | 689 | 21615.37
+  Joint Account | checking | yes | no | 323 | 1948.19
+  Shared Expenses Account | checking | yes | no | 104 | 192.19
+  Digital Wallet | checking | yes | no | 272 | 69.61
+  Cash Wallet | cash | yes | no | 514 | 1227.31
+  Prepaid Transit Card | cash | yes | no | 161 | 97.12
+  Travel Wallet | cash | yes | no | 19 | 40.12
+  Card D | creditCard | yes | no | 138 | -1655.22
+  Card E | creditCard | yes | no | 67 | -1863.30
+  Card F | creditCard | yes | no | 58 | -1484.48
+  Line of Credit A | lineOfCredit | yes | no | 12 | -958.55
+  Savings Pot 1 | savings | yes | no | 107 | 8225.19
+  Savings Pot 2 | savings | yes | no | 201 | 1716.79
+  Emergency Fund | savings | yes | no | 81 | 25565.75
+  Holiday Savings | savings | yes | no | 110 | 53.67
+  Kids Savings | savings | yes | no | 101 | 1586.33
+  Investment Account A | otherAsset | no | no | 84 | 70183.06
+  Retirement Fund | otherAsset | no | no | 30 | 68037.25
+  Home Loan | mortgage | no | no | 96 | -349943.83
+  Car Loan | autoLoan | no | no | 57 | -6700.00
+  Property Asset | otherAsset | no | no | 6 | 726437.48
+  Old Card G | creditCard | yes | yes | 247 | 0.00
+  Old Savings Account | savings | yes | yes | 39 | 0.00
+  Old Wallet | cash | yes | yes | 118 | 0.00
+Savings Pot 2 rows per month: min 2, max 4 over 73 months
+$ shasum -a 256 perf-snapshot.json   # twice, regenerating in between
+4254189fbfa9815f9d149aad0c812b418a8c63a452cc4a0fbde7049a05f10e42
+4254189fbfa9815f9d149aad0c812b418a8c63a452cc4a0fbde7049a05f10e42
+
+$ serve.sh 18787
+migrating /tmp/claude-0/-home-user-howmuch/f23a0b41-6e33-581f-9e37-87f3fb270645/scratchpad/howmuch-perf/run.EpiNGJ/howmuch.sqlite
+starting API on http://127.0.0.1:18787
+creating owner perf
+signing in
+importing 7512523 bytes from /home/user/howmuch/.amp/in/artifacts/perf-pass/fixture/perf-snapshot.json
+imported in 0.945329s: {"category_groups":14,"categories":95,"payees":728,"accounts":28,"transactions":14000,"subtransactions":2574,"scheduled_transactions":32}
+{"api_url":"http://127.0.0.1:18787","plan_id":"plan_perfbench0000","username":"perf","password":"perf-bench-password-15","db_path":"/tmp/claude-0/-home-user-howmuch/f23a0b41-6e33-581f-9e37-87f3fb270645/scratchpad/howmuch-perf/run.EpiNGJ/howmuch.sqlite","pid":2811,"token":"<redacted>","setup_token":"perf-bench-bootstrap","run_dir":"/tmp/claude-0/-home-user-howmuch/f23a0b41-6e33-581f-9e37-87f3fb270645/scratchpad/howmuch-perf/run.EpiNGJ","import_seconds":0.945329}
+GET /v1/plans/plan_perfbench0000/accounts -> 200, 9342 bytes, 0.002690s
+GET /v1/plans/plan_perfbench0000/transactions?limit=250 -> 200, 163181 bytes, 0.006961s
+GET /v1/plans/plan_perfbench0000/payees -> 200, 66125 bytes, 0.001594s
+API sqlite after import: main file 15101952 bytes, -wal 15000952 bytes
+$ bench-pages.sh "$API" "$TOKEN" 10
+limit=100&offset=0       median     2.7 ms  min     2.4  max     3.6  (n=10; rows=100 has_more=true dates=2026-09-30..2026-10-14)
+limit=250&offset=0       median     4.2 ms  min     3.7  max     6.9  (n=10; rows=250 has_more=true dates=2026-09-05..2026-10-14)
+limit=100&offset=10000   median     4.7 ms  min     3.9  max     5.7  (n=10; rows=100 has_more=true dates=2022-06-17..2022-06-30)
+$ serve.sh stop
+stopped port-18787; removed /tmp/claude-0/-home-user-howmuch/f23a0b41-6e33-581f-9e37-87f3fb270645/scratchpad/howmuch-perf/run.EpiNGJ
+
+$ serve.sh 18787 120   # latency proxy on 18788
+migrating /tmp/claude-0/-home-user-howmuch/f23a0b41-6e33-581f-9e37-87f3fb270645/scratchpad/howmuch-perf/run.G7tqxy/howmuch.sqlite
+starting API on http://127.0.0.1:18787
+creating owner perf
+signing in
+importing 7512523 bytes from /home/user/howmuch/.amp/in/artifacts/perf-pass/fixture/perf-snapshot.json
+imported in 1.112070s: {"category_groups":14,"categories":95,"payees":728,"accounts":28,"transactions":14000,"subtransactions":2574,"scheduled_transactions":32}
+starting latency proxy on http://127.0.0.1:18788 (+120 ms)
+{"api_url":"http://127.0.0.1:18787","plan_id":"plan_perfbench0000","username":"perf","password":"perf-bench-password-15","db_path":"/tmp/claude-0/-home-user-howmuch/f23a0b41-6e33-581f-9e37-87f3fb270645/scratchpad/howmuch-perf/run.G7tqxy/howmuch.sqlite","pid":2993,"proxy_url":"http://127.0.0.1:18788","proxy_pid":3032,"latency_ms":120,"token":"<redacted>","setup_token":"perf-bench-bootstrap","run_dir":"/tmp/claude-0/-home-user-howmuch/f23a0b41-6e33-581f-9e37-87f3fb270645/scratchpad/howmuch-perf/run.G7tqxy","import_seconds":1.11207}
+$ bench-pages.sh "$PROXY" "$TOKEN" 10
+limit=100&offset=0       median   124.5 ms  min   123.9  max   127.4  (n=10; rows=100 has_more=true dates=2026-09-30..2026-10-14)
+limit=250&offset=0       median   126.8 ms  min   125.5  max   129.7  (n=10; rows=250 has_more=true dates=2026-09-05..2026-10-14)
+limit=100&offset=10000   median   126.8 ms  min   126.2  max   131.3  (n=10; rows=100 has_more=true dates=2022-06-17..2022-06-30)
+$ serve.sh stop 18787
+stopped port-18787; removed /tmp/claude-0/-home-user-howmuch/f23a0b41-6e33-581f-9e37-87f3fb270645/scratchpad/howmuch-perf/run.G7tqxy
+
+$ bun .amp/in/artifacts/perf-pass/fixture/make-local-db.ts
+migrations: applied 19 (0001_initial.sql .. 0019_own_imported_ynab_schedules.sql) in 34.5 ms; journal_mode=wal; SQLite 3.53.2
+engine: loaded 360 KiB bundle in 14.9 ms; bare context had web globals [], the bundle polyfilled [TextEncoder, URL, URLSearchParams, Request, Response, Headers, crypto, setTimeout]
+configure: 7.2 ms
+import: HTTP 201 in 2069.9 ms {"category_groups":14,"categories":95,"payees":728,"accounts":28,"transactions":14000,"subtransactions":2574,"scheduled_transactions":32}
+GET <plan>/transactions?limit=100&offset=0: 65383 B, median of 5 3.4 ms in Bun; transactions=100 server_knowledge=2 has_more=true next_offset=100
+GET <plan>/transactions?limit=250&offset=0: 163181 B, median of 5 7.7 ms in Bun; transactions=250 server_knowledge=2 has_more=true next_offset=250
+GET <plan>/transactions?limit=100&offset=10000: 66716 B, median of 5 4.7 ms in Bun; transactions=100 server_knowledge=2 has_more=true next_offset=10100
+GET <plan>/accounts: 9286 B, median of 5 1.3 ms in Bun; accounts=28 server_knowledge=2
+GET <plan>/payees: 66125 B, median of 5 1.9 ms in Bun; payees=718 server_knowledge=2
+GET <plan>/categories: 36189 B, median of 5 1.5 ms in Bun; category_groups=14 server_knowledge=2
+GET <plan>/scheduled_transactions: 11347 B, median of 5 1.4 ms in Bun; scheduled_transactions=32 server_knowledge=2
+GET <plan>/settings: 286 B, median of 5 0.2 ms in Bun; currency=SGD
+live rows for plan_perfbench0000: 14000 transactions, 28 accounts
+integrity_check=ok; foreign_key_check rows=0; wal_checkpoint={"busy":0,"log":0,"checkpointed":0}; journal_mode={"journal_mode":"delete"}
+wrote /home/user/howmuch/.amp/in/artifacts/perf-pass/fixture/howmuch.sqlite (15441920 bytes, single file; header journal byte 1/1 = rollback journal)
+row counts per table:
+  _local_migrations                        19
+  account_month_balances                   1448
+  account_preferences                      0
+  account_reconciliation_assertions        0
+  accounts                                 28
+  audit_events                             1
+  auth_identities                          0
+  auth_setup                               0
+  categories                               95
+  category_groups                          14
+  import_rows                              0
+  import_sessions                          0
+  login_rate_limits                        0
+  password_credentials                     0
+  payees                                   728
+  personal_api_tokens                      0
+  plan_memberships                         0
+  plan_month_assignments                   0
+  plan_month_category_targets              0
+  plans                                    1
+  report_cache                             0
+  rewards_tracker_cards                    0
+  rewards_tracker_snapshots                0
+  scheduled_subtransaction_edits           5
+  scheduled_transaction_edits              32
+  scheduled_transaction_snapshot_assertions 0
+  sessions                                 0
+  source_events                            0
+  subtransactions                          2574
+  sync_attempts                            0
+  sync_renewal_receipts                    0
+  sync_runs                                0
+  sync_transition_receipts                 0
+  transactions                             14000
+  users                                    0
+  write_assertions                         3
+  write_commands                           3
+  write_state                              1
+  ynab_raw_objects                         0
+  ynab_source_month_activity               0
+  ynab_sync_state                          0

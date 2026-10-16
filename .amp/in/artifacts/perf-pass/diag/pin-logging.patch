@@ -1,0 +1,24 @@
+diff --git a/apps/ios/HowMuch/Views/Components.swift b/apps/ios/HowMuch/Views/Components.swift
+index 7673f54..0416a58 100644
+--- a/apps/ios/HowMuch/Views/Components.swift
++++ b/apps/ios/HowMuch/Views/Components.swift
+@@ -1052,8 +1052,19 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
+       displayLink = nil
+     }
+ 
++    private var diagTicks = 0
++
+     @objc private func onDisplayTick() {
+       install()
++      diagTicks += 1
++      if diagTicks % 20 == 1, let window = view.window {
++        let pins = accessibilityPins(in: window)
++        let found = addPinFrame(in: window) != nil
++        let shown = assistantButton.map { !$0.isHidden && $0.superview != nil } ?? false
++        let message = "PERFDIAG pins=\(pins.count) labels=\(pins.map(\.label)) add=\(found) assistantShown=\(shown)"
++        NSLog("%@", message as NSString)
++        NSLog("%@", "PERFDIAG voiceOver=\(UIAccessibility.isVoiceOverRunning)" as NSString)
++      }
+     }
+ 
+     /// Same AX walk the snapshot tests use. iOS 26 tab buttons often exist only

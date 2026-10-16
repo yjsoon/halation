@@ -1,0 +1,710 @@
+{
+ "label": "r1-all",
+ "metrics": {
+  "test01_ColdLaunch": {
+   "Duration (ApplicationFirstFramePresentationResponsive)": {
+    "unit": "s",
+    "values": [
+     1.42156,
+     1.34373,
+     1.34675,
+     1.407319,
+     1.443514,
+     1.427692,
+     1.387687,
+     1.386918,
+     1.354779,
+     1.377062
+    ],
+    "median": 1.3873025,
+    "mean": 1.3897011,
+    "min": 1.34373,
+    "stdev": 0.03498215066589117
+   }
+  },
+  "test02_LaunchToAccountsContent": {
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     4.4555,
+     4.295675,
+     4.327461,
+     4.246911,
+     4.325434,
+     4.30436,
+     4.30879,
+     4.366965,
+     4.382145,
+     4.446018
+    ],
+    "median": 4.3264475,
+    "mean": 4.3459259,
+    "min": 4.246911,
+    "stdev": 0.0666467901943605
+   },
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     2.125037,
+     2.003657,
+     1.962805,
+     1.963576,
+     1.9622,
+     1.977835,
+     1.948324,
+     2.092819,
+     2.182148,
+     2.206739
+    ],
+    "median": 1.990746,
+    "mean": 2.042514,
+    "min": 1.948324,
+    "stdev": 0.09967068545186415
+   },
+   "Absolute Memory Physical (howmuch)": {
+    "unit": "kB",
+    "values": [
+     91560.704,
+     90544.896,
+     91249.28,
+     90905.28,
+     91413.248,
+     91363.968,
+     92379.904,
+     91101.888,
+     90118.912,
+     92117.696
+    ],
+    "median": 91306.624,
+    "mean": 91275.5776,
+    "min": 90118.912,
+    "stdev": 673.0126404180598
+   },
+   "Memory Physical (howmuch)": {
+    "unit": "kB",
+    "values": [
+     91560.704,
+     90544.896,
+     91249.28,
+     90905.28,
+     91413.248,
+     91363.968,
+     92379.904,
+     91101.888,
+     90118.912,
+     92117.696
+    ],
+    "median": 91306.624,
+    "mean": 91275.5776,
+    "min": 90118.912,
+    "stdev": 673.0126404180598
+   },
+   "Memory Peak Physical (howmuch)": {
+    "unit": "kB",
+    "values": [
+     99212.032,
+     97196.8,
+     98327.168,
+     97966.784,
+     98982.592,
+     98130.56,
+     99195.648,
+     98015.936,
+     96623.36,
+     97983.168
+    ],
+    "median": 98073.248,
+    "mean": 98163.4048,
+    "min": 96623.36,
+    "stdev": 834.2038639166764
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   }
+  },
+  "test03_OpenAllRegister": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     0.474616,
+     0.472368,
+     0.455148,
+     0.442444,
+     0.449862,
+     0.415079
+    ],
+    "median": 0.452505,
+    "mean": 0.4515861666666667,
+    "min": 0.415079,
+    "stdev": 0.021882731350694476
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     2.302279,
+     2.348248,
+     2.336143,
+     2.332565,
+     2.352983,
+     2.251717
+    ],
+    "median": 2.334354,
+    "mean": 2.3206558333333334,
+    "min": 2.251717,
+    "stdev": 0.03815317730630912
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   }
+  },
+  "test04_OpenBusyAccountRegister": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     0.677332,
+     0.602696,
+     0.617725,
+     0.60429,
+     0.610825,
+     0.578674
+    ],
+    "median": 0.6075575,
+    "mean": 0.615257,
+    "min": 0.578674,
+    "stdev": 0.03315240254340552
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     2.409293,
+     2.365252,
+     2.4076,
+     2.402099,
+     2.384909,
+     2.388946
+    ],
+    "median": 2.3955225,
+    "mean": 2.3930165,
+    "min": 2.365252,
+    "stdev": 0.01681227359698864
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   }
+  },
+  "test05_OpenQuietAccountRegister": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     0.538338,
+     0.554364,
+     0.536564,
+     0.528777,
+     0.515957,
+     0.565619
+    ],
+    "median": 0.537451,
+    "mean": 0.5399365,
+    "min": 0.515957,
+    "stdev": 0.017783269561585106
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     2.321025,
+     2.366327,
+     2.277442,
+     2.323735,
+     2.319538,
+     2.443207
+    ],
+    "median": 2.32238,
+    "mean": 2.341879,
+    "min": 2.277442,
+    "stdev": 0.057062088272337164
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   }
+  },
+  "test06_FirstRegisterOpenAfterLaunch": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     2.875747,
+     2.869392,
+     2.738741,
+     2.650069,
+     2.554369,
+     2.611928
+    ],
+    "median": 2.694405,
+    "mean": 2.7167076666666667,
+    "min": 2.554369,
+    "stdev": 0.13480713342203626
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     6.915454,
+     6.903106,
+     6.808324,
+     6.692699,
+     6.661586,
+     6.720259
+    ],
+    "median": 6.7642915,
+    "mean": 6.783571333333334,
+    "min": 6.661586,
+    "stdev": 0.1090329517855345
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   }
+  },
+  "test07_ScrollAllRegister": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     1.888115,
+     1.9294,
+     1.905653,
+     1.907911,
+     1.802804,
+     1.774135
+    ],
+    "median": 1.896884,
+    "mean": 1.868003,
+    "min": 1.774135,
+    "stdev": 0.06363389999363545
+   },
+   "Duration (Scroll_Deceleration)": {
+    "unit": "s",
+    "values": [
+     2.433025,
+     2.43313,
+     2.416446,
+     2.416817,
+     2.420122,
+     2.418132
+    ],
+    "median": 2.419127,
+    "mean": 2.4229453333333333,
+    "min": 2.416446,
+    "stdev": 0.007953166757126776
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   },
+   "Duration (Scroll_Dragging)": {
+    "unit": "s",
+    "values": [
+     0.149893,
+     0.133117,
+     0.149255,
+     0.116663,
+     0.131702,
+     0.13094
+    ],
+    "median": 0.1324095,
+    "mean": 0.13526166666666667,
+    "min": 0.116663,
+    "stdev": 0.012583698338194007
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   }
+  },
+  "test09_LoadOlderPage": {
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     1.201431,
+     1.239154,
+     1.223715,
+     1.168308,
+     1.332144
+    ],
+    "median": 1.223715,
+    "mean": 1.2329504,
+    "min": 1.168308,
+    "stdev": 0.061512722263772426
+   },
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     0.177448,
+     0.194029,
+     0.170213,
+     0.16914,
+     0.193607
+    ],
+    "median": 0.177448,
+    "mean": 0.1808874,
+    "min": 0.16914,
+    "stdev": 0.012229713500323708
+   },
+   "Absolute Memory Physical (howmuch)": {
+    "unit": "kB",
+    "values": [
+     140647.296,
+     148315.072,
+     154704.832,
+     159456.192,
+     165354.496
+    ],
+    "median": 154704.832,
+    "mean": 153695.5776,
+    "min": 140647.296,
+    "stdev": 9609.125144775091
+   },
+   "Memory Physical (howmuch)": {
+    "unit": "kB",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   },
+   "Memory Peak Physical (howmuch)": {
+    "unit": "kB",
+    "values": [
+     140647.296,
+     148315.072,
+     154704.832,
+     159456.192,
+     165354.496
+    ],
+    "median": 154704.832,
+    "mean": 153695.5776,
+    "min": 140647.296,
+    "stdev": 9609.125144775091
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   }
+  },
+  "test10_OpenReflectTab": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     0.336514,
+     0.353275,
+     0.337683,
+     0.3686,
+     0.413106,
+     0.360899
+    ],
+    "median": 0.357087,
+    "mean": 0.3616795,
+    "min": 0.336514,
+    "stdev": 0.028188499163666014
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     2.869149,
+     2.771393,
+     2.675917,
+     2.889328,
+     2.950231,
+     2.750571
+    ],
+    "median": 2.820271,
+    "mean": 2.8177648333333334,
+    "min": 2.675917,
+    "stdev": 0.10207357219656155
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   }
+  },
+  "test11_OpenSpendingBreakdown": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     0.408347,
+     0.394805,
+     0.415015,
+     0.417982,
+     0.412508,
+     0.416295
+    ],
+    "median": 0.4137615,
+    "mean": 0.4108253333333334,
+    "min": 0.394805,
+    "stdev": 0.008535959481315893
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     2.219921,
+     2.178508,
+     2.13871,
+     2.203371,
+     2.166338,
+     2.197498
+    ],
+    "median": 2.188003,
+    "mean": 2.1840576666666665,
+    "min": 2.13871,
+    "stdev": 0.02912395008007435
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "median": 0,
+    "mean": 0,
+    "min": 0,
+    "stdev": 0
+   }
+  }
+ }
+}

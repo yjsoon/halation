@@ -1,0 +1,59 @@
+{
+ "label": "walk-fix-assistant",
+ "metrics": {
+  "test08b_QuietAccountReachSixMonthsBack": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     9.0658,
+     9.087754,
+     9.091681
+    ],
+    "median": 9.087754,
+    "mean": 9.081745,
+    "min": 9.0658,
+    "stdev": 0.013947673676997391
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     27.686904,
+     27.150369,
+     27.679466
+    ],
+    "median": 27.679466,
+    "mean": 27.505579666666666,
+    "min": 27.150369,
+    "stdev": 0.30764394069497425
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "median": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "stdev": 0.0
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "median": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "stdev": 0.0
+   }
+  }
+ },
+ "failed_tests": [
+  "test08_ReachSixMonthsBack"
+ ],
+ "failed_metrics": {}
+}

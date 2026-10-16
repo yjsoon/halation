@@ -938,6 +938,14 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
     var isSuppressed = false
     private var assistantButton: UIButton?
     private var displayLink: CADisplayLink?
+    /// The tab bar the last search found. Display ticks read its frames
+    /// instead of searching the window again.
+    private weak var trackedTabBar: UITabBar?
+    /// Starts due, so the first install searches straight away.
+    private var ticksSinceSearch = Controller.ticksPerSearch
+    /// Ticks between searches while no shown tab bar is tracked, so a bar
+    /// that replaces a hidden one is picked up within about half a second.
+    private static let ticksPerSearch = 5
 
     override func loadView() {
       view = UIView()
@@ -971,9 +979,9 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
       guard let window = view.window else {
         return
       }
-      // Hide when the tab-row Add pin is gone, not when a leftover system
+      // Hide when the tab row's Add is gone, not when a leftover system
       // UITabBarController.tabBar happens to be hidden.
-      guard let addFrame = addPinFrame(in: window) else {
+      guard let addFrame = addFrame(in: window) else {
         hideAssistant()
         return
       }
@@ -1056,129 +1064,68 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
       install()
     }
 
-    /// Same AX walk the snapshot tests use. iOS 26 tab buttons often exist only
-    /// as accessibility elements, not as labelled UIView / UITabBar children.
-    private func addPinFrame(in window: UIWindow) -> CGRect? {
-      let pins = accessibilityPins(in: window)
-      let accounts = pins.last { $0.label == AppTab.accounts.title && $0.frame.midY > window.bounds.midY }
-        ?? pins.last { $0.label == AppTab.accounts.title }
-      let addTitle = CompactRootBar.action.title
-      let aligned = pins.filter { pin in
-        pin.label == addTitle
-          && (accounts.map { abs(pin.frame.midY - $0.frame.midY) <= 40 } ?? (pin.frame.midY > window.bounds.midY))
-      }
-      if let add = aligned.max(by: { $0.frame.minX < $1.frame.minX }) {
-        return add.frame
-      }
-      return pins.last { $0.label == addTitle && $0.frame.midY > window.bounds.midY }?.frame
-    }
-
-    private struct AccessibilityPin {
-      let label: String
-      let frame: CGRect
-    }
-
-    /// Runs on every display tick, so only the labels `addPinFrame` reads pay
-    /// for the frame and exposure checks; each exposure check walks the window.
-    private func accessibilityPins(in window: UIWindow) -> [AccessibilityPin] {
-      let pinLabels: Set<String> = [AppTab.accounts.title, CompactRootBar.action.title]
-      var pins: [AccessibilityPin] = []
-      var seen = Set<ObjectIdentifier>()
-      func collect(_ object: NSObject) {
-        let identity = ObjectIdentifier(object)
-        guard !seen.contains(identity) else {
-          return
-        }
-        seen.insert(identity)
-        if object === assistantButton {
-          return
-        }
-        if let view = object as? UIView, view.isHidden || view.alpha <= 0.01 {
-          return
-        }
-        let label = object.accessibilityLabel ?? ""
-        if pinLabels.contains(label),
-           let frame = accessibilityFrame(of: object, in: window),
-           frame.width > 1 || frame.height > 1,
-           isExposed(object, frame: frame, in: window)
-        {
-          pins.append(AccessibilityPin(label: label, frame: frame))
-        }
-        let count = object.accessibilityElementCount()
-        if count != NSNotFound, count > 0 {
-          for index in 0..<count {
-            if let element = object.accessibilityElement(at: index) as? NSObject {
-              collect(element)
-            }
-          }
-        } else if let elements = object.accessibilityElements {
-          for element in elements {
-            if let child = element as? NSObject {
-              collect(child)
-            }
-          }
-        }
-        if let view = object as? UIView {
-          for subview in view.subviews {
-            collect(subview)
-          }
-        }
-      }
-      collect(window)
-      return pins
-    }
-
-    /// Window-level AX objects are often neither `UIView` nor
-    /// `UIAccessibilityElement`. The iOS SDK exposes `accessibilityContainer`
-    /// on `UIAccessibilityElement`, not `NSObject`, so non-view nodes use a
-    /// responds-to lookup. Drop a pin whose frame sits in a hidden tab bar
-    /// that owns the row.
-    private func isExposed(_ object: NSObject, frame: CGRect, in window: UIWindow) -> Bool {
-      if !isExposedInContainerChain(object) {
-        return false
-      }
-      if let owner = rowOwningTabBar(containing: frame, in: window), !isShownInHierarchy(owner) {
-        return false
-      }
-      return true
-    }
-
-    private func isExposedInContainerChain(_ object: NSObject) -> Bool {
-      var current: NSObject? = object
-      var seen = Set<ObjectIdentifier>()
-      while let node = current, !seen.contains(ObjectIdentifier(node)) {
-        seen.insert(ObjectIdentifier(node))
-        if let view = node as? UIView, view.isHidden || view.alpha <= 0.01 {
-          return false
-        }
-        if let view = node as? UIView, let superview = view.superview {
-          current = superview
-          continue
-        }
-        current = accessibilityContainer(of: node)
-      }
-      return true
-    }
-
-    private func accessibilityContainer(of object: NSObject) -> NSObject? {
-      if let element = object as? UIAccessibilityElement {
-        return element.accessibilityContainer as? NSObject
-      }
-      let selector = NSSelectorFromString("accessibilityContainer")
-      guard object.responds(to: selector) else {
+    /// The tab row's Add: the tab bar's trailing accessory, a glass circle
+    /// beside the destinations' pill. Found by geometry, not by label: iOS 26
+    /// tab buttons carry accessibility labels only while an accessibility
+    /// client (VoiceOver, UI tests) is running, so a label search found
+    /// nothing on most phones.
+    private func addFrame(in window: UIWindow) -> CGRect? {
+      guard let bar = tabBar(in: window), isShownInHierarchy(bar) else {
         return nil
       }
-      return object.perform(selector)?.takeUnretainedValue() as? NSObject
+      let barFrame = bar.convert(bar.bounds, to: window)
+      let maxSide = barFrame.width / 2
+      let trailing = bar.effectiveUserInterfaceLayoutDirection == .leftToRight
+      let accessories = bar.subviews.filter { isShownCircle($0, narrowerThan: maxSide) }
+      guard
+        let accessory = trailing
+          ? accessories.max(by: { $0.frame.midX < $1.frame.midX })
+          : accessories.min(by: { $0.frame.midX < $1.frame.midX })
+      else {
+        return nil
+      }
+      // Minimised, the bar keeps the accessory's frame and shows a smaller
+      // circle inside it.
+      let shown = accessory.subviews
+        .filter { isShownCircle($0, narrowerThan: maxSide) }
+        .max { $0.bounds.width < $1.bounds.width } ?? accessory
+      let frame = shown.convert(shown.bounds, to: window)
+      guard
+        frame.midY > window.bounds.midY,
+        trailing ? frame.midX > barFrame.midX : frame.midX < barFrame.midX,
+        window.bounds.intersects(frame)
+      else {
+        return nil
+      }
+      return frame
     }
 
-    private func rowOwningTabBar(containing frame: CGRect, in window: UIWindow) -> UITabBar? {
-      let owners = tabBars(in: window).filter { bar in
-        bar.bounds.width > 1
-          && bar.bounds.height > 1
-          && bar.convert(bar.bounds, to: window).intersects(frame)
-          && tabBarHostsRowLabelsIncludingHidden(bar)
+    /// The tracked tab bar while it is in this window and shown. Otherwise the
+    /// window is searched again, at most every few ticks, preferring a shown
+    /// bar over a leftover hidden one.
+    private func tabBar(in window: UIWindow) -> UITabBar? {
+      ticksSinceSearch += 1
+      let tracked = trackedTabBar.flatMap { $0.window === window ? $0 : nil }
+      if let tracked, isShownInHierarchy(tracked) {
+        return tracked
       }
-      return owners.first { isShownInHierarchy($0) } ?? owners.first
+      if ticksSinceSearch < Self.ticksPerSearch {
+        return tracked
+      }
+      ticksSinceSearch = 0
+      let bars = tabBars(in: window).filter { $0.bounds.width > 1 && $0.bounds.height > 1 }
+      trackedTabBar = bars.first { isShownInHierarchy($0) } ?? bars.first
+      return trackedTabBar
+    }
+
+    private func isShownCircle(_ view: UIView, narrowerThan maxSide: CGFloat) -> Bool {
+      let size = view.bounds.size
+      return !view.isHidden
+        && view.alpha > 0.01
+        && size.width >= 30
+        && size.height >= 30
+        && size.width < maxSide
+        && abs(size.width - size.height) <= size.height / 4
     }
 
     private func tabBars(in view: UIView) -> [UITabBar] {
@@ -1195,42 +1142,6 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
       return found
     }
 
-    private func tabBarHostsRowLabelsIncludingHidden(_ bar: UITabBar) -> Bool {
-      var labels: Set<String> = []
-      var seen = Set<ObjectIdentifier>()
-      func collect(_ object: NSObject) {
-        let identity = ObjectIdentifier(object)
-        guard !seen.contains(identity) else {
-          return
-        }
-        seen.insert(identity)
-        if let label = object.accessibilityLabel, !label.isEmpty {
-          labels.insert(label)
-        }
-        let count = object.accessibilityElementCount()
-        if count != NSNotFound, count > 0 {
-          for index in 0..<count {
-            if let element = object.accessibilityElement(at: index) as? NSObject {
-              collect(element)
-            }
-          }
-        } else if let elements = object.accessibilityElements {
-          for element in elements {
-            if let child = element as? NSObject {
-              collect(child)
-            }
-          }
-        }
-        if let view = object as? UIView {
-          for subview in view.subviews {
-            collect(subview)
-          }
-        }
-      }
-      collect(bar)
-      return labels.contains(CompactRootBar.action.title) || labels.contains(AppTab.accounts.title)
-    }
-
     private func isShownInHierarchy(_ view: UIView) -> Bool {
       var current: UIView? = view
       while let node = current {
@@ -1240,17 +1151,6 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
         current = node.superview
       }
       return true
-    }
-
-    private func accessibilityFrame(of object: NSObject, in window: UIWindow) -> CGRect? {
-      if let view = object as? UIView, view.bounds.width > 0 || view.bounds.height > 0 {
-        return view.convert(view.bounds, to: window)
-      }
-      let screen = object.accessibilityFrame
-      guard screen.width > 0 || screen.height > 0 else {
-        return nil
-      }
-      return window.convert(screen, from: nil)
     }
   }
 }

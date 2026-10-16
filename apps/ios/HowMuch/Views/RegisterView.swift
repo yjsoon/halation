@@ -258,6 +258,8 @@ struct RegisterView: View {
   @State private var unclearedOnly = false
   @State private var uncategorisedOnly = false
   @State private var unapprovedOnly = false
+  /// The row that last started an older page ahead of the reader.
+  @State private var olderPagePrefetchedRowID: String?
 
   @State private var editingTransaction: Transaction?
   @State private var isShowingReconciliation = false
@@ -308,12 +310,13 @@ struct RegisterView: View {
       today: Date.now.isoDateString,
       mode: showingUnapprovedQueue ? .inbox : .ledger
     )
+    let prefetchRowID = olderPagePrefetchRowID(snapshot)
     List {
       workingBalanceSection(ledger: ledger)
       loadingOrFilterSections(snapshot, ledgerIsEmpty: ledger.isEmpty)
       scheduledDisclosureSection(snapshot)
       ForEach(snapshot.currentDateSections) { section in
-        dateSection(section)
+        dateSection(section, prefetchRowID: prefetchRowID)
       }
       searchCoverageSection(snapshot)
       emptyRegisterSection(snapshot)
@@ -706,7 +709,7 @@ struct RegisterView: View {
   }
 
   @ViewBuilder
-  private func dateSection(_ section: RegisterSnapshot.DateSection) -> some View {
+  private func dateSection(_ section: RegisterSnapshot.DateSection, prefetchRowID: String? = nil) -> some View {
     Section {
       ForEach(section.pending) { row in
         PendingTransactionRow(
@@ -719,6 +722,7 @@ struct RegisterView: View {
       }
       ForEach(section.transactions) { transaction in
         registerRow(for: transaction)
+          .onAppear(perform: transaction.id == prefetchRowID ? { loadOlderAhead(from: transaction.id) } : nil)
       }
       ForEach(section.schedules) { schedule in
         scheduleRow(schedule, showsNextDate: false)
@@ -929,6 +933,49 @@ struct RegisterView: View {
         .listRowSeparator(.hidden)
       }
     }
+  }
+
+  /// Rows from the end of the register at which the next older page starts
+  /// loading, so it has usually landed before the reader reaches the bottom.
+  private static let olderPagePrefetchDistance = 40
+
+  /// The row whose appearance fetches the next older page, while the Load
+  /// older button would be offered. A list too short to fill a couple of
+  /// screens gets none: its bottom row is on screen as it opens, and loading
+  /// there would page through the plan on every visit. Nor does a row that
+  /// already fetched one: it only stays the trigger when that page added
+  /// nothing this register lists (another account's rows, or rows outside
+  /// its filters), and fetching again whenever it scrolls back into view
+  /// would walk the plan for nothing. Load older still offers the next page.
+  private func olderPagePrefetchRowID(_ snapshot: RegisterSnapshot) -> String? {
+    guard
+      searchQuery == nil,
+      !showingUnapprovedQueue,
+      model.hasMoreTransactions,
+      !model.isFillingHorizon,
+      model.ledgerPhase == .loaded
+    else {
+      return nil
+    }
+    // Future-dated rows sit in the Scheduled disclosure, not in the list.
+    let listedCount = snapshot.currentDateSections.reduce(0) { $0 + $1.transactions.count }
+    guard listedCount > Self.olderPagePrefetchDistance * 2 else {
+      return nil
+    }
+    var remaining = Self.olderPagePrefetchDistance
+    for section in snapshot.currentDateSections.reversed() {
+      if remaining <= section.transactions.count {
+        let rowID = section.transactions[section.transactions.count - remaining].id
+        return rowID == olderPagePrefetchedRowID ? nil : rowID
+      }
+      remaining -= section.transactions.count
+    }
+    return nil
+  }
+
+  private func loadOlderAhead(from rowID: String) {
+    olderPagePrefetchedRowID = rowID
+    Task { await model.loadOlderTransactions() }
   }
 
   @ViewBuilder

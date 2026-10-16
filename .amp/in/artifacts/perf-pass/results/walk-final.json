@@ -1,0 +1,105 @@
+{
+ "label": "walk-final",
+ "metrics": {
+  "test08_ReachSixMonthsBack": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     70.867732,
+     72.041044,
+     71.392605
+    ],
+    "median": 71.392605,
+    "mean": 71.43379366666666,
+    "min": 70.867732,
+    "stdev": 0.5877394337904602
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     303.969073,
+     304.782294,
+     299.488337
+    ],
+    "median": 303.969073,
+    "mean": 302.74656799999997,
+    "min": 299.488337,
+    "stdev": 2.850856719607446
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "median": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "stdev": 0.0
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "median": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "stdev": 0.0
+   }
+  },
+  "test08b_QuietAccountReachSixMonthsBack": {
+   "CPU Time (howmuch)": {
+    "unit": "s",
+    "values": [
+     5.849145,
+     5.857537,
+     5.932626
+    ],
+    "median": 5.857537,
+    "mean": 5.879769333333333,
+    "min": 5.849145,
+    "stdev": 0.045967127649368465
+   },
+   "Clock Monotonic Time": {
+    "unit": "s",
+    "values": [
+     13.327378,
+     13.459507,
+     14.232587
+    ],
+    "median": 13.459507,
+    "mean": 13.673157333333334,
+    "min": 13.327378,
+    "stdev": 0.488963886315067
+   },
+   "CPU Instructions Retired (howmuch)": {
+    "unit": "kI",
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "median": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "stdev": 0.0
+   },
+   "CPU Cycles (howmuch)": {
+    "unit": "kC",
+    "values": [
+     0.0,
+     0.0,
+     0.0
+    ],
+    "median": 0.0,
+    "mean": 0.0,
+    "min": 0.0,
+    "stdev": 0.0
+   }
+  }
+ }
+}
