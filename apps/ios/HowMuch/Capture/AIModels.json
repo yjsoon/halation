@@ -4,7 +4,7 @@
       "id": "opencode-go",
       "name": "OpenCode Go",
       "baseURL": "https://opencode.ai/zen/go/v1",
-      "notice": "Go is intended for coding-agent traffic. Confirm your subscription permits Halation before use. Retention varies by model: GPT and Grok models keep up to 30 days of abuse-monitoring logs, and Claude follows Anthropic's 30-day policy.",
+      "notice": "Go is intended for coding-agent traffic. Confirm your subscription permits Halation before use. Retention depends on the model and its upstream provider; check OpenCode's documentation before use.",
       "documentationURL": "https://opencode.ai/docs/go/",
       "models": [
         { "id": "gpt-6-luna", "name": "GPT 6 Luna", "api": "responses", "format": "jsonSchema", "reasoning": "openAI" },

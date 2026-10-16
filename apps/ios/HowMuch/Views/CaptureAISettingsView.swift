@@ -137,11 +137,13 @@ struct CaptureAISettingsView: View {
         }
         .pickerStyle(.navigationLink)
         if provider.allowsCustomBaseURL == true {
-          TextField("Endpoint", text: providerBaseURL, prompt: Text(provider.baseURL))
-            .keyboardType(.URL)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-            .accessibilityLabel("AI base URL")
+          LabeledContent("Endpoint") {
+            TextField("Endpoint", text: providerBaseURL, prompt: Text("Standard API"))
+              .keyboardType(.URL)
+              .textInputAutocapitalization(.never)
+              .autocorrectionDisabled()
+              .multilineTextAlignment(.trailing)
+          }
           Text("Leave empty to use \(provider.baseURL). A saved key belongs to the endpoint it was saved for.")
             .font(.footnote).foregroundStyle(.secondary)
         } else {

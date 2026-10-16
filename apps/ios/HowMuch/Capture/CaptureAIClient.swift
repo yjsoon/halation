@@ -170,8 +170,8 @@ struct CaptureAIClient: Sendable {
       request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
     }
     // Anthropic's own API authenticates with x-api-key alone; gateways that
-    // speak its Messages API usually expect a bearer token as well.
-    if configuration.providerID != "anthropic" {
+    // speak its Messages API often expect a bearer token instead.
+    if configuration.providerID != "anthropic" || base.host() != "api.anthropic.com" {
       request.setValue("Bearer \(configuration.apiKey)", forHTTPHeaderField: "Authorization")
     }
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")

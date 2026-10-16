@@ -84,7 +84,7 @@ private struct DataSection: View {
       if isSelectionSaved {
         Text("Rewards import and export moves Rewards Tracker settings as a file and does not connect to YNAB. The JSON export holds every account, transaction, schedule, category and payee, the plan formats, your account organisation and the Rewards cards. The CSV has one row per split line. Passwords and tokens are never included.")
       } else {
-        Text("Tap Done to save the plan you chose, then export.")
+        Text("Export uses the saved plan. Try again in a moment.")
       }
     }
     .fileExporter(
@@ -332,6 +332,9 @@ struct SettingsView: View {
         loadPlans()
       }
     }
+    .onChange(of: draft.planID) {
+      applyPlanChoice()
+    }
     .onChange(of: isEditingConnection) { _, isEditing in
       if !isEditing && !isSaving {
         discardConnectionEdits()
@@ -440,8 +443,18 @@ struct SettingsView: View {
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Signed in as \(draft.username) on \(serverHost)")
         planRows
-        Button("Change server or account") {
+        Button {
           isEditingConnection = true
+        } label: {
+          HStack {
+            Text("Change server or account")
+            Spacer()
+            Image(systemName: "chevron.right")
+              .font(.footnote.weight(.semibold))
+              .foregroundStyle(.tertiary)
+              .accessibilityHidden(true)
+          }
+          .contentShape(Rectangle())
         }
         .disabled(isSaving)
       } header: {
@@ -467,7 +480,7 @@ struct SettingsView: View {
     .toolbar {
       ToolbarItem(placement: .confirmationAction) {
         Button("Done") {
-          finish()
+          dismiss()
         }
         .disabled(isSaving)
       }
@@ -486,7 +499,8 @@ struct SettingsView: View {
   }
 
   /// The plan inside the Account section: a value when there is one, a
-  /// picker when there are several. A new choice applies on Done.
+  /// picker when there are several. A new choice applies straight away, like
+  /// the rest of this list.
   @ViewBuilder
   private var planRows: some View {
     switch planState {
@@ -528,8 +542,8 @@ struct SettingsView: View {
     case .loaded(let plans) where plans.count > 1 && !hasValidPlanSelection:
       Text("Choose a plan to continue.")
         .foregroundStyle(Theme.outflow)
-    case .loaded(let plans) where plans.count > 1 && draft.planID != saved.planID:
-      Text("The new plan is used when you tap Done.")
+    case .loaded(let plans) where plans.count > 1:
+      Text("Switching plans reloads your records on this \(device).")
     case .failure(let message):
       Text(message)
         .foregroundStyle(Theme.outflow)
@@ -638,6 +652,7 @@ struct SettingsView: View {
     }
     .navigationTitle("Connection")
     .navigationBarTitleDisplayMode(.inline)
+    .navigationBarBackButtonHidden(isEditingConnection && isTesting)
     .toolbar {
       if !isEditingConnection {
         ToolbarItem(placement: .cancellationAction) {
@@ -685,7 +700,7 @@ struct SettingsView: View {
           .font(.headline)
         Text("This account doesn’t have access to a plan yet. Ask for access, then try again.")
           .foregroundStyle(.secondary)
-        Button("Try Again") {
+        Button("Try again") {
           loadPlans()
         }
       }
@@ -717,7 +732,7 @@ struct SettingsView: View {
         Text(message)
           .font(.caption)
           .foregroundStyle(Theme.outflow)
-        Button("Try Again") {
+        Button("Try again") {
           loadPlans()
         }
       }
@@ -729,9 +744,20 @@ struct SettingsView: View {
     testResult = nil
     planState = .idle
     planRequestID = UUID()
+    let attempt = draft
     Task {
       do {
-        guard case .signedIn(let signedIn) = try await ServerSignIn.signIn(draft, password: password) else {
+        let outcome = try await ServerSignIn.signIn(attempt, password: password)
+        // The draft can be discarded while the request is out; a session for
+        // one server must never be attached to another.
+        guard draft.trimmedBaseURL == attempt.trimmedBaseURL, draft.username == attempt.username else {
+          if case .signedIn(let orphan) = outcome {
+            try? await APIClient(settings: orphan).logout()
+          }
+          isTesting = false
+          return
+        }
+        guard case .signedIn(let signedIn) = outcome else {
           setupState = .required
           testResult = .failure("Finish setup in the website before signing in.")
           isTesting = false
@@ -845,24 +871,26 @@ struct SettingsView: View {
     }
   }
 
-  /// Done on the signed-in list: applies a new plan choice, if there is one.
-  private func finish() {
-    guard draft.planID != saved.planID, hasValidPlanSelection else {
-      dismiss()
-      return
-    }
+  /// A plan picked on the signed-in list applies at once. The Connection
+  /// form's draft waits for its Save instead.
+  private func applyPlanChoice() {
+    guard saved.isAuthenticated, !isEditingConnection, sessionMatchesDraft,
+          draft.planID != saved.planID, hasValidPlanSelection else { return }
     Task {
       isSaving = true
       await onSave(draft)
       saved = draft
       isSaving = false
-      dismiss()
     }
   }
 
   /// Going back from the Connection form without saving restores the saved
   /// server, account and plan.
   private func discardConnectionEdits() {
+    let abandoned = draft
+    if abandoned.isAuthenticated, abandoned.sessionToken != saved.sessionToken {
+      Task { try? await APIClient(settings: abandoned).logout() }
+    }
     draft = saved
     authenticatedBaseURL = saved.trimmedBaseURL
     authenticatedUsername = saved.username
