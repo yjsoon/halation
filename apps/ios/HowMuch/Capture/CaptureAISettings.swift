@@ -5,14 +5,28 @@ import Security
 enum CaptureAIAPI: String, Codable, CaseIterable, Sendable {
   case chatCompletions
   case responses
+  case messages
 
-  var path: String { self == .responses ? "responses" : "chat/completions" }
-  var name: String { self == .responses ? "Responses" : "Chat Completions" }
+  var path: String {
+    switch self {
+    case .chatCompletions: return "chat/completions"
+    case .responses: return "responses"
+    case .messages: return "messages"
+    }
+  }
+
+  var name: String {
+    switch self {
+    case .chatCompletions: return "Chat Completions"
+    case .responses: return "Responses"
+    case .messages: return "Anthropic Messages"
+    }
+  }
 }
 
 struct CaptureAIModel: Codable, Equatable, Identifiable, Sendable {
   enum Format: String, Codable, Sendable { case jsonSchema, jsonObject }
-  enum Reasoning: String, Codable, Sendable { case openAI, openRouter, deepSeek, providerDefault }
+  enum Reasoning: String, Codable, Sendable { case openAI, openRouter, deepSeek, lowEffort, anthropic, providerDefault }
   var id: String
   var name: String
   var api: CaptureAIAPI
@@ -26,6 +40,9 @@ struct CaptureAIProvider: Decodable, Identifiable, Sendable {
   var baseURL: String
   var notice: String
   var documentationURL: URL
+  /// The base URL is a default the user can replace, for example with a
+  /// gateway that speaks the same API. Keys stay scoped to the endpoint used.
+  var allowsCustomBaseURL: Bool?
   var models: [CaptureAIModel]
 }
 
@@ -60,6 +77,9 @@ struct CaptureAISelection: Codable, Equatable, Sendable {
   var modelID = ""
   var customBaseURL = ""
   var customAPI: CaptureAIAPI = .chatCompletions
+  /// Replaces a catalog provider's base URL when the provider allows it.
+  /// Optional so preferences saved before it existed still decode.
+  var providerBaseURL: String?
 
   var isOnDevice: Bool { providerID == "on-device" }
 
@@ -75,7 +95,9 @@ struct CaptureAISelection: Codable, Equatable, Sendable {
           let model = provider.models.first(where: { $0.id == modelID }) else {
       throw CaptureAIError.configuration
     }
-    return (try Self.validatedBaseURL(provider.baseURL), model)
+    let override = provider.allowsCustomBaseURL == true
+      ? providerBaseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" : ""
+    return (try Self.validatedBaseURL(override.isEmpty ? provider.baseURL : override), model)
   }
 
   func credentialID(in catalog: CaptureAICatalog) throws -> String {

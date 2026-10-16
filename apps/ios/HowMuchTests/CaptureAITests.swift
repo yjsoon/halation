@@ -12,6 +12,15 @@ final class CaptureAITests: XCTestCase {
         let resolved = try selection.resolve(in: catalog)
         XCTAssertEqual(resolved.0.absoluteString, provider.baseURL)
         XCTAssertEqual(resolved.1, model)
+        // A replaced endpoint must never inherit the default endpoint's key.
+        var gateway = selection
+        gateway.providerBaseURL = "https://gateway.invalid/v1"
+        if provider.allowsCustomBaseURL == true {
+          XCTAssertEqual(try gateway.resolve(in: catalog).0.absoluteString, "https://gateway.invalid/v1")
+          XCTAssertNotEqual(try gateway.credentialID(in: catalog), try selection.credentialID(in: catalog))
+        } else {
+          XCTAssertEqual(try gateway.resolve(in: catalog).0.absoluteString, provider.baseURL)
+        }
         selection.modelID = "retired-model"
         XCTAssertThrowsError(try selection.resolve(in: catalog), "Never silently substitute another model")
       }
@@ -30,18 +39,33 @@ final class CaptureAITests: XCTestCase {
         XCTAssertEqual(request.url?.absoluteString, provider.baseURL + "/" + model.api.path)
         XCTAssertEqual(body["model"] as? String, model.id)
         XCTAssertEqual(body["stream"] as? Bool, true)
-        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer fixture-ai-key")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"),
+                       provider.id == "anthropic" ? nil : "Bearer fixture-ai-key")
+        XCTAssertEqual(request.value(forHTTPHeaderField: "x-api-key"), model.api == .messages ? "fixture-ai-key" : nil)
         XCTAssertEqual(request.value(forHTTPHeaderField: "User-Agent"), "HowMuch/1.0")
         XCTAssertEqual(request.value(forHTTPHeaderField: "x-opencode-session"), provider.id == "opencode-go" ? id.uuidString : nil)
         XCTAssertNil(request.value(forHTTPHeaderField: "Cookie"))
         XCTAssertNil(body["tools"])
         XCTAssertNil(body["previous_response_id"])
         XCTAssertFalse(String(decoding: request.httpBody!, as: UTF8.self).contains("fixture-ai-key"))
-        if model.api == .responses {
+        if model.api == .messages {
+          XCTAssertEqual(request.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
+          XCTAssertTrue((body["system"] as? String)?.contains("JSON object") == true)
+          let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
+          XCTAssertEqual(messages.count, 1)
+          XCTAssertTrue(messages[0]["content"]?.contains("Lunch $12") == true)
+          XCTAssertNil(body["thinking"], "Current Claude models reject disabled thinking")
+          let output = try XCTUnwrap(body["output_config"] as? [String: Any])
+          XCTAssertEqual(output["effort"] as? String, "low")
+          XCTAssertEqual((output["format"] as? [String: Any])?["type"] as? String, "json_schema")
+        } else if model.api == .responses {
           XCTAssertEqual(body["store"] as? Bool, false)
-          XCTAssertEqual((body["reasoning"] as? [String: String])?["effort"], "none")
+          XCTAssertEqual((body["reasoning"] as? [String: String])?["effort"], model.reasoning == .lowEffort ? "low" : "none")
           let text = try XCTUnwrap(body["text"] as? [String: Any])
           XCTAssertEqual((text["format"] as? [String: Any])?["type"] as? String, "json_schema")
+        } else if model.reasoning == .lowEffort {
+          XCTAssertEqual(body["reasoning_effort"] as? String, "low")
+          XCTAssertEqual((body["response_format"] as? [String: Any])?["type"] as? String, "json_schema")
         } else {
           let messages = try XCTUnwrap(body["messages"] as? [[String: String]])
           XCTAssertTrue(messages[0]["content"]?.contains("JSON object") == true)
@@ -225,12 +249,63 @@ final class CaptureAITests: XCTestCase {
     XCTAssertThrowsError(try CaptureAIStream.nonStreaming(Data("{}".utf8), api: .chatCompletions))
   }
 
+  /// Failure modes the transport test can't see: a stream cut off before
+  /// message_stop, a max_tokens or refusal stop, a tool call, a mid-stream
+  /// error event, and thinking text leaking into the answer.
+  func testMessagesStreamRequiresEndTurnAndIgnoresThinking() throws {
+    let text = String(decoding: try JSONEncoder().encode(Self.payload), as: UTF8.self)
+    var parser = CaptureAIStream(api: .messages)
+    try Self.feed(Self.json(["type": "message_start", "message": ["id": "msg_fixture", "role": "assistant", "content": []]]), into: &parser)
+    try Self.feed(Self.json(["type": "content_block_start", "index": 0, "content_block": ["type": "thinking", "thinking": ""]]), into: &parser)
+    try Self.feed(Self.json(["type": "content_block_delta", "index": 0, "delta": ["type": "thinking_delta", "thinking": "{\"not\": \"the answer\"}"]]), into: &parser)
+    try Self.feed(Self.json(["type": "content_block_delta", "index": 0, "delta": ["type": "signature_delta", "signature": "sig"]]), into: &parser)
+    try Self.feed(Self.json(["type": "content_block_stop", "index": 0]), into: &parser)
+    try Self.feed(Self.json(["type": "ping"]), into: &parser)
+    try Self.feed(Self.json(["type": "content_block_start", "index": 1, "content_block": ["type": "text", "text": ""]]), into: &parser)
+    try Self.feed(Self.json(["type": "content_block_delta", "index": 1, "delta": ["type": "text_delta", "text": text]]), into: &parser)
+    try Self.feed(Self.json(["type": "content_block_stop", "index": 1]), into: &parser)
+    XCTAssertFalse(parser.isComplete, "Valid JSON isn't a completed generation")
+    var premature = parser
+    XCTAssertThrowsError(try Self.feed(Self.json(["type": "message_stop"]), into: &premature))
+    for reason in ["max_tokens", "refusal", "tool_use", "pause_turn"] {
+      var stopped = parser
+      XCTAssertThrowsError(try Self.feed(Self.json(["type": "message_delta", "delta": ["stop_reason": reason]]), into: &stopped), reason)
+    }
+    var tool = parser
+    XCTAssertThrowsError(try Self.feed(Self.json(["type": "content_block_start", "index": 2,
+      "content_block": ["type": "tool_use", "id": "toolu_fixture", "name": "x", "input": [:]]]), into: &tool))
+    var failed = parser
+    XCTAssertThrowsError(try Self.feed(Self.json(["type": "error", "error": ["type": "overloaded_error", "message": "busy"]]), into: &failed))
+    try Self.feed(Self.json(["type": "message_delta", "delta": ["stop_reason": "end_turn"]]), into: &parser)
+    XCTAssertFalse(parser.isComplete)
+    try Self.feed(Self.json(["type": "message_stop"]), into: &parser)
+    XCTAssertTrue(parser.isComplete)
+    XCTAssertEqual(try CaptureTurnPayload.decodeRemote(Data(parser.text.utf8)), Self.payload)
+
+    let message: [String: Any] = ["role": "assistant", "stop_reason": "end_turn", "content": [
+      ["type": "thinking", "thinking": "", "signature": "sig"], ["type": "text", "text": text],
+    ]]
+    XCTAssertEqual(try CaptureAIStream.nonStreaming(JSONSerialization.data(withJSONObject: message), api: .messages), text)
+    var truncated = message
+    truncated["stop_reason"] = "max_tokens"
+    XCTAssertThrowsError(try CaptureAIStream.nonStreaming(JSONSerialization.data(withJSONObject: truncated), api: .messages))
+  }
+
   func testRemoteTransportStreamsBothProtocolsThroughExistingMappingWithoutSaving() async throws {
     for api in CaptureAIAPI.allCases {
       let text = String(decoding: try JSONEncoder().encode(Self.payload), as: UTF8.self)
-      let events = api == .responses
-        ? [Self.json(["type": "response.output_text.delta", "delta": text]), Self.json(["type": "response.completed", "response": Self.responseObject(text)])]
-        : [Self.chatDelta(text), Self.chatFinish("stop"), "[DONE]"]
+      let events: [String]
+      switch api {
+      case .responses:
+        events = [Self.json(["type": "response.output_text.delta", "delta": text]), Self.json(["type": "response.completed", "response": Self.responseObject(text)])]
+      case .chatCompletions:
+        events = [Self.chatDelta(text), Self.chatFinish("stop"), "[DONE]"]
+      case .messages:
+        events = [Self.json(["type": "content_block_start", "index": 0, "content_block": ["type": "text", "text": ""]]),
+                  Self.json(["type": "content_block_delta", "index": 0, "delta": ["type": "text_delta", "text": text]]),
+                  Self.json(["type": "message_delta", "delta": ["stop_reason": "end_turn"]]),
+                  Self.json(["type": "message_stop"])]
+      }
       CaptureAIStub.configure(body: events.map { "data: \($0)\r\n\r\n" }.joined())
       let client = Self.client()
       let recorder = CaptureAIPhaseRecorder()

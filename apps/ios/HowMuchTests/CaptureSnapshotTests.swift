@@ -2202,21 +2202,21 @@ final class CaptureSnapshotTests: XCTestCase {
     }
     XCTAssertTrue(surface.activate(picker))
     let choicesVisible = await surface.waitUntil {
-      surface.firstControl(labelContains: "DeepSeek V4 Flash Vision Exp") != nil
+      surface.firstControl(labelContains: "GPT 6 Luna") != nil
     }
     XCTAssertTrue(choicesVisible)
-    guard let choice = surface.firstControl(labelContains: "DeepSeek V4 Flash Vision Exp") else { return }
+    guard let choice = surface.firstControl(labelContains: "GPT 6 Luna") else { return }
     XCTAssertTrue(surface.activate(choice))
     let returned = await surface.waitUntil {
       surface.firstControl(label: "Save AI settings") != nil
-        && surface.accessibilityLabels().contains("deepseek-v4-flash-vision-exp")
+        && surface.accessibilityLabels().contains("gpt-6-luna")
     }
     XCTAssertTrue(returned, "Selected model must return to settings: \(surface.accessibilityLabels())")
     XCTAssertEqual(settings.selection, initial, "Picker edits remain staged until Save")
     guard let save = surface.firstControl(label: "Save AI settings") else { return }
     XCTAssertTrue(surface.activate(save))
-    XCTAssertEqual(settings.selection.modelID, "deepseek-v4-flash-vision-exp")
-    XCTAssertEqual(try settings.configuration()?.model.id, "deepseek-v4-flash-vision-exp")
+    XCTAssertEqual(settings.selection.modelID, "gpt-6-luna")
+    XCTAssertEqual(try settings.configuration()?.model.id, "gpt-6-luna")
     XCTAssertTrue(settings.hasKey(for: settings.selection), "Switching models must not overwrite the provider key")
   }
 

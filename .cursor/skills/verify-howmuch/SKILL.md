@@ -90,7 +90,7 @@ xcrun simctl launch "$UDID" sg.soon.howmuch
 
 Computer-use drives the Simulator window, not `{web_url}`. This local installation does not prove or authorize physical-device distribution.
 
-3. Connection (**More → Connection settings** on Accounts, Rewards, or Reflect):
+3. Connection (**More → Settings** on Accounts, Rewards, or Reflect):
    - **Server** = `{api_url}` from `control-howmuch state` (Simulator: `http://127.0.0.1:{api_port}`). New installs start empty; an older install may still read `https://howmuch.tk.sg`, so set it. HTTP is allowed only for this device or this LAN.
    - **Username** `verifier`, **Password** `howmuch-verify-15`. Choose **Sign in**.
    - Plan becomes `HowMuch Demo` / `local-plan` automatically (only plan on this stack).
@@ -164,11 +164,11 @@ Stable iOS handles:
 | --- | --- |
 | Tabs | iPhone `Accounts`, `Rewards`, `Reflect`, plus tab-row `Add Transaction` and a floating `Assistant` above Add. iPad sidebar also `Assistant`, with the floating plus |
 | New account | Accounts trailing `New Account` (plus). Sheet title `New Account` |
-| More | `More` (ellipsis). iPhone items `Assistant`, `Connection settings`. iPad regular: `Connection settings` only |
-| Connection | `Connection settings` (inside More). Sheet title `Connection` |
+| More | `More` (ellipsis). iPhone items `Assistant`, `Settings`. iPad regular: `Settings` only |
+| Connection | `Settings` (inside More). Sheet title `Settings` (signed in) or `Connection` (signed out) |
 | Server field | placeholder `http://192.168.1.10:8787` under header `Server` |
 | Access | `Username`, `Password`, button `Sign in` / `Sign in again` |
-| Sign out | `Sign out / Use another account` |
+| Sign out | `Sign out`, then confirm `Sign out` |
 | Capture | tab-row `Add Transaction` (manual form), floating `Assistant` (chat), or home-screen Quick Action `Add Expense` |
 | Capture title | `Add Transaction` (edit is `Transaction`) |
 | Capture cancel | `Cancel` |
