@@ -147,6 +147,9 @@ final class AppModel {
   var incomeVsSpending: IncomeVsSpendingReport?
   var netWorth: NetWorthReport?
   var ageOfMoney: AgeOfMoneyReport?
+  /// This month's spending by day, for the month-to-date card. Loads with
+  /// the other Reflect reports.
+  var dailySpending: DailySpending?
 
   var referencePhase: LoadPhase = .idle
   var ledgerPhase: LoadPhase = .idle
@@ -381,6 +384,7 @@ final class AppModel {
       incomeVsSpending = snapshot.incomeVsSpending
       netWorth = snapshot.netWorth
       ageOfMoney = snapshot.ageOfMoney
+      dailySpending = snapshot.dailySpending
       reportsPhase = .loaded
     }
     if let rewards = snapshot.rewards {
@@ -454,6 +458,7 @@ final class AppModel {
         incomeVsSpending: incomeVsSpending,
         netWorth: netWorth,
         ageOfMoney: ageOfMoney,
+        dailySpending: dailySpending,
         reflectMonth: reflectMonth,
         rewards: cachedRewardsOverview
       )
@@ -616,6 +621,7 @@ final class AppModel {
     incomeVsSpending = nil
     netWorth = nil
     ageOfMoney = nil
+    dailySpending = nil
     clearRewards()
     drainScheduleToken &+= 1
     isDrainScheduled = false
@@ -2568,6 +2574,7 @@ final class AppModel {
     incomeVsSpending = nil
     netWorth = nil
     ageOfMoney = nil
+    dailySpending = nil
     clearRewards()
     drainScheduleToken &+= 1
     isDrainScheduled = false
@@ -3087,8 +3094,22 @@ final class AppModel {
         planID: planID, from: yearStart.isoDateString, to: today, interval: .month
       )
       async let age = client.fetchAgeOfMoney(planID: planID, interval: .month)
+      async let daily = client.fetchIncomeVsSpending(
+        planID: planID, from: monthStart.isoDateString, to: today, interval: .day
+      )
 
-      let (spendingReport, incomeReport, worthReport, ageReport) = try await (spending, income, worth, age)
+      let (spendingReport, incomeReport, worthReport, ageReport, dailyReport) =
+        try await (spending, income, worth, age, daily)
+      // The breakdown hides quiet groups unless asked; fetch their days
+      // separately so the month-to-date card can agree with it either way.
+      // The month's breakdown names every quiet category with spending.
+      let quietIDs = ReflectMaths.split(spendingReport.groups).quiet.map(\.categoryID)
+      var quietReport: IncomeVsSpendingReport?
+      if !quietIDs.isEmpty {
+        quietReport = try await client.fetchIncomeVsSpending(
+          planID: planID, from: monthStart.isoDateString, to: today, interval: .day, categoryIDs: quietIDs
+        )
+      }
       guard generation == reportsGeneration,
             planID == settings.planID,
             scope == activeViewPrefsScope
@@ -3099,6 +3120,9 @@ final class AppModel {
       incomeVsSpending = incomeReport
       netWorth = worthReport
       ageOfMoney = ageReport
+      dailySpending = DailySpending(
+        monthStart: monthStart.isoDateString, all: dailyReport, quiet: quietReport
+      )
       reflectMonth = ReportsSnapshot.month(of: monthStart)
       reportsPhase = .loaded
       persistReports()

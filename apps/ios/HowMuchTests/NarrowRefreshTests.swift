@@ -133,8 +133,8 @@ final class NarrowRefreshTests: XCTestCase {
     XCTAssertEqual(model.reportsPhase, .loaded, "the fixture must serve all four reports")
     XCTAssertEqual(
       afterFirstAppearance,
-      4,
-      "the first appearance fetches the four reports, saw \(afterFirstAppearance)"
+      5,
+      "the first appearance fetches the four reports and the daily spending, saw \(afterFirstAppearance)"
     )
 
     await model.refreshReportsIfNeeded()
@@ -147,7 +147,7 @@ final class NarrowRefreshTests: XCTestCase {
     await model.refreshReportsIfNeeded(force: true)
     XCTAssertEqual(
       NarrowRefreshProtocol.reportRequestCount(),
-      afterFirstAppearance + 4,
+      afterFirstAppearance + 5,
       "pull-to-refresh on Reflect must bypass the knowledge cache"
     )
   }
@@ -157,7 +157,7 @@ final class NarrowRefreshTests: XCTestCase {
     await model.refreshAll()
     await model.refreshReportsIfNeeded()
     let afterFirstAppearance = NarrowRefreshProtocol.reportRequestCount()
-    XCTAssertEqual(afterFirstAppearance, 4)
+    XCTAssertEqual(afterFirstAppearance, 5)
 
     let generationBefore = model.reportsRefreshGeneration
     try await model.deleteTransaction(NarrowRefreshProtocol.unclearedTransaction())
@@ -166,7 +166,7 @@ final class NarrowRefreshTests: XCTestCase {
     await model.refreshReportsIfNeeded()
     XCTAssertEqual(
       NarrowRefreshProtocol.reportRequestCount(),
-      afterFirstAppearance + 4,
+      afterFirstAppearance + 5,
       "an edit must make the next Reflect appearance refetch"
     )
   }

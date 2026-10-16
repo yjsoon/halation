@@ -1920,6 +1920,16 @@ struct IncomeVsSpendingPeriod: Codable, Identifiable {
   let cumulativeNet: Int
 }
 
+/// This month's spending by day: every category, and separately the quiet
+/// ones the spending breakdown hides by default (`nil` when there are none).
+struct DailySpending: Codable {
+  /// The ISO date of the first day of the month these days belong to. A full
+  /// date, since on some calendars two month starts share a Gregorian month.
+  let monthStart: String
+  let all: IncomeVsSpendingReport
+  let quiet: IncomeVsSpendingReport?
+}
+
 struct IncomeVsSpendingGroupsReport: Codable {
   let income: Int
   let spending: Int
