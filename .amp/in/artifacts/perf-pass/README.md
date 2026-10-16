@@ -188,15 +188,23 @@ below). The Load older rows use the stricter harness only: `t09-base`,
 
 ### Stalls in the Assistant-only All walk
 
-Two of three full-length Assistant-only All walk runs (`walk-fix-assistant`,
+Two of the first three Assistant-only All walk runs (`walk-fix-assistant`,
 `walk-fix-assistant-2`: base plus `fix-assistant.patch`, so 100-row pages and
-no prefetch) stopped late in the test, 837 s and 969 s in, with the app never
-going idle after a Load older tap; XCTest then ended the test without metrics.
-A 704 s run with a stall watcher (`hang-fix-assistant`) did not stall. No other
-run stalled, including eight full-length All walk runs (1,260 to 1,360 s each)
-on base, the head (local and server mode) and the other one-fix builds. A
-full-length repeat with the watcher is running to capture the app's state if
-it stalls again.
+no prefetch) went silent late in the test, 837 s and 969 s in, and XCTest
+ended them without metrics. A 704 s run (`hang-fix-assistant`) did not stall.
+During a full-length repeat (`hang-fix-assistant-3`) the Mac's disk was found
+full (benchmark results and leftover worktrees), and two simulators left over
+from a VM restart had been booted before the run; the silent stalls fit both.
+After the disk was cleared that run failed differently: in its third walk Load
+older did nothing three taps in a row. Its row had come to rest under the
+minimised tab bar (row y 787 to 851, bar 791 to 874), XCTest's element tap
+landed on the bar, and a coordinate tap at the same point reached the list.
+The Assistant sat at (326, 740, 48, 48), clear of the row. So none of these
+runs points at the app hanging; the first is a full disk, the second a tap the
+harness aims badly. Eight other full-length All walk runs (1,260 to 1,360 s
+each, on base, the head and the other one-fix builds) finished cleanly, and the
+head almost never taps Load older because of prefetch. The Assistant column's
+All walk is therefore a single walk.
 
 ## Accessibility off (no UI automation)
 
