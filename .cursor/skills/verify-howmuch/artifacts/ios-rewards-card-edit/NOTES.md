@@ -30,7 +30,7 @@ All Time throughout. Demo Travel Card spends remain 2026-03-01 through 2026-05-2
 5. **Edit / delete.** Tile opens Edit card, account Travel Card, ledger includes Candlenut and MUJI. Confirm `Delete this reward card?` → **Delete card**. Board empty again. HTTP cards `[]`. `edit.png`, `delete-confirm.png`, `after-delete.png`.
 6. **Import.** Rewards import → Choose export → `fixtures/rewards-tracker-export.json` from On My iPhone → Import export. Cards 1, tag mappings 2, accounts upserted 1. Stored cards lists Travel Card. `imported.png`.
 7. **Capped hidden.** Travel Card tile → Maximum spend `1` → Save. Board omits the Travel Card tile (groups remain). HTTP snapshot `maximumSpend: 1` on `card-travel` / `acct-credit`. `capped-hidden.png`, `capped-snapshot.json`.
-8. **Import still opens it.** More → Settings → Rewards import → stored **Travel Card**. Editor title Edit card, account Travel Card. `capped-editor.png`.
+8. **Import still opens it.** More → Connection settings → Rewards import → stored **Travel Card**. Editor title Edit card, account Travel Card. `capped-editor.png`.
 
 ## Save-to-tile (product clock)
 
