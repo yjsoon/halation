@@ -354,10 +354,13 @@ final class HowMuchPerfUITests: XCTestCase {
       loadOlder.tap()
       // Landed: nothing loading, and the new rows have pushed the button down
       // or off screen. Polled, because the loading label may not be up yet
-      // when the wait starts, and waiting for it to go would end at once.
+      // when the wait starts, and waiting for it to go would end at once. The
+      // pause keeps the polling's accessibility snapshots from loading the
+      // app's main thread while it is being measured.
       let deadline = Date().addingTimeInterval(30)
       var landed = false
       while !landed, Date() < deadline {
+        Thread.sleep(forTimeInterval: 0.1)
         landed = !loading.exists
           && (!loadOlder.exists || !loadOlder.isHittable || loadOlder.frame != before)
       }
