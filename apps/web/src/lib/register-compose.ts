@@ -208,13 +208,3 @@ export function resolvePostingAccountId(
 export function addEntryHref(accountId?: string | null): string {
   return accountId ? `/add?account=${encodeURIComponent(accountId)}` : "/add";
 }
-
-export function dateInFilterRange(date: string, from?: string, to?: string): boolean {
-  if (from && date < from) {
-    return false;
-  }
-  if (to && date > to) {
-    return false;
-  }
-  return true;
-}

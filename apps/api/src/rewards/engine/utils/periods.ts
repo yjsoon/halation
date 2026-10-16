@@ -214,19 +214,6 @@ export function getRewardPeriodMonths(card: CreditCard, period: CardPeriod): Car
   });
 }
 
-export function getRecentCardPeriods(card: CreditCard, count: number = 3): CardPeriod[] {
-  const periods: CardPeriod[] = [];
-  let target = new Date();
-
-  for (let i = 0; i < count; i++) {
-    const period = calculateCardPeriod(card, target);
-    periods.push(period);
-    target = new Date(period.startDate.getTime() - 1);
-  }
-
-  return periods;
-}
-
 export function toSimplePeriod(period: CardPeriod, useStartDateLabel: boolean = false): {
   start: string;
   end: string;
@@ -237,47 +224,4 @@ export function toSimplePeriod(period: CardPeriod, useStartDateLabel: boolean = 
     end: formatLocalDate(period.endDate),
     label: useStartDateLabel ? formatLocalDate(period.startDate) : period.label,
   };
-}
-
-export function periodOverlapsWindow(
-  periodStart: Date,
-  periodEnd: Date,
-  windowStart?: string,
-  windowEnd?: string
-): boolean {
-  const startBoundary = windowStart ? new Date(windowStart) : undefined;
-  const endBoundary = windowEnd ? new Date(windowEnd) : undefined;
-
-  if (startBoundary && periodEnd < startBoundary) {
-    return false;
-  }
-
-  if (endBoundary && periodStart > endBoundary) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Calculate the earliest period start date across all cards.
- * Useful for fetching transactions that cover all billing cycles,
- * including cards with non-calendar billing cycles that extend into the previous month.
- *
- * @param cards - Array of credit cards to check
- * @param targetDate - Optional date to calculate periods for (defaults to now)
- * @returns ISO date string (YYYY-MM-DD) of the earliest period start
- */
-export function getEarliestPeriodStart(cards: CreditCard[], targetDate: Date = new Date()): string {
-  const now = targetDate;
-  let earliestStart = new Date(now.getFullYear(), now.getMonth(), 1); // Default to start of current month
-
-  cards.forEach(card => {
-    const period = calculateCardPeriod(card, targetDate);
-    if (period.startDate < earliestStart) {
-      earliestStart = period.startDate;
-    }
-  });
-
-  return formatLocalDate(earliestStart);
 }

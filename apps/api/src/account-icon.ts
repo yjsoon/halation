@@ -1,7 +1,5 @@
 import { defaultIconForKind } from "./account-kind";
 
-export const FALLBACK_ACCOUNT_ICON = "🏦";
-
 export type AccountPresentation = {
   icon: string;
   name: string;
@@ -11,10 +9,6 @@ const graphemeSegmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
 
 export function graphemes(value: string): string[] {
   return [...graphemeSegmenter.segment(value)].map((part) => part.segment);
-}
-
-export function isAccountIcon(value: string): boolean {
-  return parseAccountIcon(value) !== null;
 }
 
 /** A single emoji grapheme. */

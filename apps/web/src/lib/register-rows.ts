@@ -3,13 +3,6 @@ export type RegisterRow = {
   readonly deleted: boolean;
 };
 
-export function replaceRowById<T extends { readonly id: string }>(
-  rows: readonly T[],
-  next: T,
-): T[] {
-  return rows.map((row) => (row.id === next.id ? next : row));
-}
-
 export type SplitMirrorLink = {
   readonly id: string;
   readonly parent_transaction_id?: string | null;

@@ -46,27 +46,6 @@ export function parseTransactionDeepLink(params: URLSearchParams): TransactionDe
   return { kind: "valid", link: { planId, transactionId, subtransactionId } };
 }
 
-export function buildTransactionDeepLink(
-  link: TransactionDeepLink,
-  previous: URLSearchParams = new URLSearchParams(),
-): string {
-  const parsed = parseTransactionDeepLink(new URLSearchParams([
-    ["plan", link.planId],
-    ["transaction", link.transactionId],
-    ...(link.subtransactionId === null ? [] : [["subtransaction", link.subtransactionId]]),
-  ]));
-  if (parsed.kind !== "valid") throw new Error(parsed.kind === "invalid" ? parsed.message : "Invalid transaction link");
-
-  const params = new URLSearchParams();
-  params.set("plan", link.planId);
-  params.set("transaction", link.transactionId);
-  if (link.subtransactionId) params.set("subtransaction", link.subtransactionId);
-  for (const [name, value] of previous) {
-    if (!DEEP_LINK_PARAMS.includes(name as (typeof DEEP_LINK_PARAMS)[number])) params.append(name, value);
-  }
-  return `/transactions?${params.toString()}`;
-}
-
 export function mergeDeepLinkedTransaction(
   transactions: readonly Transaction[],
   resolved: Transaction | null,

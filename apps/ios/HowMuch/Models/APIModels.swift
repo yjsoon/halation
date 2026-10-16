@@ -953,10 +953,6 @@ struct CustomAccountGroup: Codable, Equatable, Hashable, Identifiable {
   }
 }
 
-struct UserPayload: Decodable {
-  let user: APIUser
-}
-
 struct APIUser: Decodable {
   let id: String
   let username: String?

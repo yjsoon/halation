@@ -58,10 +58,6 @@ final class IntakeJobStore {
     directory(for: id).appendingPathComponent("job.json")
   }
 
-  func hasJob(_ id: UUID) -> Bool {
-    fileManager.fileExists(atPath: manifestURL(for: id).path)
-  }
-
   func load(_ id: UUID) -> IntakeJob? {
     guard let data = try? Data(contentsOf: manifestURL(for: id)) else {
       return nil

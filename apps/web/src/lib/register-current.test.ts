@@ -3,7 +3,6 @@ import {
   asOfTodayBalance,
   dateInRegisterWindow,
   isUpcomingRegisterDate,
-  partitionRegisterDates,
   registerFetchUntilDate,
 } from "./register-current";
 
@@ -50,14 +49,5 @@ describe("asOfTodayBalance", () => {
       { account_id: "joey", date: "2026-09-08", amount: -200, deleted: true },
       { account_id: "other", date: "2026-09-08", amount: -300, deleted: false },
     ], { accountId: "joey", today: TODAY })).toBe(1000);
-  });
-});
-
-describe("partitionRegisterDates", () => {
-  test("lists upcoming dates before current dates, each newest first", () => {
-    expect(partitionRegisterDates(["2026-08-29", "2026-09-08", "2026-09-01"], TODAY)).toEqual({
-      upcoming: ["2026-09-08"],
-      current: ["2026-09-01", "2026-08-29"],
-    });
   });
 });

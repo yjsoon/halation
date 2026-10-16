@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ScheduledTransaction } from "../api/types";
-import { activeSchedulesForAccount, activeSchedulesForScope, scheduledAmount, scheduleRecurrence, transferScheduleLabel } from "./schedules";
+import { activeSchedulesForScope, scheduledAmount, scheduleRecurrence, transferScheduleLabel } from "./schedules";
 
 describe("account register schedules", () => {
   test("keeps only active schedules for the selected account and sorts by next date", () => {
@@ -11,7 +11,6 @@ describe("account register schedules", () => {
       { id: "sooner", account_id: "checking", date_next: "2026-09-01", amount: -1_000 },
     ];
 
-    expect(activeSchedulesForAccount(schedules, "checking").map((schedule) => schedule.id)).toEqual(["sooner", "later"]);
     expect(activeSchedulesForScope(schedules, new Set(["checking", "savings"])).map((schedule) => schedule.id)).toEqual([
       "other",
       "sooner",

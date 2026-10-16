@@ -140,7 +140,6 @@ export interface RewardCalculation {
   maximumSpend?: number | null;
   maximumProgress?: number;
   activeSpendingTierId?: string | null;
-  spendingTierCalculationVersion?: number;
   minimumMet: boolean;
   maximumExceeded: boolean;
   shouldStopUsing: boolean;

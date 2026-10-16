@@ -218,15 +218,6 @@ final class CaptureWorkspace {
     persistTask?.cancel()
     persistTask = nil
   }
-
-  func markSaved(_ session: CaptureSession, ids: [String]? = nil) {
-    if let ids {
-      session.markCommitted(ids: ids)
-    } else {
-      session.markCommittedIncluded()
-    }
-    persistCurrentIfNeeded()
-  }
 }
 
 struct CaptureWorkspaceStore {
