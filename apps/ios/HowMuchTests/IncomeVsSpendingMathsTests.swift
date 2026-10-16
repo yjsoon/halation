@@ -15,6 +15,7 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
       day = hebrew.date(byAdding: .day, value: 1, to: day)!
     }
     let spending = DailySpending(
+      month: String(now.startOfMonth(calendar: hebrew).isoDateString.prefix(7)),
       all: IncomeVsSpendingReport(
         interval: "day",
         periods: keys.map { period($0, income: 0, spending: 10_000, net: -10_000, cumulative: 0) }

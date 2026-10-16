@@ -3120,7 +3120,9 @@ final class AppModel {
       incomeVsSpending = incomeReport
       netWorth = worthReport
       ageOfMoney = ageReport
-      dailySpending = DailySpending(all: dailyReport, quiet: quietReport)
+      dailySpending = DailySpending(
+        month: ReportsSnapshot.month(of: monthStart), all: dailyReport, quiet: quietReport
+      )
       reflectMonth = ReportsSnapshot.month(of: monthStart)
       reportsPhase = .loaded
       persistReports()

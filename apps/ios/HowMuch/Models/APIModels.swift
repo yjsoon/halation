@@ -1923,6 +1923,8 @@ struct IncomeVsSpendingPeriod: Codable, Identifiable {
 /// This month's spending by day: every category, and separately the quiet
 /// ones the spending breakdown hides by default (`nil` when there are none).
 struct DailySpending: Codable {
+  /// The month these days belong to (`yyyy-MM`, `ReportsSnapshot.month`).
+  let month: String
   let all: IncomeVsSpendingReport
   let quiet: IncomeVsSpendingReport?
 }
