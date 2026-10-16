@@ -1543,8 +1543,10 @@ struct ColumnChart: View {
         ForEach(values.enumerated(), id: \.offset) { _, value in
           VStack(spacing: 0) {
             Spacer(minLength: 0)
+            // Capped so a short range on a wide card stays a column, not a blob.
             Capsule()
               .fill(value < 0 ? negativeColour : positiveColour)
+              .frame(maxWidth: 24)
               .frame(height: max(3, height * abs(value) / magnitude * progress))
           }
           .frame(maxWidth: .infinity)
@@ -1592,9 +1594,11 @@ struct PairedColumnChart: View {
           HStack(alignment: .bottom, spacing: pairSpacing) {
             Capsule()
               .fill(Theme.inflow)
+              .frame(maxWidth: 14)
               .frame(height: max(3, height * pair.income / magnitude * progress))
             Capsule()
               .fill(Theme.outflow)
+              .frame(maxWidth: 14)
               .frame(height: max(3, height * pair.spending / magnitude * progress))
           }
           .frame(maxWidth: .infinity)
