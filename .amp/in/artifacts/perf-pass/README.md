@@ -73,7 +73,8 @@ $H/run-bench.sh final-r2 bfbf4f0 measure                                    # he
 PERF_ONLY="$WALKS" $H/run-bench.sh walk-final 89ff898 measure
 PERF_PATCH="$D/open-all-on-launch.patch" $H/run-bench.sh idle-base f2bdc3f idle   # accessibility off
 $H/run-bench.sh assist-place b7b6a45 placement                              # Assistant placement
-PERF_MODE=server PERF_SERVER_URL=http://127.0.0.1:8900 PERF_ITERATIONS=6 PERF_ONLY="..." $H/run-bench.sh srv-base f2bdc3f measure   # and srv-final bfbf4f0
+SRV="test02_LaunchToAccountsContent test03_OpenAllRegister test05_OpenQuietAccountRegister test06_FirstRegisterOpenAfterLaunch $WALKS test09_LoadOlderPage"
+PERF_MODE=server PERF_SERVER_URL=http://127.0.0.1:8900 PERF_ITERATIONS=6 PERF_ONLY="$SRV" $H/run-bench.sh srv-base f2bdc3f measure   # and srv-final bfbf4f0
 python3 $H/compare.py results/<base>.json results/<other>.json ...
 ```
 
