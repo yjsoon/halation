@@ -1,5 +1,4 @@
 import type { Database } from "bun:sqlite";
-import { createHash } from "node:crypto";
 import { createId } from "./ids";
 import { ownedRecordStatements } from "./ynab-owned-records";
 import type { SeedCurrencyFormat, SeedDateFormat } from "./plan-settings-seed";
@@ -63,7 +62,7 @@ import {
   type CategoryPatch,
   type CategoryRow,
 } from "./category-management";
-import { requestHash } from "./d1-guarded-command";
+import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
 import { cardFlagNames, flagNameForColour } from "./rewards/flag-names";
 import type { CreditCard } from "./rewards/types";
 import {
@@ -87,7 +86,7 @@ export type CategoryWriteOptions = { operationId?: string };
 /** Stable across retries when the client sends an Idempotency-Key but no id. */
 function derivedEntityId(prefix: string, planId: string, operationId?: string): string {
   return operationId
-    ? `${prefix}_${createHash("sha256").update(`${planId}:${operationId}`).digest("hex").slice(0, 24)}`
+    ? `${prefix}_${sha256Hex(`${planId}:${operationId}`).slice(0, 24)}`
     : createId(prefix);
 }
 
@@ -602,7 +601,7 @@ export class LedgerRepository {
     if (!accountId || typeof accountId !== "string") throw new ValidationError("account_id is required");
     if (!options?.operationId) throw new ValidationError("operationId is required");
     const requestHash = scheduleMutationFingerprint("account.reconcile", planId, accountId, { statement_date: date, statement_balance: statementBalance });
-    const auditId = `audit_reconcile_${scheduleDigest(options.operationId).slice(0, 20)}`;
+    const auditId = `audit_reconcile_${sha256Hex(options.operationId).slice(0, 20)}`;
     let result: Omit<AccountReconciliationResult, "account" | "replayed" | "server_knowledge"> | null = null;
     let replayed = false;
 
@@ -905,7 +904,7 @@ export class LedgerRepository {
     return this.db.transaction(async () => {
       if (await this.replayedScheduleMutation(planId, resourceId, action, options.operationId, hash)) return read();
       const command = await plan();
-      const auditId = options.operationId ? `audit_${scheduleDigest(options.operationId).slice(0, 24)}` : createId("audit");
+      const auditId = options.operationId ? `audit_${sha256Hex(options.operationId).slice(0, 24)}` : createId("audit");
       for (const planned of categoryCommandStatements(command, planId, auditId, hash)) {
         await this.db.query(planned.sql).run(...planned.values);
       }
@@ -1031,7 +1030,7 @@ export class LedgerRepository {
       if (await this.replayedScheduleMutation(planId, planId, "plan.snapshot.import", options.operationId, hash)) return true;
       await this.requireNativePlan(planId);
       await this.requireEmptyPlan(planId);
-      const auditId = `audit_${scheduleDigest(options.operationId).slice(0, 24)}`;
+      const auditId = `audit_${sha256Hex(options.operationId).slice(0, 24)}`;
       try {
         for (const planned of snapshotImportStatements(planId, rows, auditId, hash)) {
           await this.db.query(planned.sql).run(...planned.values);
@@ -1056,7 +1055,7 @@ export class LedgerRepository {
     validateTransactionInput(input, autoLink);
     const transactionId = input.id ?? createId("txn");
     const requestHash = scheduleMutationFingerprint("transaction.create", planId, transactionId, { input, autoLink });
-    const auditId = options.operationId ? `audit_txn_${scheduleDigest(options.operationId).slice(0, 20)}` : null;
+    const auditId = options.operationId ? `audit_txn_${sha256Hex(options.operationId).slice(0, 20)}` : null;
     const plan = newTransactionMutationPlan();
     await this.db.transaction(async () => {
       if (auditId) {
@@ -2118,7 +2117,7 @@ export class LedgerRepository {
     options: ScheduledWriteOptions = {},
   ): Promise<any> {
     await this.ensurePlan(planId);
-    const id = input.id ?? (options.operationId ? `scheduled_${scheduleDigest(`${planId}:${options.operationId}`).slice(0, 24)}` : createId("scheduled"));
+    const id = input.id ?? (options.operationId ? `scheduled_${sha256Hex(`${planId}:${options.operationId}`).slice(0, 24)}` : createId("scheduled"));
     const fingerprint = scheduleMutationFingerprint("create", planId, id, input);
     if (await this.replayedScheduleMutation(planId, id, "scheduled_transaction.create", options.operationId, fingerprint)) {
       return projectScheduledRead(await this.readScheduledTransaction(planId, id, true));
@@ -2217,7 +2216,7 @@ export class LedgerRepository {
     // not commit is only advanced here. Re-creating it would hash a different
     // source_ref whenever the retry carries another operation seed (the next
     // day's cron, a new Idempotency-Key), and be refused as key reuse forever.
-    const operationId = `scheduled_occurrence_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
+    const operationId = `scheduled_occurrence_${sha256Hex(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
     const transaction = existing
       ? existing.transaction
       : await this.createTransaction(
@@ -2226,7 +2225,7 @@ export class LedgerRepository {
         { autoLink: true, operationId },
       );
     const advanceKind = schedule.frequency === "never" ? "complete" : "advance";
-    const advanceId = `scheduled_${advanceKind}_${scheduleDigest(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
+    const advanceId = `scheduled_${advanceKind}_${sha256Hex(`${planId}:${scheduledTransactionId}:${occurrenceDate}`).slice(0, 32)}`;
     const expected = { date_first: schedule.date_first, date_next: occurrenceDate, frequency: schedule.frequency };
     const nextDate = schedule.frequency === "never" ? null : nextScheduledOccurrence(schedule.date_first, occurrenceDate, schedule.frequency);
     if (schedule.frequency !== "never" && !nextDate) throw new ValidationError("Recurring schedule did not produce a next date");
@@ -2444,7 +2443,7 @@ export class LedgerRepository {
       transfer_account_id: parent.transferAccountId,
       import_id: `scheduled:${schedule.id}:${occurrenceDate}`,
       source_kind: "scheduled-transaction",
-      source_ref: `${schedule.id}:${occurrenceDate}:${scheduledOccurrenceSnapshotHash(schedule)}:${scheduleDigest(requestOperationId ?? "direct").slice(0, 16)}`,
+      source_ref: `${schedule.id}:${occurrenceDate}:${scheduledOccurrenceSnapshotHash(schedule)}:${sha256Hex(requestOperationId ?? "direct").slice(0, 16)}`,
       subtransactions,
     };
   }
@@ -2514,7 +2513,7 @@ export class LedgerRepository {
     withinTransaction = false,
   ): Promise<void> {
     const { subtransactions, ...parent } = transaction;
-    const auditId = operationId ? `audit_${scheduleDigest(operationId).slice(0, 24)}` : createId("audit");
+    const auditId = operationId ? `audit_${sha256Hex(operationId).slice(0, 24)}` : createId("audit");
     const persist = async () => {
       await this.db.query(
         `INSERT INTO scheduled_transaction_edits
@@ -2544,7 +2543,7 @@ export class LedgerRepository {
 
   private async replayedScheduleMutation(planId: string, id: string, action: string, operationId: string | undefined, requestHash: string): Promise<boolean> {
     if (!operationId) return false;
-    const row = await this.db.query("SELECT action,plan_id,resource_id,metadata_json FROM audit_events WHERE id=?").get(`audit_${scheduleDigest(operationId).slice(0, 24)}`) as Row | null;
+    const row = await this.db.query("SELECT action,plan_id,resource_id,metadata_json FROM audit_events WHERE id=?").get(`audit_${sha256Hex(operationId).slice(0, 24)}`) as Row | null;
     if (!row) return false;
     const metadata = JSON.parse(String(row.metadata_json));
     if (row.action !== action || row.plan_id !== planId || row.resource_id !== id || metadata.request_hash !== requestHash) {
@@ -3255,23 +3254,19 @@ function projectScheduledRead(transaction: { payload: Record<string, any>; subtr
 }
 
 function scheduleMutationFingerprint(action: string, planId: string, id: string, payload: unknown): string {
-  return scheduleDigest(canonicalScheduleJson({ action, planId, id, payload }));
-}
-
-function scheduleDigest(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
+  return sha256Hex(canonicalJson({ action, planId, id, payload }));
 }
 
 function scheduledCronOccurrenceOperationId(runOperationId: string, scheduleId: string, occurrenceDate: string): string {
-  return `cron_occurrence_${scheduleDigest(`${runOperationId}:${scheduleId}:${occurrenceDate}`).slice(0, 32)}`;
+  return `cron_occurrence_${sha256Hex(`${runOperationId}:${scheduleId}:${occurrenceDate}`).slice(0, 32)}`;
 }
 
 function scheduledOccurrenceTransactionId(planId: string, scheduleId: string, occurrenceDate: string): string {
-  return `txn_scheduled_${scheduleDigest(`${planId}:${scheduleId}:${occurrenceDate}`).slice(0, 24)}`;
+  return `txn_scheduled_${sha256Hex(`${planId}:${scheduleId}:${occurrenceDate}`).slice(0, 24)}`;
 }
 
 function scheduledOccurrenceSubtransactionId(planId: string, scheduleId: string, occurrenceDate: string, subtransactionId: string): string {
-  return `sub_scheduled_${scheduleDigest(`${planId}:${scheduleId}:${occurrenceDate}:${subtransactionId}`).slice(0, 24)}`;
+  return `sub_scheduled_${sha256Hex(`${planId}:${scheduleId}:${occurrenceDate}:${subtransactionId}`).slice(0, 24)}`;
 }
 
 function scheduledOccurrenceSnapshotHash(schedule: EffectiveScheduledTransaction): string {
@@ -3279,7 +3274,7 @@ function scheduledOccurrenceSnapshotHash(schedule: EffectiveScheduledTransaction
     "id", "account_id", "date_first", "date_next", "frequency", "amount", "payee_id",
     "category_id", "transfer_account_id", "memo", "flag_color", "subtransactions",
   ];
-  return scheduleDigest(canonicalScheduleJson(Object.fromEntries(fields.map((field) => [field, schedule[field] ?? null])))).slice(0, 24);
+  return sha256Hex(canonicalJson(Object.fromEntries(fields.map((field) => [field, schedule[field] ?? null])))).slice(0, 24);
 }
 
 function assertExpectedSchedule(payload: Record<string, any>, expected: ScheduledWriteOptions["expected"]): void {
@@ -3287,13 +3282,6 @@ function assertExpectedSchedule(payload: Record<string, any>, expected: Schedule
   if (payload.date_first !== expected.date_first || payload.date_next !== expected.date_next || payload.frequency !== expected.frequency) {
     throw new Error("stale scheduled occurrence");
   }
-}
-
-function canonicalScheduleJson(value: unknown): string {
-  if (value === undefined) return "null";
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalScheduleJson).join(",")}]`;
-  return `{${Object.keys(value as Record<string, unknown>).filter((key) => (value as any)[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canonicalScheduleJson((value as any)[key])}`).join(",")}}`;
 }
 
 export class NotFoundError extends Error {}

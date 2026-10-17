@@ -645,13 +645,6 @@ final class AppModel {
     viewPrefs.lastUsedAccountID
   }
 
-  /// Last-used OPEN account only. Capture admission uses `CaptureOrigin`
-  /// instead of this, so a leftover visible register cannot leak into
-  /// Home Screen or overview entry.
-  var preferredCaptureAccountID: String? {
-    lastUsedOpenAccountID
-  }
-
   var lastUsedOpenAccountID: String? {
     let openIDs = Set(openAccounts.map(\.id))
     if let lastUsed = lastUsedAccountID, openIDs.contains(lastUsed) {

@@ -2,44 +2,6 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-/// The on-device ledger archive (JSON), saved with the file exporter.
-private struct LocalArchiveDocument: FileDocument {
-  static var readableContentTypes: [UTType] { [.json] }
-  var data: Data
-
-  init(data: Data) { self.data = data }
-
-  init(configuration: ReadConfiguration) throws {
-    guard let data = configuration.file.regularFileContents else {
-      throw CocoaError(.fileReadCorruptFile)
-    }
-    self.data = data
-  }
-
-  func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-    FileWrapper(regularFileWithContents: data)
-  }
-}
-
-/// A file from "Export everything", saved with the file exporter.
-private struct ExportEverythingDocument: FileDocument {
-  static var readableContentTypes: [UTType] { [.json, .commaSeparatedText] }
-  var data: Data
-
-  init(data: Data) { self.data = data }
-
-  init(configuration: ReadConfiguration) throws {
-    guard let data = configuration.file.regularFileContents else {
-      throw CocoaError(.fileReadCorruptFile)
-    }
-    self.data = data
-  }
-
-  func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-    FileWrapper(regularFileWithContents: data)
-  }
-}
-
 /// Rewards import and export, and saving the whole current plan as a file:
 /// the JSON archive (ledger, formats, account organisation, Rewards cards) or
 /// a transactions CSV.
@@ -48,7 +10,7 @@ private struct DataSection: View {
   /// saved connection, so it waits until the selection is saved.
   var isSelectionSaved = true
   @Environment(AppModel.self) private var model
-  @State private var exportDocument: ExportEverythingDocument?
+  @State private var exportDocument: ExportFileDocument?
   @State private var exportFormat: ExportEverythingFormat = .archive
   @State private var isExporting = false
   @State private var isWorking = false
@@ -109,7 +71,7 @@ private struct DataSection: View {
       do {
         let data = try await model.apiClient.exportEverything(planID: model.settings.planID, format: format)
         exportFormat = format
-        exportDocument = ExportEverythingDocument(data: data)
+        exportDocument = ExportFileDocument(data: data)
         isExporting = true
       } catch {
         errorMessage = error.localizedDescription
@@ -124,7 +86,7 @@ private struct DataSection: View {
 private struct LocalArchiveSection: View {
   let archive: LocalArchive
   @Environment(AppModel.self) private var model
-  @State private var exportDocument: LocalArchiveDocument?
+  @State private var exportDocument: ExportFileDocument?
   @State private var isExporting = false
   @State private var isWorking = false
   @State private var isConfirmingSwitch = false
@@ -161,14 +123,12 @@ private struct LocalArchiveSection: View {
       }
       exportDocument = nil
     }
-    .confirmationDialog(
+    .binaryConfirm(
       "Use the records on this \(device) instead of the server?",
       isPresented: $isConfirmingSwitch,
-      titleVisibility: .visible
+      confirm: .proceed("Switch back")
     ) {
-      Button("Switch back") {
-        switchBack()
-      }
+      switchBack()
     }
   }
 
@@ -177,7 +137,7 @@ private struct LocalArchiveSection: View {
     errorMessage = nil
     Task {
       do {
-        exportDocument = LocalArchiveDocument(data: try await model.exportLocalArchive())
+        exportDocument = ExportFileDocument(data: try await model.exportLocalArchive())
         isExporting = true
       } catch {
         errorMessage = error.localizedDescription
@@ -510,16 +470,15 @@ struct SettingsView: View {
         .disabled(isSaving)
       }
     }
-    .confirmationDialog(
+    .binaryConfirm(
       "Sign out of \(serverHost)?",
       isPresented: $isConfirmingSignOut,
-      titleVisibility: .visible
-    ) {
-      Button("Sign out", role: .destructive) {
-        signOut()
+      confirm: .destructive("Sign out"),
+      message: {
+        Text("Your records stay on the server. Sign in again to use them on this \(device).")
       }
-    } message: {
-      Text("Your records stay on the server. Sign in again to use them on this \(device).")
+    ) {
+      signOut()
     }
   }
 

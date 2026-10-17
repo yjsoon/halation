@@ -93,10 +93,10 @@ export async function importYnabExport(
       },
     );
 
-    for (const row of planRows) {
+    const upsertRowCategory = async (row: CsvRow) => {
       const category = categoryFromRow(options.planId, row);
       if (!category) {
-        continue;
+        return null;
       }
       await repo.upsertCategoryGroup(options.planId, {
         id: category.groupId,
@@ -114,6 +114,11 @@ export async function importYnabExport(
       );
       categoryGroupIds.add(category.groupId);
       categoryIds.add(category.categoryId);
+      return category;
+    };
+
+    for (const row of planRows) {
+      await upsertRowCategory(row);
     }
 
     for (const [index, row] of registerRows.entries()) {
@@ -131,25 +136,7 @@ export async function importYnabExport(
           external_ynab_id: accountId,
         });
 
-        const category = categoryFromRow(options.planId, row);
-        if (category) {
-          await repo.upsertCategoryGroup(options.planId, {
-            id: category.groupId,
-            name: category.groupName,
-            external_ynab_id: category.groupId,
-          });
-          await repo.upsertCategory(
-            options.planId,
-            {
-              id: category.categoryId,
-              name: category.categoryName,
-              external_ynab_id: category.categoryId,
-            },
-            category.groupId,
-          );
-          categoryGroupIds.add(category.groupId);
-          categoryIds.add(category.categoryId);
-        }
+        const category = await upsertRowCategory(row);
 
         const payeeName = clean(row.Payee) || null;
         if (payeeName) {

@@ -724,19 +724,7 @@ private struct ScheduledSplitPayeePicker: View {
         }
       }
     }
-    .listStyle(.insetGrouped)
-    .scrollContentBackground(.hidden)
-    .background(Theme.canvas)
-    .navigationTitle("Payee")
-    .navigationBarTitleDisplayMode(.inline)
-  }
-
-  private func selectionRow(_ title: String, selected: Bool) -> some View {
-    HStack {
-      Text(title).foregroundStyle(Theme.textPrimary)
-      Spacer()
-      if selected { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
-    }
+    .scheduledPickerChrome("Payee")
   }
 }
 
@@ -767,19 +755,7 @@ private struct ScheduledSplitCategoryPicker: View {
         }
       }
     }
-    .listStyle(.insetGrouped)
-    .scrollContentBackground(.hidden)
-    .background(Theme.canvas)
-    .navigationTitle("Category")
-    .navigationBarTitleDisplayMode(.inline)
-  }
-
-  private func selectionRow(_ title: String, selected: Bool) -> some View {
-    HStack {
-      Text(title).foregroundStyle(Theme.textPrimary)
-      Spacer()
-      if selected { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
-    }
+    .scheduledPickerChrome("Category")
   }
 }
 
@@ -821,19 +797,7 @@ private struct ScheduledPayeePicker: View {
         }
       }
     }
-    .listStyle(.insetGrouped)
-    .scrollContentBackground(.hidden)
-    .background(Theme.canvas)
-    .navigationTitle("Payee")
-    .navigationBarTitleDisplayMode(.inline)
-  }
-
-  private func selectionRow(_ title: String, selected: Bool) -> some View {
-    HStack {
-      Text(title).foregroundStyle(Theme.textPrimary)
-      Spacer()
-      if selected { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
-    }
+    .scheduledPickerChrome("Payee")
   }
 }
 
@@ -857,20 +821,30 @@ private struct ScheduledCategoryPicker: View {
               draft.categoryID = category.id
               dismiss()
             } label: {
-              HStack {
-                Text(category.name).foregroundStyle(Theme.textPrimary)
-                Spacer()
-                if draft.categoryID == category.id { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
-              }
+              selectionRow(category.name, selected: draft.categoryID == category.id)
             }
           }
         }
       }
     }
-    .listStyle(.insetGrouped)
-    .scrollContentBackground(.hidden)
-    .background(Theme.canvas)
-    .navigationTitle("Category")
-    .navigationBarTitleDisplayMode(.inline)
+    .scheduledPickerChrome("Category")
+  }
+}
+
+private func selectionRow(_ title: String, selected: Bool) -> some View {
+  HStack {
+    Text(title).foregroundStyle(Theme.textPrimary)
+    Spacer()
+    if selected { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
+  }
+}
+
+private extension View {
+  func scheduledPickerChrome(_ title: String) -> some View {
+    listStyle(.insetGrouped)
+      .scrollContentBackground(.hidden)
+      .background(Theme.canvas)
+      .navigationTitle(title)
+      .navigationBarTitleDisplayMode(.inline)
   }
 }

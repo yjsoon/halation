@@ -9,15 +9,6 @@ enum CaptureIntelligenceStatus: Equatable, Sendable {
   case unavailable
   case error(String)
 
-  var allowsDescribe: Bool {
-    switch self {
-    case .available, .downloading:
-      return true
-    case .unavailable, .error:
-      return false
-    }
-  }
-
   var banner: String? {
     switch self {
     case .available:

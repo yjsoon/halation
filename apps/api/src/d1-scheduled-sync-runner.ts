@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { sha256Hex } from "./canonical-json";
 import type { ApiConfig } from "./config";
 import { createId } from "./ids";
 import { importYnabFromApi } from "./importers/ynab";
@@ -25,7 +25,7 @@ export async function runD1ScheduledYnabSync(options: {
   await unfenced.ensurePlan(planId);
   const state = new D1ScheduledSyncState(db);
   const scheduledFor = new Date(scheduledTime).toISOString();
-  const runId = `sync_${digest(`${planId}:${scheduledFor}`).slice(0, 24)}`;
+  const runId = `sync_${sha256Hex(`${planId}:${scheduledFor}`).slice(0, 24)}`;
   const attemptId = createId("attempt");
   const acquisition = await state.acquire(planId, runId, attemptId, scheduledFor);
   if (acquisition.status !== "acquired") return { status: acquisition.status, run_id: acquisition.runId };
@@ -33,7 +33,7 @@ export async function runD1ScheduledYnabSync(options: {
   const lease = { planId, attemptId } as const;
   const repo = new D1LedgerRepository(db, config.defaultPlanId, {
     lease: (candidate) => candidate === planId ? lease : undefined,
-    operationId: (kind, candidate, resource) => `syncop_${digest(`${attemptId}:${kind}:${candidate ?? ""}:${resource}`).slice(0, 24)}`,
+    operationId: (kind, candidate, resource) => `syncop_${sha256Hex(`${attemptId}:${kind}:${candidate ?? ""}:${resource}`).slice(0, 24)}`,
   });
   const now = options.now ?? Date.now;
   let renewedAt = now();
@@ -69,8 +69,4 @@ export async function runD1ScheduledYnabSync(options: {
     logger.error(JSON.stringify({ event: "ynab_delta_sync", status: "failed" }));
     throw new Error("YNAB scheduled sync failed");
   }
-}
-
-function digest(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
 }

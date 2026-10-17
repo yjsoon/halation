@@ -46,33 +46,7 @@ struct EditAccountSheet: View {
       .navigationTitle("Edit Account")
       .navigationBarTitleDisplayMode(.inline)
       .toolbar {
-        ToolbarItem(placement: .cancellationAction) {
-          Button {
-            dismiss()
-          } label: {
-            Image(systemName: "xmark")
-              .font(.body.weight(.semibold))
-              .foregroundStyle(Theme.textPrimary)
-          }
-          .disabled(isSaving)
-          .accessibilityLabel("Cancel")
-        }
-        ToolbarItem(placement: .confirmationAction) {
-          if isSaving {
-            ProgressView()
-              .accessibilityLabel("Saving")
-          } else {
-            Button {
-              Task { await save() }
-            } label: {
-              Image(systemName: "checkmark")
-                .font(.body.weight(.semibold))
-                .foregroundStyle(canSave ? Theme.accent : Color.secondary)
-            }
-            .disabled(!canSave)
-            .accessibilityLabel("Save")
-          }
-        }
+        AccountSheetToolbar(isSaving: isSaving, canSave: canSave, cancel: { dismiss() }, save: save)
       }
       .interactiveDismissDisabled(isSaving)
     }

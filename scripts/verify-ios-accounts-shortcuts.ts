@@ -1,37 +1,14 @@
-import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { memberSpan, readRepoFile } from "./lib/source-span";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const source = readFileSync(join(root, "apps/ios/HowMuch/Views/AccountsView.swift"), "utf8");
-
-function memberSpan(marker: string): string {
-  const start = source.indexOf(marker);
-  if (start < 0) {
-    throw new Error(`Could not find ${marker} in AccountsView.swift`);
-  }
-  const brace = source.indexOf("{", start);
-  if (brace < 0) {
-    throw new Error(`Could not find opening brace after ${marker}`);
-  }
-  let depth = 0;
-  for (let i = brace; i < source.length; i++) {
-    const ch = source[i];
-    if (ch === "{") depth += 1;
-    else if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(start, i + 1);
-    }
-  }
-  throw new Error(`Unbalanced braces after ${marker}`);
-}
+const source = readRepoFile("apps/ios/HowMuch/Views/AccountsView.swift");
+const span = (marker: string) => memberSpan(source, marker, "AccountsView.swift");
 
 const shortcuts = [
-  memberSpan("private var ledgerShortcuts"),
-  memberSpan("private enum LedgerShortcutStatus"),
-  memberSpan("private struct LedgerShortcutTile"),
+  span("private var ledgerShortcuts"),
+  span("private enum LedgerShortcutStatus"),
+  span("private struct LedgerShortcutTile"),
 ].join("\n");
-const tile = memberSpan("private struct LedgerShortcutTile");
+const tile = span("private struct LedgerShortcutTile");
 
 const failures: string[] = [];
 if (!source.includes("static func scheduled(phase:") || !source.includes("LedgerShortcutStatus.scheduled(")) {
@@ -46,7 +23,7 @@ if (!source.includes("ScheduledTransactionsView()")) {
 if (!source.includes("RegisterView(scope: .unapproved)")) {
   failures.push("New destination RegisterView(scope: .unapproved) is missing.");
 }
-const shortcutTitles = [...memberSpan("private var ledgerShortcuts").matchAll(/title: "([^"]+)"/g)].map(
+const shortcutTitles = [...span("private var ledgerShortcuts").matchAll(/title: "([^"]+)"/g)].map(
   (match) => match[1],
 );
 if (JSON.stringify(shortcutTitles) !== JSON.stringify(["New", "Scheduled", "All"])) {

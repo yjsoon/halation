@@ -465,14 +465,9 @@ enum CompactBarSelection: Hashable, CaseIterable {
     case .addTransaction: return nil
     }
   }
-
-  var isDestination: Bool { tab != nil }
-  var isAction: Bool { self == .addTransaction }
 }
 
 enum CompactRootBar {
-  static let destinationCapacity = 3
-  static let actionCapacity = 1
   static let destinations: (AppTab, AppTab, AppTab) = (.accounts, .rewards, .reflect)
   static let action = RootTrailingAction.addTransaction
   static let actionSelection = CompactBarSelection.addTransaction
@@ -480,14 +475,6 @@ enum CompactRootBar {
   static var destinationTabs: [AppTab] {
     let (first, second, third) = destinations
     return [first, second, third]
-  }
-
-  static var destinationSelections: [CompactBarSelection] {
-    CompactBarSelection.allCases.filter(\.isDestination)
-  }
-
-  static var actionSelections: [CompactBarSelection] {
-    CompactBarSelection.allCases.filter(\.isAction)
   }
 }
 

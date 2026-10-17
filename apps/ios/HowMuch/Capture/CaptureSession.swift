@@ -336,10 +336,6 @@ final class CaptureSession: Identifiable {
     drafts.filter { !$0.committed }
   }
 
-  var committedDrafts: [CaptureDraftItem] {
-    drafts.filter(\.committed)
-  }
-
   var includedDrafts: [CaptureDraftItem] {
     currentDrafts.filter(\.included)
   }
@@ -392,14 +388,6 @@ final class CaptureSession: Identifiable {
       return "Add Transaction"
     }
     return "\(drafts.count) Transactions"
-  }
-
-  var saveTitle: String {
-    let count = includedDrafts.count
-    if count <= 1 {
-      return "Save"
-    }
-    return "Save \(count) transactions"
   }
 
   var persistableAttachments: [CaptureAttachment] {

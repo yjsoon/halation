@@ -14,15 +14,6 @@ enum CaptureOrigin: Equatable, Codable, Sendable {
   /// Share, screenshot offer, or inbox App Intent.
   case inbox
 
-  var usesLastUsedOpenAccount: Bool {
-    switch self {
-    case .lastUsedOpen, .homeScreenShortcut, .inbox:
-      return true
-    case .visibleRegister, .presetDraft:
-      return false
-    }
-  }
-
   var ignoresVisibleRegister: Bool {
     switch self {
     case .homeScreenShortcut, .lastUsedOpen, .inbox, .presetDraft:

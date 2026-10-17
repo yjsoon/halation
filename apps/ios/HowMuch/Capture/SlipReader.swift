@@ -52,10 +52,6 @@ struct SlipMappedDraft: Equatable, Codable, Sendable {
   var accountUnresolved: Bool {
     parsedAccount && draft.accountID.isEmpty
   }
-
-  var categoryUnresolved: Bool {
-    parsedCategory && draft.categoryID == nil
-  }
 }
 
 enum ComposeParseApply {

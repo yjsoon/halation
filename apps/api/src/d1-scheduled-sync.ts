@@ -1,3 +1,4 @@
+import { canonicalJson } from "./canonical-json";
 import { D1Database } from "./d1";
 
 export type D1Lease =
@@ -116,12 +117,4 @@ export class D1ScheduledSyncState {
       throw new Error(`D1 scheduled-sync ${status} batch rejected: lease is no longer owned by ${attemptId}`);
     }
   }
-}
-
-function canonicalJson(value: unknown): string {
-  if (value === undefined) return "null";
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  const row = value as Record<string, unknown>;
-  return `{${Object.keys(row).filter((key) => row[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(row[key])}`).join(",")}}`;
 }

@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { requestHash } from "./canonical-json";
 import type { D1Database } from "./d1";
 import type { SqlValues } from "./async-sql";
 import type { D1WriteContext, PlannedStatement } from "./d1-transaction-repository";
@@ -56,13 +56,3 @@ export function statement(sql: string, values: SqlValues = []): PlannedStatement
   return Object.freeze({ sql, values: Object.freeze([...values]) });
 }
 
-export function requestHash(value: unknown): string {
-  return createHash("sha256").update(canonicalJson(value)).digest("hex");
-}
-
-function canonicalJson(value: unknown): string {
-  if (value === undefined) return "null";
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  return `{${Object.keys(value as Record<string, unknown>).filter((key) => (value as any)[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson((value as any)[key])}`).join(",")}}`;
-}
