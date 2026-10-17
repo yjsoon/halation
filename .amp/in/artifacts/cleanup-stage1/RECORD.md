@@ -43,7 +43,10 @@ Devin macOS runner, Xcode 27.0 RC (27A266a), iPhone 17 simulator with accessibil
 
 | Check | Main `84ffa96` | Branch `7d11e14` |
 | --- | --- | --- |
-| `scripts/ios-xcodebuild.sh test` | 779 run, 778 pass, 1 skipped (opt-in live model test) | 779 run, 773 pass, 3 CaptureSnapshotTests failed with empty accessibility lookups, 1 skipped |
+| `scripts/ios-xcodebuild.sh test` | 779 run, 778 pass, 1 skipped (opt-in live model test) | First full run: 779 run, 775 pass, 3 CaptureSnapshotTests failed with empty accessibility lookups, 1 skipped |
 | `CaptureSnapshotTests` on their own | | 32 of 32 pass |
+| `scripts/ios-xcodebuild.sh test`, second full run | | 779 run, 778 pass, 0 failed, 1 skipped |
 | Unsigned generic device build | | succeeded |
 | Periphery 3.8.0 scan | 43 results | 13 results, all reviewed false positives (App Intent descriptions, SwiftUI bindings, Hashable keys, test fixtures) |
+
+The three CaptureSnapshotTests failures in the first full run did not recur: the same commit passed the whole class on its own and then passed a second full run with no failures. Main's full run was also clean. This reads as intermittent suite-level flakiness in those accessibility lookups, not a regression from this branch.
