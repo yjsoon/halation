@@ -6,6 +6,7 @@ import { formatPeriod } from "../lib/dates";
 import { formatAmount } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
+import { StatusPanel } from "../components/StatusPanel";
 
 // Age of money replays income lots from the start of the range, so a clipped
 // window distorts the figure — default to the full history.
@@ -65,15 +66,12 @@ export function AgeOfMoneyPage() {
       </div>
 
       {report.error && (
-        <div className="status-panel status-panel-error">
-          <p className="status-title">Could not load the age-of-money report.</p>
-          <p className="status-detail">{report.error}</p>
-        </div>
+        <StatusPanel error title="Could not load the age-of-money report.">
+          {report.error}
+        </StatusPanel>
       )}
       {report.loading && !report.data && (
-        <div className="status-panel">
-          <p className="status-title">Loading age of money…</p>
-        </div>
+        <StatusPanel title="Loading age of money…" />
       )}
 
       {report.data && (
@@ -132,10 +130,9 @@ export function AgeOfMoneyPage() {
               </section>
             </>
           ) : (
-            <div className="status-panel">
-              <p className="status-title">No spending in this range.</p>
-              <p className="status-detail">Need both income and spending before age of money can be calculated.</p>
-            </div>
+            <StatusPanel title="No spending in this range.">
+              Need both income and spending before age of money can be calculated.
+            </StatusPanel>
           )}
         </>
       )}

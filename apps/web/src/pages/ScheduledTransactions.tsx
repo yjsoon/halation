@@ -13,6 +13,7 @@ import { colourNamesByAccount, ledgerFlagNames } from "../lib/reward-flag-names"
 import { usePlan } from "../state/plan";
 import { isCachedPayees, isCachedScheduled } from "../state/cache-shapes";
 import { useCachedApi } from "../state/use-cached-api";
+import { StatusPanel } from "../components/StatusPanel";
 
 type ScheduleGroup = { date: string; schedules: ScheduledTransaction[] };
 type EditorState = { mode: "create" } | { mode: "edit"; schedule: ScheduledTransaction };
@@ -155,8 +156,8 @@ export function ScheduledTransactionsPage() {
         </div>
       </header>
 
-      {mutationError && <div className="status-panel status-panel-error" role="alert"><p className="status-title">Could not update scheduled transactions.</p><p className="status-detail">{mutationError}</p></div>}
-      {mutationSuccess && <div className="status-panel" role="status"><p className="status-title">{mutationSuccess}</p></div>}
+      {mutationError && <StatusPanel error role="alert" title="Could not update scheduled transactions.">{mutationError}</StatusPanel>}
+      {mutationSuccess && <StatusPanel role="status" title={mutationSuccess} />}
       {editor && (
         <ScheduleEditor
           schedule={editor.mode === "edit" ? editor.schedule : undefined}
@@ -204,10 +205,10 @@ export function ScheduledTransactionsPage() {
         </section>
       )}
 
-      {schedules.error && <div className="status-panel status-panel-error" role="alert"><p className="status-title">Could not load scheduled transactions.</p><p className="status-detail">{schedules.error}</p></div>}
-      {schedules.loading && !schedules.data && <div className="status-panel"><p className="status-title">Loading scheduled transactions…</p></div>}
+      {schedules.error && <StatusPanel error role="alert" title="Could not load scheduled transactions.">{schedules.error}</StatusPanel>}
+      {schedules.loading && !schedules.data && <StatusPanel title="Loading scheduled transactions…" />}
       {!schedules.loading && !schedules.error && active.length === 0 && !editor && (
-        <div className="status-panel"><p className="status-title">No active schedules.</p><p className="status-detail">Add a recurring transaction to keep upcoming spending and income visible.</p></div>
+        <StatusPanel title="No active schedules.">Add a recurring transaction to keep upcoming spending and income visible.</StatusPanel>
       )}
 
       {groups.map((group) => (

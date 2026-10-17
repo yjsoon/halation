@@ -12,6 +12,7 @@ import {
 import { usePlan } from "../state/plan";
 import { savePrefs } from "../state/prefs";
 import { LOOKS, setTheme, useTheme, type Mode } from "../lib/theme";
+import { StatusPanel } from "../components/StatusPanel";
 
 const MODES: ReadonlyArray<{ id: Mode; label: string }> = [
   { id: "system", label: "Match system" },
@@ -75,9 +76,9 @@ export function SettingsPage() {
 
       {account.loading && !account.data && <p className="diagnostic-note" role="status">Loading account details…</p>}
       {account.error && !account.data && (
-        <div className="status-panel status-panel-error" role="alert">
-          <p className="status-detail">Could not load your account details, so plan formats are hidden. Reload to try again. ({account.error})</p>
-        </div>
+        <StatusPanel error role="alert">
+          Could not load your account details, so plan formats are hidden. Reload to try again. ({account.error})
+        </StatusPanel>
       )}
       {account.data?.isOwner && (
         <PlanFormatsSection settings={saved ?? account.data.settings} onSaved={setSaved} />
@@ -218,8 +219,8 @@ function ChangePasswordSection() {
           {busy ? "Changing…" : "Change password"}
         </button>
       </form>
-      {error && <div className="status-panel status-panel-error" role="alert"><p className="status-detail">{error}</p></div>}
-      {done && <div className="status-panel status-panel-success" role="status"><p className="status-detail">Password changed. This device stays signed in; every other session has been signed out.</p></div>}
+      {error && <StatusPanel error role="alert">{error}</StatusPanel>}
+      {done && <StatusPanel className="status-panel-success" role="status">Password changed. This device stays signed in; every other session has been signed out.</StatusPanel>}
     </section>
   );
 }
@@ -291,8 +292,8 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
           {busy ? "Saving…" : "Save formats"}
         </button>
       </form>
-      {error && <div className="status-panel status-panel-error" role="alert"><p className="status-detail">{error}</p></div>}
-      {done && <div className="status-panel status-panel-success" role="status"><p className="status-detail">Formats saved. Amounts and dates here now use the new settings. The iOS app shows the new currency after its next refresh and always shows dates as 24 May 2026.</p></div>}
+      {error && <StatusPanel error role="alert">{error}</StatusPanel>}
+      {done && <StatusPanel className="status-panel-success" role="status">Formats saved. Amounts and dates here now use the new settings. The iOS app shows the new currency after its next refresh and always shows dates as 24 May 2026.</StatusPanel>}
     </section>
   );
 }
@@ -343,8 +344,8 @@ function ExportSection() {
           {busy === "transactions-csv" ? "Preparing…" : "Download transactions (CSV)"}
         </button>
       </div>
-      {error && <div className="status-panel status-panel-error" role="alert"><p className="status-detail">{error}</p></div>}
-      {saved && <div className="status-panel status-panel-success" role="status"><p className="status-detail">Saved {saved}.</p></div>}
+      {error && <StatusPanel error role="alert">{error}</StatusPanel>}
+      {saved && <StatusPanel className="status-panel-success" role="status">Saved {saved}.</StatusPanel>}
     </section>
   );
 }

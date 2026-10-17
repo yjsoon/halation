@@ -8,6 +8,7 @@ import { formatDate, todayIso, yesterdayIso } from "../lib/dates";
 import { formatMilliunitsInput, formatMoney, parseMilliunits } from "../lib/money";
 import { resolvePostingAccountId } from "../lib/register-compose";
 import { usePlan } from "../state/plan";
+import { StatusPanel } from "../components/StatusPanel";
 
 type Direction = "spend" | "income" | "transfer";
 
@@ -185,10 +186,9 @@ export function QuickEntryPage() {
       </div>
 
       {!openAccounts.length ? (
-        <div className="status-panel status-panel-error">
-          <p className="status-title">No open accounts available.</p>
-          <p className="status-detail">Add an account before using quick entry.</p>
-        </div>
+        <StatusPanel error title="No open accounts available.">
+          Add an account before using quick entry.
+        </StatusPanel>
       ) : (
         <form onSubmit={submit} className="quick-entry-form">
           <div className="segmented direction-toggle" role="group" aria-label="Direction">
@@ -456,16 +456,14 @@ export function QuickEntryPage() {
           </p>
 
           {error && (
-            <div className="status-panel status-panel-error compact-panel">
-              <p className="status-title">Could not save this entry.</p>
-              <p className="status-detail">{error}</p>
-            </div>
+            <StatusPanel error className="compact-panel" title="Could not save this entry.">
+              {error}
+            </StatusPanel>
           )}
           {saved && !error && (
-            <div className="status-panel status-panel-success compact-panel">
-              <p className="status-title">Saved.</p>
-              <p className="status-detail">{saved}</p>
-            </div>
+            <StatusPanel className="status-panel-success compact-panel" title="Saved.">
+              {saved}
+            </StatusPanel>
           )}
 
           <button type="submit" className="save-button" disabled={!canSave}>

@@ -6,6 +6,7 @@ import { formatDate, formatPeriod, trailingMonthsRange } from "../lib/dates";
 import { formatMoney } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
+import { StatusPanel } from "../components/StatusPanel";
 
 const TRAILING_YEAR = () => trailingMonthsRange(12);
 const INTERVALS: Interval[] = ["week", "month"];
@@ -79,15 +80,12 @@ export function NetWorthPage() {
       </div>
 
       {report.error && (
-        <div className="status-panel status-panel-error">
-          <p className="status-title">Could not load net worth history.</p>
-          <p className="status-detail">{report.error}</p>
-        </div>
+        <StatusPanel error title="Could not load net worth history.">
+          {report.error}
+        </StatusPanel>
       )}
       {report.loading && !report.data && (
-        <div className="status-panel">
-          <p className="status-title">Loading net worth history...</p>
-        </div>
+        <StatusPanel title="Loading net worth history..." />
       )}
 
       {report.data && (
@@ -159,10 +157,9 @@ export function NetWorthPage() {
               </section>
             </>
           ) : (
-            <div className="status-panel">
-              <p className="status-title">No account history in this range.</p>
-              <p className="status-detail">Widen the range or include more accounts to build a net worth series.</p>
-            </div>
+            <StatusPanel title="No account history in this range.">
+              Widen the range or include more accounts to build a net worth series.
+            </StatusPanel>
           )}
         </>
       )}

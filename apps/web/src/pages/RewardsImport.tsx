@@ -3,6 +3,7 @@ import { api, useApi, type RewardsAccountConfig, type RewardsTrackerImportResult
 import { SettingsCrumb } from "../components/SettingsCrumb";
 import { portableRewardsExport } from "../lib/rewards-export";
 import { usePlan } from "../state/plan";
+import { StatusPanel } from "../components/StatusPanel";
 
 export function RewardsImportPage() {
   const { planId, reload } = usePlan();
@@ -80,19 +81,15 @@ export function RewardsImportPage() {
         import twice updates the same rows instead of duplicating them. This does not connect to live YNAB.
       </p>
 
-      <div className="status-panel">
-        <p className="status-title">Import replaces the stored card set.</p>
-        <p className="status-detail">
-          Cards omitted from the export are soft-deleted. An empty <code>cards</code> array removes every Halation card.
+      <StatusPanel title="Import replaces the stored card set.">
+        Cards omitted from the export are soft-deleted. An empty <code>cards</code> array removes every Halation card.
           Miles valuation in the export replaces a native value when the export sets a finite number.
-        </p>
-      </div>
+      </StatusPanel>
 
       {error && (
-        <div className="status-panel status-panel-error" role="alert">
-          <p className="status-title">Could not import Rewards Tracker export.</p>
-          <p className="status-detail">{error}</p>
-        </div>
+        <StatusPanel error role="alert" title="Could not import Rewards Tracker export.">
+          {error}
+        </StatusPanel>
       )}
 
       <section className="report-section" aria-labelledby="rewards-import-heading">
@@ -147,12 +144,11 @@ export function RewardsImportPage() {
           <span className="section-title" id="rewards-cards-heading">Stored cards</span>
           <span className="section-meta">{cards.length} stored</span>
         </div>
-        {snapshot.loading && !snapshot.data && <div className="status-panel"><p className="status-title">Loading stored cards…</p></div>}
+        {snapshot.loading && !snapshot.data && <StatusPanel title="Loading stored cards…" />}
         {snapshot.error && (
-          <div className="status-panel status-panel-error" role="alert">
-            <p className="status-title">Could not load stored cards.</p>
-            <p className="status-detail">{snapshot.error}</p>
-          </div>
+          <StatusPanel error role="alert" title="Could not load stored cards.">
+            {snapshot.error}
+          </StatusPanel>
         )}
         {!snapshot.loading && !snapshot.error && cards.length === 0 && (
           <p className="rewards-import-empty">No Rewards Tracker cards stored yet.</p>

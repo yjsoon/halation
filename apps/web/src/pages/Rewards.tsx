@@ -17,6 +17,7 @@ import { withViewTransition } from "../lib/view-transition";
 import { applyFilterPatch, useFilters } from "../state/filters";
 import { usePlan } from "../state/plan";
 import "./rewards-board.css";
+import { StatusPanel } from "../components/StatusPanel";
 
 const ALL_TIME = () => ({});
 const GROUPS = ["flag", "payee", "category", "memo"] as const;
@@ -302,33 +303,26 @@ function RewardsBoard({ planId }: { planId: string }) {
       }
 
       {report.error && (
-        <div className="status-panel status-panel-error" role="alert">
-          <p className="status-title">Could not load rewards.</p>
-          <p className="status-detail">{report.error}</p>
-        </div>
+        <StatusPanel error role="alert" title="Could not load rewards.">
+          {report.error}
+        </StatusPanel>
       )}
 
       {settingsError && (
-        <div className="status-panel status-panel-error" role="alert">
-          <p className="status-title">Could not update rewards settings.</p>
-          <p className="status-detail">{settingsError}</p>
-        </div>
+        <StatusPanel error role="alert" title="Could not update rewards settings.">
+          {settingsError}
+        </StatusPanel>
       )}
 
       {report.loading && !shown && (
-        <div className="status-panel">
-          <p className="status-title">Loading rewards…</p>
-        </div>
+        <StatusPanel title="Loading rewards…" />
       )}
 
       {emptyImported && (
-        <div className="status-panel">
-          <p className="status-title">No reward cards in this range.</p>
-          <p className="status-detail">
-            Import a Rewards Tracker export from <Link to="/import/rewards">Settings → Rewards import</Link>,
+        <StatusPanel title="No reward cards in this range.">
+          Import a Rewards Tracker export from <Link to="/import/rewards">Settings → Rewards import</Link>,
             or choose <Link to={addCardHref}>Add card</Link> to score one of your Halation cards.
-          </p>
-        </div>
+        </StatusPanel>
       )}
 
       {emptyForAccounts && (
