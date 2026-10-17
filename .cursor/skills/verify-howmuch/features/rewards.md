@@ -13,7 +13,7 @@ Rewards shows stored reward cards against the HowMuch ledger as a board of card 
 - `rewards-flags` lists Dining and Online flag rows on Travel Card.
 - `rewards-group` switches **Report grouping** (in the breakdown heading) to Payee and lists Candlenut.
 - `rewards-accounts` scopes the board with the **Accounts** multi-select. An account with no reward card shows "None of the selected accounts has a reward card." with **Show all accounts**.
-- `rewards-arrange` sets Order (Manual, Name, Reward value, Spend), **Group by type** and **Show hidden (N)** from the **Arrange** popover. **All cards** and **Featured** sit beside it.
+- `rewards-arrange` sets Order (Manual, Name, Reward value, Spend), Layout (**Stacked**, the default: one full-width strip per row on desktop; **Grid**: the 3:2 faces in columns), **Group by type** and **Show hidden (N)** from the **Arrange** popover. **All cards** and **Featured** sit beside it.
 - `rewards-card-menu` opens **Actions for {card}** (⋯), which has Edit card, View transactions, Hide or Unhide ("On this device") and **Hide until next period** ("Returns {date}").
 - `rewards-batch` uses **Select**, then the **Batch card edits** bar: **Select visible**, **Batch field**, **Batch value**, **Apply to selected**, then **Done**.
 

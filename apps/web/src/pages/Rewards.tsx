@@ -45,9 +45,11 @@ type BoardPreferences = {
   order: "manual" | "name" | "value" | "spend";
   cardOrder: string[];
   grouped: boolean;
+  /** Grid: the 3:2 faces in columns. Stacked: full-width sunrise bands, one per row. */
+  layout: "grid" | "stacked";
   collapsedGroups: string[];
 };
-const DEFAULT_BOARD: BoardPreferences = { featured: false, showHidden: false, hidden: [], hiddenUntil: {}, order: "name", cardOrder: [], grouped: true, collapsedGroups: [] };
+const DEFAULT_BOARD: BoardPreferences = { featured: false, showHidden: false, hidden: [], hiddenUntil: {}, order: "name", cardOrder: [], grouped: true, layout: "stacked", collapsedGroups: [] };
 const ORDERS: ReadonlyArray<BoardPreferences["order"]> = ["manual", "name", "value", "spend"];
 const ORDER_LABEL: Record<BoardPreferences["order"], string> = { manual: "Manual", name: "Name", value: "Reward value", spend: "Spend" };
 
@@ -63,6 +65,7 @@ function loadBoard(planId: string): BoardPreferences {
       order: value.order === "manual" || value.order === "value" || value.order === "spend" ? value.order : "name",
       cardOrder: Array.isArray(value.cardOrder) ? value.cardOrder.filter((id: unknown) => typeof id === "string") : [],
       grouped: value.grouped !== false,
+      layout: value.layout === "grid" ? "grid" : "stacked",
       collapsedGroups: Array.isArray(value.collapsedGroups) ? value.collapsedGroups.filter((name: unknown) => name === "Cashback" || name === "Miles") : [],
     };
   } catch { return DEFAULT_BOARD; }
@@ -360,7 +363,7 @@ function RewardsBoard({ planId }: { planId: string }) {
                       <span className="rw-chevron" aria-hidden="true">▾</span>
                     </button>
                   : <span className="rw-group-name">{group.name}</span>}</h2>
-                <div id={`rewards-group-${group.name}`} className="rw-grid" hidden={collapsed}>
+                <div id={`rewards-group-${group.name}`} className="rw-grid" data-layout={preferences.layout} hidden={collapsed}>
                   {group.rows.map((row, index) => (
                     <RewardCard
                       key={row.card.id}
@@ -380,6 +383,7 @@ function RewardsBoard({ planId }: { planId: string }) {
                       permanentlyHidden={preferences.hidden.includes(row.card.id)}
                       hiddenUntil={preferences.hiddenUntil[row.card.id]}
                       expiry={nextCardPeriodDate(row)}
+                      stacked={preferences.layout === "stacked"}
                       manual={preferences.order === "manual"}
                       first={index === 0}
                       last={index === group.rows.length - 1}
@@ -527,6 +531,7 @@ type RewardCardProps = {
   permanentlyHidden: boolean;
   hiddenUntil?: string;
   expiry?: string;
+  stacked: boolean;
   manual: boolean;
   first: boolean;
   last: boolean;
@@ -546,7 +551,7 @@ function RewardCard(p: RewardCardProps) {
       data-mono={picture?.stage === "failed" || undefined} data-selected={selected || undefined}
       data-hidden={p.hidden || undefined} data-just-updated={p.justUpdated || undefined}
       style={{ "--rw-h": picture?.pose.h ?? 1, "--rw-v": picture?.pose.v ?? 0, "--i": Math.min(index, 12), "--vt-name": vt } as CSSProperties}>
-      <RewardTile row={row} search={p.search} asOf={p.asOf} hiddenUntil={until} projection={p.projection} index={index} memoryKey={p.memoryKey} />
+      <RewardTile row={row} search={p.search} asOf={p.asOf} hiddenUntil={until} projection={p.projection} index={index} memoryKey={p.memoryKey} stacked={p.stacked} />
       {selecting
         ? <label className="rw-card-select">
             <input type="checkbox" disabled={p.busy} checked={selected} onChange={(event) => p.onSelect(event.target.checked)} />
@@ -636,6 +641,16 @@ function ArrangeMenu({ preferences, hiddenCount, onChange }: {
             ))}
           </fieldset>
           <div className="rw-popover-rule" aria-hidden="true" />
+          <fieldset className="rw-fieldset rw-layout-choice">
+            <legend>Layout</legend>
+            {(["stacked", "grid"] as const).map((layout) => (
+              <label key={layout} className="rw-option">
+                <input type="radio" name={`${id}-layout`} value={layout} checked={preferences.layout === layout} onChange={() => onChange({ layout })} />
+                {layout === "stacked" ? "Stacked" : "Grid"}
+              </label>
+            ))}
+          </fieldset>
+          <div className="rw-popover-rule" aria-hidden="true" />
           <label className="rw-option">
             <input type="checkbox" checked={preferences.grouped} onChange={(event) => onChange({ grouped: event.target.checked })} /> Group by type
           </label>
@@ -714,7 +729,7 @@ function FlagList({ calc }: { calc: Row["calculation"] }) {
 }
 
 // Signature stays compatible with lib/rewards-tile.test.ts: ({ row, search, asOf }) still works.
-export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, index = 0, memoryKey }: {
+export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, index = 0, memoryKey, stacked = false }: {
   row: Row;
   search: string;
   asOf?: string;
@@ -723,10 +738,13 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
   range?: boolean;
   index?: number;
   memoryKey?: string;
+  /** Full-width band on a wide screen: the phone strip's layout, with the type line beside the name. */
+  stacked?: boolean;
 }) {
   const calc = row.calculation;
   const id = useId();
-  const phone = useIsPhone();
+  const narrow = useIsPhone();
+  const phone = narrow || stacked;
   const p = projection ?? projectRow(row, asOf, range ?? RANGE_PERIOD.test(calc.period));
   const text = rowText(p);
   const picture = exposure(p) ?? stillExposure(p.rewardType === "miles");
@@ -737,7 +755,7 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
   const max = calc.maximum_spend ?? 0;
   const minimumLeads = p.action.kind === "minimum" || p.action.kind === "monthlyMinimum";
   const capDone = p.action.kind === "capReached" && p.action.terminal;
-  const caps = [row.card.issuer, row.card.type === "miles" ? "Miles" : "Cashback", !phone && row.card.featured ? "Featured" : null]
+  const caps = [row.card.issuer, row.card.type === "miles" ? "Miles" : "Cashback", !narrow && row.card.featured ? "Featured" : null]
     .filter(Boolean).join(" · ");
   const badge = hiddenUntil && (
     <span className={phone ? "rw-badge rw-badge-pin" : "rw-badge"} title={`Hidden until ${hiddenUntil} (Singapore)`}>
@@ -750,7 +768,7 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
         <ExposureFace exposure={picture} variant={phone ? "strip" : "face"} index={index} memoryKey={memoryKey}>
           {phone ? (
             <>
-              <h3 className="rw-face-name" id={`${id}-name`} data-rw="name">{row.card.name}</h3>
+              <h3 className="rw-face-name" id={`${id}-name`} data-rw="name">{row.card.name}{!narrow && <span className="rw-strip-caps">{[row.account_name, caps].filter(Boolean).join(" · ")}</span>}</h3>
               {badge}
               <div className="rw-strip-foot" data-rw="foot"><Statement text={text} /><Exceptions lines={text.exceptionLines} /></div>
             </>

@@ -248,6 +248,8 @@ The "✦" after "DBS · MILES" on the web face and in the lab is the Featured fl
 | **Paper row, plain** | Range Report "Cards" section | As today, no picture |
 | **Hero** | Detail sheet header | A 3:2 print with a 6pt border |
 
+On the web the desktop board defaults to **Stacked** (Arrange → Layout): each card is the strip at the full board width, one per row, with the account and type line beside the name and the closed "Targets, periods and tiers" disclosure at the end of the basis line. **Grid** keeps the 3:2 faces in columns. Phones always show the strip.
+
 ### The scene
 
 Every layout draws the same scene, back to front:

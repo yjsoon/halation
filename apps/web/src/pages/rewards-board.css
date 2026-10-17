@@ -762,6 +762,22 @@
   font: 600 10px var(--font-ui);
 }
 
+/* The stacked board: one full-width sunrise band per row, the phone strip drawn wide. The type line
+   rides beside the name on the sky, so the band stays as short as the strip. */
+.rw-grid[data-layout="stacked"] {
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.rw-strip-caps {
+  margin-left: 12px;
+  font: 400 11px var(--font-figures);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  vertical-align: 3px;
+  opacity: 0.72;
+}
+
 .rw-strip-foot {
   z-index: 1;
   color: var(--face-foot-ink);
@@ -1093,6 +1109,33 @@
 .rw-more p {
   margin: 4px 0;
   overflow-wrap: anywhere;
+}
+
+/* On a stacked wide board the closed disclosure sits on the band, at the end of the basis line, so a
+   row is one band rather than a band and a tab. Opened, it drops below the band as the paper slip. */
+@media (min-width: 721px) {
+  .rw-grid[data-layout="stacked"] .rw-more:not([open]) {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+
+  .rw-grid[data-layout="stacked"] .rw-more:not([open]) summary {
+    position: absolute;
+    right: 16px;
+    bottom: 9px;
+    z-index: 2;
+    color: var(--face-foot-soft);
+  }
+
+  .rw-grid[data-layout="stacked"] .rw-more[open] {
+    margin-top: -1px;
+  }
+
+  .rw-grid[data-layout="stacked"] .rw-basis {
+    padding-right: 200px;
+  }
 }
 
 .rw-months {
