@@ -194,3 +194,39 @@ private struct AccountKindPicker: View {
     .navigationBarTitleDisplayMode(.inline)
   }
 }
+
+/// Cancel and save for the new and edit account sheets, with a spinner while saving.
+struct AccountSheetToolbar: ToolbarContent {
+  let isSaving: Bool
+  let canSave: Bool
+  let cancel: @MainActor () -> Void
+  let save: @MainActor () async -> Void
+
+  var body: some ToolbarContent {
+    ToolbarItem(placement: .cancellationAction) {
+      Button(action: cancel) {
+        Image(systemName: "xmark")
+          .font(.body.weight(.semibold))
+          .foregroundStyle(Theme.textPrimary)
+      }
+      .disabled(isSaving)
+      .accessibilityLabel("Cancel")
+    }
+    ToolbarItem(placement: .confirmationAction) {
+      if isSaving {
+        ProgressView()
+          .accessibilityLabel("Saving")
+      } else {
+        Button {
+          Task { await save() }
+        } label: {
+          Image(systemName: "checkmark")
+            .font(.body.weight(.semibold))
+            .foregroundStyle(canSave ? Theme.accent : Color.secondary)
+        }
+        .disabled(!canSave)
+        .accessibilityLabel("Save")
+      }
+    }
+  }
+}

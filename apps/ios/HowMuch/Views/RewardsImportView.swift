@@ -124,7 +124,7 @@ struct RewardsImportView: View {
   @State private var accountImport: RewardsAccountImportSelection
   @State private var snapshot: RewardsTrackerSnapshot?
   @State private var phase: LoadPhase = .idle
-  @State private var exportDocument: RewardsConfigurationDocument?
+  @State private var exportDocument: ExportFileDocument?
   @State private var isExporting = false
   @State private var exportBusy = false
   @State private var exportError: String?
@@ -254,7 +254,7 @@ struct RewardsImportView: View {
     do {
       let current = try await model.apiClient.fetchRewardsTrackerSnapshot(planID: planID)
       guard planID == model.settings.planID else { return }
-      exportDocument = RewardsConfigurationDocument(data: try current.configurationData())
+      exportDocument = ExportFileDocument(data: try current.configurationData())
       snapshot = current
       isExporting = true
     } catch {
@@ -594,8 +594,10 @@ struct RewardsStoredCardsView: View {
   }
 }
 
-struct RewardsConfigurationDocument: FileDocument {
-  static var readableContentTypes: [UTType] { [.json] }
+/// Bytes handed to the file exporter: the Rewards configuration, the
+/// on-device archive, or an "Export everything" JSON or CSV file.
+struct ExportFileDocument: FileDocument {
+  static var readableContentTypes: [UTType] { [.json, .commaSeparatedText] }
   var data: Data
 
   init(data: Data) { self.data = data }

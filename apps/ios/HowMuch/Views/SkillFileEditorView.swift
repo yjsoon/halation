@@ -10,7 +10,6 @@ struct SkillFileEditorView: View {
   // them yet, so they are not shown.
   @State private var window: Int
   @State private var notes: String
-  @State private var confirmingDiscard = false
 
   /// The example from docs/plans/share-intake.md section 8.
   static let exampleNotes = """
@@ -61,45 +60,12 @@ struct SkillFileEditorView: View {
     .background(Theme.canvas)
     .navigationTitle("How to read my documents")
     .navigationBarTitleDisplayMode(.inline)
-    // Swiping the sheet away would lose edits; Cancel is the way out.
-    .interactiveDismissDisabled(isDirty)
-    .toolbar {
-      ToolbarItem(placement: .cancellationAction) {
-        Button("Cancel") {
-          if isDirty {
-            confirmingDiscard = true
-          } else {
-            dismiss()
-          }
-        }
-        .tint(Theme.accent)
-      }
-      ToolbarItem(placement: .confirmationAction) {
-        Button("Done") {
-          save()
-        }
-        .disabled(isOverLimit)
-        .tint(Theme.accent)
-      }
-    }
-    .binaryConfirm("Discard changes?", isPresented: $confirmingDiscard, confirm: .destructive("Discard")) {
-      dismiss()
-    }
+    .skillEditorChrome(isDirty: isDirty, isOverLimit: isOverLimit, save: save)
   }
 
   private var settingsCard: some View {
     VStack(spacing: 0) {
-      Stepper(value: $window, in: IntakeSkill.dayWindowRange) {
-        HStack {
-          Text("Duplicate window")
-            .foregroundStyle(Theme.textPrimary)
-          Spacer(minLength: 8)
-          Text("±\(window) \(window == 1 ? "day" : "days")")
-            .font(.body.weight(.semibold))
-            .monospacedDigit()
-        }
-      }
-      .frame(minHeight: 44)
+      SkillWindowStepper(window: $window)
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 4)
@@ -153,7 +119,6 @@ struct AccountSkillEditorView: View {
 
   @State private var notes: String
   @State private var overridesWindow: Bool
-  @State private var confirmingDiscard = false
   @State private var window: Int
 
   init(accountID: String) {
@@ -189,17 +154,7 @@ struct AccountSkillEditorView: View {
             .frame(minHeight: 44)
           if overridesWindow {
             Divider()
-            Stepper(value: $window, in: IntakeSkill.dayWindowRange) {
-              HStack {
-                Text("Duplicate window")
-                  .foregroundStyle(Theme.textPrimary)
-                Spacer(minLength: 8)
-                Text("±\(window) \(window == 1 ? "day" : "days")")
-                  .font(.body.weight(.semibold))
-                  .monospacedDigit()
-              }
-            }
-            .frame(minHeight: 44)
+            SkillWindowStepper(window: $window)
           }
         }
         .padding(.horizontal, 16)
@@ -219,29 +174,7 @@ struct AccountSkillEditorView: View {
     .background(Theme.canvas)
     .navigationTitle(accountName)
     .navigationBarTitleDisplayMode(.inline)
-    .interactiveDismissDisabled(isDirty)
-    .toolbar {
-      ToolbarItem(placement: .cancellationAction) {
-        Button("Cancel") {
-          if isDirty {
-            confirmingDiscard = true
-          } else {
-            dismiss()
-          }
-        }
-        .tint(Theme.accent)
-      }
-      ToolbarItem(placement: .confirmationAction) {
-        Button("Done") {
-          save()
-        }
-        .disabled(isOverLimit)
-        .tint(Theme.accent)
-      }
-    }
-    .binaryConfirm("Discard changes?", isPresented: $confirmingDiscard, confirm: .destructive("Discard")) {
-      dismiss()
-    }
+    .skillEditorChrome(isDirty: isDirty, isOverLimit: isOverLimit, save: save)
   }
 
   private func save() {
@@ -329,5 +262,64 @@ struct SkillNotesField: View {
       }
       .padding(.horizontal, 4)
     }
+  }
+}
+
+private struct SkillWindowStepper: View {
+  @Binding var window: Int
+
+  var body: some View {
+    Stepper(value: $window, in: IntakeSkill.dayWindowRange) {
+      HStack {
+        Text("Duplicate window")
+          .foregroundStyle(Theme.textPrimary)
+        Spacer(minLength: 8)
+        Text("±\(window) \(window == 1 ? "day" : "days")")
+          .font(.body.weight(.semibold))
+          .monospacedDigit()
+      }
+    }
+    .frame(minHeight: 44)
+  }
+}
+
+/// Cancel and Done for the skill editors. Swiping the sheet away would lose
+/// edits, so Cancel is the way out and asks first when there are changes.
+private struct SkillEditorChrome: ViewModifier {
+  @Environment(\.dismiss) private var dismiss
+  @State private var confirmingDiscard = false
+  let isDirty: Bool
+  let isOverLimit: Bool
+  let save: () -> Void
+
+  func body(content: Content) -> some View {
+    content
+      .interactiveDismissDisabled(isDirty)
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") {
+            if isDirty {
+              confirmingDiscard = true
+            } else {
+              dismiss()
+            }
+          }
+          .tint(Theme.accent)
+        }
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done", action: save)
+            .disabled(isOverLimit)
+            .tint(Theme.accent)
+        }
+      }
+      .binaryConfirm("Discard changes?", isPresented: $confirmingDiscard, confirm: .destructive("Discard")) {
+        dismiss()
+      }
+  }
+}
+
+private extension View {
+  func skillEditorChrome(isDirty: Bool, isOverLimit: Bool, save: @escaping () -> Void) -> some View {
+    modifier(SkillEditorChrome(isDirty: isDirty, isOverLimit: isOverLimit, save: save))
   }
 }

@@ -42,7 +42,6 @@ struct RewardExposure: Equatable {
   var metAt: Double?
 
   var light: Light { stage == .failed ? .overcast : stage == .calm ? .even : .journey }
-  var hasMarker: Bool { stage == .gate }
   var hasSun: Bool { stage != .failed }
   /// The marker's x as a share of the width: exactly the fill, in the minimum journey only.
   var markerX: Double? { stage == .gate ? pose.h : nil }
