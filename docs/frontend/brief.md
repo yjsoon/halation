@@ -98,9 +98,10 @@ apps/web/
   package.json
   src/
     main.tsx            # router + app shell
-    app.css             # tokens, typography, layout primitives
+    app.css             # imports styles/app/*.css in cascade order
+    styles/             # tokens.css, motion.css, app/ (one file per area)
     api/client.ts       # typed fetch wrapper, envelope unwrap
-    api/types.ts        # mirrors apps/api response shapes
+    api/types.ts        # web types; wire shapes come from @howmuch/contract
     lib/money.ts        # milliunits ↔ display
     lib/dates.ts        # range presets, period labels
     state/filters.ts    # URL ↔ Filters codec, hook
