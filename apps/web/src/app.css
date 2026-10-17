@@ -597,45 +597,12 @@ textarea {
   text-align: right;
 }
 
-.masthead {
-  display: none;
-}
-
 .masthead-title {
   font-family: var(--font-display);
   font-weight: 600;
   font-style: italic;
   font-size: 26px;
   letter-spacing: 0.01em;
-}
-
-.masthead-nav {
-  display: flex;
-  gap: 2px;
-  flex-wrap: wrap;
-  margin-right: auto;
-  min-width: 0;
-}
-
-.tab {
-  padding: 4px 10px 6px;
-  text-decoration: none;
-  font-size: 13px;
-  color: var(--ink-soft);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  white-space: nowrap;
-  flex: 0 0 auto;
-}
-
-.tab:hover {
-  color: var(--ink);
-}
-
-.tab-active {
-  color: var(--ink);
-  font-weight: 600;
-  border-bottom-color: var(--ink);
 }
 
 .add-button {
@@ -1379,12 +1346,6 @@ a.page-eyebrow:hover {
   font-size: 12.5px;
 }
 
-.register-bulk-count {
-  color: var(--inverse-ink);
-  font-size: 12px;
-  font-weight: 600;
-}
-
 .register-footer {
   display: flex;
   align-items: center;
@@ -1489,15 +1450,6 @@ a.page-eyebrow:hover {
 
 .register-row-action:hover:not(:disabled) {
   color: var(--ink);
-}
-
-.register-row-action-approve {
-  color: var(--green);
-  font-weight: 600;
-}
-
-.register-row-action-approve:hover:not(:disabled) {
-  color: var(--green);
 }
 
 .register-row-action-danger:hover:not(:disabled) {
@@ -1930,16 +1882,10 @@ a.page-eyebrow:hover {
   padding-top: 14px;
 }
 
-.transaction-editor-top-row,
-.transaction-editor-status-row {
+.transaction-editor-top-row {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-}
-
-.transaction-editor-status-row {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
-  align-items: end;
 }
 
 .transaction-editor-checkbox {
@@ -1999,12 +1945,6 @@ a.page-eyebrow:hover {
 .transaction-editor-split-line input[type="number"] {
   font-family: var(--font-figures);
   text-align: right;
-}
-
-.transaction-editor-transfer-line {
-  grid-column: span 2;
-  color: var(--ink-soft);
-  font-size: 12px;
 }
 
 .transaction-editor-error {
@@ -2489,12 +2429,6 @@ th.num {
   font-size: 12px;
 }
 
-.empty-row {
-  text-align: center;
-  color: var(--ink-faint);
-  padding: 28px 0 !important;
-}
-
 .group-row td {
   font-weight: 600;
   font-size: 12px;
@@ -2795,11 +2729,6 @@ tr:hover .share-bar {
   gap: 4px;
   min-width: min(320px, 100%);
   flex: 1 1 320px;
-}
-
-.search-meta {
-  font-size: 11.5px;
-  color: var(--ink-soft);
 }
 
 .search-input:focus {
@@ -4426,19 +4355,6 @@ tr:hover .share-bar {
     padding: 0 12px 60px;
   }
 
-  .masthead {
-    gap: 10px;
-  }
-
-  .masthead-nav {
-    order: 3;
-    width: 100%;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 2px;
-    scrollbar-width: thin;
-  }
-
   .report-header {
     flex-direction: column;
     align-items: flex-start;
@@ -4575,8 +4491,7 @@ tr:hover .share-bar {
     flex-direction: column;
   }
 
-  .transaction-editor-top-row,
-  .transaction-editor-status-row {
+  .transaction-editor-top-row {
     grid-template-columns: 1fr;
   }
 
@@ -4595,10 +4510,6 @@ tr:hover .share-bar {
   }
 
   .transaction-editor-split-line > label:last-child {
-    grid-column: span 2;
-  }
-
-  .transaction-editor-transfer-line {
     grid-column: span 2;
   }
 

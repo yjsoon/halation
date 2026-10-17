@@ -15,7 +15,7 @@ import { randomUUID } from "node:crypto";
  * old and new lines. Migration 0019 / 022 copies the schedules imported before
  * this existed.
  */
-export type OwnedRecordStatement = { sql: string; values: unknown[] };
+type OwnedRecordStatement = { sql: string; values: unknown[] };
 
 // A reference that no longer resolves is stored as NULL in the indexed column
 // (the payload keeps the original ID), as the migration does.

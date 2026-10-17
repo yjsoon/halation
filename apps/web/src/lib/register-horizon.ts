@@ -1,7 +1,7 @@
 import { MAX_TRANSACTION_PAGE_SIZE } from "@howmuch/register-query";
 import { trailingMonthsRange } from "./dates";
 
-export const REGISTER_HORIZON_MONTHS = 2;
+const REGISTER_HORIZON_MONTHS = 2;
 export const REGISTER_HORIZON_MAX_ROWS = 600;
 
 // The largest page the API allows, so the horizon fill takes as few requests as it can.
@@ -35,13 +35,13 @@ export function shouldFetchMoreForHorizon(input: {
   return input.oldestLoadedDate === null || input.oldestLoadedDate >= horizonStartDate(input.today);
 }
 
-export interface RegisterHorizonPage<T extends { id: string; date: string }> {
+interface RegisterHorizonPage<T extends { id: string; date: string }> {
   transactions: T[];
   has_more: boolean;
   next_offset: number | null;
 }
 
-export interface RegisterHorizonFill<T extends { id: string; date: string }> {
+interface RegisterHorizonFill<T extends { id: string; date: string }> {
   transactions: T[];
   hasMore: boolean;
   nextOffset: number | null;

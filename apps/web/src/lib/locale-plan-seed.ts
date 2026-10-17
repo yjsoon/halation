@@ -38,7 +38,7 @@ export const CURRENCY_CHOICES: readonly string[] = [
 ];
 
 export const DEFAULT_CURRENCY = "SGD";
-export const DEFAULT_DATE_FORMAT: DateFormatChoice = "DD/MM/YYYY";
+const DEFAULT_DATE_FORMAT: DateFormatChoice = "DD/MM/YYYY";
 
 // Intl has no region-to-currency lookup, so the common regions are listed.
 const EURO_REGIONS = "AT BE CY DE EE ES FI FR GR HR IE IT LT LU LV MT NL PT SI SK".split(" ");

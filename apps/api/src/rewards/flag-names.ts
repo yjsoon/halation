@@ -1,4 +1,4 @@
-import { UNFLAGGED_FLAG, YNAB_FLAG_COLORS, type YnabFlagColor } from "./flags";
+import { UNFLAGGED_FLAG, YNAB_FLAG_COLORS } from "./flags";
 import type { CreditCard } from "./types";
 
 const FLAG_NAME_COLOURS = new Set<string>([

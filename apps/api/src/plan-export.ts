@@ -12,10 +12,10 @@
 import type { PlanSnapshot } from "./plan-snapshot";
 import type { LedgerStore } from "./storage";
 
-export const EXPORT_FORMAT = "howmuch-export";
-export const EXPORT_VERSION = 1;
+const EXPORT_FORMAT = "howmuch-export";
+const EXPORT_VERSION = 1;
 
-export type PlanExport = {
+type PlanExport = {
   format: typeof EXPORT_FORMAT;
   version: typeof EXPORT_VERSION;
   exported_at: string;

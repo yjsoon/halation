@@ -15,7 +15,7 @@ export interface Filters {
   groupBy: "flag" | "payee" | "category" | "memo";
 }
 
-export interface FilterOptions {
+interface FilterOptions {
   /** Range shown when the URL carries no explicit dates. Defaults to the current month. */
   defaultRange?: () => { from?: string; to?: string };
   /**

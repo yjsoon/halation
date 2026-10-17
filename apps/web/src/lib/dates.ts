@@ -58,7 +58,7 @@ export function shiftMonth(month: string, delta: number): { from: string; to: st
   return monthBounds(year, monthNumber - 1 + delta);
 }
 
-export interface RangePreset {
+interface RangePreset {
   id: string;
   label: string;
   range: () => { from?: string; to?: string };

@@ -18,12 +18,12 @@ const MAX_CHUNK_BYTES = 2 * 1024 * 1024;
 type Row = Record<string, string | number | null>;
 type DataStatement = { sql: string; counts: Record<string, number> };
 
-export type BootstrapManifest = {
+type BootstrapManifest = {
   sha256: string; plan_id: string; import_session_id: string; server_knowledge: number;
   counts: Record<string, { active: number; deleted: number }>; sql_bytes: number;
 };
 
-export type BootstrapChunkManifest = BootstrapManifest & {
+type BootstrapChunkManifest = BootstrapManifest & {
   format: "howmuch-d1-bootstrap-chunks-v1";
   chunks: Array<{
     file: string;
@@ -135,7 +135,7 @@ function generateBootstrap(inputPath: string, outputPath: string, mode: "single"
       for (const row of tableRows) validateScalars(row, table);
       rows.set(table, tableRows);
     }
-    materialiseOwnedSchedules(source, rows, String(plan.id));
+    materialiseOwnedSchedules(rows, String(plan.id));
     (rows.get("transactions")!).forEach((r, i) => r.ledger_sequence = i + 1);
     (rows.get("subtransactions")!).forEach((r, i) => r.ledger_sequence = i + 1);
 
@@ -150,7 +150,7 @@ function generateBootstrap(inputPath: string, outputPath: string, mode: "single"
     const statements = [...guard, ...dataStatements.map((statement) => statement.sql)];
     const sql = statements.join("\n") + "\n";
     if (Buffer.byteLength(sql) > MAX_IMPORT_BYTES) throw new Error("Generated SQL exceeds Cloudflare D1's 5 GiB import limit");
-    validateGenerated(source, sql, rows, String(plan.id), cursor);
+    validateStatementGroups([[sql]], rows, String(plan.id), cursor);
     const manifest: BootstrapManifest = { sha256: createHash("sha256").update(sql).digest("hex"), plan_id: String(plan.id), import_session_id: String(session.id), server_knowledge: cursor, counts: {}, sql_bytes: Buffer.byteLength(sql) };
     for (const table of COPY_TABLES) {
       const rs = rows.get(table)!; manifest.counts[table] = { active: rs.filter(r => !("deleted" in r) || r.deleted === 0).length, deleted: rs.filter(r => r.deleted === 1).length };
@@ -163,7 +163,7 @@ function generateBootstrap(inputPath: string, outputPath: string, mode: "single"
     }
 
     const chunks = chunkStatements(dataStatements);
-    validateChunked(source, chunks.map((chunk) => chunk.statements), rows, String(plan.id), cursor);
+    validateStatementGroups(chunks.map((chunk) => chunk.statements), rows, String(plan.id), cursor);
     const chunkManifest: BootstrapChunkManifest = {
       ...manifest,
       format: "howmuch-d1-bootstrap-chunks-v1",
@@ -191,15 +191,7 @@ function generateBootstrap(inputPath: string, outputPath: string, mode: "single"
   } finally { source.close(); }
 }
 
-function validateGenerated(source: Database, sql: string, expected: Map<string, Row[]>, planId: string, cursor: number) {
-  validateStatementGroups(source, [[sql]], expected, planId, cursor);
-}
-
-function validateChunked(source: Database, statementGroups: string[][], expected: Map<string, Row[]>, planId: string, cursor: number) {
-  validateStatementGroups(source, statementGroups, expected, planId, cursor);
-}
-
-function validateStatementGroups(source: Database, statementGroups: string[][], expected: Map<string, Row[]>, planId: string, cursor: number) {
+function validateStatementGroups(statementGroups: string[][], expected: Map<string, Row[]>, planId: string, cursor: number) {
   const db = new Database(":memory:");
   try {
     db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0001_initial.sql", import.meta.url), "utf8"));
@@ -327,7 +319,7 @@ function copyColumns(db: Database, table: string): string[] {
  * becomes a HowMuch-owned row (unless the source already holds one), and a
  * plan with YNAB months is marked. The app reads only those tables.
  */
-function materialiseOwnedSchedules(source: Database, rows: Map<string, Row[]>, planId: string) {
+function materialiseOwnedSchedules(rows: Map<string, Row[]>, planId: string) {
   const raw = rows.get("ynab_raw_objects")!;
   const edits = rows.get("scheduled_transaction_edits")!;
   const lines = rows.get("scheduled_subtransaction_edits")!;

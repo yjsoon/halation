@@ -112,37 +112,20 @@ enum Theme {
   }
 }
 
-/// Rewards row tones: track behind the row, leading progress fill, and ink
-/// for the icon, urgent deadline and fill-edge tick. Text colours never change
-/// across the fill, so every track and fill stays light (or dark) enough for
-/// `textPrimary` and `rowSecondary`.
+/// Rewards row tones: ink for the icon, urgent deadline and fill-edge tick.
 struct RewardTonePalette {
-  let track: Color
-  let fill: Color
   let ink: Color
 
   static func palette(for tone: RewardRowProjection.Tone) -> RewardTonePalette {
     switch tone {
     case .needsMinimum:
-      return RewardTonePalette(
-        track: Color(light: 0xFFF7EC, dark: 0x262117),
-        fill: Color(light: 0xFBE2C2, dark: 0x46351A, increasedLight: 0xF5CB94, increasedDark: 0x5E4720),
-        ink: Color(light: 0x9A5410, dark: 0xF1B566)
-      )
+      return RewardTonePalette(ink: Color(light: 0x9A5410, dark: 0xF1B566))
     case .earning:
-      return RewardTonePalette(
-        track: Color(light: 0xF0F9F3, dark: 0x17261F),
-        fill: Color(light: 0xCBEBD7, dark: 0x1F4631, increasedLight: 0xA9DDBD, increasedDark: 0x2A5E42),
-        ink: Color(light: 0x1A6E44, dark: 0x6BC78C)
-      )
+      return RewardTonePalette(ink: Color(light: 0x1A6E44, dark: 0x6BC78C))
     case .complete, .failed:
-      return RewardTonePalette(
-        track: Color(light: 0xFBE5E5, dark: 0x402326, increasedLight: 0xF4CDCD, increasedDark: 0x542B30),
-        fill: Color(light: 0xFBE5E5, dark: 0x402326, increasedLight: 0xF4CDCD, increasedDark: 0x542B30),
-        ink: Color(light: 0x9D292F, dark: 0xFFABAE, increasedDark: 0xFFD1D3)
-      )
+      return RewardTonePalette(ink: Color(light: 0x9D292F, dark: 0xFFABAE, increasedDark: 0xFFD1D3))
     case .neutral:
-      return RewardTonePalette(track: Theme.card, fill: .clear, ink: Theme.accent)
+      return RewardTonePalette(ink: Theme.accent)
     }
   }
 }

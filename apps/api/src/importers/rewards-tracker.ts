@@ -5,7 +5,7 @@ import type { TransactionInput } from "../types";
 
 const SOURCE_KIND = "rewards-tracker-export";
 
-export type RewardsTrackerCard = {
+type RewardsTrackerCard = {
   id: string;
   name: string;
   issuer: string;
@@ -14,7 +14,7 @@ export type RewardsTrackerCard = {
   [key: string]: unknown;
 };
 
-export type RewardsTrackerPortablePayload = {
+type RewardsTrackerPortablePayload = {
   ynab: {
     selectedBudgetId?: string;
     selectedBudgetName?: string;
@@ -29,7 +29,7 @@ export type RewardsTrackerPortablePayload = {
   settings: Record<string, unknown>;
 };
 
-export type RewardsTrackerAccount = {
+type RewardsTrackerAccount = {
   id: string;
   name: string;
   type?: string;
@@ -39,14 +39,14 @@ export type RewardsTrackerAccount = {
   fromCache: boolean;
 };
 
-export type ParsedRewardsTrackerExport = {
+type ParsedRewardsTrackerExport = {
   portable: RewardsTrackerPortablePayload;
   flagNames: Record<string, string>;
   accounts: RewardsTrackerAccount[];
   transactions: Array<Record<string, unknown>>;
 };
 
-export type RewardsTrackerImportResult = {
+type RewardsTrackerImportResult = {
   import_session_id: string;
   cards: number;
   rules: number;

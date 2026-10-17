@@ -6,7 +6,7 @@
  */
 const MAX_ROWS = 25;
 
-export function bloom(el: Element | null): void {
+function bloom(el: Element | null): void {
   if (!el || el.hasAttribute("data-bloom")) return;
   el.setAttribute("data-bloom", "");
   const clear = () => {

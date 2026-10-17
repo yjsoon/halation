@@ -14,11 +14,11 @@ export function isQuietGroupName(name: string | null | undefined): boolean {
   return name != null && QUIET_GROUP_NAME.test(name);
 }
 
-export function isQuietGroup(group: Pick<CategoryGroup, "name" | "hidden">): boolean {
+function isQuietGroup(group: Pick<CategoryGroup, "name" | "hidden">): boolean {
   return Boolean(group.hidden) || isQuietGroupName(group.name);
 }
 
-export interface SplitGroups {
+interface SplitGroups {
   primary: CategoryGroup[];
   quiet: CategoryGroup[];
 }

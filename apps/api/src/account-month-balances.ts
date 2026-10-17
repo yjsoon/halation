@@ -9,27 +9,27 @@
  * report periods.
  */
 
-export type MonthlyBalanceRow = { account_id: string; month: string; net_change_milli: number };
+type MonthlyBalanceRow = { account_id: string; month: string; net_change_milli: number };
 
-export type BoundaryMovement = { account_id: string; date: string; amount_milli: number };
+type BoundaryMovement = { account_id: string; date: string; amount_milli: number };
 
-export type NetWorthAccount = {
+type NetWorthAccount = {
   id: string;
   name: string;
   closed: boolean;
   opening_balance_milli: number;
 };
 
-export type NetWorthPeriodInput = { label: string; end: string };
+type NetWorthPeriodInput = { label: string; end: string };
 
-export type NetWorthAccountBalance = {
+type NetWorthAccountBalance = {
   account_id: string;
   account_name: string;
   closed: boolean;
   balance: number;
 };
 
-export type NetWorthPeriod = {
+type NetWorthPeriod = {
   period: string;
   end_date: string;
   net_worth: number;
@@ -58,19 +58,19 @@ export function monthOf(date: string): string {
 }
 
 /** First calendar day of a `YYYY-MM` bucket. */
-export function monthStart(month: string): string {
+function monthStart(month: string): string {
   return `${month}-01`;
 }
 
 /** Last calendar day of a `YYYY-MM` bucket. */
-export function monthEnd(month: string): string {
+function monthEnd(month: string): string {
   const start = new Date(`${month}-01T00:00:00Z`);
   start.setUTCMonth(start.getUTCMonth() + 1, 0);
   return start.toISOString().slice(0, 10);
 }
 
 /** True when the date is the final calendar day of its own month. */
-export function isMonthEnd(date: string): boolean {
+function isMonthEnd(date: string): boolean {
   return date === monthEnd(monthOf(date));
 }
 

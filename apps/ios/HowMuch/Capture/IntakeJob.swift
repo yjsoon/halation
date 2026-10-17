@@ -275,10 +275,6 @@ struct IntakeProposalCounts: Equatable, Sendable {
   var fixed = 0
   var alreadyIn = 0
   var possibleDuplicates = 0
-
-  var isEmpty: Bool {
-    added == 0 && fixed == 0 && alreadyIn == 0 && possibleDuplicates == 0
-  }
 }
 
 struct IntakeJob: Codable, Equatable, Identifiable, Sendable {

@@ -1,12 +1,12 @@
 import type { Transaction } from "../api/types";
 
-export type TransactionDeepLink = {
+type TransactionDeepLink = {
   planId: string;
   transactionId: string;
   subtransactionId: string | null;
 };
 
-export type TransactionDeepLinkParseResult =
+type TransactionDeepLinkParseResult =
   | { kind: "none" }
   | { kind: "invalid"; message: string }
   | { kind: "valid"; link: TransactionDeepLink };
@@ -18,7 +18,7 @@ export type DeepLinkedTransactionResolution = {
   error: string | null;
 };
 
-export type DeepLinkedTransactionMutation = Transaction | "approved" | "deleted";
+type DeepLinkedTransactionMutation = Transaction | "approved" | "deleted";
 
 const DEEP_LINK_PARAMS = ["plan", "transaction", "subtransaction"] as const;
 const MAX_ID_LENGTH = 256;

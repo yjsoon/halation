@@ -1,6 +1,6 @@
 import type { CardSubcategory, CreditCard } from '../../types';
 
-export interface BlockResult {
+interface BlockResult {
   amount: number;
   blocks: number;
 }

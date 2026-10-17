@@ -1,6 +1,6 @@
 type GroupRow = Record<string, any>;
 
-export type IncomeVsSpendingGroupsReport = {
+type IncomeVsSpendingGroupsReport = {
   income: number;
   spending: number;
   net: number;

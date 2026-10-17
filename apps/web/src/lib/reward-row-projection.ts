@@ -83,26 +83,26 @@ function parts(iso: string): [number, number, number] | null {
 }
 
 /** A day's place in a period, 0 to 1 by whole days (the first day counts as one): the met day's x on the face. */
-export function periodShare(start: string, end: string, day: string): number | null {
+function periodShare(start: string, end: string, day: string): number | null {
   const length = daysBetween(start, end), at = daysBetween(start, day);
   if (length == null || at == null || length < 0) return null;
   return clamp01((at + 1) / (length + 1));
 }
 
 /** `to - from` in whole civil days. */
-export function daysBetween(from: string, to: string): number | null {
+function daysBetween(from: string, to: string): number | null {
   const a = parts(from), b = parts(to);
   if (!a || !b) return null;
   return Math.round((Date.UTC(b[0], b[1] - 1, b[2]) - Date.UTC(a[0], a[1] - 1, a[2])) / 86_400_000);
 }
 
 /** Reward periods are civil dates in Asia/Singapore, whatever the device zone. */
-export function singaporeToday(now: Date = new Date()): string {
+function singaporeToday(now: Date = new Date()): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 }
 
 /** "30 Sep", or "30 Sep 2025" outside the reference year. */
-export function shortLabel(iso: string, referenceIso?: string): string {
+function shortLabel(iso: string, referenceIso?: string): string {
   const p = parts(iso);
   if (!p) return iso;
   const sameYear = referenceIso ? referenceIso.slice(0, 4) === iso.slice(0, 4) : true;
@@ -111,7 +111,7 @@ export function shortLabel(iso: string, referenceIso?: string): string {
 }
 
 /** "July" for a whole calendar month (with the year outside today's), else "15 Jul–14 Aug". */
-export function qualificationLabel(start: string, end: string, today: string): string {
+function qualificationLabel(start: string, end: string, today: string): string {
   const s = parts(start), e = parts(end);
   if (s && e && s[2] === 1 && e[0] === s[0] && e[1] === s[1] && e[2] === new Date(Date.UTC(s[0], s[1], 0)).getUTCDate()) {
     return start.slice(0, 4) === today.slice(0, 4) ? MONTHS[s[1] - 1]! : `${MONTHS[s[1] - 1]!} ${s[0]}`;
@@ -262,8 +262,8 @@ export function projectRow(row: RewardsRow, asOf: string | null | undefined, isR
   return build(action, tone, { basis, fill, deadline: due, exceptions, missed: failedMonth ? { start: failedMonth.start, end: failedMonth.end } : null });
 }
 
-export const isBelowMinimum = (p: RewardRowProjection): boolean => p.action.kind === "minimum" || p.action.kind === "monthlyMinimum";
-export const isTerminalCap = (p: RewardRowProjection): boolean => p.action.kind === "capReached" && p.action.terminal;
+const isBelowMinimum = (p: RewardRowProjection): boolean => p.action.kind === "minimum" || p.action.kind === "monthlyMinimum";
+const isTerminalCap = (p: RewardRowProjection): boolean => p.action.kind === "capReached" && p.action.terminal;
 
 // ------------------------------------------------------------------------ text
 
@@ -278,7 +278,7 @@ export interface RowText {
   accessibilityValue: string;
 }
 
-export const VISIBLE_EXCEPTION_LIMIT = 2;
+const VISIBLE_EXCEPTION_LIMIT = 2;
 
 const money = (value: number): string => formatMoney(Math.round(value * 1000));
 
@@ -288,7 +288,7 @@ export function roundedUpToCent(value: number): number {
   return Math.ceil(value * 100 - 1e-7) / 100;
 }
 
-export function milesString(value: number): string {
+function milesString(value: number): string {
   return Math.round(value).toLocaleString("en-GB");
 }
 
@@ -296,13 +296,13 @@ function reward(value: number, type: RewardKind): string {
   return type === "miles" ? `${milesString(value)} miles` : money(value);
 }
 
-export function deadlineText(deadline: Deadline): string {
+function deadlineText(deadline: Deadline): string {
   if (deadline.days < 1) return "Period ended";
   if (deadline.kind === "ends") return deadline.days === 1 ? "Last day" : `${deadline.days} days left`;
   return deadline.days === 1 ? "Resets tomorrow" : `Resets in ${deadline.days} days`;
 }
 
-export function exceptionText(exception: RowException): string {
+function exceptionText(exception: RowException): string {
   switch (exception.kind) {
     case "categoriesAtCap": {
       const state = exception.over ? "over cap" : "at cap";
@@ -374,7 +374,7 @@ export function rowText(p: RewardRowProjection, today: string = singaporeToday()
 
 // --------------------------------------------------------------------- summary
 
-export interface BoardSummary { earnedLine: string; statusCounts: string[]; line: string }
+interface BoardSummary { earnedLine: string; statusCounts: string[]; line: string }
 
 /** The quiet line under the board controls. Scope is the whole report: Featured and hidden choices never change these numbers. */
 export function boardSummary(report: RewardsReport, projections: readonly RewardRowProjection[]): BoardSummary {

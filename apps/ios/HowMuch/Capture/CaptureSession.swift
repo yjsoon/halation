@@ -264,7 +264,6 @@ final class CaptureSession: Identifiable {
   var composerText: String
   var frozenTurn: CaptureFrozenTurn?
   var lastFeedback: String?
-  var canUndo: Bool { undoStack.isEmpty == false }
   var isBusy: Bool
   var aiActivity: CaptureAIActivity?
   var isSaving: Bool
@@ -378,16 +377,6 @@ final class CaptureSession: Identifiable {
       && pendingQuery == nil
       && pendingUpdateTurn == nil
       && includedDrafts.allSatisfy { $0.draft.canSave }
-  }
-
-  var title: String {
-    if drafts.isEmpty {
-      return "Add Transactions"
-    }
-    if drafts.count == 1 {
-      return "Add Transaction"
-    }
-    return "\(drafts.count) Transactions"
   }
 
   var persistableAttachments: [CaptureAttachment] {

@@ -55,7 +55,7 @@ import {
   type CacheEnvelope,
 } from "./reference-cache";
 
-export interface PlanContextValue {
+interface PlanContextValue {
   planId: string;
   /** Non-blocking notice when a URL requested a plan outside this user's memberships. */
   planSelectionError: string | null;

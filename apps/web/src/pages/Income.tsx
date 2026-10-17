@@ -6,6 +6,7 @@ import { formatPeriod, ytdRange } from "../lib/dates";
 import { formatAmount, formatMoney, formatSavingsRate } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
+import { StatusPanel } from "../components/StatusPanel";
 
 const INTERVALS: Interval[] = ["week", "month", "year"];
 
@@ -70,15 +71,12 @@ export function IncomePage() {
       </div>
 
       {report.error && (
-        <div className="status-panel status-panel-error">
-          <p className="status-title">Could not load the income report.</p>
-          <p className="status-detail">{report.error}</p>
-        </div>
+        <StatusPanel error title="Could not load the income report.">
+          {report.error}
+        </StatusPanel>
       )}
       {report.loading && !report.data && (
-        <div className="status-panel">
-          <p className="status-title">Loading income versus spending…</p>
-        </div>
+        <StatusPanel title="Loading income versus spending…" />
       )}
 
       {report.data && (
@@ -132,10 +130,9 @@ export function IncomePage() {
               </section>
             </>
           ) : (
-            <div className="status-panel">
-              <p className="status-title">No activity in this range.</p>
-              <p className="status-detail">Try widening the date range or clearing account filters.</p>
-            </div>
+            <StatusPanel title="No activity in this range.">
+              Try widening the date range or clearing account filters.
+            </StatusPanel>
           )}
         </>
       )}

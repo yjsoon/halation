@@ -1,7 +1,7 @@
 import { createHash, randomBytes, scrypt as nativeScrypt, timingSafeEqual } from "node:crypto";
 
-export const SCRYPT_PARAMS = { costN: 16384, blockSize: 8, parallelization: 5 } as const;
-export const SESSION_SECONDS = 30 * 24 * 60 * 60;
+const SCRYPT_PARAMS = { costN: 16384, blockSize: 8, parallelization: 5 } as const;
+const SESSION_SECONDS = 30 * 24 * 60 * 60;
 
 export type StoredCredential = {
   user_id: string;

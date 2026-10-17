@@ -12,8 +12,8 @@ export type D1WriteContext = Readonly<{
   operationId: string;
   lease?: Readonly<{ planId: string; attemptId: string }>;
 }>;
-export type D1TransactionWriteOptions = Readonly<{ autoLink?: boolean; upsert?: boolean }>;
-export type D1TransactionPlan = Readonly<{
+type D1TransactionWriteOptions = Readonly<{ autoLink?: boolean; upsert?: boolean }>;
+type D1TransactionPlan = Readonly<{
   commandId: string;
   expectedWriteVersion: number;
   transactionId: string;

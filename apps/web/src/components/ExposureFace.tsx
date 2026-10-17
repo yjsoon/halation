@@ -12,7 +12,7 @@ import { exposureScene, type Scene, type SceneLayout } from "../lib/reward-expos
  * faces), and rewards-board.css switches only on data-type and data-stage.
  */
 
-export type FaceVariant = "face" | "strip";
+type FaceVariant = "face" | "strip";
 type FaceSize = { w: number; h: number; nameBottom: number; footTop: number };
 
 /** What the first render draws before the face has been measured. */

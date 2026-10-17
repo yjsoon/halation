@@ -8,13 +8,13 @@
  * the "discard" branches can be tested directly.
  */
 
-export interface BootstrapSessionStatus {
+interface BootstrapSessionStatus {
   user: { id: string } | null;
   setup_required: boolean;
   bootstrap_required: boolean;
 }
 
-export interface PlanRef {
+interface PlanRef {
   id: string;
   /** The plan's current `server_knowledge`, when the server reports it. */
   server_knowledge?: number;
@@ -26,7 +26,7 @@ export type Settled<T> =
   | { ok: false; error: unknown };
 
 /** Which requests the provider should start before anything has resolved. */
-export interface BootstrapRequestPlan {
+interface BootstrapRequestPlan {
   /** Plan to fetch reference data for up front, or null to wait for the list. */
   speculativePlanId: string | null;
   /** Account preferences are only refetched when no controller is attached. */
@@ -40,11 +40,11 @@ export interface BootstrapRequestPlan {
   fetchAccounts: boolean;
 }
 
-export type SessionDecision =
+type SessionDecision =
   | { kind: "signed-out"; mode: "setup" | "login" }
   | { kind: "signed-in"; userId: string };
 
-export type BootstrapDecision =
+type BootstrapDecision =
   | { kind: "signed-out"; mode: "setup" | "login" }
   | { kind: "no-plans" }
   | { kind: "ready"; userId: string; planId: string; keepSpeculative: boolean; requestedPlanRejected: boolean };
@@ -134,7 +134,7 @@ export function decideBootstrap(input: {
   };
 }
 
-export type ReferenceBatchOutcome<T> =
+type ReferenceBatchOutcome<T> =
   | { kind: "use"; value: T }
   | { kind: "refetch" }
   | { kind: "fail"; error: unknown };

@@ -181,13 +181,6 @@ final class IntentCatalogStore: @unchecked Sendable {
     return try? decoder.decode(IntentCatalogSnapshot.self, from: data)
   }
 
-  func wipe(fingerprint: String) {
-    lock.lock()
-    defer { lock.unlock() }
-    generation += 1
-    try? FileManager.default.removeItem(at: fileURL(for: fingerprint))
-  }
-
   func wipeAll() {
     lock.lock()
     defer { lock.unlock() }

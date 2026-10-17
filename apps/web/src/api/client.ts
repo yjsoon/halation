@@ -60,7 +60,7 @@ export interface TransactionBulkOutcome {
 }
 
 /** The server's ordered per-item result for one bulk command chunk. */
-export interface TransactionBulkResult {
+interface TransactionBulkResult {
   outcomes: TransactionBulkOutcome[];
   applied_count: number;
   conflict_count: number;
@@ -80,18 +80,18 @@ export interface TransactionBulkSummary {
   unattempted_count: number;
 }
 
-export interface TransactionCategoryBulkItem {
+interface TransactionCategoryBulkItem {
   id: string;
   category_id: string | null;
 }
 
-export interface TransactionClearedBulkItem {
+interface TransactionClearedBulkItem {
   id: string;
   expected_cleared: "uncleared" | "cleared";
   cleared: "uncleared" | "cleared";
 }
 
-export interface TransactionDeleteBulkItem {
+interface TransactionDeleteBulkItem {
   id: string;
   expected_approved?: boolean;
 }
@@ -196,7 +196,7 @@ export function setLocalWriteHandler(handler: (() => void) | null): void {
 }
 
 /** Whether a completed request should be treated as a write by the cache. */
-export function isWriteRequest(method: string | undefined): boolean {
+function isWriteRequest(method: string | undefined): boolean {
   const verb = (method ?? "GET").toUpperCase();
   return verb !== "GET" && verb !== "HEAD";
 }
@@ -280,7 +280,7 @@ async function request<T>(path: string, init?: RequestInit, options?: ApiRequest
 }
 
 /** A file the server names itself (Content-Disposition), such as an export. */
-export interface DownloadedFile {
+interface DownloadedFile {
   blob: Blob;
   filename: string;
 }
@@ -338,12 +338,12 @@ export interface ReportQuery {
   mode?: string;
 }
 
-export interface AuthUser {
+interface AuthUser {
   id: string;
   username: string;
 }
 
-export interface AuthStatus {
+interface AuthStatus {
   setup_required: boolean;
   bootstrap_required: boolean;
   user: AuthUser | null;
@@ -354,7 +354,7 @@ export interface AuthStatus {
 }
 
 /** What the setup and login endpoints return for a cookie session. */
-export interface AuthSession {
+interface AuthSession {
   user: AuthUser;
   session_expires_at?: number | null;
 }
@@ -376,7 +376,7 @@ export interface UnapprovedCount {
   server_knowledge: number;
 }
 
-export interface TransactionPage {
+interface TransactionPage {
   transactions: Transaction[];
   has_more: boolean;
   next_offset: number | null;

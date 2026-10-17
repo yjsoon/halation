@@ -89,7 +89,7 @@ type TransactionRewardOptions = {
   flagColor?: string | null;
 };
 
-export type TransactionRewardReason =
+type TransactionRewardReason =
   | 'excluded'
   | 'zero_amount'
   | 'zero_rate'
@@ -98,7 +98,7 @@ export type TransactionRewardReason =
   | 'cap_reached'
   | 'period_incomplete';
 
-export interface TransactionRewardBlock {
+interface TransactionRewardBlock {
   size: number;
   count: number;
   eligibleAmount: number;

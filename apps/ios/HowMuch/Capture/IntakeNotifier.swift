@@ -174,7 +174,7 @@ final class IntakeNotifier {
   /// A job moved to `job.state`. Only a move into Ready, Needs you or Failed
   /// posts; a move out of them takes the notification back. A batch with
   /// nothing to review (only Already in rows) does not post.
-  func jobDidChange(_ job: IntakeJob, previous: IntakeJobState?, accountName: String?) {
+  func jobDidChange(_ job: IntakeJob, previous: IntakeJobState?) {
     guard job.state != previous else {
       return
     }

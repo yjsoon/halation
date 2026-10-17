@@ -12,13 +12,13 @@ export type RegisterRowDraft = {
   readonly flagColor: string;
 };
 
-export type RowEditAccount = {
+type RowEditAccount = {
   readonly id: string;
   readonly name: string;
   readonly closed?: boolean;
 };
 
-export type PayeeListEntry = {
+type PayeeListEntry = {
   readonly id: string;
   readonly value: string;
   readonly label?: string;
@@ -177,9 +177,9 @@ export type RowEditContext = {
   readonly mutatingId: string | null;
 };
 
-export type RowBeginRefusal = "locked" | "row-busy" | "missing-line" | "linked-mirror";
+type RowBeginRefusal = "locked" | "row-busy" | "missing-line" | "linked-mirror";
 
-export type RowBeginDecision =
+type RowBeginDecision =
   | { readonly kind: "begin"; readonly action: Extract<RegisterRowEditAction, { type: "begin" }> }
   | { readonly kind: "refuse"; readonly reason: RowBeginRefusal };
 
@@ -402,7 +402,7 @@ function findLine(parent: Transaction, lineId: string): Subtransaction | undefin
   return parent.subtransactions?.find((sub) => sub.id === lineId);
 }
 
-export type RowCommitPlan =
+type RowCommitPlan =
   | {
       readonly kind: "patch";
       readonly transactionId: string;
@@ -699,7 +699,7 @@ function splitLineInput(line: Subtransaction): SplitLineInput {
   };
 }
 
-export function payeeInput(
+function payeeInput(
   name: string,
   originalId: string | null,
   originalName: string,
@@ -908,12 +908,12 @@ function roundHalfAwayFromZero(numerator: number, denominator: number): number |
   return Number.isSafeInteger(value) ? value : null;
 }
 
-export type RowGestureEvent = {
+type RowGestureEvent = {
   readonly detail: number;
   preventDefault(): void;
 };
 
-export type RowGestureHandlers = {
+type RowGestureHandlers = {
   onMouseDown(event: RowGestureEvent): void;
   onDoubleClick(event: RowGestureEvent): void;
 };

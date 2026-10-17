@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
   planIconRestoreFromYnab,
-  sqlForIconRestore,
 } from "./lib/restore-account-icons-from-ynab";
 
 describe("planIconRestoreFromYnab", () => {

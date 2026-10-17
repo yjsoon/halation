@@ -194,7 +194,6 @@ struct TransactionFormView: View {
   private let allowsDeletion: Bool
   private let chrome: TransactionFormChrome
   private let onPersist: ((TransactionDraft) -> Void)?
-  private let onDraftChange: ((TransactionDraft) -> Void)?
   private let commitHook: CaptureFormCommitHook?
 
   // Plain stored properties before @State, assigned as wrapped values: the
@@ -205,14 +204,12 @@ struct TransactionFormView: View {
     allowsDeletion: Bool = true,
     chrome: TransactionFormChrome = .standalone,
     onPersist: ((TransactionDraft) -> Void)? = nil,
-    onDraftChange: ((TransactionDraft) -> Void)? = nil,
     commitHook: CaptureFormCommitHook? = nil
   ) {
     self.isEditing = isEditing
     self.allowsDeletion = allowsDeletion
     self.chrome = chrome
     self.onPersist = onPersist
-    self.onDraftChange = onDraftChange
     self.commitHook = commitHook
     var engine = AmountKeypadEngine()
     engine.setValue(draft.amountMagnitudeMilli)

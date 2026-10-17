@@ -100,7 +100,7 @@ export async function patchRewardsSettings(repo: LedgerStore, planId: string, ra
   return parseAppSettings(saved);
 }
 
-export function parseSettingsWrite(body: Record<string, unknown>): { milesValuation?: number } {
+function parseSettingsWrite(body: Record<string, unknown>): { milesValuation?: number } {
   if (!Object.prototype.hasOwnProperty.call(body, "milesValuation") || body.milesValuation === undefined) {
     return {};
   }

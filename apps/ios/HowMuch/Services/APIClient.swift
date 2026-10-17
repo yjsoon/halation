@@ -574,28 +574,6 @@ struct APIClient {
     return response.data.transaction
   }
 
-  func approveTransaction(planID: String, transactionID: String) async throws -> Transaction {
-    let response: APIEnvelope<TransactionPayload> = try await request(
-      path: "/v1/plans/\(planID)/transactions/\(transactionID)",
-      method: "PATCH",
-      body: TransactionApprovalEnvelope(transaction: TransactionApprovalRequest(approved: true))
-    )
-    return response.data.transaction
-  }
-
-  func deleteTransaction(planID: String, transactionID: String, expectedApproved: Bool? = nil) async throws -> Transaction {
-    var queryItems: [URLQueryItem] = []
-    if let expectedApproved {
-      queryItems.append(URLQueryItem(name: "expected_approved", value: expectedApproved ? "true" : "false"))
-    }
-    let response: APIEnvelope<TransactionPayload> = try await request(
-      path: "/v1/plans/\(planID)/transactions/\(transactionID)",
-      queryItems: queryItems,
-      method: "DELETE"
-    )
-    return response.data.transaction
-  }
-
   /// The plan's whole ledger in the `howmuch-plan-snapshot` format, as JSON
   /// bytes. The snapshot object is re-serialised with `JSONSerialization`
   /// (sorted keys, so the same ledger always gives the same bytes), never

@@ -651,13 +651,6 @@ struct ViewPrefs: Codable, Equatable {
     return decoded
   }
 
-  func save(to defaults: UserDefaults = .standard) {
-    guard let data = try? JSONEncoder().encode(self) else {
-      return
-    }
-    defaults.set(data, forKey: Self.userDefaultsKey)
-  }
-
   /// Normalises persisted structure without deciding whether an account ID is
   /// still valid. Account membership is pruned only after an authoritative
   /// reference refresh succeeds.
@@ -2729,14 +2722,6 @@ struct TransactionWriteEnvelope: Encodable {
   let transaction: TransactionWriteRequest
 }
 
-struct TransactionApprovalEnvelope: Encodable {
-  let transaction: TransactionApprovalRequest
-}
-
-struct TransactionApprovalRequest: Encodable {
-  let approved: Bool
-}
-
 struct TransactionCollectionApprovalEnvelope: Encodable {
   let transactions: [Item]
 
@@ -2895,34 +2880,6 @@ struct PendingTransaction: Codable, Equatable, Identifiable {
     self.request = request
     self.connectionFingerprint = connectionFingerprint
     self.capturedAt = capturedAt
-  }
-
-  init(
-    id: UUID,
-    request: TransactionWriteRequest,
-    connectionFingerprint: String,
-    capturedAt: Date,
-    lastSyncError: String? = nil
-  ) {
-    self.id = id
-    self.request = request
-    self.connectionFingerprint = connectionFingerprint
-    self.capturedAt = capturedAt
-    self.lastSyncError = lastSyncError
-  }
-
-  func replacing(request: TransactionWriteRequest) -> PendingTransaction {
-    var request = request
-    if request.importID == nil {
-      request.importID = self.request.importID ?? id.uuidString.lowercased()
-    }
-    return PendingTransaction(
-      id: id,
-      request: request,
-      connectionFingerprint: connectionFingerprint,
-      capturedAt: capturedAt,
-      lastSyncError: lastSyncError
-    )
   }
 }
 

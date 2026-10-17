@@ -348,17 +348,6 @@ struct RewardCardDraft: Equatable {
     tiers.append(.fresh())
   }
 
-  mutating func selectAccount(id: String, from accounts: [Account]) {
-    let previous = accounts.first { $0.id == ynabAccountId }
-    let next = accounts.first { $0.id == id }
-    name = RewardCardAccounts.syncedName(
-      name: name,
-      previousAccountName: previous?.name,
-      nextAccountName: next?.name
-    )
-    ynabAccountId = id
-  }
-
   func write() throws -> CreditCard {
     if ynabAccountId.isEmpty {
       throw RewardCardWriteError.message("Choose a Halation account.")

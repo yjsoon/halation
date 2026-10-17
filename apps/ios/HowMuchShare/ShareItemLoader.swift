@@ -7,7 +7,6 @@ import CryptoKit
 struct ShareLoadedItem: Identifiable, @unchecked Sendable {
   let id = UUID()
   var kind: InboxPayloadKind
-  var filename: String
   var fileURL: URL
   var bytes: Int
   var sha256: String
@@ -79,7 +78,6 @@ final class ShareItemLoader {
       case .oversize(let bytes):
         return ShareLoadedItem(
           kind: kind,
-          filename: "oversize",
           fileURL: directory.appendingPathComponent("oversize"),
           bytes: bytes,
           sha256: ""
@@ -239,7 +237,6 @@ final class ShareItemLoader {
     }
     return ShareLoadedItem(
       kind: kind,
-      filename: url.lastPathComponent,
       fileURL: url,
       bytes: size,
       sha256: hash,

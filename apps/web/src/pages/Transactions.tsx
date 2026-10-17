@@ -85,6 +85,7 @@ import { isCachedPayees, isCachedRegisterPage, isCachedScheduled } from "../stat
 import type { CachedRegisterPage } from "../state/cache-shapes";
 import { currentCacheEpoch, readSlot, shouldUseCache, writeSlot } from "../state/reference-cache";
 import { useCachedApi } from "../state/use-cached-api";
+import { StatusPanel } from "../components/StatusPanel";
 
 function hasUncategorisedLine(txn: Transaction): boolean {
   if (txn.subtransactions?.length) {
@@ -1669,39 +1670,32 @@ export function TransactionsPage() {
         </div>
       )}
       {page.error && (
-        <div className="status-panel status-panel-error">
-          <p className="status-title">Could not load {page.loaded ? "older " : ""}transactions.</p>
-          <p className="status-detail">{page.error}</p>
-        </div>
+        <StatusPanel error title={<>Could not load {page.loaded ? "older " : ""}transactions.</>}>
+          {page.error}
+        </StatusPanel>
       )}
       {deepLinkError && (
-        <div className="status-panel status-panel-error compact-panel" role="alert">
-          <p className="status-title">Could not open this transaction link.</p>
-          <p className="status-detail">{deepLinkError}</p>
-        </div>
+        <StatusPanel error className="compact-panel" role="alert" title="Could not open this transaction link.">
+          {deepLinkError}
+        </StatusPanel>
       )}
       {deepLinkedTransaction.loading && (
-        <div className="status-panel compact-panel" role="status">
-          <p className="status-title">Opening linked transaction…</p>
-        </div>
+        <StatusPanel className="compact-panel" role="status" title="Opening linked transaction…" />
       )}
       {unapprovedCountQuery.error && !unapprovedOnly && (
-        <div className="status-panel status-panel-error" role="alert">
-          <p className="status-title">Could not count transactions awaiting approval.</p>
-          <p className="status-detail">{unapprovedCountQuery.error} Open “New to approve” to load them anyway.</p>
-        </div>
+        <StatusPanel error role="alert" title="Could not count transactions awaiting approval.">
+          {unapprovedCountQuery.error} Open “New to approve” to load them anyway.
+        </StatusPanel>
       )}
       {approvalQueue.error && (
-        <div className="status-panel status-panel-error" role="alert">
-          <p className="status-title">Could not load transactions awaiting approval.</p>
-          <p className="status-detail">{approvalQueue.error}</p>
-        </div>
+        <StatusPanel error role="alert" title="Could not load transactions awaiting approval.">
+          {approvalQueue.error}
+        </StatusPanel>
       )}
       {mutationError && (
-        <div className="status-panel status-panel-error compact-panel" role="alert">
-          <p className="status-title">{reconcileDraft ? "Could not prepare this reconciliation." : "Could not update this transaction."}</p>
-          <p className="status-detail">{mutationError}</p>
-        </div>
+        <StatusPanel error className="compact-panel" role="alert" title={reconcileDraft ? "Could not prepare this reconciliation." : "Could not update this transaction."}>
+          {mutationError}
+        </StatusPanel>
       )}
       {mutationSuccess && (
         <div className="status-panel status-panel-success compact-panel register-toast" role="status">
@@ -1789,10 +1783,9 @@ export function TransactionsPage() {
                 {reconciliationPreview.loading ? (
                   <p className="diagnostic-note">Loading the latest reconciliation preview…</p>
                 ) : reconciliationPreview.error ? (
-                  <div className="status-panel status-panel-error compact-panel" role="alert">
-                    <p className="status-title">Could not load the reconciliation preview.</p>
-                    <p className="status-detail">{reconciliationPreview.error}</p>
-                  </div>
+                  <StatusPanel error className="compact-panel" role="alert" title="Could not load the reconciliation preview.">
+                    {reconciliationPreview.error}
+                  </StatusPanel>
                 ) : reconciliationPreviewData && reviewedStatementBalance !== null ? (
                   <>
                     <div className="reconcile-review-grid">
@@ -1917,16 +1910,12 @@ export function TransactionsPage() {
         </section>
       )}
       {page.loading && !page.loaded && (
-        <div className="status-panel">
-          <p className="status-title">Loading transactions...</p>
-        </div>
+        <StatusPanel title="Loading transactions..." />
       )}
       {/* The queue is fetched only when this flow opens, so it needs its own
           waiting state -- the register itself is already up by then. */}
       {unapprovedOnly && approvalQueue.data === null && approvalQueue.loading && !approvalQueue.error && (
-        <div className="status-panel">
-          <p className="status-title">Loading transactions awaiting approval...</p>
-        </div>
+        <StatusPanel title="Loading transactions awaiting approval..." />
       )}
 
       {registerLoaded && (
@@ -2090,10 +2079,9 @@ export function TransactionsPage() {
               )}
             </div>
           ) : page.filling ? null : (
-            <div className="status-panel">
-              <p className="status-title">{emptyMessage}</p>
-              <p className="status-detail">Try widening the date range, clearing filters, or shortening the search term.</p>
-            </div>
+            <StatusPanel title={emptyMessage}>
+              Try widening the date range, clearing filters, or shortening the search term.
+            </StatusPanel>
           )}
           <div className="register-footer">
             <span className="register-footer-meta">{footerMetaWithMore}</span>

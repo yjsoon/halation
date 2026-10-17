@@ -1,10 +1,10 @@
-export type SelectionRange = {
+type SelectionRange = {
   readonly anchorId: string;
   readonly leadId: string;
   readonly mode: "select" | "deselect";
 };
 
-export type RegisterSelection = {
+type RegisterSelection = {
   readonly scopeKey: string;
   readonly committed: ReadonlySet<string>;
   readonly range: SelectionRange | null;
@@ -21,7 +21,7 @@ export type RegisterSelectionRow = {
   readonly id: string;
 };
 
-export type HeaderState = "none" | "some" | "all";
+type HeaderState = "none" | "some" | "all";
 
 export function emptySelection(scopeKey: string): RegisterSelection {
   return { scopeKey, committed: new Set<string>(), range: null };

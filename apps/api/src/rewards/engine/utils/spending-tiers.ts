@@ -3,7 +3,7 @@ import type {
   SpendingTierSubcategory,
 } from '../../types';
 
-export interface CardSpendingLevel {
+interface CardSpendingLevel {
   id: string | null;
   isBase: boolean;
   spendThreshold: number;
@@ -12,7 +12,7 @@ export interface CardSpendingLevel {
   subcategories: SpendingTierSubcategory[];
 }
 
-export interface ResolvedCardSpendingTier {
+interface ResolvedCardSpendingTier {
   activeLevel: CardSpendingLevel | null;
   nextLevel: CardSpendingLevel | null;
   hasNextSpendingTier: boolean;
@@ -38,7 +38,7 @@ function baseSubcategories(card: CreditCard): SpendingTierSubcategory[] {
   }));
 }
 
-export function getCardSpendingLevels(card: CreditCard): CardSpendingLevel[] {
+function getCardSpendingLevels(card: CreditCard): CardSpendingLevel[] {
   const baseLevel: CardSpendingLevel = {
     id: null,
     isBase: true,

@@ -20,6 +20,7 @@ import { rewardCardAccountChoices, syncedRewardCardName } from "../lib/reward-ca
 import { ledgerFlagNames, namedFlagLabel, namesFromSubcategories, parseRewardFlagNames, REWARD_NAME_COLOURS, snapshotFlagLabel } from "../lib/reward-flag-names";
 import { usePlan } from "../state/plan";
 import { useConfirmationFocus } from "../lib/use-confirmation-focus";
+import { StatusPanel } from "../components/StatusPanel";
 
 type FlagDraft = {
   id: string;
@@ -87,28 +88,22 @@ export function RewardCardEditPage() {
 
   if (snapshot.loading && !snapshot.data) {
     return (
-      <div className="status-panel">
-        <p className="status-title">{isNew ? "Loading accounts…" : "Loading card…"}</p>
-      </div>
+      <StatusPanel title={isNew ? "Loading accounts…" : "Loading card…"} />
     );
   }
   if (snapshot.error) {
     return (
-      <div className="status-panel status-panel-error" role="alert">
-        <p className="status-title">{isNew ? "Could not load accounts." : "Could not load this card."}</p>
-        <p className="status-detail">{snapshot.error}</p>
-      </div>
+      <StatusPanel error role="alert" title={isNew ? "Could not load accounts." : "Could not load this card."}>
+        {snapshot.error}
+      </StatusPanel>
     );
   }
   const card = isNew ? null : snapshot.data?.cards.find((entry) => entry.id === cardId) ?? null;
   if (!isNew && !card) {
     return (
-      <div className="status-panel">
-        <p className="status-title">Card not found.</p>
-        <p className="status-detail">
-          This card is not stored on this plan. <Link to="/rewards">Back to Rewards</Link>.
-        </p>
-      </div>
+      <StatusPanel title="Card not found.">
+        This card is not stored on this plan. <Link to="/rewards">Back to Rewards</Link>.
+      </StatusPanel>
     );
   }
   const takenAccountIds = (snapshot.data?.cards ?? [])
@@ -236,10 +231,9 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
       </header>
 
       {error && (
-        <div className="status-panel status-panel-error" role="alert">
-          <p className="status-title">Could not update this card.</p>
-          <p className="status-detail">{error}</p>
-        </div>
+        <StatusPanel error role="alert" title="Could not update this card.">
+          {error}
+        </StatusPanel>
       )}
 
       {pendingDelete && card && (
@@ -854,17 +848,15 @@ function CardLedger({
       {!range.from && !since && !rewards.loading && <p role="status">Current-period boundaries unavailable. Choose a date preset to view the ledger.</p>}
       {range.from && range.to && range.from > range.to && <p role="alert">Ledger start must be on or before the end date.</p>}
       {flagError && (
-        <div className="status-panel status-panel-error" role="alert">
-          <p className="status-title">Could not update the flag.</p>
-          <p className="status-detail">{flagError}</p>
-        </div>
+        <StatusPanel error role="alert" title="Could not update the flag.">
+          {flagError}
+        </StatusPanel>
       )}
-      {ledger.loading && !ledger.data && <div className="status-panel"><p className="status-title">Loading transactions…</p></div>}
+      {ledger.loading && !ledger.data && <StatusPanel title="Loading transactions…" />}
       {ledger.error && (
-        <div className="status-panel status-panel-error" role="alert">
-          <p className="status-title">Could not load transactions.</p>
-          <p className="status-detail">{ledger.error}</p>
-        </div>
+        <StatusPanel error role="alert" title="Could not load transactions.">
+          {ledger.error}
+        </StatusPanel>
       )}
       {!ledger.loading && (ledger.data?.transactions.length ?? 0) === 0 && (
         <p className="field-note">No transactions on this account.</p>

@@ -1,7 +1,7 @@
 import { csvRowToMilliunits } from "../money";
 import type { LedgerStore } from "../storage";
 
-export type CsvImportRow = {
+type CsvImportRow = {
   date: string;
   account_id?: string;
   payee_id?: string | null;

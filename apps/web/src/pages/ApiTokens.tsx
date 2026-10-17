@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { api, useApi, type CreatedPersonalApiToken } from "../api/client";
 import { SettingsCrumb } from "../components/SettingsCrumb";
 import { useConfirmationFocus } from "../lib/use-confirmation-focus";
+import { StatusPanel } from "../components/StatusPanel";
 
 export function ApiTokensPage() {
   const [generation, setGeneration] = useState(0);
@@ -75,7 +76,7 @@ export function ApiTokensPage() {
 
       <p className="diagnostic-note">Personal tokens use your current plan permissions. They remain valid until you revoke them.</p>
 
-      {error && <div className="status-panel status-panel-error" role="alert"><p className="status-title">Could not update API tokens.</p><p className="status-detail">{error}</p></div>}
+      {error && <StatusPanel error role="alert" title="Could not update API tokens.">{error}</StatusPanel>}
 
       {created && (
         <section className="api-token-reveal" aria-labelledby="new-token-heading">
@@ -137,8 +138,8 @@ export function ApiTokensPage() {
           <span className="section-title" id="active-token-heading">Active tokens</span>
           <span className="section-meta">{active.length} active</span>
         </div>
-        {tokens.loading && !tokens.data && <div className="status-panel"><p className="status-title">Loading API tokens…</p></div>}
-        {tokens.error && <div className="status-panel status-panel-error" role="alert"><p className="status-title">Could not load API tokens.</p><p className="status-detail">{tokens.error}</p></div>}
+        {tokens.loading && !tokens.data && <StatusPanel title="Loading API tokens…" />}
+        {tokens.error && <StatusPanel error role="alert" title="Could not load API tokens.">{tokens.error}</StatusPanel>}
         {!tokens.loading && !tokens.error && active.length === 0 && <p className="api-token-empty">No active tokens. Create one when an app needs direct access to Halation.</p>}
         {active.length > 0 && (
           <ul className="api-token-list">

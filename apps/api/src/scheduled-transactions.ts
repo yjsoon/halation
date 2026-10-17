@@ -18,7 +18,7 @@ const WRITABLE_FIELDS = new Set([
   "category_id", "transfer_account_id", "memo", "flag_color", "subtransactions",
 ]);
 
-export const SCHEDULE_FREQUENCIES = [
+const SCHEDULE_FREQUENCIES = [
   "never", "daily", "weekly", "everyOtherWeek", "twiceAMonth", "every4Weeks",
   "monthly", "everyOtherMonth", "every3Months", "every4Months", "twiceAYear",
   "yearly", "everyOtherYear",
@@ -35,7 +35,7 @@ export type EffectiveScheduledTransaction = Record<string, any> & {
   subtransactions: Array<Record<string, any> & { id: string; scheduled_transaction_id: string; amount: number }>;
 };
 
-export type ScheduledOccurrenceWindow = Readonly<{
+type ScheduledOccurrenceWindow = Readonly<{
   dates: string[];
   nextDate: string | null;
 }>;

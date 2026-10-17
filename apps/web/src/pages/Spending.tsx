@@ -7,6 +7,7 @@ import { useIsPhone } from "../lib/use-is-phone";
 import { formatAmount, formatShare } from "../lib/money";
 import { loadPrefs, savePrefs } from "../state/prefs";
 import { transactionsLink, useFilters } from "../state/filters";
+import { StatusPanel } from "../components/StatusPanel";
 
 export function SpendingPage() {
   const { filters, setFilters, reportQuery } = useFilters();
@@ -93,15 +94,12 @@ export function SpendingPage() {
       </div>
 
       {report.error && (
-        <div className="status-panel status-panel-error">
-          <p className="status-title">Could not load the spending report.</p>
-          <p className="status-detail">{report.error}</p>
-        </div>
+        <StatusPanel error title="Could not load the spending report.">
+          {report.error}
+        </StatusPanel>
       )}
       {report.loading && !report.data && (
-        <div className="status-panel">
-          <p className="status-title">Loading spending breakdown...</p>
-        </div>
+        <StatusPanel title="Loading spending breakdown..." />
       )}
 
       {report.data && (
@@ -170,10 +168,9 @@ export function SpendingPage() {
                 </table>
               </div>
             ) : (
-              <div className="status-panel">
-                <p className="status-title">No spending in this range.</p>
-                <p className="status-detail">Adjust the dates or clear category filters to show more transactions.</p>
-              </div>
+              <StatusPanel title="No spending in this range.">
+                Adjust the dates or clear category filters to show more transactions.
+              </StatusPanel>
             )}
           </section>
         </>

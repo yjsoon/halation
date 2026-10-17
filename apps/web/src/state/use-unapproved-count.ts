@@ -1,7 +1,7 @@
 import { api, useApi, type ApiState, type UnapprovedCount } from "../api/client";
 
 /** Identifies the ledger the count was read from; a local write changes it. */
-export interface LedgerVersion {
+interface LedgerVersion {
   validatedKnowledge: number | null;
   cacheEpoch: number;
 }

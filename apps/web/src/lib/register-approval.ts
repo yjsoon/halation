@@ -6,9 +6,9 @@ export type ApprovalRow = {
   readonly deleted: boolean;
 };
 
-export type ApprovalPlan = readonly (readonly string[])[];
+type ApprovalPlan = readonly (readonly string[])[];
 
-export type ApprovalSession = {
+type ApprovalSession = {
   readonly confirmed: ReadonlySet<string>;
   readonly pending: ReadonlySet<string>;
 };

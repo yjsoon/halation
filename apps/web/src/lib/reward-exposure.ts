@@ -22,7 +22,7 @@ export interface Pose { h: number; v: number }
 /** Where the sun rests, as a share of the width. */
 export const COLUMN = 0.85;
 /** Where the sun can ride the marker, as a share of the width. */
-export const RIDE_MIN = 0.07;
+const RIDE_MIN = 0.07;
 export const RIDE_MAX = 0.85;
 
 export interface Exposure {

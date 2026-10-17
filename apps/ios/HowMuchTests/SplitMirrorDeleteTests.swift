@@ -1224,12 +1224,4 @@ final class DeleteBalanceDeltaTests: XCTestCase {
       transferTransactionID: transferID, deleted: false
     )
   }
-
-  private static func account(_ id: String, balance: Int, cleared: Int) -> Account {
-    Account(
-      id: id, name: "Fixture", icon: nil, type: "checking", onBudget: true, closed: false,
-      balance: balance, clearedBalance: cleared, unclearedBalance: balance - cleared,
-      lastReconciledDate: nil, deleted: false
-    )
-  }
 }
