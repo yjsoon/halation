@@ -1112,8 +1112,10 @@
 }
 
 /* On a stacked wide board the closed disclosure sits on the band, at the end of the basis line, so a
-   row is one band rather than a band and a tab. Opened, it drops below the band as the paper slip. */
-@media (min-width: 721px) {
+   row is one band rather than a band and a tab. Opened, it drops below the band as the paper slip.
+   The basis line and any exception lines under it keep its width clear. Below 1000px the band is too
+   narrow to share, so the disclosure stays under the band as on a phone. */
+@media (min-width: 1000px) {
   .rw-grid[data-layout="stacked"] .rw-more:not([open]) {
     margin: 0;
     padding: 0;
@@ -1133,7 +1135,7 @@
     margin-top: -1px;
   }
 
-  .rw-grid[data-layout="stacked"] .rw-basis {
+  .rw-grid[data-layout="stacked"] :is(.rw-basis, .rw-exceptions) {
     padding-right: 200px;
   }
 }

@@ -1,0 +1,36 @@
+[
+ {
+  "width": 721,
+  "onBand": false,
+  "overlapsBox": [],
+  "glyphOverlap": false
+ },
+ {
+  "width": 860,
+  "onBand": false,
+  "overlapsBox": [],
+  "glyphOverlap": false
+ },
+ {
+  "width": 999,
+  "onBand": false,
+  "overlapsBox": [],
+  "glyphOverlap": false
+ },
+ {
+  "width": 1000,
+  "onBand": true,
+  "overlapsBox": [
+   "$315.50 / $500.00 · $3.23 earned"
+  ],
+  "glyphOverlap": false
+ },
+ {
+  "width": 1280,
+  "onBand": true,
+  "overlapsBox": [
+   "$315.50 / $500.00 · $3.23 earned"
+  ],
+  "glyphOverlap": false
+ }
+]
