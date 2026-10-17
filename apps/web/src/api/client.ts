@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CATEGORY_SUGGESTION_BATCH, type CategorySuggestion, type CategorySuggestionRequestItem } from "../lib/category-suggestions";
 import type { LocalePlanSeed } from "../lib/locale-plan-seed";
+import type { TransactionBulkOutcome, TransactionBulkResult, TransactionBulkStatus, TransactionPage, UnapprovedCount } from "@howmuch/contract";
 import type {
   Account,
   AccountPreferences,
@@ -51,24 +52,7 @@ export class BulkApprovalError extends Error {
   }
 }
 
-export type TransactionBulkStatus = "applied" | "conflict" | "already_removed" | "unresolved" | "unattempted";
-
-export interface TransactionBulkOutcome {
-  id: string;
-  status: TransactionBulkStatus;
-  detail?: string;
-}
-
-/** The server's ordered per-item result for one bulk command chunk. */
-interface TransactionBulkResult {
-  outcomes: TransactionBulkOutcome[];
-  applied_count: number;
-  conflict_count: number;
-  already_removed_count: number;
-  unresolved_count: number;
-  unattempted_count: number;
-  server_knowledge: number;
-}
+export type { TransactionBulkOutcome, TransactionBulkStatus, UnapprovedCount } from "@howmuch/contract";
 
 /** Ordered outcomes across every chunk a bulk command actually reached. */
 export interface TransactionBulkSummary {
@@ -369,18 +353,6 @@ export interface PersonalApiToken {
 export interface CreatedPersonalApiToken {
   token: PersonalApiToken;
   value: string;
-}
-
-export interface UnapprovedCount {
-  count: number;
-  server_knowledge: number;
-}
-
-interface TransactionPage {
-  transactions: Transaction[];
-  has_more: boolean;
-  next_offset: number | null;
-  server_knowledge: number;
 }
 
 async function approveTransactionBatch(planId: string, transactionIds: readonly string[]): Promise<void> {

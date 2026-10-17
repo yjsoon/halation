@@ -15,6 +15,11 @@
 		A10000000000000000000020 /* HowMuchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000010 /* HowMuchApp.swift */; };
 		A10000000000000000000021 /* AppModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* AppModel.swift */; };
 		A10000000000000000000022 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* APIModels.swift */; };
+		A10000000000000000000C01 /* SettingsModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000C00 /* SettingsModels.swift */; };
+		A10000000000000000000C11 /* LedgerModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000C10 /* LedgerModels.swift */; };
+		A10000000000000000000C21 /* ReportModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000C20 /* ReportModels.swift */; };
+		A10000000000000000000C31 /* RewardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000C30 /* RewardModels.swift */; };
+		A10000000000000000000C41 /* TransactionWriteModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000C40 /* TransactionWriteModels.swift */; };
 		A100000000000000000000A1 /* RefreshPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000A0 /* RefreshPlan.swift */; };
 		B90000000000000000000002 /* OutboxCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90000000000000000000001 /* OutboxCommand.swift */; };
 		B90000000000000000000004 /* OutboxPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B90000000000000000000003 /* OutboxPlanner.swift */; };
@@ -235,6 +240,11 @@
 		A10000000000000000000010 /* HowMuchApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HowMuchApp.swift; sourceTree = "<group>"; };
 		A10000000000000000000011 /* AppModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppModel.swift; sourceTree = "<group>"; };
 		A10000000000000000000012 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
+		A10000000000000000000C40 /* TransactionWriteModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransactionWriteModels.swift; sourceTree = "<group>"; };
+		A10000000000000000000C30 /* RewardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardModels.swift; sourceTree = "<group>"; };
+		A10000000000000000000C20 /* ReportModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportModels.swift; sourceTree = "<group>"; };
+		A10000000000000000000C10 /* LedgerModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LedgerModels.swift; sourceTree = "<group>"; };
+		A10000000000000000000C00 /* SettingsModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsModels.swift; sourceTree = "<group>"; };
 		B90000000000000000000001 /* OutboxCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutboxCommand.swift; sourceTree = "<group>"; };
 		B90000000000000000000003 /* OutboxPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutboxPlanner.swift; sourceTree = "<group>"; };
 		B90000000000000000000005 /* OutboxPlannerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutboxPlannerTests.swift; sourceTree = "<group>"; };
@@ -416,6 +426,11 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000012 /* APIModels.swift */,
+				A10000000000000000000C40 /* TransactionWriteModels.swift */,
+				A10000000000000000000C30 /* RewardModels.swift */,
+				A10000000000000000000C20 /* ReportModels.swift */,
+				A10000000000000000000C10 /* LedgerModels.swift */,
+				A10000000000000000000C00 /* SettingsModels.swift */,
 				B90000000000000000000001 /* OutboxCommand.swift */,
 				B90000000000000000000007 /* OutboxStore.swift */,
 				A100000000000000000000A0 /* RefreshPlan.swift */,
@@ -753,6 +768,11 @@
 			files = (
 				A10000000000000000000021 /* AppModel.swift in Sources */,
 				A10000000000000000000022 /* APIModels.swift in Sources */,
+				A10000000000000000000C41 /* TransactionWriteModels.swift in Sources */,
+				A10000000000000000000C31 /* RewardModels.swift in Sources */,
+				A10000000000000000000C21 /* ReportModels.swift in Sources */,
+				A10000000000000000000C11 /* LedgerModels.swift in Sources */,
+				A10000000000000000000C01 /* SettingsModels.swift in Sources */,
 				A100000000000000000000A1 /* RefreshPlan.swift in Sources */,
 				B90000000000000000000002 /* OutboxCommand.swift in Sources */,
 				B90000000000000000000008 /* OutboxStore.swift in Sources */,

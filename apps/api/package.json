@@ -9,6 +9,7 @@
     "test": "bun test"
   },
   "dependencies": {
+    "@howmuch/contract": "workspace:*",
     "@howmuch/register-query": "workspace:*",
     "@typesafe-ai/sdk": "0.6.0"
   }

@@ -7,6 +7,7 @@ import { formatAmount } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
 import { StatusPanel } from "../components/StatusPanel";
+import { HeadlineFigure, signTone } from "../components/HeadlineFigure";
 
 // Age of money replays income lots from the start of the range, so a clipped
 // window distorts the figure — default to the full history.
@@ -44,24 +45,18 @@ export function AgeOfMoneyPage() {
       <div className="report-header">
         <h1>Money age</h1>
         <div className="headline-row headline-row-paired">
-          <div className="headline-figure">
-            <span className="figure-label">
-              {latest ? `Latest (${formatPeriod(latest.period)})` : "Latest"}
-            </span>
-            <span key={latestDays} className="figure-value figure-settle">
-              {latestDays}
-            </span>
-          </div>
-          <div className="headline-figure">
-            <span className="figure-label">Change on previous period</span>
-            <span key={delta ?? "none"} className={delta === null || delta >= 0 ? "figure-value figure-settle figure-positive" : "figure-value figure-settle figure-negative"}>
-              {delta === null ? "—" : `${delta > 0 ? "+" : ""}${days(delta)}`}
-            </span>
-          </div>
-          <div className="headline-figure">
-            <span className="figure-label">Spending matched</span>
-            <span key={matchedTotal} className="figure-value figure-settle">{matchedTotal > 0 ? formatAmount(matchedTotal) : "—"}</span>
-          </div>
+          <HeadlineFigure
+            label={latest ? `Latest (${formatPeriod(latest.period)})` : "Latest"}
+            settleKey={latestDays}
+            value={latestDays}
+          />
+          <HeadlineFigure
+            label="Change on previous period"
+            settleKey={delta ?? "none"}
+            tone={delta === null ? "positive" : signTone(delta)}
+            value={delta === null ? "—" : `${delta > 0 ? "+" : ""}${days(delta)}`}
+          />
+          <HeadlineFigure label="Spending matched" settleKey={matchedTotal} value={matchedTotal > 0 ? formatAmount(matchedTotal) : "—"} />
         </div>
       </div>
 

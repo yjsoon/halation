@@ -72,29 +72,9 @@ final class CaptureRouter {
   }
 }
 
-struct CaptureBlockingSheetModifier: ViewModifier {
-  @State private var isCounting = false
-
-  func body(content: Content) -> some View {
-    content
-      .onAppear { sync(true) }
-      .onDisappear { sync(false) }
-  }
-
-  private func sync(_ presented: Bool) {
-    if presented {
-      guard !isCounting else { return }
-      isCounting = true
-      CaptureRouter.shared.beginBlockingSheet()
-    } else {
-      guard isCounting else { return }
-      isCounting = false
-      CaptureRouter.shared.endBlockingSheet()
-    }
-  }
-}
-
-struct CaptureBlockingPresentedModifier: ViewModifier {
+/// Holds `CaptureRouter.blockingSheetCount` up while the view is on screen and
+/// `isPresented` is true.
+struct CaptureBlockingModifier: ViewModifier {
   var isPresented: Bool
   @State private var isCounting = false
 
@@ -124,12 +104,12 @@ struct CaptureBlockingPresentedModifier: ViewModifier {
 
 extension View {
   func blocksCapturePresentation() -> some View {
-    modifier(CaptureBlockingSheetModifier())
+    modifier(CaptureBlockingModifier(isPresented: true))
   }
 
   /// Counts the presentation binding so an item replacement (same sheet,
   /// new identity) cannot drop `blockingSheetCount` to 0 mid-transition.
   func blocksCapturePresentation(when isPresented: Bool) -> some View {
-    modifier(CaptureBlockingPresentedModifier(isPresented: isPresented))
+    modifier(CaptureBlockingModifier(isPresented: isPresented))
   }
 }

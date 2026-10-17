@@ -1178,15 +1178,15 @@ final class CaptureSession: Identifiable {
     session.messages = snapshot.messages
     let pendingIDs = Set(snapshot.pendingAttachmentIDs ?? [])
     if snapshot.pendingAttachmentIDs == nil, snapshot.messages.allSatisfy(\.attachmentIDs.isEmpty) {
-      session.attachments = attachments.map { normalizedRestoredAttachment($0, isPending: true) }
+      session.attachments = attachments.map { normalisedRestoredAttachment($0, isPending: true) }
       session.sentAttachments = []
     } else {
       session.attachments = attachments
         .filter { pendingIDs.contains($0.id) }
-        .map { normalizedRestoredAttachment($0, isPending: true) }
+        .map { normalisedRestoredAttachment($0, isPending: true) }
       session.sentAttachments = attachments
         .filter { !pendingIDs.contains($0.id) }
-        .map { normalizedRestoredAttachment($0, isPending: false) }
+        .map { normalisedRestoredAttachment($0, isPending: false) }
     }
     session.lastFeedback = snapshot.lastFeedback
     session.claimedInboxIDs = snapshot.claimedInboxIDs
@@ -1205,7 +1205,7 @@ final class CaptureSession: Identifiable {
     return session
   }
 
-  private static func normalizedRestoredAttachment(
+  private static func normalisedRestoredAttachment(
     _ attachment: CaptureAttachment,
     isPending: Bool
   ) -> CaptureAttachment {

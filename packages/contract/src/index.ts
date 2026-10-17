@@ -1,0 +1,256 @@
+// Wire shapes the API returns and the web client reads. Both sides import
+// these so a change to a response is a change to one definition.
+
+export interface Account {
+  id: string;
+  name: string;
+  icon: string;
+  type: string | null;
+  on_budget: boolean;
+  closed: boolean;
+  balance: number;
+  cleared_balance: number;
+  uncleared_balance: number;
+  last_reconciled_date: string | null;
+  transfer_payee_id: string | null;
+  deleted: boolean;
+}
+
+export interface Subtransaction {
+  id: string;
+  amount: number;
+  payee_id: string | null;
+  payee_name?: string | null;
+  category_id: string | null;
+  category_name?: string | null;
+  memo: string | null;
+  transfer_account_id?: string | null;
+  transfer_transaction_id?: string | null;
+  deleted: boolean;
+}
+
+export interface Transaction {
+  id: string;
+  date: string;
+  amount: number;
+  memo: string | null;
+  cleared: string;
+  approved: boolean;
+  flag_color: string | null;
+  flag_name: string | null;
+  account_id: string;
+  account_name: string | null;
+  payee_id: string | null;
+  payee_name: string | null;
+  category_id: string | null;
+  category_name: string | null;
+  transfer_account_id: string | null;
+  transfer_transaction_id: string | null;
+  parent_transaction_id?: string | null;
+  deleted: boolean;
+  subtransactions?: Subtransaction[];
+}
+
+/** A read-only future transaction imported from YNAB, in integer milliunits. */
+export interface ScheduledSubtransaction {
+  id: string;
+  scheduled_transaction_id?: string;
+  amount: number;
+  payee_id?: string | null;
+  payee_name?: string | null;
+  category_id?: string | null;
+  category_name?: string | null;
+  memo?: string | null;
+  transfer_account_id?: string | null;
+}
+
+export interface ScheduledTransaction {
+  id: string;
+  date_first?: string | null;
+  date_next?: string | null;
+  frequency?: string | null;
+  amount?: number | null;
+  payee_id?: string | null;
+  payee_name?: string | null;
+  category_id?: string | null;
+  category_name?: string | null;
+  account_id?: string | null;
+  account_name?: string | null;
+  transfer_account_id?: string | null;
+  memo?: string | null;
+  flag_color?: string | null;
+  deleted?: boolean;
+  subtransactions?: ScheduledSubtransaction[];
+}
+
+export type AccountGroupSort = "manual" | "alphabetical" | "mostUsedLast30Days";
+
+export interface CustomAccountGroup {
+  id: string;
+  name: string;
+  account_ids: string[];
+}
+
+export interface AccountPreferences {
+  favourite_account_ids: string[];
+  account_order: string[];
+  account_order_by_group: Record<string, string[]>;
+  account_group_sorts: Record<string, AccountGroupSort>;
+  custom_account_groups: CustomAccountGroup[];
+}
+
+export interface AccountPreferencesSnapshot {
+  account_preferences: AccountPreferences | null;
+  account_preferences_revision: number;
+}
+
+/** The authoritative result of entering one scheduled occurrence into the ledger. */
+export interface ScheduledOccurrenceResult {
+  transaction: Transaction;
+  scheduled_transaction: ScheduledTransaction;
+  occurrence_date: string;
+  entered_date: string;
+  completed: boolean;
+  replayed: boolean;
+}
+
+export interface AccountReconciliationResult {
+  account: Account;
+  reconciled_transaction_ids: string[];
+  reconciled_transaction_count: number;
+  statement_date: string;
+  statement_balance: number;
+  prior_reconciled_balance: number;
+  final_reconciled_balance: number;
+  replayed: boolean;
+  server_knowledge: number;
+}
+
+/** A non-mutating projection used to review an account reconciliation. */
+export interface AccountReconciliationPreview {
+  account: Account;
+  statement_date: string;
+  current_reconciled_balance: number;
+  projected_reconciled_balance: number;
+  candidate_transaction_ids: string[];
+  candidate_transaction_count: number;
+  server_knowledge: number;
+}
+
+/** One requested row's outcome in a bulk cleared or delete command. */
+export type TransactionBulkStatus =
+  /** The server confirmed this item's own write. */
+  | "applied"
+  /** An expected-state precondition failed; the item was left alone. */
+  | "conflict"
+  /**
+   * The row was already gone when this item was reached. This is an observation,
+   * not an attribution: a command cannot claim it removed a row it never
+   * committed, so `already_removed` is never counted as work this command did.
+   */
+  | "already_removed"
+  /** The write failed ambiguously and may or may not have landed. */
+  | "unresolved"
+  /** Never sent, because the command stopped at an earlier failure. */
+  | "unattempted";
+
+export type TransactionBulkOutcome = {
+  readonly id: string;
+  readonly status: TransactionBulkStatus;
+  readonly detail?: string;
+};
+
+export type TransactionBulkResult = {
+  outcomes: TransactionBulkOutcome[];
+  applied_count: number;
+  conflict_count: number;
+  already_removed_count: number;
+  unresolved_count: number;
+  unattempted_count: number;
+  server_knowledge: number;
+};
+
+export type TransactionPage = {
+  transactions: Transaction[];
+  has_more: boolean;
+  next_offset: number | null;
+  /** Read in the same batch as the page, so it always describes these rows. */
+  server_knowledge: number;
+};
+
+/**
+ * The size of the unapproved queue, without any of its rows. Clients show the
+ * "New" badge from this and only load the queue itself when the user opens the
+ * approval flow.
+ */
+export type UnapprovedCount = {
+  count: number;
+  /** Read in the same batch as the count, so it always describes this number. */
+  server_knowledge: number;
+};
+
+export type RewardCardType = "cashback" | "miles";
+
+export type RewardFlagColour = "red" | "orange" | "yellow" | "green" | "blue" | "purple" | "unflagged";
+
+export interface CardSubcategory {
+  id: string;
+  name: string;
+  flagColor: RewardFlagColour;
+  rewardValue: number;
+  milesBlockSize?: number | null;
+  minimumSpend?: number | null;
+  maximumSpend?: number | null;
+  priority: number;
+  active: boolean;
+  excludeFromRewards?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SpendingTierSubcategory {
+  subcategoryId: string;
+  rewardValue: number;
+  maximumSpend?: number | null;
+}
+
+export interface CardSpendingTier {
+  id: string;
+  spendThreshold: number;
+  earningRate?: number | null;
+  maximumSpend?: number | null;
+  subcategories?: SpendingTierSubcategory[];
+}
+
+export interface CardRewardPeriod {
+  monthCount: number;
+  anchorDate: string;
+  monthlyMinimumSpend: number;
+}
+
+export interface CreditCard {
+  id: string;
+  name: string;
+  issuer: string;
+  type: RewardCardType;
+  ynabAccountId: string;
+  billingCycle?: {
+    type: "calendar" | "billing";
+    dayOfMonth?: number;
+  };
+  rewardPeriod?: CardRewardPeriod;
+  promotionalPeriod?: {
+    startDate?: string | null;
+    endDate: string;
+    description?: string;
+  };
+  featured: boolean;
+  earningRate?: number | null;
+  earningBlockSize?: number | null;
+  minimumSpend?: number | null;
+  maximumSpend?: number | null;
+  subcategoriesEnabled?: boolean;
+  subcategories?: CardSubcategory[];
+  spendingTiers?: CardSpendingTier[];
+  flagNames?: Record<string, string>;
+}

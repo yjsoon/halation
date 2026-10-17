@@ -162,14 +162,14 @@ enum SlipReaderMapping {
       return nil
     }
     let today = calendar.startOfDay(for: now)
-    let normalized = stripDateLeadIn(trimmed)
-    if let named = namedDay(normalized, calendar: calendar, today: today) {
+    let normalised = stripDateLeadIn(trimmed)
+    if let named = namedDay(normalised, calendar: calendar, today: today) {
       return named
     }
-    if let relative = relativeWeekday(normalized, calendar: calendar, today: today) {
+    if let relative = relativeWeekday(normalised, calendar: calendar, today: today) {
       return relative
     }
-    return formattedDay(normalized, calendar: calendar, now: today)
+    return formattedDay(normalised, calendar: calendar, now: today)
   }
 
   private static func mapOne(
