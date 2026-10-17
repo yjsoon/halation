@@ -7,6 +7,7 @@ import { formatMoney } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
 import { StatusPanel } from "../components/StatusPanel";
+import { HeadlineFigure, signTone } from "../components/HeadlineFigure";
 
 const TRAILING_YEAR = () => trailingMonthsRange(12);
 const INTERVALS: Interval[] = ["week", "month"];
@@ -55,27 +56,16 @@ export function NetWorthPage() {
       <div className="report-header">
         <h1>Net worth</h1>
         <div className="headline-row headline-row-paired">
-          <div className="headline-figure">
-            <span className="figure-label">{latest ? `As at ${formatDate(latest.end_date)}` : "Current"}</span>
-            <span
-              key={latest?.net_worth ?? "none"}
-              className={!latest || latest.net_worth >= 0 ? "figure-value figure-settle figure-positive" : "figure-value figure-settle figure-negative"}
-            >
-              {latest ? formatMoney(latest.net_worth) : "-"}
-            </span>
-          </div>
+          <HeadlineFigure
+            label={latest ? `As at ${formatDate(latest.end_date)}` : "Current"}
+            settleKey={latest?.net_worth ?? "none"}
+            tone={latest ? signTone(latest.net_worth) : "positive"}
+            value={latest ? formatMoney(latest.net_worth) : "-"}
+          />
           {delta !== null && (
-            <div className="headline-figure">
-              <span className="figure-label">Change on previous period</span>
-              <span key={delta} className={delta >= 0 ? "figure-value figure-settle figure-positive" : "figure-value figure-settle figure-negative"}>
-                {formatMoney(delta, { sign: true })}
-              </span>
-            </div>
+            <HeadlineFigure label="Change on previous period" settleKey={delta} tone={signTone(delta)} value={formatMoney(delta, { sign: true })} />
           )}
-          <div className="headline-figure">
-            <span className="figure-label">Tracked accounts</span>
-            <span key={trackedAccounts} className="figure-value figure-settle">{trackedAccounts || "-"}</span>
-          </div>
+          <HeadlineFigure label="Tracked accounts" settleKey={trackedAccounts} value={trackedAccounts || "-"} />
         </div>
       </div>
 

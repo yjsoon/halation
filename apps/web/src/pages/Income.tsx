@@ -7,6 +7,7 @@ import { formatAmount, formatMoney, formatSavingsRate } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
 import { StatusPanel } from "../components/StatusPanel";
+import { HeadlineFigure, signTone } from "../components/HeadlineFigure";
 
 const INTERVALS: Interval[] = ["week", "month", "year"];
 
@@ -38,35 +39,15 @@ export function IncomePage() {
       <div className="report-header">
         <h1>Income v spending</h1>
         <div className="headline-row headline-row-paired">
-          <div className="headline-figure">
-            <span className="figure-label">Income</span>
-            <span key={totals.income} className="figure-value figure-settle figure-positive">{formatAmount(totals.income)}</span>
-          </div>
-          <div className="headline-figure">
-            <span className="figure-label">Spending</span>
-            <span key={totals.spending} className="figure-value figure-settle figure-negative">{formatAmount(totals.spending)}</span>
-          </div>
-          <div className="headline-figure">
-            <span className="figure-label">Net</span>
-            <span key={net} className={net >= 0 ? "figure-value figure-settle figure-positive" : "figure-value figure-settle figure-negative"}>
-              {formatMoney(net, { sign: true })}
-            </span>
-          </div>
-          <div className="headline-figure">
-            <span className="figure-label">Savings rate</span>
-            <span
-              key={savingsRate}
-              className={
-                savingsRate === "—"
-                  ? "figure-value figure-settle"
-                  : net >= 0
-                    ? "figure-value figure-settle figure-positive"
-                    : "figure-value figure-settle figure-negative"
-              }
-            >
-              {savingsRate}
-            </span>
-          </div>
+          <HeadlineFigure label="Income" settleKey={totals.income} tone="positive" value={formatAmount(totals.income)} />
+          <HeadlineFigure label="Spending" settleKey={totals.spending} tone="negative" value={formatAmount(totals.spending)} />
+          <HeadlineFigure label="Net" settleKey={net} tone={signTone(net)} value={formatMoney(net, { sign: true })} />
+          <HeadlineFigure
+            label="Savings rate"
+            settleKey={savingsRate}
+            tone={savingsRate === "—" ? undefined : signTone(net)}
+            value={savingsRate}
+          />
         </div>
       </div>
 

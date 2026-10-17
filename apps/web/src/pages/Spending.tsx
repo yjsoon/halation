@@ -8,6 +8,7 @@ import { formatAmount, formatShare } from "../lib/money";
 import { loadPrefs, savePrefs } from "../state/prefs";
 import { transactionsLink, useFilters } from "../state/filters";
 import { StatusPanel } from "../components/StatusPanel";
+import { HeadlineFigure } from "../components/HeadlineFigure";
 
 export function SpendingPage() {
   const { filters, setFilters, reportQuery } = useFilters();
@@ -76,20 +77,13 @@ export function SpendingPage() {
       <div className="report-header">
         <h1>Spending breakdown</h1>
         <div className="headline-row headline-row-paired">
-          <div className="headline-figure">
-            <span className="figure-label">Total spending</span>
-            <span key={total} className="figure-value figure-settle figure-negative">{formatAmount(total)}</span>
-          </div>
-          <div className="headline-figure">
-            <span className="figure-label">Largest line</span>
-            <span key={topCategory?.category_id ?? "none"} className="figure-value figure-settle">{topCategory ? topCategory.category_name : "-"}</span>
-          </div>
-          <div className="headline-figure">
-            <span className="figure-label">Average transaction</span>
-            <span key={averageTransaction ?? "none"} className="figure-value figure-settle">
-              {averageTransaction !== null ? formatAmount(averageTransaction) : "-"}
-            </span>
-          </div>
+          <HeadlineFigure label="Total spending" settleKey={total} tone="negative" value={formatAmount(total)} />
+          <HeadlineFigure label="Largest line" settleKey={topCategory?.category_id ?? "none"} value={topCategory ? topCategory.category_name : "-"} />
+          <HeadlineFigure
+            label="Average transaction"
+            settleKey={averageTransaction ?? "none"}
+            value={averageTransaction !== null ? formatAmount(averageTransaction) : "-"}
+          />
         </div>
       </div>
 
