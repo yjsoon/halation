@@ -14,7 +14,7 @@ export type PlannedSql = Readonly<{ sql: string; values: readonly unknown[] }>;
 
 /** Same alphabet as Idempotency-Key, so a UUID or a prefixed id both fit. */
 export const ENTITY_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
-export const MAX_CATEGORY_NAME_LENGTH = 100;
+const MAX_CATEGORY_NAME_LENGTH = 100;
 
 export class CategoryValidationError extends Error {}
 
@@ -111,14 +111,14 @@ export function parseCategoryPatch(value: unknown): CategoryPatch {
   return patch;
 }
 
-export function entityId(value: unknown, label: string): string {
+function entityId(value: unknown, label: string): string {
   if (typeof value !== "string" || !ENTITY_ID_PATTERN.test(value)) {
     throw new CategoryValidationError(`${label} must be 1-128 letters, numbers, dots, underscores, colons, or hyphens`);
   }
   return value;
 }
 
-export function categoryName(value: unknown, label: string): string {
+function categoryName(value: unknown, label: string): string {
   if (typeof value !== "string") throw new CategoryValidationError(`${label} is required`);
   const name = value.trim();
   if (!name || name.length > MAX_CATEGORY_NAME_LENGTH || /[\u0000-\u001f\u007f]/u.test(name)) {

@@ -1,6 +1,6 @@
 import type { Interval } from "../api/types";
 
-export interface ViewPrefs {
+interface ViewPrefs {
   accountIds?: string[];
   interval?: Interval;
   includeQuietSpending?: boolean;

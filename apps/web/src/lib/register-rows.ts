@@ -1,15 +1,15 @@
-export type RegisterRow = {
+type RegisterRow = {
   readonly id: string;
   readonly deleted: boolean;
 };
 
-export type SplitMirrorLink = {
+type SplitMirrorLink = {
   readonly id: string;
   readonly parent_transaction_id?: string | null;
   readonly transfer_transaction_id?: string | null;
 };
 
-export type SplitParentRow = {
+type SplitParentRow = {
   readonly id: string;
   readonly subtransactions?: ReadonlyArray<{
     readonly id?: string;
@@ -70,7 +70,7 @@ export function deletedIdsForRemoval(transaction: {
   return ids;
 }
 
-export function markDeletedByIds<T extends RegisterRow>(
+function markDeletedByIds<T extends RegisterRow>(
   rows: readonly T[],
   ids: ReadonlySet<string>,
 ): T[] {
@@ -88,7 +88,7 @@ export function applyRegisterPatches<T extends RegisterRow>(
   );
 }
 
-export type ClearedOverlayRow = {
+type ClearedOverlayRow = {
   readonly id: string;
   readonly cleared: string;
 };

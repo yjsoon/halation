@@ -30,7 +30,7 @@ export function cssEase(name: string): (u: number) => number {
   return cubicBezier(Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4]));
 }
 
-export function cubicBezier(x1: number, y1: number, x2: number, y2: number): (u: number) => number {
+function cubicBezier(x1: number, y1: number, x2: number, y2: number): (u: number) => number {
   const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
   const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
   const sampleX = (t: number) => ((ax * t + bx) * t + cx) * t;
@@ -64,7 +64,7 @@ const clamp = (x: number) => Math.min(1, Math.max(0, x));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** The pose at eased progress `k` (0..1) of a glide from `from` to `to`. */
-export function poseAt(from: Pose, to: Pose, k: number): Pose {
+function poseAt(from: Pose, to: Pose, k: number): Pose {
   // When the light and the sun both move, the sweep takes the first 40% and the rise the rest.
   const sequence = to.h > from.h + 1e-6 && to.v > from.v + 1e-6;
   const kh = sequence ? clamp(k / 0.4) : k;
@@ -72,7 +72,7 @@ export function poseAt(from: Pose, to: Pose, k: number): Pose {
   return { h: lerp(from.h, to.h, kh), v: lerp(from.v, to.v, kv) };
 }
 
-export interface TweenOptions {
+interface TweenOptions {
   duration: number;
   delay?: number;
   ease: (u: number) => number;

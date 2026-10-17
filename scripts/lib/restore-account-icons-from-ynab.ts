@@ -1,23 +1,23 @@
 import { graphemes, parseAccountIcon } from "../../apps/api/src/account-icon";
 
-export type HowMuchAccountRef = {
+type HowMuchAccountRef = {
   id: string;
   external_ynab_id?: string | null;
   icon?: string | null;
 };
 
-export type YnabAccountRef = {
+type YnabAccountRef = {
   id: string;
   name: string;
   deleted?: boolean;
 };
 
-export type IconRestoreUpdate = {
+type IconRestoreUpdate = {
   howmuchId: string;
   icon: string;
 };
 
-export type IconRestorePlan = {
+type IconRestorePlan = {
   updates: IconRestoreUpdate[];
   ynabAccounts: number;
   ynabWithLeadingIcon: number;

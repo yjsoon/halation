@@ -4,14 +4,14 @@ import { categorisableRows } from "./register-bulk";
 /** One request's worth; the server refuses larger batches. */
 export const CATEGORY_SUGGESTION_BATCH = 25;
 /** Keep a single review manageable and the Jev bill bounded. */
-export const MAX_CATEGORY_SUGGESTIONS = 100;
+const MAX_CATEGORY_SUGGESTIONS = 100;
 /**
  * Below this, a suggestion is shown but not ticked for applying. A starting
  * point to tune against real corrections, not a validated threshold.
  */
-export const SUGGESTION_PRESELECT_CONFIDENCE = 0.6;
+const SUGGESTION_PRESELECT_CONFIDENCE = 0.6;
 /** Matches the server's rule for creates: a guess from the name alone needs to be surer. */
-export const SUGGESTION_PRESELECT_CONFIDENCE_WITHOUT_EVIDENCE = 0.85;
+const SUGGESTION_PRESELECT_CONFIDENCE_WITHOUT_EVIDENCE = 0.85;
 
 export interface CategorySuggestionOption {
   category_id: string;

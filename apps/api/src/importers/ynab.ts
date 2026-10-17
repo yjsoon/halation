@@ -1,6 +1,6 @@
 import type { LedgerStore } from "../storage";
 
-export type YnabImportOptions = {
+type YnabImportOptions = {
   token: string;
   planId: string;
   baseUrl?: string;

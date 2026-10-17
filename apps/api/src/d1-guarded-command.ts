@@ -3,7 +3,7 @@ import type { D1Database } from "./d1";
 import type { SqlValues } from "./async-sql";
 import type { D1WriteContext, PlannedStatement } from "./d1-transaction-repository";
 
-export type GuardedCommand = Readonly<{
+type GuardedCommand = Readonly<{
   kind: string;
   planId: string;
   resourceId: string;

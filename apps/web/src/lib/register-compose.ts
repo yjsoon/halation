@@ -18,7 +18,7 @@ export type RegisterComposeState =
   | { status: "closed" }
   | { status: "open"; draft: RegisterComposeDraft; saving: boolean; error: string | null };
 
-export type RegisterComposeAction =
+type RegisterComposeAction =
   | { type: "open"; accountId: string }
   | { type: "close" }
   | { type: "patch"; draft: Partial<Pick<RegisterComposeDraft, "date" | "accountId" | "payeeName" | "categoryId" | "memo" | "flagColor">> }
@@ -28,7 +28,7 @@ export type RegisterComposeAction =
   | { type: "saved"; keepOpen: boolean }
   | { type: "failed"; error: string };
 
-export type ComposePayload =
+type ComposePayload =
   | { ok: true; input: QuickEntryInput }
   | { ok: false; error: string };
 

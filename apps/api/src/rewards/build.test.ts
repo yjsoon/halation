@@ -1,11 +1,6 @@
 import { afterEach, expect, setSystemTime, test } from "bun:test";
-import officialExport from "../../../../fixtures/rewards-tracker-export.json";
 import { buildRewardsReport } from "./build";
-import { parseAppSettings, parseCreditCards } from "./parse";
 import type { CreditCard, Transaction } from "./types";
-
-const cards = parseCreditCards(officialExport.cards);
-const settings = parseAppSettings(officialExport.settings);
 
 afterEach(() => setSystemTime());
 

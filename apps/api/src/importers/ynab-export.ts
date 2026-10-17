@@ -3,7 +3,7 @@ import { PlanNotFoundError } from "../repository";
 import type { LedgerStore } from "../storage";
 import type { ClearedState, TransactionInput } from "../types";
 
-export type YnabExportImportOptions = {
+type YnabExportImportOptions = {
   planId: string;
   planName?: string;
   registerCsv: string;
@@ -21,7 +21,7 @@ type PreparedTransaction = {
   legacyImportId: string;
 };
 
-export type YnabExportImportResult = {
+type YnabExportImportResult = {
   import_session_id: string;
   imported: number;
   duplicate: number;
@@ -226,7 +226,7 @@ export async function importYnabExport(
   }
 }
 
-export function parseDelimited(content: string): CsvRow[] {
+function parseDelimited(content: string): CsvRow[] {
   const normalised = content.replace(/^\uFEFF/, "");
   const firstLine = normalised.split(/\r?\n/, 1)[0] ?? "";
   const separator = firstLine.includes("\t") ? "\t" : ",";

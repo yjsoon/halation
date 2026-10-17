@@ -19,7 +19,7 @@ export function moneyFormatFromPlan(format?: CurrencyFormat | null): MoneyFormat
   };
 }
 
-export function fieldsFromTransaction(transaction: Transaction): SearchableFields {
+function fieldsFromTransaction(transaction: Transaction): SearchableFields {
   return {
     payeeName: transaction.payee_name,
     memo: transaction.memo,

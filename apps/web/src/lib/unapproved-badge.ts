@@ -10,7 +10,7 @@
  */
 
 /** Ids resolved locally: approved in this session, or deleted from the register. */
-export type ResolvedIds = ReadonlySet<string>;
+type ResolvedIds = ReadonlySet<string>;
 
 /**
  * How many locally resolved rows the server count cannot know about yet.

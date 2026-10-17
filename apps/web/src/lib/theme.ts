@@ -7,9 +7,9 @@ export const LOOKS = [
   { id: "ridge-charcoal", name: "Ridge Charcoal", note: "Quiet charcoal chrome with a safelight edge.", meta: ["#242722", "#0b0c0c"] },
   { id: "overexposed", name: "Overexposed", note: "Everything lit: paper on paper, sun in the corner.", meta: ["#fbf7ef", "#1a1613"] },
 ] as const;
-export type Look = (typeof LOOKS)[number]["id"];
+type Look = (typeof LOOKS)[number]["id"];
 export type Mode = "system" | "light" | "dark";
-export type ThemePrefs = { look: Look; mode: Mode };
+type ThemePrefs = { look: Look; mode: Mode };
 
 const KEY = "howmuch.theme.v1";
 const DEFAULT: ThemePrefs = { look: "dusk-ridge", mode: "system" };

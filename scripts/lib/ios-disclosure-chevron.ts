@@ -1,9 +1,9 @@
-export type SwiftSource = {
+type SwiftSource = {
   path: string;
   source: string;
 };
 
-export type DisclosureChevronFault = {
+type DisclosureChevronFault = {
   path: string;
   line: number;
   detail: string;

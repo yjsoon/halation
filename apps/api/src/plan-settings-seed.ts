@@ -12,7 +12,7 @@ export type SeedCurrencyFormat = {
 
 export type SeedDateFormat = { format: string };
 
-export const SEED_DATE_FORMATS = ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"] as const;
+const SEED_DATE_FORMATS = ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"] as const;
 
 const CURRENCY_KEYS = [
   "iso_code", "example_format", "decimal_digits", "decimal_separator",

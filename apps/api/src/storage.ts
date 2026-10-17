@@ -1,7 +1,7 @@
 import type { LedgerRepository } from "./repository";
 import type { ReportService } from "./reports";
 
-export type Awaitable<T> = T | Promise<T>;
+type Awaitable<T> = T | Promise<T>;
 
 /**
  * Public storage boundary used by HTTP, import, and scheduled-sync code.

@@ -26,7 +26,7 @@ import { D1MetadataRepository, type AccountReconciliationSnapshot, type Schedule
 import { D1TransactionRepository, type D1WriteContext } from "./d1-transaction-repository";
 import { scheduledTransactionMutation, type EffectiveScheduledTransaction } from "./scheduled-transactions";
 
-export type D1LedgerRepositoryOptions = Readonly<{
+type D1LedgerRepositoryOptions = Readonly<{
   lease?: (planId: string) => D1WriteContext["lease"] | undefined;
   operationId?: (kind: string, planId: string | undefined, resourceId: string) => string;
 }>;

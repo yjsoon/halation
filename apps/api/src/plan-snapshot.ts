@@ -24,14 +24,14 @@ export const SNAPSHOT_VERSION = 1;
 /** Largest accepted request body. Documented in docs/api-contract.md. */
 export const MAX_SNAPSHOT_BYTES = 8 * 1024 * 1024;
 /** Upper bound for one JSON value bound into a statement. */
-export const SNAPSHOT_CHUNK_BYTES = 512 * 1024;
+const SNAPSHOT_CHUNK_BYTES = 512 * 1024;
 /**
  * D1 refuses any single bound value over 2,000,000 bytes. A chunk is one
  * bound value, so no chunk may exceed this, even a lone row.
  */
-export const MAX_BOUND_VALUE_BYTES = 1_900_000;
+const MAX_BOUND_VALUE_BYTES = 1_900_000;
 /** Longest memo a snapshot row (transaction, schedule, or either's line) may carry. */
-export const MAX_MEMO_LENGTH = 2000;
+const MAX_MEMO_LENGTH = 2000;
 
 export class SnapshotValidationError extends Error {}
 
@@ -76,7 +76,7 @@ export type SnapshotAccount = {
   opening_balance: number;
   transfer_payee_id: string | null;
 };
-export type SnapshotSubtransaction = {
+type SnapshotSubtransaction = {
   id: string;
   amount: number;
   memo: string | null;
@@ -109,7 +109,7 @@ export type SnapshotTransaction = {
   import_payee_name_original: string | null;
   subtransactions: SnapshotSubtransaction[];
 };
-export type SnapshotScheduledSubtransaction = {
+type SnapshotScheduledSubtransaction = {
   id: string;
   amount: number;
   memo: string | null;
@@ -154,7 +154,7 @@ export type SnapshotCounts = {
 };
 
 /** Database-ready rows, keyed by column name, in insertion order. */
-export type SnapshotRows = {
+type SnapshotRows = {
   category_groups: Row[];
   categories: Row[];
   payees: Row[];
@@ -626,7 +626,7 @@ export function snapshotImportStatements(
 }
 
 /** Stored rows for export, read in one consistent batch by the repository. */
-export type SnapshotSource = {
+type SnapshotSource = {
   categoryGroups: Row[];
   categories: Row[];
   payees: Row[];

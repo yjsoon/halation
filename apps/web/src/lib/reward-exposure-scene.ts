@@ -58,8 +58,8 @@ function crestTable(source: { start: [number, number]; segments: Cubic[] }): num
 }
 
 /** The brand back and front ridges' crests, 65 points each, as a share of the frame height. */
-export const BACK_CREST = crestTable(BACK_SOURCE);
-export const FRONT_CREST = crestTable(FRONT_SOURCE);
+const BACK_CREST = crestTable(BACK_SOURCE);
+const FRONT_CREST = crestTable(FRONT_SOURCE);
 
 /** A crest as 0 to 1 over its own range: 1 at its lowest (the left) and 0 at its highest (the right). */
 function normalised(table: readonly number[]): number[] {
@@ -68,7 +68,7 @@ function normalised(table: readonly number[]): number[] {
 }
 
 /** The brand back ridge's rise, 1 at the left edge and 0 at the right: the phone strip's horizons take its shape. */
-export const BACK_RISE = normalised(BACK_CREST);
+const BACK_RISE = normalised(BACK_CREST);
 
 function crestAt(table: readonly number[], x: number): number {
   const f = Math.min(1, Math.max(0, x)) * (table.length - 1);
@@ -114,7 +114,7 @@ export interface Scene {
   v: number;
 }
 
-export interface SceneOptions {
+interface SceneOptions {
   /** Night print (dark mode, miles): its pour stops short of the name. */
   nightPrint?: boolean;
 }

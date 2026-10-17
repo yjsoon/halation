@@ -86,7 +86,7 @@ export function bulkWriteTouchesReconciliation(kind: BulkWriteKind): boolean {
   return kind === "cleared" || kind === "delete";
 }
 
-export type BulkDeleteFollowUp = {
+type BulkDeleteFollowUp = {
   readonly retryIds: readonly string[];
   readonly complete: boolean;
 };

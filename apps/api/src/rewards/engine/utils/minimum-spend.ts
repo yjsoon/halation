@@ -1,8 +1,8 @@
-export function isMinimumSpendConfigured(minimumSpend: number | null | undefined): minimumSpend is number {
+function isMinimumSpendConfigured(minimumSpend: number | null | undefined): minimumSpend is number {
   return typeof minimumSpend === 'number';
 }
 
-export function hasMinimumSpendRequirement(minimumSpend: number | null | undefined): minimumSpend is number {
+function hasMinimumSpendRequirement(minimumSpend: number | null | undefined): minimumSpend is number {
   return isMinimumSpendConfigured(minimumSpend) && minimumSpend > 0;
 }
 
@@ -26,11 +26,11 @@ export function calculateMinimumSpendProgress(
   return Math.min(100, (totalSpend / minimumSpend) * 100);
 }
 
-export function isMaximumSpendConfigured(maximumSpend: number | null | undefined): maximumSpend is number {
+function isMaximumSpendConfigured(maximumSpend: number | null | undefined): maximumSpend is number {
   return typeof maximumSpend === 'number';
 }
 
-export function hasMaximumSpendLimit(maximumSpend: number | null | undefined): maximumSpend is number {
+function hasMaximumSpendLimit(maximumSpend: number | null | undefined): maximumSpend is number {
   return isMaximumSpendConfigured(maximumSpend) && maximumSpend > 0;
 }
 

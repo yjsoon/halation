@@ -2,7 +2,7 @@ import type { CreditCard } from '../../types';
 
 import { formatLocalDate, getEffectiveBillingDay } from '../date-utils';
 
-export interface CardPeriod {
+interface CardPeriod {
   startDate: Date;
   endDate: Date;
   label: string;

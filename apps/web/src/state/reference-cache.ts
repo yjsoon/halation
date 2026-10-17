@@ -46,10 +46,10 @@ export interface CacheEnvelope<T> {
   data: T;
 }
 
-export type KnowledgeVerdict = "fresh" | "advanced";
+type KnowledgeVerdict = "fresh" | "advanced";
 
 /** What a cached slot lets a fetch site do. */
-export type CachedFetchPlan<T> =
+type CachedFetchPlan<T> =
   | { use: "cache"; value: T }
   | { use: "wait"; seed: T }
   | { use: "network"; seed: T | null };
@@ -168,7 +168,7 @@ export function planCachedFetch<T>(
 }
 
 /** What a route already has on screen, as far as this decision cares. */
-export interface SettledRows {
+interface SettledRows {
   key: string;
   hasData: boolean;
   provisional: boolean;

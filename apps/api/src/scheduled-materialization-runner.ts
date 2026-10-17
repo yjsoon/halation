@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import type { ScheduledCronMaterializationResult } from "./types";
 
 /** A small cap keeps one Worker cron invocation below D1 command/CPU limits. */
-export const DAILY_SCHEDULED_MATERIALIZATION_MAXIMUM = 25;
+const DAILY_SCHEDULED_MATERIALIZATION_MAXIMUM = 25;
 
 type ScheduledMaterializationStore = {
   materializeScheduledTransactionsForCron(
@@ -13,7 +13,7 @@ type ScheduledMaterializationStore = {
   ): Promise<ScheduledCronMaterializationResult> | ScheduledCronMaterializationResult;
 };
 
-export type ScheduledMaterializationSummary = {
+type ScheduledMaterializationSummary = {
   through_date: string;
   occurrence_count: number;
   skipped_closed_schedule_count: number;

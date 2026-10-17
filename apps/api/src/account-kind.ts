@@ -21,7 +21,7 @@ export type AccountUpdatePatch = {
   kind?: AccountKind;
 };
 
-export type AccountUpdateExisting = {
+type AccountUpdateExisting = {
   name: string;
   icon?: string | null;
   type?: string | null;

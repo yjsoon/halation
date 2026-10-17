@@ -1,7 +1,7 @@
 import type { CardSubcategory, CreditCard } from '../../types';
 import { UNFLAGGED_FLAG, YNAB_FLAG_COLORS, type YnabFlagColor } from '../../flags';
 
-export interface SubcategoryContext {
+interface SubcategoryContext {
   enabled: boolean;
   activeSubcategories: CardSubcategory[];
   map: Map<YnabFlagColor, CardSubcategory>;

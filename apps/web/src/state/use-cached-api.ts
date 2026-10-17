@@ -24,12 +24,12 @@ import {
   type CacheSlot,
 } from "./reference-cache";
 
-export interface CachedApiState<T> extends ApiState<T> {
+interface CachedApiState<T> extends ApiState<T> {
   /** True while the rendered data came from cache and a fetch is still out. */
   provisional: boolean;
 }
 
-export interface CachedApiOptions<T> {
+interface CachedApiOptions<T> {
   slot: CacheSlot;
   /** Identity of the loaded state, as `useApi`'s key. Refetches when it changes. */
   key: string;

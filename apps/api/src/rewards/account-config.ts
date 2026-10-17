@@ -5,7 +5,7 @@ import { UNFLAGGED_FLAG, YNAB_FLAG_COLORS } from "./flags";
 import { parseCreditCardWrite } from "./parse";
 import type { CreditCard } from "./types";
 
-export type RewardsAccountConfig = {
+type RewardsAccountConfig = {
   format: "rewards-account-config";
   version: 1;
   card: Omit<CreditCard, "id" | "ynabAccountId" | "featured">;

@@ -6,9 +6,9 @@ import type { LedgerStore } from "./storage";
 // before the rejection has expired once a full hour has passed.
 const RATE_LIMIT_PAUSE_MS = 60 * 60 * 1000;
 
-export type YnabSyncLogger = Pick<Console, "log" | "warn" | "error">;
+type YnabSyncLogger = Pick<Console, "log" | "warn" | "error">;
 
-export type YnabSyncHandle = {
+type YnabSyncHandle = {
   /** Runs one sync pass, or joins the pass already in flight. */
   runNow(): Promise<YnabImportResult | null>;
   stop(): void;

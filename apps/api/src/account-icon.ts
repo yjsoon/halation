@@ -1,6 +1,6 @@
 import { defaultIconForKind } from "./account-kind";
 
-export type AccountPresentation = {
+type AccountPresentation = {
   icon: string;
   name: string;
 };
@@ -20,7 +20,7 @@ export function parseAccountIcon(value: unknown): string | null {
   return isEmojiGrapheme(parts[0]!) ? parts[0]! : null;
 }
 
-export function defaultIconForAccountType(type?: string | null): string {
+function defaultIconForAccountType(type?: string | null): string {
   return defaultIconForKind(type);
 }
 

@@ -91,14 +91,6 @@ export interface MonthlyQualificationBreakdown {
 
 export type RewardQualificationStatus = "not_required" | "met" | "pending" | "failed";
 
-export interface CategoryBreakdown {
-  category: string;
-  spend: number;
-  reward: number;
-  rewardDollars?: number;
-  capReached: boolean;
-}
-
 export interface SubcategoryBreakdown {
   subcategoryId: string;
   name: string;
@@ -116,33 +108,6 @@ export interface SubcategoryBreakdown {
   maximumSpendExceeded: boolean;
   blockSize?: number | null;
   blocksEarned?: number;
-}
-
-export interface RewardCalculation {
-  cardId: string;
-  ruleId: string;
-  period: string;
-  totalSpend: number;
-  countedSpend?: number;
-  eligibleSpend: number;
-  eligibleSpendBeforeBlocks?: number;
-  rewardEarned: number;
-  rewardEarnedDollars?: number;
-  rewardType: "cashback" | "miles";
-  categoryBreakdowns?: CategoryBreakdown[];
-  subcategoryBreakdowns?: SubcategoryBreakdown[];
-  minimumSpend?: number | null;
-  minimumProgress?: number;
-  monthlyMinimumSpend?: number;
-  qualificationStatus?: RewardQualificationStatus;
-  monthlyQualifications?: MonthlyQualificationBreakdown[];
-  rewardPeriodCalculationVersion?: number;
-  maximumSpend?: number | null;
-  maximumProgress?: number;
-  activeSpendingTierId?: string | null;
-  minimumMet: boolean;
-  maximumExceeded: boolean;
-  shouldStopUsing: boolean;
 }
 
 export type DashboardViewMode = "summary" | "detailed";

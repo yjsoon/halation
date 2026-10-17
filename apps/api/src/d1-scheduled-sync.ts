@@ -1,7 +1,7 @@
 import { canonicalJson } from "./canonical-json";
 import { D1Database } from "./d1";
 
-export type D1Lease =
+type D1Lease =
   | { status: "acquired"; runId: string; attemptId: string; serverKnowledge: number }
   | { status: "duplicate" | "leased"; runId: string };
 

@@ -19,11 +19,11 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..");
 const defaultFixturePath = join(repoRoot, "fixtures", "demo-ledger.json");
 
-export function resolveFixturePath(path = defaultFixturePath): string {
+function resolveFixturePath(path = defaultFixturePath): string {
   return path;
 }
 
-export function loadDemoFixture(path = defaultFixturePath): DemoFixture {
+function loadDemoFixture(path = defaultFixturePath): DemoFixture {
   return JSON.parse(readFileSync(path, "utf8")) as DemoFixture;
 }
 

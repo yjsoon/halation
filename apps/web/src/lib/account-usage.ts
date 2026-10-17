@@ -5,7 +5,7 @@
  */
 export const ACCOUNT_USAGE_DAYS = 30;
 
-export interface AccountUsageEntry {
+interface AccountUsageEntry {
   account_id: string;
   count: number;
 }

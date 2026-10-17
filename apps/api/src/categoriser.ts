@@ -24,7 +24,7 @@ import { nameSimilarity, payeeSearchStem, payeeTokens } from "./payee-names";
  * label back to an id, and the decision to apply it, which stays with the user.
  */
 
-export const MAX_CATEGORISE_BATCH = 25;
+const MAX_CATEGORISE_BATCH = 25;
 const PAYEE_HISTORY_LIMIT = 50;
 const PAYEE_HISTORY_CATEGORIES = 5;
 const SIMILAR_SEARCH_LIMIT = 150;
@@ -50,15 +50,15 @@ const CREATE_BUDGET: CallBudget = { timeout: 5_000, maxRetries: 0 };
  * Minimum confidence for a create to take Jev's category without review.
  * A starting point to tune against corrections, not a validated threshold.
  */
-export const AUTO_CATEGORISE_MIN_CONFIDENCE = 0.6;
+const AUTO_CATEGORISE_MIN_CONFIDENCE = 0.6;
 /**
  * With no history for the payee and no similarly named past transactions, Jev
  * is guessing from the name alone, which goes badly for coded bank names. Such
  * a create needs a much surer answer before it is categorised unreviewed.
  */
-export const AUTO_CATEGORISE_MIN_CONFIDENCE_WITHOUT_EVIDENCE = 0.85;
+const AUTO_CATEGORISE_MIN_CONFIDENCE_WITHOUT_EVIDENCE = 0.85;
 
-export type CategoriseItem = {
+type CategoriseItem = {
   key: string;
   payee_id: string | null;
   payee_name: string | null;
@@ -68,9 +68,9 @@ export type CategoriseItem = {
   account_name: string | null;
 };
 
-export type CategoryOption = { category_id: string; category_name: string; group_name: string };
+type CategoryOption = { category_id: string; category_name: string; group_name: string };
 
-export type CategorySuggestion = {
+type CategorySuggestion = {
   key: string;
   /** Null when Jev chose "none of these". */
   suggestion: (CategoryOption & { probability: number }) | null;
@@ -92,7 +92,7 @@ type SimilarExample = {
   times: number;
 };
 
-export type CategoriseResult = {
+type CategoriseResult = {
   model: string;
   suggestions: CategorySuggestion[];
   usage: { input_tokens: number; output_tokens: number };
