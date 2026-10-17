@@ -1,17 +1,19 @@
+export type {
+  AccountPreferences,
+  AccountPreferencesSnapshot,
+  AccountReconciliationPreview,
+  AccountReconciliationResult,
+  ScheduledOccurrenceResult,
+  TransactionBulkOutcome,
+  TransactionBulkResult,
+  TransactionBulkStatus,
+  TransactionPage,
+  UnapprovedCount,
+} from "@howmuch/contract";
+
+import type { ScheduledOccurrenceResult } from "@howmuch/contract";
+
 export type ClearedState = "cleared" | "uncleared" | "reconciled";
-
-export type AccountPreferences = {
-  favourite_account_ids: string[];
-  account_order: string[];
-  account_order_by_group: Record<string, string[]>;
-  account_group_sorts: Record<string, "manual" | "alphabetical" | "mostUsedLast30Days">;
-  custom_account_groups: Array<{ id: string; name: string; account_ids: string[] }>;
-};
-
-export type AccountPreferencesSnapshot = {
-  account_preferences: AccountPreferences | null;
-  account_preferences_revision: number;
-};
 
 export type TransactionInput = {
   id?: string;
@@ -90,39 +92,6 @@ export type TransactionBatchResult = {
   server_knowledge: number;
 };
 
-/** One requested row's outcome in a bulk cleared or delete command. */
-export type TransactionBulkStatus =
-  /** The server confirmed this item's own write. */
-  | "applied"
-  /** An expected-state precondition failed; the item was left alone. */
-  | "conflict"
-  /**
-   * The row was already gone when this item was reached. This is an observation,
-   * not an attribution: a command cannot claim it removed a row it never
-   * committed, so `already_removed` is never counted as work this command did.
-   */
-  | "already_removed"
-  /** The write failed ambiguously and may or may not have landed. */
-  | "unresolved"
-  /** Never sent, because the command stopped at an earlier failure. */
-  | "unattempted";
-
-export type TransactionBulkOutcome = {
-  readonly id: string;
-  readonly status: TransactionBulkStatus;
-  readonly detail?: string;
-};
-
-export type TransactionBulkResult = {
-  outcomes: TransactionBulkOutcome[];
-  applied_count: number;
-  conflict_count: number;
-  already_removed_count: number;
-  unresolved_count: number;
-  unattempted_count: number;
-  server_knowledge: number;
-};
-
 /** One row of a bulk cleared command; each item carries its own compare-and-set. */
 export type TransactionClearedItem = {
   readonly id: string;
@@ -134,25 +103,6 @@ export type TransactionClearedItem = {
 export type TransactionDeleteItem = {
   readonly id: string;
   readonly expected_approved?: boolean;
-};
-
-export type TransactionPage = {
-  transactions: any[];
-  has_more: boolean;
-  next_offset: number | null;
-  /** Read in the same batch as the page, so it always describes these rows. */
-  server_knowledge: number;
-};
-
-/**
- * The size of the unapproved queue, without any of its rows. Clients show the
- * "New" badge from this and only load the queue itself when the user opens the
- * approval flow.
- */
-export type UnapprovedCount = {
-  count: number;
-  /** Read in the same batch as the count, so it always describes this number. */
-  server_knowledge: number;
 };
 
 export type ScheduledSubtransactionInput = {
@@ -195,15 +145,6 @@ export type ScheduledWriteOptions = {
   };
 };
 
-export type ScheduledOccurrenceResult = {
-  transaction: any;
-  scheduled_transaction: any;
-  occurrence_date: string;
-  entered_date: string;
-  completed: boolean;
-  replayed: boolean;
-};
-
 export type ScheduledMaterializationResult = {
   through_date: string;
   occurrences: ScheduledOccurrenceResult[];
@@ -221,28 +162,6 @@ export type ScheduledCronMaterializationResult = {
 
 export type AccountReconciliationOptions = {
   operationId: string;
-};
-
-export type AccountReconciliationPreview = {
-  account: any;
-  statement_date: string;
-  current_reconciled_balance: number;
-  projected_reconciled_balance: number;
-  candidate_transaction_ids: string[];
-  candidate_transaction_count: number;
-  server_knowledge: number;
-};
-
-export type AccountReconciliationResult = {
-  account: any;
-  reconciled_transaction_ids: string[];
-  reconciled_transaction_count: number;
-  statement_date: string;
-  statement_balance: number;
-  prior_reconciled_balance: number;
-  final_reconciled_balance: number;
-  replayed: boolean;
-  server_knowledge: number;
 };
 
 export type ReportFilters = {
