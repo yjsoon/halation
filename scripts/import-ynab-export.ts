@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
+import { parseArgs as parseCliArgs } from "node:util";
 import { openDatabase } from "../apps/api/src/db";
 import { importYnabExport } from "../apps/api/src/importers/ynab-export";
 import { LedgerRepository } from "../apps/api/src/repository";
+import { ledgerSummary } from "./lib/import-summary";
 import { backupSqliteDatabase } from "./lib/sqlite-backup";
 
 type CliOptions = {
@@ -37,7 +39,7 @@ try {
     planCsv: input.planCsv,
     dateFormat: options.dateFormat,
   });
-  const summary = queryImportSummary(db, options.planId);
+  const summary = ledgerSummary(db, options.planId);
 
   console.log(`Imported YNAB web export "${options.planName ?? input.planName ?? options.planId}"`);
   console.log(`Database: ${options.dbPath}`);
@@ -61,69 +63,35 @@ try {
 }
 
 function parseArgs(args: string[]): CliOptions {
-  const options: CliOptions = {
-    dbPath: Bun.env.HOWMUCH_DB_PATH ?? "data/howmuch.sqlite",
-    planId: Bun.env.HOWMUCH_DEFAULT_PLAN_ID ?? "ynab-web-export",
-    dateFormat: "dmy",
-    noBackup: false,
-    help: false,
-  };
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    const [flag, inlineValue] = arg.split("=", 2);
-    const value = inlineValue ?? args[index + 1];
-
-    if (flag === "--zip") {
-      options.zipPath = readValue(flag, value);
-      if (inlineValue === undefined) index += 1;
-      continue;
-    }
-    if (flag === "--register") {
-      options.registerPath = readValue(flag, value);
-      if (inlineValue === undefined) index += 1;
-      continue;
-    }
-    if (flag === "--plan") {
-      options.planPath = readValue(flag, value);
-      if (inlineValue === undefined) index += 1;
-      continue;
-    }
-    if (flag === "--db") {
-      options.dbPath = readValue(flag, value);
-      if (inlineValue === undefined) index += 1;
-      continue;
-    }
-    if (flag === "--plan-id") {
-      options.planId = readValue(flag, value);
-      if (inlineValue === undefined) index += 1;
-      continue;
-    }
-    if (flag === "--plan-name") {
-      options.planName = readValue(flag, value);
-      if (inlineValue === undefined) index += 1;
-      continue;
-    }
-    if (flag === "--date-format") {
-      const dateFormat = readValue(flag, value);
-      if (!["dmy", "mdy", "ymd"].includes(dateFormat)) {
-        throw new Error("--date-format must be one of dmy, mdy, or ymd");
-      }
-      options.dateFormat = dateFormat as CliOptions["dateFormat"];
-      if (inlineValue === undefined) index += 1;
-      continue;
-    }
-    if (flag === "--no-backup") {
-      options.noBackup = true;
-      continue;
-    }
-    if (flag === "--help" || flag === "-h") {
-      options.help = true;
-      continue;
-    }
-
-    throw new Error(`Unknown argument: ${arg}`);
+  const { values } = parseCliArgs({
+    args,
+    options: {
+      zip: { type: "string" },
+      register: { type: "string" },
+      plan: { type: "string" },
+      db: { type: "string" },
+      "plan-id": { type: "string" },
+      "plan-name": { type: "string" },
+      "date-format": { type: "string" },
+      "no-backup": { type: "boolean" },
+      help: { type: "boolean", short: "h" },
+    },
+  });
+  const dateFormat = values["date-format"] ?? "dmy";
+  if (!["dmy", "mdy", "ymd"].includes(dateFormat)) {
+    throw new Error("--date-format must be one of dmy, mdy, or ymd");
   }
+  const options: CliOptions = {
+    zipPath: values.zip,
+    registerPath: values.register,
+    planPath: values.plan,
+    dbPath: values.db ?? Bun.env.HOWMUCH_DB_PATH ?? "data/howmuch.sqlite",
+    planId: values["plan-id"] ?? Bun.env.HOWMUCH_DEFAULT_PLAN_ID ?? "ynab-web-export",
+    planName: values["plan-name"],
+    dateFormat: dateFormat as CliOptions["dateFormat"],
+    noBackup: values["no-backup"] ?? false,
+    help: values.help ?? false,
+  };
 
   if (options.help) {
     return options;
@@ -137,13 +105,6 @@ function parseArgs(args: string[]): CliOptions {
   }
 
   return options;
-}
-
-function readValue(flag: string, value?: string): string {
-  if (!value) {
-    throw new Error(`Missing value for ${flag}`);
-  }
-  return value;
 }
 
 function readYnabExportFiles(options: CliOptions): { registerCsv: string; planCsv?: string; planName?: string } {
@@ -188,49 +149,6 @@ function inferPlanName(path: string): string | undefined {
   const file = basename(path);
   const match = file.match(/^(.+?)\s+as of\s+/i);
   return match?.[1];
-}
-
-function queryImportSummary(db: ReturnType<typeof openDatabase>, planId: string) {
-  const accounts = singleNumber(db, "SELECT COUNT(*) AS value FROM accounts WHERE plan_id = ? AND deleted = 0", planId);
-  const payees = singleNumber(db, "SELECT COUNT(*) AS value FROM payees WHERE plan_id = ? AND deleted = 0", planId);
-  const categoryGroups = singleNumber(
-    db,
-    "SELECT COUNT(*) AS value FROM category_groups WHERE plan_id = ? AND deleted = 0",
-    planId,
-  );
-  const categories = singleNumber(db, "SELECT COUNT(*) AS value FROM categories WHERE plan_id = ? AND deleted = 0", planId);
-  const transactionsActive = singleNumber(
-    db,
-    "SELECT COUNT(*) AS value FROM transactions WHERE plan_id = ? AND deleted = 0",
-    planId,
-  );
-  const transactionsDeleted = singleNumber(
-    db,
-    "SELECT COUNT(*) AS value FROM transactions WHERE plan_id = ? AND deleted = 1",
-    planId,
-  );
-  const range = db
-    .query("SELECT MIN(date) AS first_date, MAX(date) AS last_date FROM transactions WHERE plan_id = ?")
-    .get(planId) as {
-    first_date: string | null;
-    last_date: string | null;
-  };
-
-  return {
-    accounts,
-    payees,
-    category_groups: categoryGroups,
-    categories,
-    transactions_active: transactionsActive,
-    transactions_deleted: transactionsDeleted,
-    first_date: range.first_date,
-    last_date: range.last_date,
-  };
-}
-
-function singleNumber(db: ReturnType<typeof openDatabase>, sql: string, ...params: unknown[]): number {
-  const row = db.query(sql).get(...params) as { value: number } | null;
-  return Number(row?.value ?? 0);
 }
 
 function printHelp(): void {

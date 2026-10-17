@@ -17,7 +17,7 @@ import {
   type CategoryPatch,
   type PlannedSql,
 } from "./category-management";
-import { requestHash } from "./d1-guarded-command";
+import { requestHash } from "./canonical-json";
 import { PLAN_NOT_EMPTY_CONDITION, parsePlanSnapshot, planNotEmptyValues, snapshotImportStatements } from "./plan-snapshot";
 import type { LedgerStore } from "./storage";
 import type { AccountReconciliationOptions, AccountReconciliationPreview, AccountReconciliationResult, ScheduledTransactionInput, ScheduledWriteOptions, TransactionBatchResult, TransactionBatchUpdate, TransactionInput } from "./types";

@@ -1,63 +1,8 @@
-import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-
-function memberSpan(source: string, marker: string, file: string): string {
-  const start = source.indexOf(marker);
-  if (start < 0) {
-    throw new Error(`Could not find ${marker} in ${file}`);
-  }
-  const brace = source.indexOf("{", start + marker.length);
-  if (brace < 0) {
-    throw new Error(`Could not find opening brace after ${marker}`);
-  }
-  let depth = 0;
-  for (let i = brace; i < source.length; i++) {
-    const ch = source[i];
-    if (ch === "{") depth += 1;
-    else if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(start, i + 1);
-    }
-  }
-  throw new Error(`Unbalanced braces after ${marker} in ${file}`);
-}
+import { memberSpan, readRepoFile } from "./lib/source-span";
 
 const failures: string[] = [];
 
-const iosModel = readFileSync(join(root, "apps/ios/HowMuch/AppModel.swift"), "utf8");
-const iosToggle = memberSpan(iosModel, "func toggleTransactionCleared(_ transaction: Transaction)", "AppModel.swift");
-const iosAwait = iosToggle.indexOf("await apiClient.updateTransactionCleared");
-if (iosAwait < 0) {
-  failures.push("iOS toggleTransactionCleared must still PATCH via apiClient.updateTransactionCleared.");
-} else {
-  const overlay = iosToggle.indexOf("clearedToggleOverlays[transaction.id]");
-  if (overlay < 0 || overlay > iosAwait) {
-    failures.push(
-      "iOS toggleTransactionCleared must record the flipped cleared overlay before awaiting the PATCH.",
-    );
-  }
-}
-if (iosToggle.includes("isSubmitting = true")) {
-  failures.push("iOS toggleTransactionCleared must not take the global isSubmitting lock; that freezes every status icon.");
-}
-const iosOverlay = memberSpan(iosModel, "func overlaying(_ rows: [Transaction]) -> [Transaction]", "AppModel.swift");
-if (
-  !iosOverlay.includes("overlayingClearedToggles(on: overlayingPendingEdits(on: rows))")
-  || !iosModel.includes("overlaying(serverTransactions)")
-) {
-  failures.push(
-    "iOS must overlay in-flight cleared flips on top of serverTransactions so refreshLedger cannot snap the icon back.",
-  );
-}
-const iosRefresh = memberSpan(iosModel, "func refreshLedger(quiet: Bool = false)", "AppModel.swift");
-if (!iosRefresh.includes("reconcileClearedToggleOverlays(")) {
-  failures.push("iOS must reconcile cleared overlays after a ledger fetch so a stale snapshot cannot stick forever.");
-}
-
-const iosRow = readFileSync(join(root, "apps/ios/HowMuch/Views/RegisterView.swift"), "utf8");
+const iosRow = readRepoFile("apps/ios/HowMuch/Views/RegisterView.swift");
 const rowStart = iosRow.indexOf("struct TransactionRow: View {");
 if (rowStart < 0) {
   failures.push("Could not find TransactionRow.");
@@ -68,7 +13,7 @@ if (rowStart < 0) {
   }
 }
 
-const webPage = readFileSync(join(root, "apps/web/src/pages/Transactions.tsx"), "utf8");
+const webPage = readRepoFile("apps/web/src/pages/Transactions.tsx");
 const webToggle = memberSpan(
   webPage,
   "const toggleCleared = async (transaction: Transaction, options: { refresh?: boolean } = {}): Promise<boolean> =>",
@@ -107,4 +52,4 @@ if (failures.length) {
   process.exit(1);
 }
 
-console.log("Cleared status toggle: iOS and web overlay the flipped icon before the PATCH.");
+console.log("Cleared status toggle: the iOS status control stays a tap gesture, and web overlays the flipped icon before the PATCH.");

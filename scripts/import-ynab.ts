@@ -1,6 +1,8 @@
+import { parseArgs as parseCliArgs } from "node:util";
 import { openDatabase } from "../apps/api/src/db";
 import { importYnabFromApi, listYnabPlans, type YnabPlanSummary } from "../apps/api/src/importers/ynab";
 import { LedgerRepository } from "../apps/api/src/repository";
+import { ledgerSummary, singleNumber } from "./lib/import-summary";
 import { backupSqliteDatabase } from "./lib/sqlite-backup";
 
 type CliOptions = {
@@ -81,87 +83,31 @@ try {
 }
 
 function parseArgs(args: string[]): CliOptions {
-  const options: CliOptions = {
-    dbPath: Bun.env.HOWMUCH_DB_PATH ?? "data/howmuch.sqlite",
-    token: undefined,
-    baseUrl: Bun.env.YNAB_BASE_URL ?? "https://api.ynab.com/v1",
-    sinceDate: undefined,
-    listPlans: false,
-    noBackup: false,
-    help: false,
+  const { values } = parseCliArgs({
+    args,
+    options: {
+      "plan-id": { type: "string" },
+      "plan-name": { type: "string" },
+      db: { type: "string" },
+      token: { type: "string" },
+      "base-url": { type: "string" },
+      "since-date": { type: "string" },
+      "list-plans": { type: "boolean" },
+      "no-backup": { type: "boolean" },
+      help: { type: "boolean", short: "h" },
+    },
+  });
+  return {
+    planId: values["plan-id"],
+    planName: values["plan-name"],
+    dbPath: values.db ?? Bun.env.HOWMUCH_DB_PATH ?? "data/howmuch.sqlite",
+    token: values.token,
+    baseUrl: values["base-url"] ?? Bun.env.YNAB_BASE_URL ?? "https://api.ynab.com/v1",
+    sinceDate: values["since-date"],
+    listPlans: values["list-plans"] ?? false,
+    noBackup: values["no-backup"] ?? false,
+    help: values.help ?? false,
   };
-
-  for (let index = 0; index < args.length; index += 1) {
-    const arg = args[index];
-    const [flag, inlineValue] = arg.split("=", 2);
-    const value = inlineValue ?? args[index + 1];
-
-    if (flag === "--plan-id") {
-      options.planId = readValue(flag, value);
-      if (inlineValue === undefined) {
-        index += 1;
-      }
-      continue;
-    }
-    if (flag === "--plan-name") {
-      options.planName = readValue(flag, value);
-      if (inlineValue === undefined) {
-        index += 1;
-      }
-      continue;
-    }
-    if (flag === "--db") {
-      options.dbPath = readValue(flag, value);
-      if (inlineValue === undefined) {
-        index += 1;
-      }
-      continue;
-    }
-    if (flag === "--token") {
-      options.token = readValue(flag, value);
-      if (inlineValue === undefined) {
-        index += 1;
-      }
-      continue;
-    }
-    if (flag === "--base-url") {
-      options.baseUrl = readValue(flag, value);
-      if (inlineValue === undefined) {
-        index += 1;
-      }
-      continue;
-    }
-    if (flag === "--since-date") {
-      options.sinceDate = readValue(flag, value);
-      if (inlineValue === undefined) {
-        index += 1;
-      }
-      continue;
-    }
-    if (flag === "--list-plans") {
-      options.listPlans = true;
-      continue;
-    }
-    if (flag === "--no-backup") {
-      options.noBackup = true;
-      continue;
-    }
-    if (flag === "--help" || flag === "-h") {
-      options.help = true;
-      continue;
-    }
-
-    throw new Error(`Unknown argument: ${arg}`);
-  }
-
-  return options;
-}
-
-function readValue(flag: string, value?: string): string {
-  if (!value) {
-    throw new Error(`Missing value for ${flag}`);
-  }
-  return value;
 }
 
 function resolvePlan(plans: YnabPlanSummary[], planId?: string, planName?: string): YnabPlanSummary {
@@ -196,25 +142,6 @@ function resolvePlan(plans: YnabPlanSummary[], planId?: string, planName?: strin
 }
 
 function queryImportSummary(db: ReturnType<typeof openDatabase>, planId: string) {
-  const accounts = singleNumber(db, "SELECT COUNT(*) AS value FROM accounts WHERE plan_id = ? AND deleted = 0", planId);
-  const payees = singleNumber(db, "SELECT COUNT(*) AS value FROM payees WHERE plan_id = ? AND deleted = 0", planId);
-  const categories = singleNumber(db, "SELECT COUNT(*) AS value FROM categories WHERE plan_id = ? AND deleted = 0", planId);
-  const transactionsActive = singleNumber(
-    db,
-    "SELECT COUNT(*) AS value FROM transactions WHERE plan_id = ? AND deleted = 0",
-    planId,
-  );
-  const transactionsDeleted = singleNumber(
-    db,
-    "SELECT COUNT(*) AS value FROM transactions WHERE plan_id = ? AND deleted = 1",
-    planId,
-  );
-  const range = db
-    .query("SELECT MIN(date) AS first_date, MAX(date) AS last_date FROM transactions WHERE plan_id = ?")
-    .get(planId) as {
-    first_date: string | null;
-    last_date: string | null;
-  };
   const balanceMismatches = singleNumber(
     db,
     `SELECT COUNT(*) AS value
@@ -237,22 +164,11 @@ function queryImportSummary(db: ReturnType<typeof openDatabase>, planId: string)
   ).all(planId) as Array<{ object_type: string; value: number | bigint }>).map((row) => [row.object_type, Number(row.value)]));
 
   return {
-    accounts,
-    payees,
-    categories,
-    transactions_active: transactionsActive,
-    transactions_deleted: transactionsDeleted,
-    first_date: range.first_date,
-    last_date: range.last_date,
+    ...ledgerSummary(db, planId),
     balance_mismatches: balanceMismatches,
     raw_objects: rawObjects,
     raw_object_types: rawObjectTypes,
   };
-}
-
-function singleNumber(db: ReturnType<typeof openDatabase>, sql: string, ...params: string[]): number {
-  const row = db.query(sql).get(...params) as { value: number | bigint };
-  return Number(row.value ?? 0);
 }
 
 function formatCounts(counts: Record<string, number>): string {

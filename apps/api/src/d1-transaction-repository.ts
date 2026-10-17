@@ -4,7 +4,8 @@ import { NotFoundError, ValidationError } from "./repository";
 import { newLinkedSideCleared } from "./scheduled-transactions";
 import type { D1Database } from "./d1";
 import type { SqlValues } from "./async-sql";
-import { createHash } from "node:crypto";
+import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
+import { statement } from "./d1-guarded-command";
 
 export type PlannedStatement = Readonly<{ sql: string; values: Readonly<SqlValues> }>;
 export type D1WriteContext = Readonly<{
@@ -413,9 +414,8 @@ function isCalendarDate(value: string): boolean {
   const parsed = new Date(`${value}T00:00:00Z`);
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
-function statement(sql: string, values: SqlValues = []): PlannedStatement { return Object.freeze({ sql, values: Object.freeze([...values]) }); }
 function stableId(operationId: string, kind: string, seed: string): string {
-  return `${kind}_${createHash("sha256").update(`${operationId}:${kind}:${seed}`).digest("hex").slice(0, 24)}`;
+  return `${kind}_${sha256Hex(`${operationId}:${kind}:${seed}`).slice(0, 24)}`;
 }
 function subInput(row: Record<string, any>) {
   return { id: row.id, amount: row.amount_milli, memo: row.memo, payee_id: row.payee_id, payee_name: row.payee_name_snapshot, category_id: row.category_id, transfer_account_id: row.transfer_account_id, transfer_transaction_id: row.transfer_transaction_id, external_ynab_id: row.external_ynab_id };
@@ -476,12 +476,3 @@ function makePlan(commandId: string, version: number, transactionId: string, pla
   return Object.freeze({ commandId, expectedWriteVersion: version, transactionId, statements });
 }
 
-function requestHash(value: unknown): string {
-  return createHash("sha256").update(canonicalJson(value)).digest("hex");
-}
-function canonicalJson(value: unknown): string {
-  if (value === undefined) return "null";
-  if (value === null || typeof value !== "object") return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  return `{${Object.keys(value as Record<string, unknown>).filter((key) => (value as any)[key] !== undefined).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson((value as any)[key])}`).join(",")}}`;
-}

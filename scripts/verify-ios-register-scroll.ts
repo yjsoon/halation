@@ -1,33 +1,8 @@
-import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-
-function memberSpan(source: string, marker: string, file: string): string {
-  const start = source.indexOf(marker);
-  if (start < 0) {
-    throw new Error(`Could not find ${marker} in ${file}`);
-  }
-  const brace = source.indexOf("{", start);
-  if (brace < 0) {
-    throw new Error(`Could not find opening brace after ${marker}`);
-  }
-  let depth = 0;
-  for (let i = brace; i < source.length; i++) {
-    const ch = source[i];
-    if (ch === "{") depth += 1;
-    else if (ch === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(start, i + 1);
-    }
-  }
-  throw new Error(`Unbalanced braces after ${marker} in ${file}`);
-}
+import { memberSpan, readRepoFile } from "./lib/source-span";
 
 const failures: string[] = [];
 
-const appModel = readFileSync(join(root, "apps/ios/HowMuch/AppModel.swift"), "utf8");
+const appModel = readRepoFile("apps/ios/HowMuch/AppModel.swift");
 const refresh = memberSpan(appModel, "func refreshLedger(quiet: Bool = false)", "AppModel.swift");
 
 if (
@@ -53,7 +28,7 @@ if (hasMoreReset >= 0 && (quietPhase < 0 || hasMoreReset < quietPhase)) {
   );
 }
 
-const rootView = readFileSync(join(root, "apps/ios/HowMuch/HowMuchApp.swift"), "utf8");
+const rootView = readRepoFile("apps/ios/HowMuch/HowMuchApp.swift");
 if (
   /\.overlay\(alignment: \.bottom\) \{[\s\S]*?\n    \}\n    \.animation\(\.snappy, value: model\.lastSaveMessage/.test(rootView)
 ) {
@@ -62,13 +37,13 @@ if (
   );
 }
 
-const components = readFileSync(join(root, "apps/ios/HowMuch/Views/Components.swift"), "utf8");
+const components = readRepoFile("apps/ios/HowMuch/Views/Components.swift");
 const toastOverlay = memberSpan(components, "struct RootSaveToastOverlay: View {", "Components.swift");
 if (!toastOverlay.includes(".animation(Theme.Motion.arrive, value: model.lastSaveMessage?.id)")) {
   failures.push("RootSaveToastOverlay still needs .animation(Theme.Motion.arrive, value: model.lastSaveMessage?.id) on the overlay content, not the TabView.");
 }
 
-const register = readFileSync(join(root, "apps/ios/HowMuch/Views/RegisterView.swift"), "utf8");
+const register = readRepoFile("apps/ios/HowMuch/Views/RegisterView.swift");
 if (register.includes('displayMode: .automatic), prompt: "Search transactions or amounts"')) {
   failures.push(
     "RegisterView searchable still uses displayMode: .automatic. Dismissing the editor sheet restores the search drawer and jumps the List to the top. Other HowMuch lists already use .always.",
