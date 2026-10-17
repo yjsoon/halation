@@ -33,7 +33,7 @@ export interface AccountUsageState {
   message: string | null;
 }
 
-export function AccountOrganizationDialog({
+export function AccountOrganiserDialog({
   accountGroups,
   usage,
   onRetryUsage,
@@ -75,9 +75,9 @@ export function AccountOrganizationDialog({
   return (
     <dialog
       ref={dialogRef}
-      className="account-organizer"
-      aria-labelledby="account-organizer-title"
-      aria-describedby="account-organizer-description"
+      className="account-organiser"
+      aria-labelledby="account-organiser-title"
+      aria-describedby="account-organiser-description"
       onCancel={(event) => {
         if (saving || accountPreferencesSync.phase === "error") {
           event.preventDefault();
@@ -89,22 +89,22 @@ export function AccountOrganizationDialog({
         if (event.target === event.currentTarget) requestClose();
       }}
     >
-      <div className="account-organizer-surface">
-        <header className="account-organizer-header">
+      <div className="account-organiser-surface">
+        <header className="account-organiser-header">
           <div>
             <span className="page-eyebrow">Synced with iOS</span>
-            <h2 id="account-organizer-title">Organise accounts</h2>
-            <p id="account-organizer-description">
+            <h2 id="account-organiser-title">Organise accounts</h2>
+            <p id="account-organiser-description">
               Favourites, your groups, and account order are shared with your other signed-in devices. Cash, Credit, Tracking, and Closed stay a type index.
             </p>
           </div>
-          <button type="button" className="account-organizer-close" onClick={requestClose} disabled={saving} aria-label="Close account organiser">×</button>
+          <button type="button" className="account-organiser-close" onClick={requestClose} disabled={saving} aria-label="Close account organiser">×</button>
         </header>
 
         <SyncStatus state={accountPreferencesSync} onRetry={retryAccountPreferences} />
 
         {accountPreferencesSync.phase === "unsupported" ? (
-          <section className="account-organizer-unsupported">
+          <section className="account-organiser-unsupported">
             <h3>Editing is unavailable</h3>
             <p>
               This server version does not expose synced account organisation. The existing sidebar remains available,
@@ -112,9 +112,9 @@ export function AccountOrganizationDialog({
             </p>
           </section>
         ) : (
-          <div className="account-organizer-content">
-            <section className="account-organizer-section" aria-labelledby="favourites-heading">
-              <div className="account-organizer-section-heading">
+          <div className="account-organiser-content">
+            <section className="account-organiser-section" aria-labelledby="favourites-heading">
+              <div className="account-organiser-section-heading">
                 <div>
                   <h3 id="favourites-heading">Favourites</h3>
                   <p>Favourite open accounts appear first in the sidebar.</p>
@@ -130,8 +130,8 @@ export function AccountOrganizationDialog({
               />
             </section>
 
-            <section className="account-organizer-section" aria-labelledby="custom-groups-heading">
-              <div className="account-organizer-section-heading">
+            <section className="account-organiser-section" aria-labelledby="custom-groups-heading">
+              <div className="account-organiser-section-heading">
                 <div>
                   <h3 id="custom-groups-heading">Custom groups</h3>
                   <p>An account can belong to more than one group.</p>
@@ -140,7 +140,7 @@ export function AccountOrganizationDialog({
               <NewGroupForm preferences={preferences} onCreate={(id, name) =>
                 updateAccountPreferences((current) => addCustomAccountGroup(current, id, name))} />
               {preferences.custom_account_groups.length === 0 ? (
-                <p className="account-organizer-empty">No custom groups yet. Create one for collections such as Travel or Shared.</p>
+                <p className="account-organiser-empty">No custom groups yet. Create one for collections such as Travel or Shared.</p>
               ) : (
                 <div className="custom-group-list">
                   {preferences.custom_account_groups.map((group, index) => (
@@ -158,8 +158,8 @@ export function AccountOrganizationDialog({
               )}
             </section>
 
-            <section className="account-organizer-section" aria-labelledby="collection-sort-heading">
-              <div className="account-organizer-section-heading">
+            <section className="account-organiser-section" aria-labelledby="collection-sort-heading">
+              <div className="account-organiser-section-heading">
                 <div>
                   <h3 id="collection-sort-heading">Your groups</h3>
                   <p>Sort Favourites and the groups you created. Manual order is shared across devices.</p>
@@ -178,8 +178,8 @@ export function AccountOrganizationDialog({
               />
             </section>
 
-            <section className="account-organizer-section" aria-labelledby="type-index-heading">
-              <div className="account-organizer-section-heading">
+            <section className="account-organiser-section" aria-labelledby="type-index-heading">
+              <div className="account-organiser-section-heading">
                 <div>
                   <h3 id="type-index-heading">By type</h3>
                   <p>Cash, Credit, Tracking, and Closed follow account type and closed status. Sort inside a list. Accounts do not move between these lists.</p>
@@ -198,7 +198,7 @@ export function AccountOrganizationDialog({
           </div>
         )}
 
-        <footer className="account-organizer-footer">
+        <footer className="account-organiser-footer">
           <button type="button" className="save-button" onClick={requestClose} disabled={saving}>
             {saving ? "Saving…" : "Done"}
           </button>
@@ -318,7 +318,7 @@ function NewGroupForm({ preferences, onCreate }: {
   };
 
   if (!creating) {
-    return <button ref={createButtonRef} type="button" className="organizer-secondary-button" onClick={() => setCreating(true)}>+ New group</button>;
+    return <button ref={createButtonRef} type="button" className="organiser-secondary-button" onClick={() => setCreating(true)}>+ New group</button>;
   }
   return (
     <form className="custom-group-form" onSubmit={submit}>
@@ -333,13 +333,13 @@ function NewGroupForm({ preferences, onCreate }: {
           aria-invalid={submitted && Boolean(error)}
           aria-describedby="new-account-group-hint"
         />
-        <button type="submit" className="organizer-primary-button">Create</button>
+        <button type="submit" className="organiser-primary-button">Create</button>
         <button type="button" className="text-button" onClick={() => {
           setCreating(false); setName(""); setSubmitted(false);
           requestAnimationFrame(() => createButtonRef.current?.focus());
         }}>Cancel</button>
       </div>
-      <span id="new-account-group-hint" className={submitted && error ? "organizer-field-error" : "organizer-field-hint"} role={submitted && error ? "alert" : undefined}>
+      <span id="new-account-group-hint" className={submitted && error ? "organiser-field-error" : "organiser-field-hint"} role={submitted && error ? "alert" : undefined}>
         {submitted && error ? error : "Names must be unique and cannot use a built-in group name."}
       </span>
     </form>
@@ -382,7 +382,7 @@ function CustomGroupEditor({ group, index, count, accounts, preferences, onUpdat
       if (focusTarget instanceof HTMLElement && document.contains(focusTarget)) {
         focusTarget.querySelector<HTMLElement>("[data-focus-after-group-delete]")?.focus();
       } else {
-        document.querySelector<HTMLElement>(".organizer-secondary-button")?.focus();
+        document.querySelector<HTMLElement>(".organiser-secondary-button")?.focus();
       }
     });
   };
@@ -407,7 +407,7 @@ function CustomGroupEditor({ group, index, count, accounts, preferences, onUpdat
           data-focus-after-group-delete
           onClick={() => { setName(group.name); setRenaming(true); }}
         >Rename</button>
-        <button ref={deleteButtonRef} type="button" className="organizer-danger-link" onClick={() => setConfirmingDelete(true)}>Delete</button>
+        <button ref={deleteButtonRef} type="button" className="organiser-danger-link" onClick={() => setConfirmingDelete(true)}>Delete</button>
       </div>
       {renaming && (
         <form className="custom-group-form" onSubmit={rename}>
@@ -421,13 +421,13 @@ function CustomGroupEditor({ group, index, count, accounts, preferences, onUpdat
               autoFocus
               aria-invalid={submitted && Boolean(error)}
             />
-            <button type="submit" className="organizer-primary-button">Save name</button>
+            <button type="submit" className="organiser-primary-button">Save name</button>
             <button type="button" className="text-button" onClick={() => {
               setRenaming(false); setSubmitted(false);
               requestAnimationFrame(() => renameButtonRef.current?.focus());
             }}>Cancel</button>
           </div>
-          {submitted && error && <span className="organizer-field-error" role="alert">{error}</span>}
+          {submitted && error && <span className="organiser-field-error" role="alert">{error}</span>}
         </form>
       )}
       {confirmingDelete && (
@@ -438,7 +438,7 @@ function CustomGroupEditor({ group, index, count, accounts, preferences, onUpdat
               setConfirmingDelete(false);
               requestAnimationFrame(() => deleteButtonRef.current?.focus());
             }}>Cancel</button>
-            <button type="button" className="organizer-danger-button" onClick={deleteGroup}>Delete group</button>
+            <button type="button" className="organiser-danger-button" onClick={deleteGroup}>Delete group</button>
           </div>
         </div>
       )}
@@ -488,7 +488,7 @@ function MoveButtons({ label, first, last, onMove }: {
   onMove: (direction: -1 | 1) => void;
 }) {
   return (
-    <span className="organizer-move-buttons">
+    <span className="organiser-move-buttons">
       <button type="button" onClick={() => onMove(-1)} disabled={first} aria-label={`Move ${label} up`}>↑</button>
       <button type="button" onClick={() => onMove(1)} disabled={last} aria-label={`Move ${label} down`}>↓</button>
     </span>

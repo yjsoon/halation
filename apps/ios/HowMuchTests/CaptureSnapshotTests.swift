@@ -108,8 +108,8 @@ final class CaptureSnapshotTests: XCTestCase {
         contains: ["Add Transaction", "Lunch Shop", "Save"],
         timeoutNanoseconds: 3_000_000_000
       )
-      XCTAssertTrue(rendered.text.contains(Self.normalizedOCR("Add Transaction")), "manual form title missing in OCR [\(rendered.text)]")
-      XCTAssertTrue(rendered.text.contains(Self.normalizedOCR("Save")), "manual Save missing in OCR [\(rendered.text)]")
+      XCTAssertTrue(rendered.text.contains(Self.normalisedOCR("Add Transaction")), "manual form title missing in OCR [\(rendered.text)]")
+      XCTAssertTrue(rendered.text.contains(Self.normalisedOCR("Save")), "manual Save missing in OCR [\(rendered.text)]")
       attachImage(rendered.image, name: "manual-entry-ready-\(size)")
       guard let save = surface.firstControl(label: "Save") else { continue }
       XCTAssertTrue(surface.isControlEnabled(save))
@@ -164,9 +164,9 @@ final class CaptureSnapshotTests: XCTestCase {
     }
     defer { surface.detach() }
     let rendered = await surface.captureUntilOCR(contains: ["Add Transactions"])
-    XCTAssertTrue(rendered.text.contains(Self.normalizedOCR("Add Transactions")))
-    XCTAssertFalse(rendered.text.contains(Self.normalizedOCR("Add an expense")))
-    XCTAssertFalse(rendered.text.contains(Self.normalizedOCR("Allow sending")))
+    XCTAssertTrue(rendered.text.contains(Self.normalisedOCR("Add Transactions")))
+    XCTAssertFalse(rendered.text.contains(Self.normalisedOCR("Add an expense")))
+    XCTAssertFalse(rendered.text.contains(Self.normalisedOCR("Allow sending")))
     XCTAssertNil(surface.firstControl(label: "Cancel"), "a remembered mode must not route a conversation request to the form")
     XCTAssertEqual(session.entryMode, .describe)
     XCTAssertNotNil(surface.firstControl(label: "Send"))
@@ -436,8 +436,8 @@ final class CaptureSnapshotTests: XCTestCase {
         contains: ["Add Transaction", account],
         timeoutNanoseconds: 2_000_000_000
       )
-      XCTAssertTrue(rendered.text.contains(Self.normalizedOCR("Add Transaction")), "\(name) title missing in OCR [\(rendered.text)]")
-      XCTAssertTrue(rendered.text.contains(Self.normalizedOCR(account)), "\(name) account missing in OCR [\(rendered.text)]")
+      XCTAssertTrue(rendered.text.contains(Self.normalisedOCR("Add Transaction")), "\(name) title missing in OCR [\(rendered.text)]")
+      XCTAssertTrue(rendered.text.contains(Self.normalisedOCR(account)), "\(name) account missing in OCR [\(rendered.text)]")
       attachImage(rendered.image, name: "manual-entry-intake-\(name)")
       XCTAssertEqual(harness.workspace.current?.id, session.id)
       XCTAssertEqual(session.composerText, "Keep the conversation")
@@ -898,8 +898,8 @@ final class CaptureSnapshotTests: XCTestCase {
       XCTAssertTrue(surface.activate(everyday))
       await surface.settleNavigation()
       let rendered = await surface.captureUntilOCR(contains: ["Add Transaction", "Transfer to Travel", "Everyday", "Save"])
-      XCTAssertTrue(rendered.text.contains(Self.normalizedOCR("Transfer to Travel")))
-      XCTAssertTrue(rendered.text.contains(Self.normalizedOCR("Everyday")))
+      XCTAssertTrue(rendered.text.contains(Self.normalisedOCR("Transfer to Travel")))
+      XCTAssertTrue(rendered.text.contains(Self.normalisedOCR("Everyday")))
       attachImage(rendered.image, name: "manual-transfer-ready-\(name)")
       let readySave = try XCTUnwrap(surface.firstControl(label: "Save"))
       XCTAssertTrue(surface.isControlEnabled(readySave), "a distinct source must allow the preserved transfer")
@@ -1083,15 +1083,15 @@ final class CaptureSnapshotTests: XCTestCase {
     let cardDiag = surface.scrollGeometryDiagnostics()
     XCTAssertFalse(
       card.image.cgImage == nil || card.image.size.width < 2 || card.image.size.height < 2,
-      "accessibility3 card rendered blank. Vision: \(card.lines.map { Self.normalizedOCR($0) }) \(cardDiag)"
+      "accessibility3 card rendered blank. Vision: \(card.lines.map { Self.normalisedOCR($0) }) \(cardDiag)"
     )
     XCTAssertTrue(
       Self.hasCompleteVisibleLine(card.lines, "Lunch"),
-      "accessibility3 card missing complete Lunch line in \(card.lines.map { Self.normalizedOCR($0) }) \(cardDiag)"
+      "accessibility3 card missing complete Lunch line in \(card.lines.map { Self.normalisedOCR($0) }) \(cardDiag)"
     )
     XCTAssertTrue(
       Self.hasContiguousAmountLine(card.lines, "12.00"),
-      "accessibility3 card missing contiguous 12.00 in \(card.lines.map { Self.normalizedOCR($0) }) \(cardDiag)"
+      "accessibility3 card missing contiguous 12.00 in \(card.lines.map { Self.normalisedOCR($0) }) \(cardDiag)"
     )
 
     let actionNames = ["Save transaction"]
@@ -1133,7 +1133,7 @@ final class CaptureSnapshotTests: XCTestCase {
     let missingActions = actionNames.filter { !seenActions.contains($0) }
     XCTAssertTrue(
       missingActions.isEmpty,
-      "accessibility3 actions missing complete \(missingActions) in \(actionsLines.map { Self.normalizedOCR($0) }) seen \(seenActions) \(actionDiag)"
+      "accessibility3 actions missing complete \(missingActions) in \(actionsLines.map { Self.normalisedOCR($0) }) seen \(seenActions) \(actionDiag)"
     )
     for label in ["Save transaction", "Edit", "Send", "Add manually"] {
       guard let control = surface.firstControl(label: label) else {
@@ -1367,8 +1367,8 @@ final class CaptureSnapshotTests: XCTestCase {
     defer { surface.detach() }
 
     let rendered = await surface.captureUntilOCR(contains: ["Reading the photo"])
-    XCTAssertFalse(rendered.text.contains(Self.normalizedOCR("Add an expense")))
-    XCTAssertFalse(rendered.text.contains(Self.normalizedOCR("Allow sending")))
+    XCTAssertFalse(rendered.text.contains(Self.normalisedOCR("Add an expense")))
+    XCTAssertFalse(rendered.text.contains(Self.normalisedOCR("Allow sending")))
     let send = try XCTUnwrap(surface.firstControl(label: "Send"))
     XCTAssertTrue(surface.isControlEnabled(send), "Send must stay pressable while a photo is reading \(surface.accessibilityLabels())")
 
@@ -1448,7 +1448,7 @@ final class CaptureSnapshotTests: XCTestCase {
       "navigationDestination binding must clear pendingAssistantSessionID after popViewController"
     )
     let home = await surface.captureUntilOCR(contains: ["New conversation"])
-    XCTAssertTrue(home.text.contains(Self.normalizedOCR("New conversation")))
+    XCTAssertTrue(home.text.contains(Self.normalisedOCR("New conversation")))
     XCTAssertNil(harness.workspace.pendingAssistantSessionID)
     XCTAssertTrue(harness.model.transactions.isEmpty, "navigation pop must not write the ledger")
   }
@@ -2355,8 +2355,8 @@ final class CaptureSnapshotTests: XCTestCase {
     if scanUntilExpectedTogether {
       let choicePayees = ["Coffee", "Lunch"]
       func frameShowsClarification(_ lines: [String]) -> Bool {
-        let blob = lines.map { Self.normalizedOCR($0) }.joined(separator: " ")
-        guard expected.allSatisfy({ blob.contains(Self.normalizedOCR($0)) }) else {
+        let blob = lines.map { Self.normalisedOCR($0) }.joined(separator: " ")
+        guard expected.allSatisfy({ blob.contains(Self.normalisedOCR($0)) }) else {
           return false
         }
         return choicePayees.allSatisfy { surface.hasVisibleMeaningfulChoice(payee: $0) }
@@ -2369,7 +2369,7 @@ final class CaptureSnapshotTests: XCTestCase {
         scanned = await scanVisibleFrames(surface, until: frameShowsClarification)
       }
       capturedImage = scanned.image
-      ocrText = scanned.lines.map { Self.normalizedOCR($0) }.joined(separator: " ")
+      ocrText = scanned.lines.map { Self.normalisedOCR($0) }.joined(separator: " ")
       isBlank = scanned.image.cgImage == nil || scanned.image.size.width < 2 || scanned.image.size.height < 2 || scanned.lines.isEmpty
       let missingChoices = choicePayees.filter { !surface.hasVisibleMeaningfulChoice(payee: $0) }
       XCTAssertTrue(
@@ -2392,9 +2392,9 @@ final class CaptureSnapshotTests: XCTestCase {
       XCTFail("\(name) rendered a blank surface. OCR: [\(ocrText)]")
       return
     }
-    let missing = expected.filter { !ocrText.contains(Self.normalizedOCR($0)) }
+    let missing = expected.filter { !ocrText.contains(Self.normalisedOCR($0)) }
     XCTAssertTrue(missing.isEmpty, "\(name) missing \(missing) in OCR [\(ocrText)]")
-    let forbiddenHits = forbidden.filter { ocrText.contains(Self.normalizedOCR($0)) }
+    let forbiddenHits = forbidden.filter { ocrText.contains(Self.normalisedOCR($0)) }
     XCTAssertTrue(forbiddenHits.isEmpty, "\(name) still showing \(forbiddenHits) in OCR [\(ocrText)]")
     if !requireUnbrokenLines.isEmpty {
       let lines = await Self.visionLines(from: capturedImage)
@@ -2403,14 +2403,14 @@ final class CaptureSnapshotTests: XCTestCase {
       }
       XCTAssertTrue(
         failed.isEmpty,
-        "\(name) missing unbroken lines \(failed) in Vision lines \(lines.map { Self.normalizedOCR($0) })"
+        "\(name) missing unbroken lines \(failed) in Vision lines \(lines.map { Self.normalisedOCR($0) })"
       )
     }
   }
 
   private static let ocrBulletGlyphs = CharacterSet(charactersIn: "•●·∙◦○‣⁃")
 
-  fileprivate static func normalizedOCR(_ text: String) -> String {
+  fileprivate static func normalisedOCR(_ text: String) -> String {
     // Vision reads a small list dot beside wrapped text as a bullet glyph and
     // may put it mid-phrase ("quarterly •groceries"). Treat it as a separator.
     text
@@ -2441,8 +2441,8 @@ final class CaptureSnapshotTests: XCTestCase {
   }
 
   fileprivate static func hasCompleteVisibleLine(_ lines: [String], _ needle: String) -> Bool {
-    let target = normalizedOCR(needle)
-    return lines.contains { normalizedOCR(stripLeadingIconPunctuation($0)) == target }
+    let target = normalisedOCR(needle)
+    return lines.contains { normalisedOCR(stripLeadingIconPunctuation($0)) == target }
   }
 
   fileprivate static func hasVisibleAction(_ lines: [String], _ name: String) -> Bool {
@@ -2453,12 +2453,12 @@ final class CaptureSnapshotTests: XCTestCase {
   }
 
   fileprivate static func hasAdjacentPhrase(_ lines: [String], _ phrase: String) -> Bool {
-    let wanted = normalizedOCR(phrase).split(separator: " ").map(String.init)
+    let wanted = normalisedOCR(phrase).split(separator: " ").map(String.init)
     guard !wanted.isEmpty else {
       return false
     }
     let tokens = lines.flatMap {
-      normalizedOCR(stripLeadingIconPunctuation($0)).split(separator: " ").map(String.init)
+      normalisedOCR(stripLeadingIconPunctuation($0)).split(separator: " ").map(String.init)
     }
     guard tokens.count >= wanted.count else {
       return false
@@ -2469,8 +2469,8 @@ final class CaptureSnapshotTests: XCTestCase {
   }
 
   fileprivate static func hasContiguousAmountLine(_ lines: [String], _ amount: String) -> Bool {
-    let target = normalizedOCR(amount)
-    return lines.contains { normalizedOCR($0).contains(target) }
+    let target = normalisedOCR(amount)
+    return lines.contains { normalisedOCR($0).contains(target) }
   }
 
   fileprivate static func visionLines(from image: UIImage) async -> [String] {
@@ -2998,12 +2998,12 @@ final class SnapshotSurface {
       layout()
       image = captureImage()
       if let data = image.jpegData(compressionQuality: 0.85) {
-        text = CaptureSnapshotTests.normalizedOCR(await SlipImageText.recognize(data))
+        text = CaptureSnapshotTests.normalisedOCR(await SlipImageText.recognize(data))
       } else {
         text = ""
       }
       let isBlank = image.cgImage == nil || image.size.width < 2 || image.size.height < 2 || text.isEmpty
-      let matched = needles.allSatisfy { text.contains(CaptureSnapshotTests.normalizedOCR($0)) }
+      let matched = needles.allSatisfy { text.contains(CaptureSnapshotTests.normalisedOCR($0)) }
       if matched || DispatchTime.now() >= deadline {
         return (image, text, isBlank && !matched)
       }

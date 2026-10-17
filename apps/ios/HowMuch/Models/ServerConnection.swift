@@ -230,7 +230,7 @@ enum ConnectionSwitch {
   /// it: a session that expired changes the fingerprint, but its changes still
   /// wait for this server and local mode would hide them just the same.
   static func blockReason(outbox: [OutboxCommand], settings: APISettings) -> String? {
-    let endpoints = [settings.normalizedBaseURLString, settings.trimmedBaseURL]
+    let endpoints = [settings.normalisedBaseURLString, settings.trimmedBaseURL]
       .compactMap { $0 }
       .filter { !$0.isEmpty }
       .map { $0 + "|" }

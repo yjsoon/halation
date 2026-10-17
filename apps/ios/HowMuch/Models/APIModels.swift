@@ -66,11 +66,11 @@ struct APISettings: Codable, Equatable {
   /// deliberately derived from the URL rather than from the user or plan so
   /// that a token can never be sent to a different endpoint after a setting
   /// change.
-  var normalizedBaseURLString: String? {
-    Self.normalizedBaseURLString(from: trimmedBaseURL)
+  var normalisedBaseURLString: String? {
+    Self.normalisedBaseURLString(from: trimmedBaseURL)
   }
 
-  static func normalizedBaseURLString(from value: String) -> String? {
+  static func normalisedBaseURLString(from value: String) -> String? {
     let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
     guard
       let components = URLComponents(string: value),
@@ -87,11 +87,11 @@ struct APISettings: Codable, Equatable {
       return nil
     }
 
-    var normalized = components
-    normalized.scheme = scheme
-    normalized.host = host
+    var normalised = components
+    normalised.scheme = scheme
+    normalised.host = host
     if (scheme == "http" && components.port == 80) || (scheme == "https" && components.port == 443) {
-      normalized.port = nil
+      normalised.port = nil
     }
 
     var path = components.percentEncodedPath
@@ -101,12 +101,12 @@ struct APISettings: Codable, Equatable {
     while path.hasPrefix("/") {
       path.removeFirst()
     }
-    normalized.percentEncodedPath = path.isEmpty ? "" : "/" + path
-    return normalized.string
+    normalised.percentEncodedPath = path.isEmpty ? "" : "/" + path
+    return normalised.string
   }
 
   var connectionFingerprint: String {
-    [normalizedBaseURLString ?? trimmedBaseURL, planID, authenticatedUserID].joined(separator: "|")
+    [normalisedBaseURLString ?? trimmedBaseURL, planID, authenticatedUserID].joined(separator: "|")
   }
 
   /// Identifies "the same signed-in connection" without the plan id.
@@ -121,7 +121,7 @@ struct APISettings: Codable, Equatable {
   /// directly (see `AppModel.applySettings`) rather than relying on a task
   /// restart, so they are unaffected.
   var launchFingerprint: String {
-    [normalizedBaseURLString ?? trimmedBaseURL, authenticatedUserID].joined(separator: "|")
+    [normalisedBaseURLString ?? trimmedBaseURL, authenticatedUserID].joined(separator: "|")
   }
 
   func matchesCurrentOrLegacyOutboxStamp(_ stamp: String) -> Bool {
@@ -135,7 +135,7 @@ struct APISettings: Codable, Equatable {
   var viewPrefsScopeKey: String? {
     guard
       isAuthenticated,
-      let endpoint = normalizedBaseURLString,
+      let endpoint = normalisedBaseURLString,
       !authenticatedUserID.isEmpty,
       !planID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     else {
@@ -274,8 +274,8 @@ struct APISettings: Codable, Equatable {
     if settings.isLocal {
       // The engine token only has to match between the app and its own
       // engine, so a Keychain that lost it is repaired rather than signed out.
-      if let normalizedBaseURL = settings.normalizedBaseURLString,
-         let token = CredentialStore.load(for: normalizedBaseURL) {
+      if let normalisedBaseURL = settings.normalisedBaseURLString,
+         let token = CredentialStore.load(for: normalisedBaseURL) {
         settings.sessionToken = token
       } else {
         settings.sessionToken = randomEngineToken()
@@ -292,8 +292,8 @@ struct APISettings: Codable, Equatable {
     // `http://127.0.0.1:8787` was once a development default, but it is also
     // the self-hosted server's own address in the Simulator, so it is kept:
     // only the owner's former hosted address moves with the service.
-    if let storedBaseURL = settings.normalizedBaseURLString,
-       storedBaseURL == normalizedBaseURLString(from: legacyProductionBaseURL) {
+    if let storedBaseURL = settings.normalisedBaseURLString,
+       storedBaseURL == normalisedBaseURLString(from: legacyProductionBaseURL) {
       // Anyone who left the connection on an earlier version's hosted default
       // is following production, not a deliberate custom endpoint, so the
       // setting moves with the service. The token is scoped to the old host,
@@ -306,10 +306,10 @@ struct APISettings: Codable, Equatable {
       return settings
     }
 
-    if let normalizedBaseURL = decoded.normalizedBaseURLString,
-       let token = CredentialStore.load(for: normalizedBaseURL) {
+    if let normalisedBaseURL = decoded.normalisedBaseURLString,
+       let token = CredentialStore.load(for: normalisedBaseURL) {
       settings.sessionToken = token
-    } else if decoded.normalizedBaseURLString == normalizedBaseURLString(from: productionBaseURL),
+    } else if decoded.normalisedBaseURLString == normalisedBaseURLString(from: productionBaseURL),
               let legacyToken = CredentialStore.loadLegacy() {
       // Versions before endpoint scoping used one global Keychain account.
       // Only migrate it when UserDefaults proves the saved endpoint is the
@@ -327,10 +327,10 @@ struct APISettings: Codable, Equatable {
   private static func debugBootstrapSettings(from environment: [String: String]) -> APISettings? {
     guard
       let submittedURL = environment["HOWMUCH_BOOTSTRAP_BASE_URL"],
-      let normalizedURL = normalizedBaseURLString(from: submittedURL),
-      let normalizedProductionURL = normalizedBaseURLString(from: productionBaseURL),
-      normalizedURL == normalizedProductionURL,
-      URLComponents(string: normalizedURL)?.scheme?.lowercased() == "https",
+      let normalisedURL = normalisedBaseURLString(from: submittedURL),
+      let normalisedProductionURL = normalisedBaseURLString(from: productionBaseURL),
+      normalisedURL == normalisedProductionURL,
+      URLComponents(string: normalisedURL)?.scheme?.lowercased() == "https",
       let username = environment["HOWMUCH_BOOTSTRAP_USERNAME"]?.trimmingCharacters(in: .whitespacesAndNewlines),
       !username.isEmpty,
       let planID = environment["HOWMUCH_BOOTSTRAP_PLAN_ID"]?.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -345,7 +345,7 @@ struct APISettings: Codable, Equatable {
     // identifying profile payload. It is sufficient for the local signed-in
     // state; every request is still authenticated by the opaque session token.
     return APISettings(
-      baseURLString: normalizedURL,
+      baseURLString: normalisedURL,
       username: username,
       sessionToken: sessionToken,
       authenticatedUserID: username,
@@ -355,7 +355,7 @@ struct APISettings: Codable, Equatable {
 #endif
 
   func save(to defaults: UserDefaults = .standard) {
-    CredentialStore.save(sessionToken, for: normalizedBaseURLString)
+    CredentialStore.save(sessionToken, for: normalisedBaseURLString)
     var publicSettings = self
     publicSettings.sessionToken = ""
     guard let data = try? JSONEncoder().encode(publicSettings) else {
@@ -365,14 +365,14 @@ struct APISettings: Codable, Equatable {
   }
 
   static func savedSessionToken(forBaseURL baseURLString: String) -> String? {
-    normalizedBaseURLString(from: baseURLString).flatMap(CredentialStore.load(for:))
+    normalisedBaseURLString(from: baseURLString).flatMap(CredentialStore.load(for:))
   }
 
   static func forgetSavedSession(forBaseURL baseURLString: String) {
-    guard let normalized = normalizedBaseURLString(from: baseURLString) else {
+    guard let normalised = normalisedBaseURLString(from: baseURLString) else {
       return
     }
-    CredentialStore.remove(for: normalized)
+    CredentialStore.remove(for: normalised)
   }
 
 #if DEBUG
@@ -511,8 +511,8 @@ private enum CredentialStore {
   }
 #endif
 
-  static func load(for normalizedBaseURL: String) -> String? {
-    load(account: accountPrefix + normalizedBaseURL)
+  static func load(for normalisedBaseURL: String) -> String? {
+    load(account: accountPrefix + normalisedBaseURL)
   }
 
   static func loadLegacy() -> String? {
@@ -521,11 +521,11 @@ private enum CredentialStore {
 
   /// Drops a token scoped to an endpoint the app has left, so a migrated
   /// connection does not leave its old copy of the session behind.
-  static func remove(for normalizedBaseURL: String) {
+  static func remove(for normalisedBaseURL: String) {
     let identity: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
-      kSecAttrAccount as String: accountPrefix + normalizedBaseURL,
+      kSecAttrAccount as String: accountPrefix + normalisedBaseURL,
     ]
     SecItemDelete(identity as CFDictionary)
   }
@@ -547,8 +547,8 @@ private enum CredentialStore {
     return String(data: data, encoding: .utf8)
   }
 
-  static func save(_ token: String, for normalizedBaseURL: String?) {
-    guard let normalizedBaseURL else {
+  static func save(_ token: String, for normalisedBaseURL: String?) {
+    guard let normalisedBaseURL else {
       removeLegacy()
       return
     }
@@ -556,7 +556,7 @@ private enum CredentialStore {
     let identity: [String: Any] = [
       kSecClass as String: kSecClassGenericPassword,
       kSecAttrService as String: service,
-      kSecAttrAccount as String: accountPrefix + normalizedBaseURL,
+      kSecAttrAccount as String: accountPrefix + normalisedBaseURL,
     ]
     SecItemDelete(identity as CFDictionary)
     removeLegacy()

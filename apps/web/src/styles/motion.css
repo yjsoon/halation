@@ -61,8 +61,8 @@
 .filter-rail { animation: hl-drop var(--dur-base) var(--ease-out) backwards; }
 .multi-select-menu,
 .account-icon-popover { animation: hl-drop var(--dur-fast) var(--ease-out) backwards; }
-.account-organizer[open] { animation: hl-rise var(--dur-base) var(--ease-out) backwards; }
-.account-organizer[open]::backdrop { animation: hl-fade-in var(--dur-base) linear backwards; }
+.account-organiser[open] { animation: hl-rise var(--dur-base) var(--ease-out) backwards; }
+.account-organiser[open]::backdrop { animation: hl-fade-in var(--dur-base) linear backwards; }
 .recent-entries li:first-child { animation: hl-rise var(--dur-base) var(--ease-out) backwards; }
 @media (max-width: 720px) {
   .mobile-nav-open .sidebar { animation: hl-drop var(--dur-base) var(--ease-out) backwards; }

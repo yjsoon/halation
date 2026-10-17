@@ -12,7 +12,7 @@ import {
 } from "../lib/account-groups";
 import { useFilters } from "../state/filters";
 import { usePlan } from "../state/plan";
-import { AccountOrganizationDialog, type AccountUsageState } from "./AccountOrganizationDialog";
+import { AccountOrganiserDialog, type AccountUsageState } from "./AccountOrganiserDialog";
 import { AccountIconButton } from "./AccountIconPicker";
 import { BrandLockup } from "./Brand";
 
@@ -75,8 +75,8 @@ export function Shell() {
   const { filters } = useFilters();
   const [logoutError, setLogoutError] = useState<string | null>(null);
   const [mobileNav, setMobileNav] = useState<"closed" | "open">("closed");
-  const [organizerOpen, setOrganizerOpen] = useState(false);
-  const organizerOpener = useRef<HTMLButtonElement | null>(null);
+  const [organiserOpen, setOrganiserOpen] = useState(false);
+  const organiserOpener = useRef<HTMLButtonElement | null>(null);
   const [usageGeneration, setUsageGeneration] = useState(0);
   const [accountUsage, setAccountUsage] = useState<{
     counts?: Record<string, number>;
@@ -104,13 +104,13 @@ export function Shell() {
     ? Object.values(accountPreferences.account_group_sorts).includes("mostUsedLast30Days")
     : false;
   const usageDate = localIsoDate(new Date());
-  const openOrganizer = (opener: HTMLButtonElement) => {
-    organizerOpener.current = opener;
-    setOrganizerOpen(true);
+  const openOrganiser = (opener: HTMLButtonElement) => {
+    organiserOpener.current = opener;
+    setOrganiserOpen(true);
   };
-  const closeOrganizer = () => {
-    setOrganizerOpen(false);
-    requestAnimationFrame(() => organizerOpener.current?.focus());
+  const closeOrganiser = () => {
+    setOrganiserOpen(false);
+    requestAnimationFrame(() => organiserOpener.current?.focus());
   };
   const selectedAccount = location.pathname === "/transactions" && filters.accountIds.length === 1
     ? accounts.find((account) => account.id === filters.accountIds[0])
@@ -217,8 +217,8 @@ export function Shell() {
         <div className="mobile-actions">
           <button
             type="button"
-            className="mobile-organizer-entry"
-            onClick={(event) => openOrganizer(event.currentTarget)}
+            className="mobile-organiser-entry"
+            onClick={(event) => openOrganiser(event.currentTarget)}
           >Organise</button>
           <NavLink to={addEntryHref(selectedAccount && !selectedAccount.closed ? selectedAccount.id : null)} className="add-button">+ Add</NavLink>
           <button type="button" className="sign-out-button" onClick={handleLogout}>Sign out</button>
@@ -287,7 +287,7 @@ export function Shell() {
         <div className="account-list">
           <div className="account-list-head">
             <span className="account-list-title">Accounts</span>
-            <button type="button" className="account-organizer-entry" onClick={(event) => openOrganizer(event.currentTarget)}>Organise</button>
+            <button type="button" className="account-organiser-entry" onClick={(event) => openOrganiser(event.currentTarget)}>Organise</button>
           </div>
           {collections.length > 0 && (
             <div className="account-list-band">
@@ -327,8 +327,8 @@ export function Shell() {
           </Suspense>
         </main>
       </div>
-      {!organizerOpen && (
-        <AccountOrganizationNotice
+      {!organiserOpen && (
+        <AccountOrganiserNotice
           sync={accountPreferencesSync}
           supported={accountPreferences !== null}
           usage={accountUsage.state}
@@ -336,12 +336,12 @@ export function Shell() {
           onRetryUsage={() => setUsageGeneration((generation) => generation + 1)}
         />
       )}
-      {organizerOpen && (
-        <AccountOrganizationDialog
+      {organiserOpen && (
+        <AccountOrganiserDialog
           accountGroups={accountGroups}
           usage={accountUsage.state}
           onRetryUsage={() => setUsageGeneration((generation) => generation + 1)}
-          onClose={closeOrganizer}
+          onClose={closeOrganiser}
         />
       )}
     </div>
@@ -422,7 +422,7 @@ function AccountGroupSections({
   });
 }
 
-function AccountOrganizationNotice({ sync, supported, usage, onRetrySave, onRetryUsage }: {
+function AccountOrganiserNotice({ sync, supported, usage, onRetrySave, onRetryUsage }: {
   sync: ReturnType<typeof usePlan>["accountPreferencesSync"];
   supported: boolean;
   usage: AccountUsageState;
@@ -433,7 +433,7 @@ function AccountOrganizationNotice({ sync, supported, usage, onRetrySave, onRetr
   const showUsage = usage.phase === "error";
   if (!showSync && !showUsage) return null;
   return (
-    <div className="account-organization-global-status" role={sync.phase === "saving" && !showUsage ? "status" : "alert"} aria-live="polite">
+    <div className="account-organiser-global-status" role={sync.phase === "saving" && !showUsage ? "status" : "alert"} aria-live="polite">
       {showSync && (
         <span>
           {sync.message}

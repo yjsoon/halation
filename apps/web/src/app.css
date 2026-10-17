@@ -161,7 +161,7 @@ textarea {
   margin-left: auto;
 }
 
-.account-organizer-entry {
+.account-organiser-entry {
   padding: 1px 6px;
   border: 1px solid var(--sidebar-control);
   border-radius: 4px;
@@ -170,7 +170,7 @@ textarea {
   font-size: 11px;
 }
 
-.account-organizer-entry:hover {
+.account-organiser-entry:hover {
   color: var(--sidebar-ink-strong);
   background: var(--sidebar-hover);
 }
@@ -583,7 +583,7 @@ textarea {
   gap: 12px;
 }
 
-.mobile-organizer-entry {
+.mobile-organiser-entry {
   color: var(--ink-soft);
   font-size: 12px;
   text-decoration: underline;
@@ -1109,8 +1109,8 @@ textarea {
    reset heavier display weights so the browser never fakes a bold.
    (Rewards board display selectors are added beside these with the board.) */
 :is(.report-header h1, .brand-lockup strong, .masthead-title, .quick-entry-title, .settings-crumb a,
-  .settings-crumb li:first-child::after, .api-docs-content h3, .api-token-reveal h2, .account-organizer-header h2,
-  .account-organizer-unsupported h3) {
+  .settings-crumb li:first-child::after, .api-docs-content h3, .api-token-reveal h2, .account-organiser-header h2,
+  .account-organiser-unsupported h3) {
   font-weight: 400;
 }
 
@@ -3610,7 +3610,7 @@ tr:hover .share-bar {
   opacity: 0.72;
 }
 
-.account-organizer {
+.account-organiser {
   width: min(820px, calc(100vw - 32px));
   max-width: none;
   height: min(860px, calc(100dvh - 48px));
@@ -3625,19 +3625,19 @@ tr:hover .share-bar {
   box-shadow: var(--shadow-hard);
 }
 
-.account-organizer::backdrop {
+.account-organiser::backdrop {
   background: var(--backdrop);
   backdrop-filter: blur(2px);
 }
 
-.account-organizer-surface {
+.account-organiser-surface {
   display: flex;
   flex-direction: column;
   height: 100%;
   min-height: 0;
 }
 
-.account-organizer-header {
+.account-organiser-header {
   display: flex;
   flex: 0 0 auto;
   align-items: flex-start;
@@ -3650,23 +3650,23 @@ tr:hover .share-bar {
   color-scheme: var(--sidebar-scheme);
 }
 
-.account-organizer-header .page-eyebrow {
+.account-organiser-header .page-eyebrow {
   color: var(--sidebar-ink-muted);
 }
 
-.account-organizer-header h2 {
+.account-organiser-header h2 {
   margin: 0;
   font: 400 30px/1.1 var(--font-display);
 }
 
-.account-organizer-header p {
+.account-organiser-header p {
   max-width: 62ch;
   margin: 6px 0 0;
   color: var(--sidebar-ink-soft);
   font-size: 12px;
 }
 
-.account-organizer-close {
+.account-organiser-close {
   display: grid;
   width: 44px;
   height: 44px;
@@ -3679,36 +3679,36 @@ tr:hover .share-bar {
   line-height: 1;
 }
 
-.account-organizer-close:hover {
+.account-organiser-close:hover {
   color: var(--sidebar-ink-strong);
   border-color: var(--sidebar-ink-soft);
 }
 
-.account-organizer-close:focus-visible {
+.account-organiser-close:focus-visible {
   outline-color: var(--sidebar-focus);
 }
 
-.account-organizer-content,
-.account-organizer-unsupported {
+.account-organiser-content,
+.account-organiser-unsupported {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
 
-.account-organizer-content {
+.account-organiser-content {
   padding: 0 24px 28px;
 }
 
-.account-organizer-section {
+.account-organiser-section {
   padding: 22px 0 24px;
   border-bottom: 1px solid var(--rule);
 }
 
-.account-organizer-section:last-child {
+.account-organiser-section:last-child {
   border-bottom: 0;
 }
 
-.account-organizer-section-heading {
+.account-organiser-section-heading {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -3716,14 +3716,14 @@ tr:hover .share-bar {
   margin-bottom: 12px;
 }
 
-.account-organizer-section h3,
-.account-organizer-unsupported h3 {
+.account-organiser-section h3,
+.account-organiser-unsupported h3 {
   margin: 0;
   font: 400 21px/1.2 var(--font-display);
 }
 
-.account-organizer-section-heading p,
-.account-organizer-unsupported p {
+.account-organiser-section-heading p,
+.account-organiser-unsupported p {
   margin: 3px 0 0;
   color: var(--ink-soft);
   font-size: 12px;
@@ -3760,7 +3760,7 @@ tr:hover .share-bar {
   text-underline-offset: 2px;
 }
 
-.account-organizer-unsupported {
+.account-organiser-unsupported {
   flex: 1;
   padding: 28px 24px;
 }
@@ -3815,9 +3815,9 @@ tr:hover .share-bar {
   font-size: 12px;
 }
 
-.organizer-secondary-button,
-.organizer-primary-button,
-.organizer-danger-button {
+.organiser-secondary-button,
+.organiser-primary-button,
+.organiser-danger-button {
   min-height: 34px;
   padding: 6px 10px;
   border: 1px solid var(--rule-strong);
@@ -3827,18 +3827,18 @@ tr:hover .share-bar {
   font-weight: 600;
 }
 
-.organizer-primary-button {
+.organiser-primary-button {
   color: var(--inverse-ink);
   background: var(--inverse-bg);
 }
 
-.organizer-danger-button {
+.organiser-danger-button {
   color: var(--paper);
   background: var(--red);
   border-color: var(--red);
 }
 
-.organizer-danger-link {
+.organiser-danger-link {
   color: var(--red);
   font-size: 12px;
   text-decoration: underline;
@@ -3884,17 +3884,17 @@ tr:hover .share-bar {
 }
 
 .custom-group-heading > div:first-child span,
-.organizer-field-hint,
-.organizer-field-error {
+.organiser-field-hint,
+.organiser-field-error {
   color: var(--ink-soft);
   font-size: 11px;
 }
 
-.organizer-field-error {
+.organiser-field-error {
   color: var(--red);
 }
 
-.organizer-move-buttons {
+.organiser-move-buttons {
   display: inline-flex;
   flex: 0 0 auto;
   border: 1px solid var(--rule);
@@ -3902,7 +3902,7 @@ tr:hover .share-bar {
   overflow: hidden;
 }
 
-.organizer-move-buttons button {
+.organiser-move-buttons button {
   display: grid;
   width: 32px;
   min-height: 30px;
@@ -3912,11 +3912,11 @@ tr:hover .share-bar {
   border-right: 1px solid var(--rule);
 }
 
-.organizer-move-buttons button:last-child {
+.organiser-move-buttons button:last-child {
   border-right: 0;
 }
 
-.organizer-move-buttons button:disabled {
+.organiser-move-buttons button:disabled {
   color: var(--rule);
   cursor: not-allowed;
 }
@@ -3996,7 +3996,7 @@ tr:hover .share-bar {
   margin-top: 9px;
 }
 
-.account-organizer-empty,
+.account-organiser-empty,
 .group-sort-empty,
 .group-sort-note {
   margin: 8px 0 0;
@@ -4057,7 +4057,7 @@ tr:hover .share-bar {
   white-space: nowrap;
 }
 
-.account-organizer-footer {
+.account-organiser-footer {
   display: flex;
   flex: 0 0 auto;
   justify-content: flex-end;
@@ -4066,7 +4066,7 @@ tr:hover .share-bar {
   border-top: 1px solid var(--rule-strong);
 }
 
-.account-organizer-footer .save-button {
+.account-organiser-footer .save-button {
   width: auto;
   min-width: 96px;
   margin: 0;
@@ -4074,7 +4074,7 @@ tr:hover .share-bar {
   font-size: 13px;
 }
 
-.account-organization-global-status {
+.account-organiser-global-status {
   position: fixed;
   right: 20px;
   bottom: 20px;
@@ -4090,14 +4090,14 @@ tr:hover .share-bar {
   font-size: 12px;
 }
 
-.account-organization-global-status span {
+.account-organiser-global-status span {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.account-organization-global-status button {
+.account-organiser-global-status button {
   flex: 0 0 auto;
   font-weight: 600;
   text-decoration: underline;
@@ -4166,7 +4166,7 @@ tr:hover .share-bar {
     min-height: 44px;
   }
 
-  .mobile-nav-open .account-organizer-entry {
+  .mobile-nav-open .account-organiser-entry {
     min-height: 44px;
     padding: 0 14px;
     font-size: 13px;
@@ -4179,7 +4179,7 @@ tr:hover .share-bar {
     margin-block: 0;
   }
 
-  .mobile-organizer-entry,
+  .mobile-organiser-entry,
   .mobile-actions .sign-out-button {
     display: none;
   }
@@ -4249,7 +4249,7 @@ tr:hover .share-bar {
   }
 
   .mobile-masthead .sign-out-button,
-  .mobile-masthead .mobile-organizer-entry {
+  .mobile-masthead .mobile-organiser-entry {
     color: var(--masthead-ink-soft);
   }
 
@@ -4270,7 +4270,7 @@ tr:hover .share-bar {
     gap: 10px;
   }
 
-  .account-organizer {
+  .account-organiser {
     width: 100%;
     height: 100dvh;
     margin: 0;
@@ -4279,15 +4279,15 @@ tr:hover .share-bar {
     box-shadow: none;
   }
 
-  .account-organizer-header {
+  .account-organiser-header {
     padding: 18px 16px 14px;
   }
 
-  .account-organizer-header h2 {
+  .account-organiser-header h2 {
     font-size: 26px;
   }
 
-  .account-organizer-content {
+  .account-organiser-content {
     padding: 0 16px 24px;
   }
 
@@ -4322,14 +4322,14 @@ tr:hover .share-bar {
     flex-basis: 100%;
   }
 
-  .organizer-secondary-button,
-  .organizer-primary-button,
-  .organizer-danger-button,
-  .organizer-move-buttons button {
+  .organiser-secondary-button,
+  .organiser-primary-button,
+  .organiser-danger-button,
+  .organiser-move-buttons button {
     min-height: 44px;
   }
 
-  .organizer-move-buttons button {
+  .organiser-move-buttons button {
     width: 44px;
   }
 
@@ -4343,11 +4343,11 @@ tr:hover .share-bar {
     width: 100%;
   }
 
-  .account-organizer-footer {
+  .account-organiser-footer {
     padding: 10px 16px max(10px, env(safe-area-inset-bottom));
   }
 
-  .account-organizer-footer .save-button {
+  .account-organiser-footer .save-button {
     min-height: 44px;
   }
 
