@@ -325,15 +325,6 @@ class SnapshotFile<Value: Codable>: @unchecked Sendable {
     return writtenCount
   }
 
-  /// Byte size of the file on disk, or `nil` when there is none. Used to keep
-  /// an eye on the cost of the cache.
-  func fileSize() -> Int? {
-    guard let attributes = try? fileManager.attributesOfItem(atPath: fileURL.path) else {
-      return nil
-    }
-    return attributes[.size] as? Int
-  }
-
   @discardableResult
   private func write(_ data: Data, ifGeneration expected: Int) -> Bool {
     lock.lock()

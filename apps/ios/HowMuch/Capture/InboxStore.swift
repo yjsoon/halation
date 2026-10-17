@@ -388,10 +388,6 @@ final class InboxStore: @unchecked Sendable {
     return (readyInboxURLsLocked() + readingURLsLocked()).compactMap { loadItemLocked(at: $0) }
   }
 
-  func hasPendingWork() -> Bool {
-    hasReadyInboxItems() || hasReadingItems()
-  }
-
   func write(_ write: InboxWrite) throws {
     guard write.data.count <= Self.maxPayloadBytes else {
       throw InboxStoreError.payloadTooLarge

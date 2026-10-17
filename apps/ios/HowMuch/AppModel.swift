@@ -1726,7 +1726,8 @@ final class AppModel {
       ?? serverUnapprovedTransactions.first(where: match)
   }
 
-  /// `RegisterApproval.looksApproved` per row, with the session's union taken once.
+  /// Marks the rows the approval session has resolved as approved, with the
+  /// session's union taken once.
   /// Rows the server already reports approved need no copy, so once they all
   /// do, reads return the array as is.
   private func overlayingApproval(on rows: [Transaction]) -> [Transaction] {
@@ -2402,7 +2403,7 @@ final class AppModel {
           else {
             return
           }
-          applyOlderTransactionPage(older, generation: generation)
+          applyOlderTransactionPage(older)
         } catch {
           guard generation == ledgerPageGeneration, planID == settings.planID else {
             return
@@ -3024,7 +3025,7 @@ final class AppModel {
       else {
         return
       }
-      applyOlderTransactionPage(page, generation: generation)
+      applyOlderTransactionPage(page)
     } catch {
       guard generation == ledgerPageGeneration, planID == settings.planID else {
         return
@@ -3038,7 +3039,7 @@ final class AppModel {
     nextTransactionOffset = hasMoreTransactions ? page.nextOffset : nil
   }
 
-  private func applyOlderTransactionPage(_ page: TransactionPage, generation: Int) {
+  private func applyOlderTransactionPage(_ page: TransactionPage) {
     // The page is the server's word on its rows: `fetchLedgerPage` has
     // already repaired it against any write acknowledged since it was asked
     // for, and unsent changes are an overlay, so a fetched row replaces the

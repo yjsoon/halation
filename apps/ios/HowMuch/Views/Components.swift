@@ -646,10 +646,9 @@ final class RootChromeState {
     overflowByTab[tab] = nil
   }
 
-  /// Cross-tab links between a Rewards card and its account register. The
-  /// receiving tab consumes (clears) the request once it has acted on it.
+  /// A cross-tab link to an account register. Accounts consumes (clears) the
+  /// request once it has acted on it.
   var pendingAccountID: String?
-  var pendingRewardsCardID: String?
   /// An Inbox notification tap or link; Accounts consumes it.
   var pendingIntakeDestination: IntakeDestination?
 
@@ -663,12 +662,6 @@ final class RootChromeState {
     overflowByTab[.accounts] = nil
     pendingAccountID = accountID
     tab = .accounts
-  }
-
-  func showRewardsCard(_ cardID: String) {
-    overflowByTab[.rewards] = nil
-    pendingRewardsCardID = cardID
-    tab = .rewards
   }
 
   func adoptSidebarLayout() {

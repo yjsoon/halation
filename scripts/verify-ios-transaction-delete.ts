@@ -8,11 +8,11 @@ const source = readFileSync(join(root, "apps/ios/HowMuch/Services/APIClient.swif
 const failures: string[] = [];
 if (source.includes("?expected_approved=")) {
   failures.push(
-    "deleteTransaction must not concatenate expected_approved onto the path; encodedPath percent-encodes `?` as %3F and the API then 404s.",
+    "outboxDelete must not concatenate expected_approved onto the path; encodedPath percent-encodes `?` as %3F and the API then 404s.",
   );
 }
 if (!source.includes('URLQueryItem(name: "expected_approved"')) {
-  failures.push("deleteTransaction must send expected_approved as a URLQueryItem.");
+  failures.push("outboxDelete must send expected_approved as a URLQueryItem.");
 }
 
 if (failures.length) {

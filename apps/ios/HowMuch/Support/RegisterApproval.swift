@@ -19,8 +19,6 @@ enum RegisterApproval {
   struct Chunk: Equatable, Sendable {
     let ids: [String]
 
-    var count: Int { ids.count }
-
     fileprivate init(ids: [String]) {
       self.ids = ids
     }
@@ -40,12 +38,9 @@ enum RegisterApproval {
     session.pending.union(session.confirmed)
   }
 
-  static func looksApproved(_ row: Row, session: Session) -> Bool {
-    row.approved || resolvedIDs(session).contains(row.id)
-  }
-
   static func eligibleIDs(in rows: [Row], session: Session = .empty) -> [String] {
-    // Same test as `looksApproved`, with the union taken once, not per row.
+    // A row counts as approved when the server says so or the session has
+    // resolved it. The union is taken once, not per row.
     let resolved = resolvedIDs(session)
     return rows.compactMap { row in
       if row.approved || resolved.contains(row.id) || row.deleted {

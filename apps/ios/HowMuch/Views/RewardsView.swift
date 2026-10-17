@@ -226,9 +226,6 @@ struct RewardsView: View {
     .refreshable {
       await fetch()
     }
-    .onChange(of: chrome?.pendingRewardsCardID, initial: true) { _, _ in
-      consumeCardRequest()
-    }
   }
 
   /// The model holds the board's report, so the overview board (cached on
@@ -749,22 +746,6 @@ struct RewardsView: View {
     filter.asOfDate = Date()
   }
 
-  /// Opens the card a register link asked for, widening the account scope or
-  /// date first if they exclude it.
-  private func consumeCardRequest() {
-    guard let chrome, let cardID = chrome.pendingRewardsCardID, let report = currentReport else { return }
-    route = nil
-    if report.cards.contains(where: { $0.id == cardID }) {
-      chrome.pendingRewardsCardID = nil
-      sheet = .detail(cardID)
-    } else if !filter.scope.accountIDs.isEmpty || filter.useAsOfDate {
-      filter.scope.accountIDs = []
-      backToToday()
-    } else {
-      chrome.pendingRewardsCardID = nil
-    }
-  }
-
   private func fetch() async {
     let request = request
     let key = fetchKey
@@ -778,7 +759,6 @@ struct RewardsView: View {
     if request.accountIDs.isEmpty {
       rewardAccountIDsByPlan[planID] = Set(next.cards.map(\.accountId))
     }
-    consumeCardRequest()
   }
 }
 

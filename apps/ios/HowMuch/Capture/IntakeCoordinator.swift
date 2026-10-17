@@ -1521,7 +1521,7 @@ final class IntakeCoordinator {
       // A failed share can be sent again without a warning.
       syncHashIndex()
     }
-    IntakeNotifier.shared.jobDidChange(next, previous: previous, accountName: accountName(for: next))
+    IntakeNotifier.shared.jobDidChange(next, previous: previous)
     return true
   }
 }

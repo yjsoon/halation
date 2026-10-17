@@ -3285,17 +3285,6 @@ final class SnapshotSurface {
     return converted.intersection(window.bounds)
   }
 
-  func hasVisibleTimelineControl(label: String) -> Bool {
-    guard let node = firstControl(label: label) else {
-      return false
-    }
-    let frame = node.frame
-    guard frame.width > 0, frame.height > 0 else {
-      return false
-    }
-    return timelineVisibleFrame().contains(frame)
-  }
-
   func hasVisibleMeaningfulChoice(payee: String) -> Bool {
     controls(labelContains: payee).contains { node in
       let frame = node.frame

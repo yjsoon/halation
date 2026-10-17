@@ -465,48 +465,6 @@ actor SlipReader {
     self.extractor = extractor
   }
 
-  func prewarm(
-    accounts: [Account],
-    categoryGroups: [CategoryGroup],
-    payees: [Payee]
-  ) {
-    guard case .foundationModels = extractor else {
-      return
-    }
-    #if canImport(FoundationModels)
-    guard !isExtracting, Self.modelAllowsExtract else {
-      return
-    }
-    let prefix = SlipReaderPrompt.prefix(
-      accounts: accounts,
-      categoryGroups: categoryGroups
-    )
-    if primedPrefix == prefix, let session = primedSession {
-      session.prewarm(promptPrefix: Prompt(prefix))
-      return
-    }
-    startPrime(prefix)
-    #endif
-  }
-
-  func read(
-    text: String,
-    accounts: [Account],
-    categoryGroups: [CategoryGroup],
-    payees: [Payee],
-    calendar: Calendar = .current,
-    now: Date = .now
-  ) async -> [TransactionDraft] {
-    await interpret(
-      text: text,
-      accounts: accounts,
-      categoryGroups: categoryGroups,
-      payees: payees,
-      calendar: calendar,
-      now: now
-    ).map(\.draft)
-  }
-
   func interpret(
     text: String,
     accounts: [Account],
@@ -547,7 +505,6 @@ actor SlipReader {
         text: trimmed,
         accounts: accounts,
         categoryGroups: categoryGroups,
-        payees: payees,
         guidance: guidance
       )
     case .fixed(let extract):
@@ -568,7 +525,6 @@ actor SlipReader {
     text: String,
     accounts: [Account],
     categoryGroups: [CategoryGroup],
-    payees: [Payee],
     guidance: String?
   ) async throws -> [SlipReaderMapping.Extraction] {
     #if canImport(FoundationModels)

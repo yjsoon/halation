@@ -506,12 +506,6 @@ struct MonthToDate: Equatable {
     daily = amounts
   }
 
-  init(day: Int, daysInMonth: Int, daily: [Int]) {
-    self.day = day
-    self.daysInMonth = daysInMonth
-    self.daily = daily
-  }
-
   private static func byDate(_ report: IncomeVsSpendingReport) -> [String: Int] {
     Dictionary(report.periods.map { ($0.period, abs($0.spending)) }, uniquingKeysWith: +)
   }

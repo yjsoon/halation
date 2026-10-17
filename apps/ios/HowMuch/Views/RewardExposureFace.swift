@@ -64,7 +64,6 @@ struct RewardExposureFace: View, Animatable, Equatable {
   var pose: RewardExposure.Pose
   var appearance: FaceAppearance
 
-  @Environment(\.displayScale) private var displayScale
   @Environment(\.colorSchemeContrast) private var contrast
 
   var animatableData: AnimatablePair<Double, Double> {
@@ -82,7 +81,7 @@ struct RewardExposureFace: View, Animatable, Equatable {
       let scene = ExposureScene(
         width: size.width, height: size.height, layout: layout, exposure: exposure, pose: pose,
         appearance: appearance)
-      ExposurePainter(scene: scene, increasedContrast: contrast == .increased, scale: displayScale)
+      ExposurePainter(scene: scene, increasedContrast: contrast == .increased)
         .paint(in: &context)
     }
     .accessibilityHidden(true)
@@ -98,7 +97,6 @@ struct RewardExposureFace: View, Animatable, Equatable {
 private struct ExposurePainter {
   let scene: ExposureScene
   let increasedContrast: Bool
-  let scale: Double
 
   private var exposure: RewardExposure { scene.exposure }
   private var pose: RewardExposure.Pose { scene.pose }

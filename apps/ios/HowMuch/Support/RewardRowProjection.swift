@@ -431,7 +431,7 @@ struct RewardRowText {
       }
     }
 
-    let allExceptions = projection.exceptions.map { Self.exceptionText($0, currencyFormat: currencyFormat) }
+    let allExceptions = projection.exceptions.map { Self.exceptionText($0) }
     if allExceptions.count > Self.visibleExceptionLimit {
       exceptionLines = Array(allExceptions.prefix(Self.visibleExceptionLimit))
         + ["+\(allExceptions.count - Self.visibleExceptionLimit) more"]
@@ -487,7 +487,7 @@ struct RewardRowText {
     }
   }
 
-  static func exceptionText(_ exception: RewardRowProjection.Exception, currencyFormat: CurrencyFormat?) -> String {
+  static func exceptionText(_ exception: RewardRowProjection.Exception) -> String {
     switch exception {
     case .categoriesAtCap(let names, let over):
       let state = over ? "over cap" : "at cap"
