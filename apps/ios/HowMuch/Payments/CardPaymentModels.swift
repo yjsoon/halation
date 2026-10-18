@@ -48,6 +48,9 @@ struct CardPaymentTerms: Codable, Hashable, Identifiable {
   var leadDays: Int
   var deliveryHour: Int
   var enabled: Bool
+  /// Set by the server when the terms were first saved; ignored when sent
+  /// back in a PUT.
+  var createdAt: String? = nil
 
   var id: String { accountID }
 
@@ -65,6 +68,7 @@ struct CardPaymentTerms: Codable, Hashable, Identifiable {
     case leadDays
     case deliveryHour
     case enabled
+    case createdAt
   }
 
   /// The server's defaults for a new card.
@@ -101,7 +105,14 @@ enum CardPaymentCoverage: Codable, Hashable {
   case scheduled(scheduledTransactionID: String, payDate: String, amount: Int, fundingAccountID: String)
   case posted(transactionID: String, approved: Bool, amount: Int, date: String)
   case paid(transactionID: String, amount: Int, date: String)
-  case overdue
+  /// Nothing is owed on the card now, for example after a payment entered
+  /// as a plain inflow.
+  case settled
+  /// Paid in the window, but less than the minimum. Reminders continue.
+  case partial(transactionID: String?, date: String, paidAmount: Int, remainingAmount: Int)
+  /// A due date passed unpaid: this cycle's, or the previous statement's when
+  /// that one is carried over. `since` is the missed due date.
+  case overdue(since: String?, paidAmount: Int)
   /// Local only: a Scheduled tap queued on this device and not yet confirmed
   /// by the server.
   case sending(payDate: String, amount: Int, fundingAccountID: String)
@@ -115,6 +126,9 @@ enum CardPaymentCoverage: Codable, Hashable {
     case amount
     case approved
     case date
+    case since
+    case paidAmount
+    case remainingAmount
   }
 
   init(from decoder: Decoder) throws {
@@ -141,8 +155,20 @@ enum CardPaymentCoverage: Codable, Hashable {
         amount: try container.decode(Int.self, forKey: .amount),
         date: try container.decode(String.self, forKey: .date)
       )
+    case "settled":
+      self = .settled
+    case "partial":
+      self = .partial(
+        transactionID: try container.decodeIfPresent(String.self, forKey: .transactionID),
+        date: try container.decode(String.self, forKey: .date),
+        paidAmount: try container.decode(Int.self, forKey: .paidAmount),
+        remainingAmount: try container.decodeIfPresent(Int.self, forKey: .remainingAmount) ?? 0
+      )
     case "overdue":
-      self = .overdue
+      self = .overdue(
+        since: try container.decodeIfPresent(String.self, forKey: .since),
+        paidAmount: try container.decodeIfPresent(Int.self, forKey: .paidAmount) ?? 0
+      )
     case "sending":
       self = .sending(
         payDate: try container.decode(String.self, forKey: .payDate),
@@ -176,8 +202,18 @@ enum CardPaymentCoverage: Codable, Hashable {
       try container.encode(id, forKey: .transactionID)
       try container.encode(amount, forKey: .amount)
       try container.encode(date, forKey: .date)
-    case .overdue:
+    case .settled:
+      try container.encode("settled", forKey: .state)
+    case .partial(let id, let date, let paid, let remaining):
+      try container.encode("partial", forKey: .state)
+      try container.encodeIfPresent(id, forKey: .transactionID)
+      try container.encode(date, forKey: .date)
+      try container.encode(paid, forKey: .paidAmount)
+      try container.encode(remaining, forKey: .remainingAmount)
+    case .overdue(let since, let paid):
       try container.encode("overdue", forKey: .state)
+      try container.encodeIfPresent(since, forKey: .since)
+      try container.encode(paid, forKey: .paidAmount)
     case .sending(let payDate, let amount, let funding):
       try container.encode("sending", forKey: .state)
       try container.encode(payDate, forKey: .payDate)
@@ -186,12 +222,39 @@ enum CardPaymentCoverage: Codable, Hashable {
     }
   }
 
-  /// Scheduled, posted, paid or on its way: the payment escalation stops.
+  /// Scheduled, posted, paid, settled or on its way: the payment escalation
+  /// stops. Partial and overdue keep reminding.
   var isCovered: Bool {
     switch self {
-    case .unscheduled, .overdue: false
-    case .scheduled, .posted, .paid, .sending: true
+    case .unscheduled, .overdue, .partial: false
+    case .scheduled, .posted, .paid, .settled, .sending: true
     }
+  }
+
+  var isOverdue: Bool {
+    if case .overdue = self { return true }
+    return false
+  }
+
+  /// The missed due date of an overdue cycle.
+  var overdueSince: String? {
+    if case .overdue(let since, _) = self { return since }
+    return nil
+  }
+}
+
+/// The previous statement, when it went past its due date unpaid.
+struct CardPaymentPreviousUnpaid: Codable, Hashable {
+  let statementDate: String
+  let dueDate: String
+  let statementBalance: Int
+  let minimumDue: Int
+
+  private enum CodingKeys: String, CodingKey {
+    case statementDate
+    case dueDate
+    case statementBalance
+    case minimumDue
   }
 }
 
@@ -204,19 +267,34 @@ struct CardPaymentCycle: Codable, Hashable, Identifiable {
   let dueDate: String
   let lastSafePayDate: String
   let defaultPayDate: String
+  /// The inclusive payment window: a payment on these days counts for this
+  /// cycle. Older cached views may lack it.
+  var windowStart: String? = nil
+  var windowEnd: String? = nil
   /// Owed at the end of the statement date, recorded so far. Positive means owed.
   let statementBalance: Int
   let minimumDue: Int
   /// Owed now. Positive means owed.
   let currentBalance: Int
   var coverage: CardPaymentCoverage
+  /// Current cycle only: the previous statement went unpaid past its due date.
+  var previousUnpaid: CardPaymentPreviousUnpaid? = nil
 
   var id: String { "\(accountID).\(statementDate)" }
 
   var isCurrent: Bool { cycle == "current" }
 
-  /// A zero or credit statement balance gets no reminders.
+  /// A zero or credit statement balance gets no payment reminders.
   var hasAmountDue: Bool { statementBalance > 0 }
+
+  /// Something to pay or a missed payment to report: a positive statement
+  /// balance, or an overdue or partial state carried from the server.
+  var needsPaying: Bool {
+    switch coverage {
+    case .overdue, .partial: true
+    default: hasAmountDue
+    }
+  }
 
   private enum CodingKeys: String, CodingKey {
     case accountID = "accountId"
@@ -225,10 +303,13 @@ struct CardPaymentCycle: Codable, Hashable, Identifiable {
     case dueDate
     case lastSafePayDate
     case defaultPayDate
+    case windowStart
+    case windowEnd
     case statementBalance
     case minimumDue
     case currentBalance
     case coverage
+    case previousUnpaid
   }
 
   func with(coverage: CardPaymentCoverage) -> CardPaymentCycle {
@@ -471,6 +552,24 @@ enum CardPaymentFormat {
     formatter.dateFormat = "d MMM"
     return formatter
   }()
+
+  /// The pay-day range for a cycle: from today or the window's first day,
+  /// whichever is later, to the window's last day. Nil `upper` when the
+  /// window is unknown or already behind today.
+  static func payWindow(cycle: CardPaymentCycle, today: String) -> (lower: String, upper: String?) {
+    let lower = max(today, cycle.windowStart ?? today)
+    guard let end = cycle.windowEnd, end >= lower else {
+      return (lower, nil)
+    }
+    return (lower, end)
+  }
+
+  /// `day`, moved into the cycle's pay-day range.
+  static func clamp(_ day: String, cycle: CardPaymentCycle, today: String) -> String {
+    let window = payWindow(cycle: cycle, today: today)
+    let atLeast = max(day, window.lower)
+    return window.upper.map { min(atLeast, $0) } ?? atLeast
+  }
 
   /// The idempotency key the phone and the web both send for "schedule this
   /// statement's payment", so a second tap anywhere replays rather than

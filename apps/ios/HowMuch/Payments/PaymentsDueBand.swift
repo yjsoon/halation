@@ -125,6 +125,12 @@ struct PaymentsDueBand: View {
               .font(.caption)
               .foregroundStyle(.secondary)
           }
+          if let warning = row.previousUnpaidLine(money: money) {
+            Label(warning, systemImage: "exclamationmark.triangle.fill")
+              .font(.caption)
+              .foregroundStyle(Theme.outflow)
+              .accessibilityIdentifier("payments-due-previous-unpaid")
+          }
         }
         .contentShape(Rectangle())
       }
@@ -221,7 +227,7 @@ struct PaymentsDueBand: View {
       let current = view.cycles.first { $0.accountID == terms.accountID && $0.isCurrent }
       let next = view.cycles.first { $0.accountID == terms.accountID && !$0.isCurrent }
       let cycle: CardPaymentCycle?
-      if let current, current.hasAmountDue {
+      if let current, current.needsPaying || current.previousUnpaid != nil || current.coverage == .settled {
         cycle = current
       } else {
         cycle = next ?? current
@@ -253,9 +259,10 @@ struct PaymentsDueRow: Identifiable {
 
   var id: String { account.id }
 
-  /// Something owed this cycle and nothing on its way: Schedule shows.
+  /// Something owed this cycle and nothing on its way: Schedule shows. A
+  /// short payment still shows it.
   var needsAction: Bool {
-    guard let cycle, cycle.hasAmountDue, cycle.statementDate <= today else {
+    guard let cycle, cycle.needsPaying, cycle.statementDate <= today else {
       return false
     }
     return !cycle.coverage.isCovered
@@ -263,7 +270,7 @@ struct PaymentsDueRow: Identifiable {
 
   var isOverdue: Bool {
     guard let cycle, needsAction else { return false }
-    return cycle.dueDate < today
+    return cycle.coverage.isOverdue || cycle.dueDate < today
   }
 
   func primaryLine(money: (Int) -> String) -> String {
@@ -271,9 +278,13 @@ struct PaymentsDueRow: Identifiable {
       return "No statement yet"
     }
     if isOverdue {
-      return "Overdue since \(CardPaymentFormat.day(cycle.dueDate))"
+      return "Overdue since \(CardPaymentFormat.day(cycle.coverage.overdueSince ?? cycle.dueDate))"
     }
     switch cycle.coverage {
+    case .partial(_, _, let paid, _):
+      return "\(money(paid)) of \(money(cycle.statementBalance)) paid · due \(CardPaymentFormat.weekdayDay(cycle.dueDate))"
+    case .settled:
+      return "Nothing owed now"
     case .scheduled(_, let payDate, let amount, let funding), .sending(let payDate, let amount, let funding):
       return "Scheduled · \(money(amount)) from \(fundingName(funding)) on \(CardPaymentFormat.day(payDate))"
     case .posted(_, _, let amount, let date):
@@ -292,13 +303,28 @@ struct PaymentsDueRow: Identifiable {
   }
 
   func secondaryLine(money: (Int) -> String) -> String? {
-    guard let cycle, cycle.hasAmountDue else {
+    guard let cycle, cycle.needsPaying else {
       return nil
+    }
+    if case .settled = cycle.coverage {
+      return nil
+    }
+    if case .partial(_, _, _, let remaining) = cycle.coverage {
+      return "\(money(remaining)) left to pay · min \(money(cycle.minimumDue)) · recorded so far"
     }
     if cycle.coverage.isCovered {
       return "Due \(CardPaymentFormat.weekdayDay(cycle.dueDate))"
     }
     return "Statement \(CardPaymentFormat.day(cycle.statementDate)) · min \(money(cycle.minimumDue)) · recorded so far"
+  }
+
+  /// A covered or current cycle can still carry an unpaid previous
+  /// statement: say so, so a schedule for this one does not hide it.
+  func previousUnpaidLine(money: (Int) -> String) -> String? {
+    guard let previous = cycle?.previousUnpaid else {
+      return nil
+    }
+    return "Previous statement (\(CardPaymentFormat.day(previous.statementDate))) unpaid: \(money(previous.statementBalance)) was due \(CardPaymentFormat.day(previous.dueDate))"
   }
 
   struct Chip {
@@ -307,7 +333,13 @@ struct PaymentsDueRow: Identifiable {
   }
 
   var chip: Chip? {
-    guard let cycle, cycle.hasAmountDue else {
+    guard let cycle else {
+      return nil
+    }
+    if case .settled = cycle.coverage {
+      return Chip(label: "Settled", colour: Theme.inflow)
+    }
+    guard cycle.hasAmountDue else {
       return nil
     }
     switch cycle.coverage {
@@ -315,7 +347,8 @@ struct PaymentsDueRow: Identifiable {
     case .sending: return Chip(label: "Sending", colour: .secondary)
     case .posted: return Chip(label: "Posted", colour: Theme.uncategorised)
     case .paid: return Chip(label: "Paid", colour: Theme.inflow)
-    case .unscheduled, .overdue: return nil
+    case .settled: return Chip(label: "Settled", colour: Theme.inflow)
+    case .unscheduled, .overdue, .partial: return nil
     }
   }
 

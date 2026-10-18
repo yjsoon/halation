@@ -17,6 +17,7 @@ struct CardPaymentScheduleSheet: View {
   @State private var error: String?
   @State private var isSaving = false
   @State private var didSeed = false
+  @State private var isLoadingCycle = false
 
   private var cycle: CardPaymentCycle? {
     model.effectiveCardPayments.cycle(accountID: accountID, statementDate: statementDate)
@@ -47,6 +48,9 @@ struct CardPaymentScheduleSheet: View {
       Group {
         if let cycle {
           form(cycle)
+        } else if isLoadingCycle {
+          ProgressView("Loading the statement…")
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
           ContentUnavailableView {
             Label("Nothing to pay", systemImage: "creditcard")
@@ -67,6 +71,21 @@ struct CardPaymentScheduleSheet: View {
       .interactiveDismissDisabled(isSaving)
     }
     .onAppear(perform: seed)
+    // A cold launch from a reminder opens this before the fetch lands: seed
+    // again when the cycle arrives or is replaced by fresher data.
+    .onChange(of: cycle?.id) { _, _ in
+      didSeed = false
+      seed()
+    }
+    .onChange(of: cycle?.windowEnd) { _, _ in
+      payDate = clampedPayDate(payDate)
+    }
+    .task {
+      guard cycle == nil else { return }
+      isLoadingCycle = true
+      await model.refreshCardPayments()
+      isLoadingCycle = false
+    }
   }
 
   private func money(_ value: Int) -> String {
@@ -116,12 +135,7 @@ struct CardPaymentScheduleSheet: View {
       }
 
       Section {
-        DatePicker(
-          "Pay on",
-          selection: $payDate,
-          in: Calendar.current.startOfDay(for: .now)...,
-          displayedComponents: .date
-        )
+        payDatePicker(cycle)
       } footer: {
         Text(payDayNote(cycle))
       }
@@ -131,7 +145,9 @@ struct CardPaymentScheduleSheet: View {
           .tint(Theme.accent)
           .disabled(terms == nil)
       } footer: {
-        Text("Next time, Scheduled on the reminder finishes without opening Halation.")
+        Text(amountChoice == .fixed
+          ? "Remembers the paying account and pay day. Other amounts are not remembered."
+          : "Next time, Scheduled on the reminder finishes without opening Halation.")
       }
 
       if let error {
@@ -173,6 +189,25 @@ struct CardPaymentScheduleSheet: View {
         Text("Halation records the payment on the day. Set it up in your bank app too.")
       }
     }
+  }
+
+  /// Pay days run from today (or the window's first day) to the last day a
+  /// payment still counts for this statement.
+  @ViewBuilder
+  private func payDatePicker(_ cycle: CardPaymentCycle) -> some View {
+    let window = CardPaymentFormat.payWindow(cycle: cycle, today: Date.now.isoDateString)
+    let lower = Date(isoDateString: window.lower) ?? Calendar.current.startOfDay(for: .now)
+    if let upperText = window.upper, let upper = Date(isoDateString: upperText), upper >= lower {
+      DatePicker("Pay on", selection: $payDate, in: lower ... upper, displayedComponents: .date)
+    } else {
+      DatePicker("Pay on", selection: $payDate, in: lower..., displayedComponents: .date)
+    }
+  }
+
+  private func clampedPayDate(_ date: Date) -> Date {
+    guard let cycle else { return date }
+    let clamped = CardPaymentFormat.clamp(date.isoDateString, cycle: cycle, today: Date.now.isoDateString)
+    return Date(isoDateString: clamped) ?? date
   }
 
   private func amountRow(_ rule: CardAmountRule, title: String, value: Int?) -> some View {
@@ -252,7 +287,8 @@ struct CardPaymentScheduleSheet: View {
     if fundingAccountID.isEmpty, let first = fundingAccounts.first {
       fundingAccountID = first.id
     }
-    let suggested = max(cycle.defaultPayDate, Date.now.isoDateString)
+    let today = Date.now.isoDateString
+    let suggested = CardPaymentFormat.clamp(max(cycle.defaultPayDate, today), cycle: cycle, today: today)
     payDate = Date(isoDateString: suggested) ?? .now
     remember = terms.map { !$0.hasPaymentDefaults } ?? false
   }
@@ -300,18 +336,67 @@ struct CardPaymentScheduleSheet: View {
 
   private func rememberIfAsked(_ cycle: CardPaymentCycle, amount: Int) async {
     guard remember, terms != nil else { return }
+    let today = Date.now.isoDateString
+    let suggested = CardPaymentFormat.clamp(max(cycle.defaultPayDate, today), cycle: cycle, today: today)
     do {
+      // Other is this statement's figure, not a monthly amount: remember the
+      // paying account and pay day, and leave the amount rule as it is.
       try await model.rememberCardPaymentDefaults(
         accountID: accountID,
         fundingAccountID: fundingAccountID,
-        rule: amountChoice,
-        fixedAmount: amountChoice == .fixed ? amount : nil,
-        payDaysBeforeDue: payDate.isoDateString == max(cycle.defaultPayDate, Date.now.isoDateString)
+        rule: amountChoice == .fixed ? nil : amountChoice,
+        payDaysBeforeDue: payDate.isoDateString == suggested
           ? nil
           : CardCycleMaths.workingDays(from: payDate.isoDateString, to: cycle.dueDate)
       )
     } catch {
       model.showSaveMessage("Couldn’t save these choices for the card: \(error.localizedDescription)", kind: .failure)
+    }
+  }
+}
+
+/// "Tap to change" on a background Scheduled confirmation: the schedule
+/// editor for the payment it made, once the schedules are loaded.
+struct CardScheduleEditorHost: View {
+  @Environment(AppModel.self) private var model
+  @Environment(\.dismiss) private var dismiss
+  let scheduleID: String
+  @State private var didLoad = false
+
+  private var schedule: ScheduledTransaction? {
+    model.scheduledTransactions.first { $0.id == scheduleID && !$0.deleted }
+  }
+
+  var body: some View {
+    if let schedule {
+      ScheduledTransactionEditorView(schedule: schedule)
+    } else {
+      NavigationStack {
+        Group {
+          if didLoad {
+            ContentUnavailableView {
+              Label("Schedule not found", systemImage: "calendar.badge.exclamationmark")
+            } description: {
+              Text("It may have been changed or removed on another device.")
+            }
+          } else {
+            ProgressView("Loading the schedule…")
+          }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.canvas)
+        .navigationTitle("Scheduled payment")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+          ToolbarItem(placement: .cancellationAction) {
+            Button("Close") { dismiss() }
+          }
+        }
+      }
+      .task {
+        await model.refreshScheduledTransactions(quiet: true)
+        didLoad = true
+      }
     }
   }
 }

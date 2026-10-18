@@ -118,21 +118,29 @@ enum CardPaymentPlanner {
     terms: CardPaymentTerms,
     input: Input
   ) -> [PlannedCardNotification] {
-    // Nothing owed, or a credit: no reminders for this cycle at all.
-    guard cycle.hasAmountDue else {
-      return []
-    }
     let name = input.accountNames[cycle.accountID] ?? "Your card"
     let covered = cycle.coverage.isCovered
+    // Only the current cycle's amounts are worth quoting: a next cycle's
+    // balance is a projection that goes stale long before its reminders fire.
+    let quotesAmounts = cycle.isCurrent && cycle.hasAmountDue
     let hasDefaults = terms.hasPaymentDefaults
       && terms.defaultFundingAccountID.map { input.openAccountIDs.contains($0) } == true
     let regularCategory = hasDefaults ? CardPaymentCategory.due : CardPaymentCategory.dueSetup
     let urgentCategory = hasDefaults ? CardPaymentCategory.urgent : CardPaymentCategory.urgentSetup
     let hour = terms.deliveryHour
-    let recorded = "\(input.money(cycle.statementBalance)) recorded so far"
+    let recorded: String
+    if case .partial(_, _, let paid, _) = cycle.coverage {
+      recorded = "\(input.money(paid)) of \(input.money(cycle.statementBalance)) paid so far"
+    } else {
+      recorded = "\(input.money(cycle.statementBalance)) recorded so far"
+    }
     let minimum = input.money(cycle.minimumDue)
     let dueLabel = CardPaymentFormat.weekdayDay(cycle.dueDate)
-    let caveat = "Check your statement for the actual amount."
+    let caveat = quotesAmounts ? "Check your statement for the actual amount." : "Open Halation to check what is due."
+    let amountLine = quotesAmounts ? "\(recorded). Minimum \(minimum)." : ""
+    func sentence(_ parts: String...) -> String {
+      parts.filter { !$0.isEmpty }.joined(separator: " ")
+    }
     let snoozedUntil = input.snoozes["\(cycle.accountID).\(cycle.statementDate)"]
 
     var result: [PlannedCardNotification] = []
@@ -214,20 +222,25 @@ enum CardPaymentPlanner {
       return day < snoozedUntil
     }
 
-    // Statement notice: informational, so it goes out even once covered.
+    // Statement notice: informational, so it goes out even once covered, and
+    // even when nothing is recorded yet for a statement still to come.
     if !snoozedAway(cycle.statementDate) {
       add(
         .statement,
         on: cycle.statementDate,
         hour: hour,
         title: "Statement: \(name)",
-        body: "\(recorded). \(caveat) Due \(dueLabel). Minimum \(minimum).",
-        category: covered ? nil : regularCategory,
+        body: quotesAmounts
+          ? "\(recorded). \(caveat) Due \(dueLabel). Minimum \(minimum)."
+          : "Statement day for \(name). Open Halation to check what is due.",
+        category: covered || !quotesAmounts ? nil : regularCategory,
         level: .active
       )
     }
 
-    if !covered {
+    // Payment reminders need something owed at planning time, or a missed or
+    // short payment the server reported.
+    if !covered, cycle.needsPaying {
       let leadDay = CardCycleMaths.addDays(cycle.dueDate, -terms.leadDays)
       if terms.leadDays > 0, leadDay > cycle.statementDate, leadDay < cycle.lastSafePayDate,
          !snoozedAway(leadDay) {
@@ -237,7 +250,11 @@ enum CardPaymentPlanner {
           on: leadDay,
           hour: hour,
           title: "\(name): due \(dueLabel)",
-          body: "\(recorded), \(days == 1 ? "1 day" : "\(days) days") left. Minimum \(minimum). \(caveat)",
+          body: sentence(
+            "\(days == 1 ? "1 day" : "\(days) days") left.",
+            amountLine,
+            caveat
+          ),
           category: regularCategory,
           level: .active
         )
@@ -249,7 +266,7 @@ enum CardPaymentPlanner {
           on: cycle.lastSafePayDate,
           hour: hour,
           title: "Pay \(name) today",
-          body: "Today is the last safe day to pay before it is due on \(dueLabel). \(recorded). \(caveat)",
+          body: sentence("Today is the last safe day to pay before it is due on \(dueLabel).", amountLine, caveat),
           category: regularCategory,
           level: .active
         )
@@ -263,7 +280,7 @@ enum CardPaymentPlanner {
           on: snoozedUntil,
           hour: hour,
           title: "\(name): due \(dueLabel)",
-          body: "\(recorded). Minimum \(minimum). \(caveat)",
+          body: sentence(amountLine, caveat),
           category: regularCategory,
           level: .active
         )
@@ -273,13 +290,16 @@ enum CardPaymentPlanner {
         on: cycle.dueDate,
         hour: hour,
         title: "\(name) is due today",
-        body: "\(recorded). Minimum \(minimum). \(caveat)",
+        body: sentence(amountLine, caveat),
         category: urgentCategory,
         level: .timeSensitive
       )
+      // Overdue counts from the missed due date: this cycle's, or the
+      // previous statement's when the server carried it over.
+      let missed = cycle.coverage.overdueSince ?? cycle.dueDate
       var overdueCount = 0
       for offset in 1 ... overdueDays where overdueCount < overduePending {
-        let day = CardCycleMaths.addDays(cycle.dueDate, offset)
+        let day = CardCycleMaths.addDays(missed, offset)
         let before = result.count
         add(
           .overdue,
@@ -287,7 +307,11 @@ enum CardPaymentPlanner {
           on: day,
           hour: hour,
           title: "Overdue: \(name)",
-          body: "Payment was due \(CardPaymentFormat.day(cycle.dueDate)), \(recorded). Late fees and interest may apply.",
+          body: sentence(
+            "Payment was due \(CardPaymentFormat.day(missed)).",
+            quotesAmounts ? "\(recorded)." : "",
+            "Late fees and interest may apply."
+          ),
           category: urgentCategory,
           level: .timeSensitive
         )
@@ -326,13 +350,13 @@ enum CardPaymentPlanner {
   }
 
   /// Cards overdue or due today and not covered: the card payments badge.
+  /// A previous statement carried over as overdue counts too.
   static func attentionCount(view: CardPaymentsView, today: String) -> Int {
     Set(view.cycles.filter { cycle in
       cycle.isCurrent
-        && cycle.hasAmountDue
         && !cycle.coverage.isCovered
-        && cycle.dueDate <= today
         && view.terms(for: cycle.accountID)?.enabled == true
+        && (cycle.coverage.isOverdue || (cycle.needsPaying && cycle.dueDate <= today))
     }.map(\.accountID)).count
   }
 }

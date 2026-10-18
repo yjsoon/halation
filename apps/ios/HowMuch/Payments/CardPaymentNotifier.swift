@@ -12,6 +12,21 @@ struct CardScheduleRequest: Identifiable, Equatable {
   var id: String { "\(accountID).\(statementDate)" }
 }
 
+/// A sheet a card notification asks the app to show.
+enum CardSheetRoute: Identifiable, Equatable {
+  /// The schedule sheet for one statement cycle.
+  case schedule(CardScheduleRequest)
+  /// The schedule editor for a payment a background Scheduled just made.
+  case editSchedule(String)
+
+  var id: String {
+    switch self {
+    case .schedule(let request): "schedule-\(request.id)"
+    case .editSchedule(let id): "edit-\(id)"
+    }
+  }
+}
+
 /// One pending reminder, for the Settings list.
 struct PendingCardReminder: Identifiable, Equatable {
   let id: String
@@ -39,6 +54,18 @@ enum CardPaymentSnoozeStore {
       UserDefaults.standard.set(next, forKey: defaultsKey)
     }
     return mine
+  }
+
+  /// Drops every other connection's snoozes.
+  static func prune(keeping fingerprint: String) {
+    let all = load()
+    guard all.keys.contains(where: { $0 != fingerprint }) else { return }
+    let kept = all.filter { $0.key == fingerprint }
+    if kept.isEmpty {
+      UserDefaults.standard.removeObject(forKey: defaultsKey)
+    } else {
+      UserDefaults.standard.set(kept, forKey: defaultsKey)
+    }
   }
 
   static func snooze(fingerprint: String, cycleKey: String, until: String) {
@@ -91,6 +118,17 @@ enum CardScheduleQueue {
   static func remove(id: String, fingerprint: String) {
     save(load().filter { $0.id != id || $0.fingerprint != fingerprint })
   }
+
+  /// Takes every other connection's taps off the queue and returns them, so
+  /// the caller can say they were not sent.
+  static func prune(keeping fingerprint: String) -> [QueuedCardSchedule] {
+    let items = load()
+    let others = items.filter { $0.fingerprint != fingerprint }
+    if !others.isEmpty {
+      save(items.filter { $0.fingerprint == fingerprint })
+    }
+    return others
+  }
 }
 
 /// The last card payments view per connection, so a background action or a
@@ -130,7 +168,7 @@ final class CardPaymentNotifier {
   static let shared = CardPaymentNotifier()
 
   /// Set by a notification tap. `RootView` presents the sheet.
-  var presentedSchedule: CardScheduleRequest?
+  var presentedSheet: CardSheetRoute?
   /// Set by a tap that should open a card's register.
   var pendingAccountID: String?
   private(set) var authorisation: UNAuthorizationStatus = .notDetermined
@@ -152,6 +190,11 @@ final class CardPaymentNotifier {
   @ObservationIgnored private var inFlight: [UUID: Task<Void, Never>] = [:]
 
   private static let logger = Logger(subsystem: "sg.soon.howmuch", category: "CardPaymentNotifier")
+  /// The connection the last rebuild planned for. A different one at launch
+  /// means its leftovers need clearing even if this plan has no cards.
+  private static let lastFingerprintKey = "halation.card.last-fingerprint"
+  /// Notices that are not reminders for a cycle: they stay until dismissed.
+  private static let followUpTouchpoints: Set<String> = ["confirm", "failed", "unsent", "already", "dropped"]
 
   init(center: UNUserNotificationCenter = .current()) {
     self.center = center
@@ -219,13 +262,28 @@ final class CardPaymentNotifier {
     await task.value
   }
 
+  /// True when the last rebuild was for another connection.
+  func needsRebuild(for fingerprint: String) -> Bool {
+    guard let last = UserDefaults.standard.string(forKey: Self.lastFingerprintKey) else {
+      return false
+    }
+    return last != fingerprint
+  }
+
   private func performRebuild(model: AppModel) async {
     guard model.settings.isAuthenticated else {
       await removeCardRequests { _ in true }
-      cardBadgeCount = 0
+      await removeDelivered { _ in true }
+      if cardBadgeCount != 0 {
+        cardBadgeCount = 0
+        IntakeNotifier.shared.refreshBadge()
+      }
       return
     }
     let fingerprint = model.settings.connectionFingerprint
+    UserDefaults.standard.set(fingerprint, forKey: Self.lastFingerprintKey)
+    CardPaymentSnoozeStore.prune(keeping: fingerprint)
+    await reportDroppedTaps(CardScheduleQueue.prune(keeping: fingerprint), model: model)
     let view = model.effectiveCardPayments
     let today = Date.now.isoDateString
     let nextBadge = CardPaymentPlanner.attentionCount(view: view, today: today)
@@ -254,6 +312,7 @@ final class CardPaymentNotifier {
     } else {
       await removeCardRequests { _ in true }
     }
+    await removeStaleDelivered(view: view, fingerprint: fingerprint)
     await warnAboutStaleQueue(model: model)
     await reloadPendingList()
   }
@@ -321,6 +380,65 @@ final class CardPaymentNotifier {
     await reloadPendingList()
   }
 
+  /// Clears delivered card notifications that no longer apply: everything
+  /// from another connection, and reminders for a cycle that is now covered,
+  /// has left the view or whose card has reminders off. Confirmations and
+  /// other follow-ups stay until dismissed.
+  private func removeStaleDelivered(view: CardPaymentsView, fingerprint: String) async {
+    let known = !view.asOf.isEmpty
+    await removeDelivered { info in
+      guard info["connectionFingerprint"] as? String == fingerprint else {
+        return true
+      }
+      guard known,
+            let touchpoint = info["touchpoint"] as? String,
+            !Self.followUpTouchpoints.contains(touchpoint),
+            let accountID = info["accountId"] as? String,
+            let statementDate = info["statementDate"] as? String else {
+        return false
+      }
+      guard view.terms(for: accountID)?.enabled == true,
+            let cycle = view.cycle(accountID: accountID, statementDate: statementDate) else {
+        return true
+      }
+      if touchpoint == "funds" {
+        switch cycle.coverage {
+        case .scheduled, .sending: return false
+        default: return true
+        }
+      }
+      return cycle.coverage.isCovered
+    }
+  }
+
+  private func removeDelivered(where predicate: ([AnyHashable: Any]) -> Bool) async {
+    let delivered = await center.deliveredNotifications()
+    let ids = delivered
+      .filter { $0.request.identifier.hasPrefix(CardPaymentPlanner.identifierPrefix) && predicate($0.request.content.userInfo) }
+      .map(\.request.identifier)
+    if !ids.isEmpty {
+      center.removeDeliveredNotifications(withIdentifiers: ids)
+    }
+  }
+
+  /// Scheduled taps queued under another connection can no longer be sent
+  /// here. Say so, once each, rather than dropping them silently.
+  private func reportDroppedTaps(_ dropped: [QueuedCardSchedule], model: AppModel) async {
+    guard !dropped.isEmpty else { return }
+    let fingerprint = model.settings.connectionFingerprint
+    for item in dropped {
+      let body = "“\(item.memo)” was tapped Scheduled under another plan or server and was not sent. Schedule it again there."
+      model.showSaveMessage("Didn’t send a queued card payment: “\(item.memo)”.", kind: .failure)
+      await postNow(
+        identifier: "\(CardPaymentPlanner.identifierPrefix)\(item.accountID).\(item.statementDate).dropped",
+        title: "Card payment not scheduled",
+        body: body,
+        info: ["kind": "card", "touchpoint": "dropped", "accountId": item.accountID,
+               "statementDate": item.statementDate, "connectionFingerprint": fingerprint]
+      )
+    }
+  }
+
   func reloadPendingList() async {
     let pending = await center.pendingNotificationRequests()
     pendingReminders = pending
@@ -335,13 +453,19 @@ final class CardPaymentNotifier {
       .sorted { ($0.fireDate ?? .distantFuture, $0.id) < ($1.fireDate ?? .distantFuture, $1.id) }
   }
 
-  /// Signed out: no card reminders and no card count.
+  /// Signed out: no card reminders, no delivered card notices and no card
+  /// count. The badge is recomputed without the card count.
   func clearAll() {
-    presentedSchedule = nil
+    presentedSheet = nil
     pendingAccountID = nil
     cardBadgeCount = 0
     truncated = false
-    Task { await removeCardRequests { _ in true } }
+    UserDefaults.standard.removeObject(forKey: Self.lastFingerprintKey)
+    IntakeNotifier.shared.updateBadge(0)
+    Task {
+      await removeCardRequests { _ in true }
+      await removeDelivered { _ in true }
+    }
   }
 
   /// One notification for a queued Scheduled tap the server has not
@@ -403,7 +527,10 @@ final class CardPaymentNotifier {
         await self?.scheduleInBackground(model: model, accountID: accountID, statementDate: statementDate, info: info)
       }
     case CardPaymentCategory.Action.scheduledSetup:
-      presentedSchedule = CardScheduleRequest(accountID: accountID, statementDate: statementDate)
+      // A cold launch has no fetched view yet: the cached one seeds the sheet
+      // and the sheet refreshes when the cycle is missing.
+      model.restoreCardPaymentsIfNeeded()
+      presentedSheet = .schedule(CardScheduleRequest(accountID: accountID, statementDate: statementDate))
     case CardPaymentCategory.Action.paid:
       track { [weak self] in
         await self?.paidInBackground(model: model, accountID: accountID, statementDate: statementDate, info: info)
@@ -420,8 +547,11 @@ final class CardPaymentNotifier {
       model.restoreCardPaymentsIfNeeded()
       let cycle = model.effectiveCardPayments.cycle(accountID: accountID, statementDate: statementDate)
       let touchpoint = info["touchpoint"] ?? ""
-      if let cycle, !cycle.coverage.isCovered, cycle.hasAmountDue, touchpoint != "funds", touchpoint != "confirm" {
-        presentedSchedule = CardScheduleRequest(accountID: accountID, statementDate: statementDate)
+      if touchpoint == "confirm", let scheduleID = info["scheduleId"], !scheduleID.isEmpty {
+        // "Tap to change" on a background Scheduled confirmation.
+        presentedSheet = .editSchedule(scheduleID)
+      } else if let cycle, !cycle.coverage.isCovered, cycle.needsPaying, touchpoint != "funds", touchpoint != "confirm" {
+        presentedSheet = .schedule(CardScheduleRequest(accountID: accountID, statementDate: statementDate))
       } else {
         pendingAccountID = accountID
       }
@@ -429,9 +559,11 @@ final class CardPaymentNotifier {
   }
 
   private func scheduleInBackground(model: AppModel, accountID: String, statementDate: String, info: [String: String]) async {
-    model.restoreCardPaymentsIfNeeded()
-    let context = model.cardPaymentContext(accountID: accountID, statementDate: statementDate, info: info)
     let name = info["cardName"] ?? model.account(withID: accountID)?.name ?? "your card"
+    guard await proceedAfterCheck(model: model, accountID: accountID, statementDate: statementDate, name: name) else {
+      return
+    }
+    let context = model.cardPaymentContext(accountID: accountID, statementDate: statementDate, info: info)
     guard let context, let funding = context.fundingAccountID,
           model.openAccounts.isEmpty || model.openAccounts.contains(where: { $0.id == funding }),
           let amount = context.defaultAmount, amount > 0 else {
@@ -440,15 +572,21 @@ final class CardPaymentNotifier {
     }
     let payDate = context.suggestedPayDate(today: Date.now.isoDateString)
     do {
-      try await model.scheduleCardPayment(
+      let scheduleID = try await model.scheduleCardPayment(
         accountID: accountID,
         statementDate: statementDate,
         amount: amount,
         fundingAccountID: funding,
         payDate: payDate,
-        showsMessage: false
+        showsMessage: false,
+        sendsNow: true
       )
       let fundingName = model.account(withID: funding)?.name ?? "your account"
+      var confirmInfo = ["kind": "card", "touchpoint": "confirm", "accountId": accountID, "statementDate": statementDate,
+                         "connectionFingerprint": model.settings.connectionFingerprint]
+      if let scheduleID {
+        confirmInfo["scheduleId"] = scheduleID
+      }
       await postNow(
         identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: statementDate, touchpoint: "confirm"),
         title: "Scheduled",
@@ -456,9 +594,8 @@ final class CardPaymentNotifier {
           amount: MoneyCodec.displayString(for: amount, currencyFormat: model.currencyFormat),
           fundingName: fundingName,
           payDate: payDate
-        ),
-        info: ["kind": "card", "touchpoint": "confirm", "accountId": accountID, "statementDate": statementDate,
-               "connectionFingerprint": model.settings.connectionFingerprint]
+        ) + " " + Self.amountCaveat,
+        info: confirmInfo
       )
     } catch {
       await postNow(
@@ -472,10 +609,40 @@ final class CardPaymentNotifier {
     await rebuild(model: model)
   }
 
+  /// The caveat on a background Scheduled confirmation; a tap opens the
+  /// schedule editor.
+  static let amountCaveat = "Check the amount against your statement. Tap to change."
+
+  /// Checks the cycle before a background Paid or Scheduled writes anything.
+  /// Covered elsewhere, or gone from the view: a quiet notice, no write.
+  private func proceedAfterCheck(model: AppModel, accountID: String, statementDate: String, name: String) async -> Bool {
+    let check = await model.checkCardCycleBeforeAction(accountID: accountID, statementDate: statementDate)
+    let body: String
+    switch check {
+    case .due:
+      return true
+    case .covered:
+      body = "\(name) is already paid or scheduled for this statement. Nothing was changed."
+    case .gone:
+      body = "This \(name) statement is no longer due. Nothing was changed."
+    }
+    await postNow(
+      identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: statementDate, touchpoint: "already"),
+      title: "Already paid or scheduled",
+      body: body,
+      info: ["kind": "card", "touchpoint": "already", "accountId": accountID, "statementDate": statementDate,
+             "connectionFingerprint": model.settings.connectionFingerprint]
+    )
+    await rebuild(model: model)
+    return false
+  }
+
   private func paidInBackground(model: AppModel, accountID: String, statementDate: String, info: [String: String]) async {
-    model.restoreCardPaymentsIfNeeded()
-    let context = model.cardPaymentContext(accountID: accountID, statementDate: statementDate, info: info)
     let name = info["cardName"] ?? model.account(withID: accountID)?.name ?? "your card"
+    guard await proceedAfterCheck(model: model, accountID: accountID, statementDate: statementDate, name: name) else {
+      return
+    }
+    let context = model.cardPaymentContext(accountID: accountID, statementDate: statementDate, info: info)
     guard let context, let funding = context.fundingAccountID, let amount = context.defaultAmount, amount > 0 else {
       await postSetupNeeded(accountID: accountID, statementDate: statementDate, name: name, model: model)
       return

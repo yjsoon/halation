@@ -222,10 +222,17 @@ private struct RootView: View {
       CaptureIntakeHost(request: request)
         .id(request.id)
     }
-    .sheet(item: $cardReminders.presentedSchedule) { request in
-      CardPaymentScheduleSheet(accountID: request.accountID, statementDate: request.statementDate)
-        .environment(model)
-        .blocksCapturePresentation()
+    .sheet(item: $cardReminders.presentedSheet) { route in
+      Group {
+        switch route {
+        case .schedule(let request):
+          CardPaymentScheduleSheet(accountID: request.accountID, statementDate: request.statementDate)
+        case .editSchedule(let scheduleID):
+          CardScheduleEditorHost(scheduleID: scheduleID)
+        }
+      }
+      .environment(model)
+      .blocksCapturePresentation()
     }
     .onChange(of: cardReminders.pendingAccountID, initial: true) { _, accountID in
       guard let accountID else {

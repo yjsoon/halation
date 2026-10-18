@@ -12,6 +12,10 @@ struct CardPaymentContext {
   var defaultAmount: Int? {
     switch amountRule {
     case .statement:
+      // A short payment leaves the rest of the statement to pay.
+      if case .partial(_, _, _, let remaining) = cycle.coverage {
+        return remaining > 0 ? remaining : nil
+      }
       return cycle.statementBalance > 0 ? cycle.statementBalance : nil
     case .minimum:
       return cycle.minimumDue > 0 ? cycle.minimumDue : nil
@@ -20,10 +24,31 @@ struct CardPaymentContext {
     }
   }
 
-  /// The last safe day, or today once that has passed.
+  /// The server's suggested day (the last safe day, or today once that has
+  /// passed), kept inside the cycle's payment window.
   func suggestedPayDate(today: String) -> String {
-    max(today, cycle.lastSafePayDate)
+    CardPaymentFormat.clamp(max(today, cycle.defaultPayDate), cycle: cycle, today: today)
   }
+}
+
+/// Why a card payment schedule could not be created. A passing failure keeps
+/// a queued tap for the next drain; a refusal drops it and says so.
+enum CardScheduleSendError: LocalizedError {
+  case transient(String)
+  case refused(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .transient(let message), .refused(let message): message
+    }
+  }
+}
+
+/// What the background actions found when they checked the cycle first.
+enum CardCycleCheck {
+  case due(CardPaymentCycle?)
+  case covered
+  case gone
 }
 
 extension AppModel {
@@ -67,6 +92,49 @@ extension AppModel {
       return
     }
     cardPayments = cached
+  }
+
+  /// The memo the web writes too: "Card A statement 3 Oct".
+  func cardPaymentMemo(accountID: String, statementDate: String) -> String {
+    "\(account(withID: accountID)?.name ?? "Card") statement \(CardPaymentFormat.day(statementDate))"
+  }
+
+  /// A background action checks the cycle before it writes: a short refresh
+  /// (whatever lands within `timeout`), then the freshest view there is. A
+  /// cycle another device or the web already covered, or that has left the
+  /// view, is left alone.
+  func checkCardCycleBeforeAction(
+    accountID: String,
+    statementDate: String,
+    timeout: Duration = .seconds(5)
+  ) async -> CardCycleCheck {
+    restoreCardPaymentsIfNeeded()
+    await refreshCardPaymentsBriefly(timeout: timeout)
+    let view = effectiveCardPayments
+    if let cycle = view.cycle(accountID: accountID, statementDate: statementDate) {
+      return cycle.coverage.isCovered ? .covered : .due(cycle)
+    }
+    // Only a view that knows this card can say the statement has gone.
+    if !view.asOf.isEmpty, view.terms(for: accountID) != nil {
+      return .gone
+    }
+    return .due(nil)
+  }
+
+  /// `refreshCardPayments()`, waited on for at most `timeout`. The fetch
+  /// carries on past the deadline and lands when it lands.
+  func refreshCardPaymentsBriefly(timeout: Duration) async {
+    let gate = CardRaceGate()
+    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+      Task { @MainActor [weak self] in
+        await self?.refreshCardPayments()
+        if gate.claim() { continuation.resume() }
+      }
+      Task { @MainActor in
+        try? await Task.sleep(for: timeout)
+        if gate.claim() { continuation.resume() }
+      }
+    }
   }
 
   func cardPaymentContext(accountID: String, statementDate: String, info: [String: String] = [:]) -> CardPaymentContext? {
@@ -157,6 +225,10 @@ extension AppModel {
     if hasCreditAccounts || hasCardPaymentTerms {
       await drainCardPaymentQueue()
       await refreshCardPayments()
+    } else if CardPaymentNotifier.shared.needsRebuild(for: settings.connectionFingerprint) {
+      // A plan or server with no cards still clears what the last
+      // connection left behind: its reminders, delivered notices and count.
+      await CardPaymentNotifier.shared.rebuild(model: self)
     }
   }
 
@@ -234,14 +306,18 @@ extension AppModel {
   /// card on the pay day. Local mode writes to the on-device engine at once;
   /// server mode queues it on the phone and sends it without waiting, so a
   /// notification action never blocks on the network.
+  /// Returns the schedule's id when it is known: local mode, or server mode
+  /// with `sendsNow` once the server has it.
+  @discardableResult
   func scheduleCardPayment(
     accountID: String,
     statementDate: String,
     amount: Int,
     fundingAccountID: String,
     payDate: String,
-    showsMessage: Bool = true
-  ) async throws {
+    showsMessage: Bool = true,
+    sendsNow: Bool = false
+  ) async throws -> String? {
     guard amount > 0 else {
       throw APIClientError.validation("Enter an amount to pay.")
     }
@@ -249,7 +325,7 @@ extension AppModel {
       throw APIClientError.validation("Choose another account to pay from.")
     }
     let key = CardPaymentFormat.idempotencyKey(accountID: accountID, statementDate: statementDate)
-    let memo = "Card payment, statement \(CardPaymentFormat.day(statementDate))"
+    let memo = cardPaymentMemo(accountID: accountID, statementDate: statementDate)
     let fundingName = account(withID: fundingAccountID)?.name ?? "your account"
     let message = CardPaymentNotifier.scheduledConfirmation(
       amount: MoneyCodec.displayString(for: amount, currencyFormat: currencyFormat),
@@ -277,7 +353,7 @@ extension AppModel {
       }
       await CardPaymentNotifier.shared.rebuild(model: self)
       requestCardPaymentsRefresh()
-      return
+      return saved?.id ?? scheduledCardPaymentID(accountID: accountID, statementDate: statementDate)
     }
     CardScheduleQueue.add(
       QueuedCardSchedule(
@@ -297,44 +373,84 @@ extension AppModel {
       showSaveMessage(message)
     }
     await CardPaymentNotifier.shared.rebuild(model: self)
+    if sendsNow {
+      // A background Scheduled: send it while iOS still gives us time, so the
+      // confirmation can open the schedule it made.
+      await drainCardPaymentQueue()
+      return scheduledCardPaymentID(accountID: accountID, statementDate: statementDate)
+    }
     Task { @MainActor [weak self] in
       await self?.drainCardPaymentQueue()
     }
+    return nil
+  }
+
+  /// The schedule covering a cycle, once the server has confirmed one.
+  func scheduledCardPaymentID(accountID: String, statementDate: String) -> String? {
+    if case .scheduled(let id, _, _, _) = cardPayments.cycle(accountID: accountID, statementDate: statementDate)?.coverage {
+      return id
+    }
+    return nil
   }
 
   /// Creates the schedule under the shared key. A replay of a schedule that
   /// was since deleted, or a 409 because the key was used for a different
   /// payment, retries with a fresh key, but only while the statement is
   /// still unpaid. Returns nil when it turned out to be covered already.
+  /// Throws `CardScheduleSendError` for a server answer, `APIClientError`
+  /// when the session expired, and the transport's error when offline.
   private func createCardSchedule(
     accountID: String,
     statementDate: String,
     request: ScheduledTransactionWriteRequest
   ) async throws -> ScheduledTransaction? {
     let planID = settings.planID
-    do {
-      let created = try await apiClient.createScheduledTransaction(
-        planID: planID,
-        idempotencyKey: CardPaymentFormat.idempotencyKey(accountID: accountID, statementDate: statementDate),
-        request: request
-      )
-      if !created.deleted {
-        return created
+    let client = apiClient
+    func send(_ key: String) async throws -> ScheduledTransaction? {
+      let reply = try await client.cardScheduleCreate(planID: planID, idempotencyKey: key, request: request)
+      switch reply.status {
+      case 200 ..< 300:
+        guard let saved = client.outboxScheduledTransaction(in: reply) else {
+          // The same key replays it next time.
+          throw CardScheduleSendError.transient("The server's reply could not be read.")
+        }
+        return saved
+      case 401:
+        throw APIClientError.authenticationExpired
+      case 409:
+        return nil
+      case 408, 429, 500...:
+        throw CardScheduleSendError.transient(reply.message)
+      default:
+        throw CardScheduleSendError.refused(reply.message)
       }
-    } catch APIClientError.conflict(_) {
-      // Fall through to the retry below.
     }
-    let fresh = try await apiClient.fetchCardPayments(planID: planID)
-    if let cycle = fresh.cycles.first(where: { $0.accountID == accountID && $0.statementDate == statementDate }),
-       cycle.coverage.isCovered {
+    if let created = try await send(CardPaymentFormat.idempotencyKey(accountID: accountID, statementDate: statementDate)),
+       !created.deleted {
+      return created
+    }
+    let fresh: CardPaymentsPayload
+    do {
+      fresh = try await client.fetchCardPayments(planID: planID)
+    } catch APIClientError.authenticationExpired {
+      throw APIClientError.authenticationExpired
+    } catch let error as APIClientError {
+      throw CardScheduleSendError.transient(error.localizedDescription)
+    }
+    guard let cycle = fresh.cycles.first(where: { $0.accountID == accountID && $0.statementDate == statementDate }) else {
+      throw CardScheduleSendError.refused("This statement is no longer due.")
+    }
+    if cycle.coverage.isCovered {
       return nil
     }
     let suffix = String(UUID().uuidString.lowercased().prefix(8))
-    return try await apiClient.createScheduledTransaction(
-      planID: planID,
-      idempotencyKey: CardPaymentFormat.idempotencyKey(accountID: accountID, statementDate: statementDate, suffix: suffix),
-      request: request
+    let retried = try await send(
+      CardPaymentFormat.idempotencyKey(accountID: accountID, statementDate: statementDate, suffix: suffix)
     )
+    guard let retried, !retried.deleted else {
+      throw CardScheduleSendError.refused("The server would not take this schedule.")
+    }
+    return retried
   }
 
   static func cardScheduleRequest(
@@ -359,9 +475,12 @@ extension AppModel {
     )
   }
 
-  /// Sends queued Scheduled taps for this connection. Offline leaves them
-  /// queued; a conflict means the schedule already exists (the same key from
-  /// another tap) and counts as done; any other refusal drops it and says so.
+  /// Sends queued Scheduled taps for this connection. It first reads a fresh
+  /// view: a tap for a statement already covered elsewhere, or no longer in
+  /// the view, is dropped with a message. Offline, a 5xx, 408 or 429 leave
+  /// the tap queued; a conflict means the schedule already exists (the same
+  /// key from another tap) and counts as done; any other refusal drops it
+  /// and says so.
   func drainCardPaymentQueue() async {
     guard settings.isAuthenticated, !settings.isLocal, !isDrainingCardQueue else {
       return
@@ -373,10 +492,29 @@ extension AppModel {
     }
     isDrainingCardQueue = true
     defer { isDrainingCardQueue = false }
+    let fresh: CardPaymentsPayload
+    do {
+      fresh = try await apiClient.fetchCardPayments(planID: settings.planID)
+    } catch {
+      // Offline, signed out or a passing failure: keep every tap for later.
+      return
+    }
     var changed = false
     queueLoop: for item in items {
       guard fingerprint == settings.connectionFingerprint else {
         break queueLoop
+      }
+      let name = account(withID: item.accountID)?.name ?? "this card"
+      let cycle = fresh.cycles.first { $0.accountID == item.accountID && $0.statementDate == item.statementDate }
+      guard let cycle, !cycle.coverage.isCovered else {
+        CardScheduleQueue.remove(id: item.id, fingerprint: fingerprint)
+        showSaveMessage(
+          cycle == nil
+            ? "Didn’t schedule \(name): that statement is no longer due."
+            : "Didn’t schedule \(name) again: it is already paid or scheduled."
+        )
+        changed = true
+        continue queueLoop
       }
       do {
         let saved = try await createCardSchedule(
@@ -402,19 +540,14 @@ extension AppModel {
           )
         }
         changed = true
-      } catch let error as APIClientError {
-        if case .authenticationExpired = error {
-          break queueLoop
-        }
-        if case .httpStatus(let code) = error, code >= 500 || code == 408 || code == 429 {
-          continue queueLoop
-        }
+      } catch CardScheduleSendError.transient(_) {
+        continue queueLoop
+      } catch CardScheduleSendError.refused(let message) {
         CardScheduleQueue.remove(id: item.id, fingerprint: fingerprint)
-        let name = account(withID: item.accountID)?.name ?? "this card"
-        showSaveMessage("Couldn’t schedule \(name): \(error.localizedDescription)", kind: .failure)
+        showSaveMessage("Couldn’t schedule \(name): \(message)", kind: .failure)
         changed = true
       } catch {
-        // Offline or unreachable: keep it for the next drain.
+        // Signed out, offline or unreachable: keep it for the next drain.
         break queueLoop
       }
     }
@@ -443,7 +576,7 @@ extension AppModel {
     draft.payeeName = payee.name
     draft.transferAccountID = accountID
     draft.date = .now
-    draft.memo = "Card payment, statement \(CardPaymentFormat.day(statementDate))"
+    draft.memo = cardPaymentMemo(accountID: accountID, statementDate: statementDate)
     try commit(draft)
     projectCardCoverage(
       accountID: accountID,
@@ -453,20 +586,24 @@ extension AppModel {
   }
 
   /// Writes the card's usual choices back to its terms, so the next cycle
-  /// completes from the notification.
+  /// completes from the notification. A nil `rule` (a one-off Other amount)
+  /// keeps the amount rule as it is. The terms are read again first, so an
+  /// edit made on the web since the last fetch is not reverted.
   func rememberCardPaymentDefaults(
     accountID: String,
     fundingAccountID: String,
-    rule: CardAmountRule,
-    fixedAmount: Int?,
+    rule: CardAmountRule?,
     payDaysBeforeDue: Int?
   ) async throws {
-    guard var terms = cardPayments.terms(for: accountID) else {
+    let latest = try? await apiClient.fetchCardPaymentTerms(planID: settings.planID)
+    guard var terms = latest?.first(where: { $0.accountID == accountID }) ?? cardPayments.terms(for: accountID) else {
       return
     }
     terms.defaultFundingAccountID = fundingAccountID
-    terms.defaultAmountRule = rule
-    terms.defaultAmountMilli = rule == .fixed ? fixedAmount : nil
+    if let rule, rule != .fixed {
+      terms.defaultAmountRule = rule
+      terms.defaultAmountMilli = nil
+    }
     if let payDaysBeforeDue {
       terms.payDaysBeforeDue = min(max(payDaysBeforeDue, 0), 10)
     }
@@ -507,5 +644,17 @@ extension CardCycleMaths {
       }
     }
     return count
+  }
+}
+
+/// Lets the first of two main-actor tasks resume a continuation, once.
+@MainActor
+final class CardRaceGate {
+  private var claimed = false
+
+  func claim() -> Bool {
+    guard !claimed else { return false }
+    claimed = true
+    return true
   }
 }

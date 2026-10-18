@@ -57,6 +57,7 @@ struct RemindersSettingsSection: View {
     } footer: {
       VStack(alignment: .leading, spacing: 6) {
         Text("Card payment reminders stay on this \(UIDevice.current.model). Due-day and overdue reminders are Time Sensitive, so they can show during a Focus; you can turn that off for Halation in the Settings app. The badge counts cards overdue or due today and not yet scheduled.")
+        Text("Open Halation at least once a month so reminders keep being added.")
         if notifier.truncated {
           Text("Reminders for the next cycle will be added closer to the date.")
         }

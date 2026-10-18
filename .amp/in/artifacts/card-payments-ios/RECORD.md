@@ -1,7 +1,7 @@
 # iOS card payment reminders: validation record
 
 - Revision under test: `c42fc3ad33ab93edacd265b8c6aaa65ae4bfa5ed` (branch `claude/project-thread-gnrkc7`), checked out detached and clean on a Devin macOS runner.
-- Runner session: https://app.devin.ai/sessions/d290cc4d0ff24e3085d67baa9fc30169 (read-only: no commits, pushes or Speedflight).
+- Runner: a Devin macOS session (read-only: no commits, pushes or Speedflight).
 - Command: `scripts/ios-xcodebuild.sh test` from the repository root, simulator accessibility enabled per `apps/ios/AGENTS.md`, iPhone 17 simulator, iOS 26.5.
 - Fixture: a fresh local-mode install ("Start on this iPhone") with synthetic data only: Account B (Checking, 5,000.00), Card A ending 0000 (Credit Card, 1,234.56 owed), Card C ending 1111 (Credit Card, 412.00 owed). Simulator date 18 Oct 2026.
 - Screenshots: `/mnt/project-files/payment-reminders/screens/ios/01` to `15` (not committed; the repository is public and these are review artefacts outside it).
