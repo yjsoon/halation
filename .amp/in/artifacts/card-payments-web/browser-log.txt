@@ -27,10 +27,39 @@ PASS API: one-off transfer Everyday -> Travel Card on 26 Oct for the statement b
 PASS API: coverage scheduled, pointing at that schedule
 PASS create sent Idempotency-Key card-pay:acct-credit:2026-10-03
 after delete: row back to Unscheduled
-create keys: ["card-pay:acct-credit:2026-10-03","card-pay:acct-credit:2026-10-03","card-pay:acct-credit:2026-10-03:10bceab2"]
+create keys: ["card-pay:acct-credit:2026-10-03","card-pay:acct-credit:2026-10-03","card-pay:acct-credit:2026-10-03:372d925d"]
 PASS re-scheduling after delete creates a new live schedule
 PASS second save replayed the base key, then used a suffixed key
 PASS register dialog loads saved terms
 PASS no horizontal page scroll at 390px (overflow 0)
 row (posted): Travel Card 3 Oct Wed 28 Oct $64,830.80 recorded min $1,944.93 Posted 18 Oct, awaiting approval Terms
 PASS API: coverage posted, unapproved after Enter now
+seeded states: {"card_b":"acct_1f75bef9-2125-4818-9d95-a08ee5b76d76","card_c":"acct_4596cbbe-3998-45df-92bd-da26b58e8a05","card_d":"acct_bb3c76ab-19d6-4e5e-bd4e-27b6410cb12b"}
+PASS B2: Card C set up today is not overdue for a due date before setup
+backdated 1 row(s)
+PASS API: Card B partial, Card C overdue (carried), Card D settled
+PASS partial row keeps Schedule…
+PASS carried overdue row offers Schedule…
+PASS settled row has no Schedule…
+PASS settled row shows the next statement
+row B: Card B 3 Oct Wed 28 Oct $500.00 recorded min $50.00 $20.00 of $500.00 paid Schedule…Terms
+row C: Card C 15 Oct Mon 9 Nov $300.00 recorded min $50.00 Overdue since 12 Oct Schedule…Terms
+row D: Card D 3 Oct Wed 28 Oct $200.00 recorded min $50.00 Nothing owed now Next: statement 3 Nov, due Mon 30 Nov Terms
+Card B prefill: amount -480, date 2026-10-26, min 2026-10-18, max 2026-11-03, memo Card B statement 3 Oct
+PASS partial prefill pays the remaining 480.00
+PASS date picker limited to today..window end (3 Nov)
+PASS shared memo format
+out-of-window validation: rangeOverflow=true message="Value must be 11/03/2026 or earlier."
+PASS a date after the window is refused (form stays open, nothing sent)
+409 then covered: Could not update scheduled transactions. This statement already has a payment scheduled or recorded, so nothing was scheduled. Payments due has been refreshed.
+PASS 409 then covered: clear message, editor closed
+PASS the page created nothing; only the two other-device schedules exist
+Card C prefill: amount -300, date 2026-10-18; note: Statement 15 Oct, due 9 Nov 2026. The 15 Sep statement ($300.00) went unpaid past 12 Oct. Check your statement for the actual amount and change it here if it differs. Pay between 18 Oct and 15 Nov for it to count for this statement.
+PASS overdue prefill: 300.00 today
+PASS note names the unpaid previous statement
+Card C after: {"state":"scheduled","scheduled_transaction_id":"scheduled_1f39ac916dd63a3cbc553202","pay_date":"2026-10-18","amount":300000,"funding_account_id":"acct-everyday"} previous_unpaid={"statement_date":"2026-09-15","due_date":"2026-10-12","statement_balance":300000,"minimum_due":50000}
+PASS scheduled row still warns about the unpaid previous statement
+closed 1 account(s)
+PASS closed paying account dropped (shows "Choose an account")
+PASS dialog explains the dropped account
+PASS no horizontal page scroll at 390px with all states

@@ -571,3 +571,7 @@
 .card-terms-footer .organiser-danger-link {
   margin-right: auto;
 }
+
+.card-terms-field-warning {
+  color: var(--red);
+}

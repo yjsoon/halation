@@ -4,7 +4,8 @@ Feature: web Payments due panel on `/scheduled`, Schedule… through the existin
 
 ## Revision
 
-- Base commit `86b96de` (backend: card payment terms and the payments-due view) on branch `claude/project-thread-gnrkc7`, plus the web changes committed alongside this record (`apps/web`).
+- First run: base `86b96de` plus the web commit `8d67d66`.
+- Review fix round (this record): backend `cbb2829` (previous_unpaid, created_at, partial, settled, windows) plus the web fixes W1 to W5 committed alongside this record (`apps/web`). Every check below was re-run on that tree.
 - Run date 2026-10-18 (browser and API clock; `as_of` 2026-10-18).
 
 ## Setup
@@ -37,10 +38,27 @@ Feature: web Payments due panel on `/scheduled`, Schedule… through the existin
 | 7a | Phone, Terms | Dialog full screen, single-column fields, footer reachable | As expected (`08-phone-terms-dialog.png`) |
 | 8 | Enter the schedule now | Row reads "Posted 18 Oct, awaiting approval"; API coverage `posted`, `approved: false` | As expected (`09-desktop-panel-posted.png`, `api-05-card-payments-posted.json`) |
 
-Every check in `browser-log.txt` reads PASS; there were no page errors.
+### Review fix round (W1 to W5)
+
+Extra setup, all synthetic: `seed-states.py` (run by the script through the API) adds Card B, Card C and Card D with fake charges and terms, all paying from Everyday Account. `backdate.py` moves Card C's terms `created_at` to 2026-08-01 so its 12 Oct due date falls after setup. `close-account.py` closes Account Z in SQLite, because the API has no close route.
+
+| # | Step | Expected | Observed |
+|---|---|---|---|
+| 9 | Card C before backdating | Not overdue for a due date before setup (B2) | `unscheduled`, `previous_unpaid` null (`api-06-...json`) |
+| 10 | Panel with the new states (W1) | Card B "$20.00 of $500.00 paid" with Schedule…; Card C "Overdue since 12 Oct" with Schedule…; Card D "Nothing owed now", no Schedule…, next statement line | As expected (`10-desktop-panel-states.png`, `api-07-...json`) |
+| 11 | Card B Schedule… (W2, W3) | Amount -480 (the remainder); date 26 Oct; date picker min 18 Oct (today) and max 3 Nov (`window_end`); memo exactly "Card B statement 3 Oct" | As expected |
+| 11a | Set the date to 10 Nov and save | Refused; editor stays open; nothing sent | Native range check refuses ("Value must be 11/03/2026 or earlier."); no POST sent (`11-desktop-window-validation.png`). If the native check is bypassed, the editor's own check refuses the date too |
+| 12 | Another device schedules Card B first with the shared key and a different amount, then this page saves (W3, W4) | The page's save gets a 409, re-reads the cycle, finds it covered, creates nothing, closes the editor, refreshes the panel and explains | Alert "This statement already has a payment scheduled or recorded, so nothing was scheduled. Payments due has been refreshed."; editor closed; row reads Scheduled; only the two other-device schedules exist (`12-desktop-409-covered.png`, `api-08-...json`) |
+| 13 | Card C Schedule…, carried overdue | Amount -300, date today (18 Oct); note names the unpaid 15 Sep statement; after saving, the row reads Scheduled and still warns "Previous statement 15 Sep unpaid, due 12 Oct" | As expected; API coverage `scheduled` with `previous_unpaid` kept (`13-desktop-overdue-scheduled.png`, `api-09-...json`) |
+| 14 | Card D terms paying from Account Z, Account Z closed, open Terms (W5) | Pay from shows "Choose an account" with a note that the account is closed | As expected (`14-desktop-terms-closed-account.png`) |
+| 15 | Phone width with every state | No horizontal page scroll | Overflow 0px (`15-phone-panel-states.png`) |
+
+A "refuse if the cycle is missing after a 409" case is in the code: it shows "This statement is no longer in Payments due, so nothing was scheduled." It was not driven, because the stack cannot drop a cycle in the middle of a save.
+
+Every check in `browser-log.txt` reads PASS (45 checks); there were no page errors.
 
 ## Notes
 
 - The amounts show the plan's currency symbol (`$` in the demo plan); a Singapore-dollar plan shows `S$`.
-- Not driven here: the "Reminders off" row for disabled terms, the fixed-amount and minimum rules feeding Schedule…, and Remove reminders. They use the same routes the run exercised.
+- Not driven here: the "Reminders off" row for disabled terms, the fixed-amount and minimum rules feeding Schedule…, Remove reminders, and a `paid` row. They use the same routes the run exercised.
 - No web notifications and no Paid button, by design (decision 7).

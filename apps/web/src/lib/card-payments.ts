@@ -1,6 +1,7 @@
 import type { Account, CardPaymentCycle, CardPaymentTerms } from "../api/types";
 import { formatDayMonth } from "./dates";
 import { stableHash } from "./hash";
+import { formatMoney } from "./money";
 
 /** Account types that can carry card payment terms; the server refuses the rest. */
 export const CARD_ACCOUNT_TYPES: ReadonlySet<string> = new Set(["creditCard", "lineOfCredit"]);
@@ -35,20 +36,47 @@ export function cardPaymentKey(accountId: string, statementDate: string, suffix?
   return `card-pay:${stableHash(clean)}${stableHash(`${clean}#`)}:${statementDate}`;
 }
 
-/** A statement with something owed and nothing in place to pay it. */
+/** Partial, overdue and unscheduled cycles are not covered: reminders continue and Schedule… is offered. */
 export function needsScheduling(cycle: CardPaymentCycle): boolean {
-  return cycle.statement_balance > 0 && (cycle.coverage.state === "unscheduled" || cycle.coverage.state === "overdue");
+  const coverage = cycle.coverage;
+  if (coverage.state === "partial") return coverage.remaining_amount > 0;
+  if (coverage.state === "overdue") return true;
+  return coverage.state === "unscheduled" && (cycle.statement_balance > 0 || cycle.previous_unpaid !== null);
+}
+
+/** What is still owed for the cycle: the statement (or a carried unpaid one), less anything already paid in the window. */
+function outstanding(cycle: CardPaymentCycle): number {
+  const coverage = cycle.coverage;
+  if (coverage.state === "partial") return coverage.remaining_amount;
+  const owed = Math.max(cycle.statement_balance, cycle.previous_unpaid?.statement_balance ?? 0);
+  const paid = coverage.state === "overdue" ? coverage.paid_amount : 0;
+  return Math.max(owed - paid, 0);
 }
 
 /** The positive amount the card's usual rule would pay this cycle. */
 export function usualPaymentAmount(cycle: CardPaymentCycle, terms: CardPaymentTerms | undefined): number {
-  if (terms?.default_amount_rule === "minimum") return cycle.minimum_due;
+  const remaining = outstanding(cycle);
+  if (terms?.default_amount_rule === "minimum") {
+    const paid = cycle.coverage.state === "partial" || cycle.coverage.state === "overdue" ? cycle.coverage.paid_amount : 0;
+    const minimum = Math.max(cycle.minimum_due, cycle.previous_unpaid?.minimum_due ?? 0);
+    return Math.min(Math.max(minimum - paid, 0), remaining);
+  }
   if (terms?.default_amount_rule === "fixed" && terms.default_amount_milli && terms.default_amount_milli > 0) return terms.default_amount_milli;
-  return Math.max(cycle.statement_balance, 0);
+  return remaining;
 }
 
+/** The suggested pay day, kept inside the cycle's payment window and not in the past. */
+export function payDateFor(cycle: CardPaymentCycle, today: string): string {
+  const floor = today > cycle.window_start ? today : cycle.window_start;
+  const date = cycle.default_pay_date < floor ? floor : cycle.default_pay_date;
+  return date > cycle.window_end ? cycle.window_end : date;
+}
+
+const MEMO_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Shared with iOS, exactly: "<card account name> statement <d MMM>", e.g. "Card A statement 3 Oct", whatever the plan's date format. */
 export function cardPaymentMemo(cardName: string, statementDate: string): string {
-  return `${cardName} statement ${formatDayMonth(statementDate)}`;
+  return `${cardName} statement ${Number(statementDate.slice(8, 10))} ${MEMO_MONTHS[Number(statementDate.slice(5, 7)) - 1]}`;
 }
 
 export type CoverageTone = "needs" | "scheduled" | "posted" | "paid" | "overdue" | "quiet";
@@ -62,9 +90,13 @@ export function coverageStatus(cycle: CardPaymentCycle, accountNames: Map<string
       return { label: `Posted ${formatDayMonth(coverage.date)}, awaiting approval`, tone: "posted" };
     case "paid":
       return { label: `Paid ${formatDayMonth(coverage.date)}`, tone: "paid" };
+    case "settled":
+      return { label: "Nothing owed now", tone: "paid" };
+    case "partial":
+      return { label: `${formatMoney(coverage.paid_amount)} of ${formatMoney(coverage.paid_amount + coverage.remaining_amount)} paid`, tone: "needs" };
     case "overdue":
-      return { label: `Overdue since ${formatDayMonth(cycle.due_date)}`, tone: "overdue" };
+      return { label: `Overdue since ${formatDayMonth(coverage.since)}`, tone: "overdue" };
     default:
-      return cycle.statement_balance > 0 ? { label: "Unscheduled", tone: "needs" } : { label: "Nothing to pay", tone: "quiet" };
+      return cycle.statement_balance > 0 || cycle.previous_unpaid ? { label: "Unscheduled", tone: "needs" } : { label: "Nothing to pay", tone: "quiet" };
   }
 }

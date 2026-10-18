@@ -104,7 +104,8 @@ function CardPaymentRow({ row, accountNames, busy, onSchedule, onEditSchedule, o
     );
   }
   const status = coverageStatus(current, accountNames);
-  const settled = current.coverage.state === "paid" || current.statement_balance <= 0;
+  const settled = (current.coverage.state === "paid" || current.coverage.state === "settled" || current.statement_balance <= 0) && !current.previous_unpaid;
+  const previous = current.previous_unpaid;
   const coverage = current.coverage;
   return (
     <tr className={`card-payment-row card-payment-row-${status.tone}`}>
@@ -121,6 +122,8 @@ function CardPaymentRow({ row, accountNames, busy, onSchedule, onEditSchedule, o
       <td>
         <span className={`card-payment-status card-payment-status-${status.tone}`}>{status.label}</span>
         {coverage.state === "scheduled" && coverage.amount !== current.statement_balance && <span className="card-payment-minimum">{formatMoney(coverage.amount)} scheduled</span>}
+        {coverage.state === "overdue" && coverage.paid_amount > 0 && <span className="card-payment-minimum">{formatMoney(coverage.paid_amount)} paid so far</span>}
+        {previous && coverage.state !== "overdue" && <span className="card-payment-warning">Previous statement {formatDayMonth(previous.statement_date)} unpaid, due {formatDayMonth(previous.due_date)}</span>}
         {settled && next && <div className="card-payment-next">Next: statement {formatDayMonth(next.statement_date)}, due {formatWeekdayDayMonth(next.due_date)}</div>}
       </td>
       <td className="schedule-actions">

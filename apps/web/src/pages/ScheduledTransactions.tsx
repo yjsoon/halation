@@ -5,7 +5,7 @@ import { CardPaymentsPanel } from "../components/CardPaymentsPanel";
 import { CardTermsDialog } from "../components/CardTermsDialog";
 import { CategorySelect } from "../components/CategorySelect";
 import { FlagPicker, FlagTag } from "../components/FlagTag";
-import { cardPaymentKey, cardPaymentMemo, isCardAccount, needsScheduling, usualPaymentAmount } from "../lib/card-payments";
+import { cardPaymentKey, cardPaymentMemo, isCardAccount, needsScheduling, payDateFor, usualPaymentAmount } from "../lib/card-payments";
 import { splitCategoryGroups } from "../lib/categories";
 import { formatDate, formatDayMonth, todayIso } from "../lib/dates";
 import { stableHash } from "../lib/hash";
@@ -21,7 +21,9 @@ import { StatusPanel } from "../components/StatusPanel";
 type ScheduleGroup = { date: string; schedules: ScheduledTransaction[] };
 type EditorState = { mode: "create" } | { mode: "edit"; schedule: ScheduledTransaction } | { mode: "card"; cycle: CardPaymentCycle; prefill: SchedulePrefill };
 /** Starting values for a new schedule, such as a card payment from Payments due. */
-type SchedulePrefill = { key: string; accountId: string; transferAccountId: string; amount: number; date: string; frequency: string; memo: string; heading: string; note: string };
+type SchedulePrefill = { key: string; accountId: string; transferAccountId: string; amount: number; date: string; dateMin?: string; dateMax?: string; frequency: string; memo: string; heading: string; note: string };
+/** The statement is covered or gone by the time the save landed: close the editor and refresh rather than create anything. */
+class CardPaymentStaleError extends Error {}
 type PendingDeletion = { schedule: ScheduledTransaction; idempotencyKey: string };
 type PendingEntry = { schedule: ScheduledTransaction; occurrenceDate: string; enteredDate: string; operationSeed: string; idempotencyKey: string };
 type SplitDraft = { key: string; sourceId?: string; amount: string; payeeId: string; categoryId: string; transferAccountId: string; memo: string };
@@ -89,7 +91,14 @@ export function ScheduledTransactionsPage() {
 
   const openCardSchedule = (cycle: CardPaymentCycle, terms: CardPaymentTerms) => {
     const cardName = accountNames.get(cycle.account_id) ?? "Card";
-    const funding = terms.default_funding_account_id && accounts.some((account) => account.id === terms.default_funding_account_id && !account.closed) ? terms.default_funding_account_id : "";
+    const funding = terms.default_funding_account_id && accounts.some((account) => account.id === terms.default_funding_account_id && !account.closed && !account.deleted) ? terms.default_funding_account_id : "";
+    const today = todayIso();
+    const previous = cycle.previous_unpaid;
+    const owedNote = cycle.coverage.state === "partial"
+      ? `${formatMoney(cycle.coverage.paid_amount)} paid so far, ${formatMoney(cycle.coverage.remaining_amount)} left.`
+      : previous
+        ? `The ${formatDayMonth(previous.statement_date)} statement (${formatMoney(previous.statement_balance)}) went unpaid past ${formatDayMonth(previous.due_date)}.`
+        : `${formatMoney(cycle.statement_balance)} recorded so far.`;
     setEditor({
       mode: "card",
       cycle,
@@ -98,11 +107,13 @@ export function ScheduledTransactionsPage() {
         accountId: funding,
         transferAccountId: cycle.account_id,
         amount: -usualPaymentAmount(cycle, terms),
-        date: cycle.default_pay_date,
+        date: payDateFor(cycle, today),
+        dateMin: today > cycle.window_start ? today : cycle.window_start,
+        dateMax: cycle.window_end,
         frequency: "never",
         memo: cardPaymentMemo(cardName, cycle.statement_date),
         heading: `Schedule ${cardName} payment`,
-        note: `Statement ${formatDayMonth(cycle.statement_date)}, due ${formatDate(cycle.due_date)}. ${formatMoney(cycle.statement_balance)} recorded so far. Check your statement for the actual amount and change it here if it differs.`,
+        note: `Statement ${formatDayMonth(cycle.statement_date)}, due ${formatDate(cycle.due_date)}. ${owedNote} Check your statement for the actual amount and change it here if it differs. Pay between ${formatDayMonth(today > cycle.window_start ? today : cycle.window_start)} and ${formatDayMonth(cycle.window_end)} for it to count for this statement.`,
       },
     });
     setMutationError(null);
@@ -117,7 +128,8 @@ export function ScheduledTransactionsPage() {
     const retry = async () => {
       const view = await api.cardPayments(planId);
       const fresh = view.cycles.find((candidate) => candidate.account_id === cycle.account_id && candidate.statement_date === cycle.statement_date);
-      if (fresh && !needsScheduling(fresh)) throw new Error("This statement already has a payment scheduled or recorded. Payments due has been refreshed.");
+      if (!fresh) throw new CardPaymentStaleError("This statement is no longer in Payments due, so nothing was scheduled. Payments due has been refreshed.");
+      if (!needsScheduling(fresh)) throw new CardPaymentStaleError("This statement already has a payment scheduled or recorded, so nothing was scheduled. Payments due has been refreshed.");
       await api.createScheduledTransaction(planId, input, cardPaymentKey(cycle.account_id, cycle.statement_date, crypto.randomUUID().slice(0, 8)));
     };
     try {
@@ -146,6 +158,7 @@ export function ScheduledTransactionsPage() {
       setEditor(null);
       refresh();
     } catch (cause) {
+      if (cause instanceof CardPaymentStaleError) { setEditor(null); refresh(); }
       setMutationError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setMutatingId(null);
@@ -367,6 +380,7 @@ function ScheduleEditorForm({ schedule, prefill, accounts, categoryGroups, payee
     const parsedAmount = isSplit ? splitTotal : parseMilliunits(amount);
     if (!accountId) { setValidationError("Choose the account this schedule uses."); return; }
     if (nextDate < firstDate) { setValidationError("Next date cannot be earlier than the first date."); return; }
+    if (prefill && !schedule && [firstDate, nextDate].some((date) => (prefill.dateMin && date < prefill.dateMin) || (prefill.dateMax && date > prefill.dateMax))) { setValidationError(`Choose a date from ${formatDate(prefill.dateMin ?? firstDate)} to ${formatDate(prefill.dateMax ?? firstDate)} so the payment counts for this statement.`); return; }
     if (parsedAmount === null) { setValidationError("Enter an amount with no more than three decimal places."); return; }
     if (isSplit && splitLines.some((line) => parseMilliunits(line.amount) === null)) { setValidationError("Every split line needs a valid signed amount."); return; }
     const input: ScheduledTransactionInput = { account_id: accountId, date_first: firstDate, date_next: nextDate || null, frequency, amount: parsedAmount, memo: memo.trim() || null, flag_color: flagColor || null, subtransactions: isSplit ? splitLines.map((line) => ({ ...(line.sourceId ? { id: line.sourceId } : {}), amount: parseMilliunits(line.amount)!, payee_id: line.payeeId || null, category_id: line.transferAccountId ? null : line.categoryId || null, transfer_account_id: line.transferAccountId || null, memo: line.memo.trim() || null })) : [] };
@@ -385,7 +399,7 @@ function ScheduleEditorForm({ schedule, prefill, accounts, categoryGroups, payee
     <div className="section-heading"><div><span className="section-title" id="schedule-editor-heading">{schedule ? "Edit scheduled transaction" : prefill?.heading ?? "Add scheduled transaction"}</span><span className="section-meta">{schedule ? "Changes apply to future repeats." : prefill?.note ?? "Add a repeating transaction."}</span></div><button type="button" className="text-button" onClick={onCancel} disabled={saving}>Cancel</button></div>
     <form className="transaction-editor-form" onSubmit={(event) => void submit(event)}>
       <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">Account</span><select ref={firstFieldRef} value={accountId} onChange={(event) => setAccountId(event.target.value)} required><option value="">Choose account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.closed ? " (closed)" : ""}</option>)}</select></label><label className="field"><span className="field-label">Amount</span><input type="text" inputMode="decimal" value={isSplit ? formatMilliunitsField(splitTotal) : amount} onChange={(event) => setAmount(event.target.value)} disabled={isSplit} required /><span className="field-note">Use a minus sign for outflow. Amounts use up to three decimal places.</span></label></div>
-      <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">First date</span><input type="date" value={firstDate} onChange={(event) => setFirstDate(event.target.value)} required /></label><label className="field"><span className="field-label">Next date</span><input type="date" value={nextDate} onChange={(event) => setNextDate(event.target.value)} required /></label><label className="field"><span className="field-label">Repeat</span><select value={frequency} onChange={(event) => setFrequency(event.target.value)}>{FREQUENCIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
+      <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">First date</span><input type="date" value={firstDate} min={schedule ? undefined : prefill?.dateMin} max={schedule ? undefined : prefill?.dateMax} onChange={(event) => { const value = event.target.value; if (prefill && !schedule && nextDate === firstDate) setNextDate(value); setFirstDate(value); }} required /></label><label className="field"><span className="field-label">Next date</span><input type="date" value={nextDate} min={schedule ? undefined : prefill?.dateMin} max={schedule ? undefined : prefill?.dateMax} onChange={(event) => setNextDate(event.target.value)} required /></label><label className="field"><span className="field-label">Repeat</span><select value={frequency} onChange={(event) => setFrequency(event.target.value)}>{FREQUENCIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
       {!isSplit && <><label className="field"><span className="field-label">Transfer</span><select value={transferAccountId} onChange={(event) => setTransfer(event.target.value)}><option value="">Not a transfer</option>{accounts.filter((account) => account.id !== accountId).map((account) => <option key={account.id} value={account.id}>Transfer to {account.name}</option>)}</select></label>{!transferAccountId && <><label className="field"><span className="field-label">Payee</span><select value={payeeId} onChange={(event) => setPayeeId(event.target.value)}><option value="">No payee</option>{payees.filter((payee) => !payee.deleted && !payee.transfer_account_id).map((payee) => <option key={payee.id} value={payee.id}>{payee.name}</option>)}</select></label><label className="field"><span className="field-label">Category</span><CategorySelect value={categoryId} onChange={setCategoryId} groups={groups} /></label></>}</>}
       <label className="transaction-editor-checkbox"><input type="checkbox" checked={isSplit} onChange={toggleSplit} /> Split this schedule</label>
       {isSplit && <fieldset className="transaction-editor-splits"><legend>Split lines</legend><p className="split-remainder split-remainder-ok">The schedule total is {formatMoney(splitTotal, { sign: splitTotal > 0 })}.</p>{splitLines.map((line, index) => <div key={line.key} className="transaction-editor-split-line"><label><span className="sr-only">Split line {index + 1} amount</span><input type="text" inputMode="decimal" value={line.amount} onChange={(event) => setSplit(line.key, { amount: event.target.value })} /></label><label><span className="sr-only">Split line {index + 1} transfer</span><select value={line.transferAccountId} onChange={(event) => setSplit(line.key, { transferAccountId: event.target.value, ...(event.target.value ? { categoryId: "", payeeId: "" } : {}) })}><option value="">Not a transfer</option>{accounts.filter((account) => account.id !== accountId).map((account) => <option key={account.id} value={account.id}>To {account.name}</option>)}</select></label>{!line.transferAccountId && <><label><span className="sr-only">Split line {index + 1} payee</span><select value={line.payeeId} onChange={(event) => setSplit(line.key, { payeeId: event.target.value })}><option value="">No payee</option>{payees.filter((payee) => !payee.deleted && !payee.transfer_account_id).map((payee) => <option key={payee.id} value={payee.id}>{payee.name}</option>)}</select></label><label><span className="sr-only">Split line {index + 1} category</span><CategorySelect value={line.categoryId} onChange={(value) => setSplit(line.key, { categoryId: value })} groups={groups} /></label></>}<label><span className="sr-only">Split line {index + 1} memo</span><input value={line.memo} onChange={(event) => setSplit(line.key, { memo: event.target.value })} placeholder="Line memo" /></label>{splitLines.length > 2 && <button type="button" className="text-button" onClick={() => setSplitLines((lines) => lines.filter((item) => item.key !== line.key))}>Remove</button>}</div>)}<button type="button" className="text-button" onClick={() => setSplitLines((lines) => [...lines, { key: draftKey(), amount: "0", payeeId: "", categoryId: "", transferAccountId: "", memo: "" }])}>Add split line</button></fieldset>}

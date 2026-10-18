@@ -4,6 +4,8 @@ const state = JSON.parse(fs.readFileSync("/tmp/howmuch-verify-web/current/state.
 const OUT = "/home/user/howmuch/.amp/in/artifacts/card-payments-web";
 const log = [];
 const { execSync } = require("child_process");
+const ENV = { ...process.env, HOWMUCH_VERIFY_STATE_ROOT: "/tmp/howmuch-verify-web", PATH: `/home/user/howmuch/.cursor/skills/verify-howmuch/bin:${process.env.PATH}` };
+const call = (method, path, body) => { const out = execSync(`control-howmuch http ${method} "${path}" -d '${JSON.stringify(body)}'`, { env: ENV }).toString(); return JSON.parse(out); };
 const http = (path, file) => {
   const out = execSync(`control-howmuch http GET "${path}"`, { env: { ...process.env, HOWMUCH_VERIFY_STATE_ROOT: "/tmp/howmuch-verify-web", PATH: `/home/user/howmuch/.cursor/skills/verify-howmuch/bin:${process.env.PATH}` } }).toString();
   fs.writeFileSync(`${OUT}/${file}`, out);
@@ -171,6 +173,107 @@ const expect = (cond, label) => { note(`${cond ? "PASS" : "FAIL"} ${label}`); if
   await page.screenshot({ path: `${OUT}/09-desktop-panel-posted.png`, fullPage: true });
   const posted = http("/v1/plans/local-plan/card_payments", "api-05-card-payments-posted.json").data.cycles.find((c) => c.account_id === "acct-credit" && c.cycle === "current");
   expect(posted.coverage.state === "posted" && posted.coverage.approved === false, "API: coverage posted, unapproved after Enter now");
+
+  // ---- Review round: new coverage states on synthetic cards ----
+  const ids = JSON.parse(execSync(`python3 ${__dirname}/seed-states.py`, { env: ENV }).toString());
+  note(`seeded states: ${JSON.stringify(ids)}`);
+  const termsBeforeBackdate = http("/v1/plans/local-plan/card_payments", "api-06-card-payments-before-backdate.json").data.cycles.find((c) => c.account_id === ids.card_c && c.cycle === "current");
+  expect(termsBeforeBackdate.coverage.state === "unscheduled" && termsBeforeBackdate.previous_unpaid === null, "B2: Card C set up today is not overdue for a due date before setup");
+  note(execSync(`python3 ${__dirname}/backdate.py ${ids.card_c}`).toString().trim());
+  const states = http("/v1/plans/local-plan/card_payments", "api-07-card-payments-states.json").data.cycles.filter((c) => c.cycle === "current");
+  const cur = (id) => states.find((c) => c.account_id === id);
+  expect(cur(ids.card_b).coverage.state === "partial" && cur(ids.card_c).coverage.state === "overdue" && cur(ids.card_d).coverage.state === "settled", "API: Card B partial, Card C overdue (carried), Card D settled");
+
+  await page.goto(`${state.web_url}/scheduled`);
+  const rowB = page.locator(".card-payment-row", { hasText: "Card B" });
+  const rowC = page.locator(".card-payment-row", { hasText: "Card C" });
+  const rowD = page.locator(".card-payment-row", { hasText: "Card D" });
+  await rowB.getByText("$20.00 of $500.00 paid").waitFor({ timeout: 15000 });
+  expect(await rowB.getByRole("button", { name: "Schedule payment for Card B" }).count() === 1, "partial row keeps Schedule…");
+  await rowC.getByText("Overdue since 12 Oct").waitFor();
+  expect(await rowC.getByRole("button", { name: "Schedule payment for Card C" }).count() === 1, "carried overdue row offers Schedule…");
+  await rowD.getByText("Nothing owed now").waitFor();
+  expect(await rowD.getByRole("button", { name: /Schedule payment/ }).count() === 0, "settled row has no Schedule…");
+  expect((await rowD.innerText()).includes("Next: statement 3 Nov"), "settled row shows the next statement");
+  note(`row B: ${(await rowB.innerText()).replace(/\s+/g, " ")}`);
+  note(`row C: ${(await rowC.innerText()).replace(/\s+/g, " ")}`);
+  note(`row D: ${(await rowD.innerText()).replace(/\s+/g, " ")}`);
+  await page.screenshot({ path: `${OUT}/10-desktop-panel-states.png`, fullPage: true });
+
+  // W3: partial prefill is the remainder, date limited to the window
+  await rowB.getByRole("button", { name: "Schedule payment for Card B" }).click();
+  let ed = page.locator(".schedule-editor");
+  await ed.waitFor();
+  const firstInput = field(ed, "First date");
+  note(`Card B prefill: amount ${await field(ed, "Amount").inputValue()}, date ${await firstInput.inputValue()}, min ${await firstInput.getAttribute("min")}, max ${await firstInput.getAttribute("max")}, memo ${await field(ed, "Memo").inputValue()}`);
+  expect(await field(ed, "Amount").inputValue() === "-480", "partial prefill pays the remaining 480.00");
+  expect(await firstInput.getAttribute("min") === "2026-10-18" && await firstInput.getAttribute("max") === "2026-11-03", "date picker limited to today..window end (3 Nov)");
+  expect(await field(ed, "Memo").inputValue() === "Card B statement 3 Oct", "shared memo format");
+  await firstInput.fill("2026-11-10");
+  await field(ed, "Next date").fill("2026-11-10");
+  await ed.getByRole("button", { name: "Schedule payment" }).click();
+  const postsBefore = keys.filter((k) => k.method === "POST").length;
+  await page.waitForTimeout(500);
+  const overflowFlag = await firstInput.evaluate((el) => el.validity.rangeOverflow);
+  const vmsg = await firstInput.evaluate((el) => el.validationMessage);
+  note(`out-of-window validation: rangeOverflow=${overflowFlag} message="${vmsg}"`);
+  expect(overflowFlag && await ed.count() === 1 && keys.filter((k) => k.method === "POST").length === postsBefore, "a date after the window is refused (form stays open, nothing sent)");
+  await page.screenshot({ path: `${OUT}/11-desktop-window-validation.png`, fullPage: true });
+
+  // W4: another device schedules Card B first (same key, different amount); this save gets 409, sees it covered, closes and refreshes
+  call("POST", "/v1/plans/local-plan/scheduled_transactions", { scheduled_transaction: { account_id: "acct-everyday", transfer_account_id: ids.card_b, date_first: "2026-10-26", frequency: "never", amount: -100000, memo: "Card B statement 3 Oct" } });
+  // control-howmuch sends no Idempotency-Key, so post again with the shared key explicitly
+  execSync(`control-howmuch http POST "/v1/plans/local-plan/scheduled_transactions" -H "idempotency-key: card-pay:${ids.card_b}:2026-10-03" -d '${JSON.stringify({ scheduled_transaction: { account_id: "acct-everyday", transfer_account_id: ids.card_b, date_first: "2026-10-27", frequency: "never", amount: -90000, memo: "Card B statement 3 Oct" } })}'`, { env: ENV });
+  await firstInput.fill("2026-10-26");
+  await field(ed, "Next date").fill("2026-10-26");
+  await ed.getByRole("button", { name: "Schedule payment" }).click();
+  await ed.waitFor({ state: "detached", timeout: 15000 });
+  const alert = await page.getByRole("alert").first().innerText();
+  note(`409 then covered: ${alert.replace(/\s+/g, " ")}`);
+  expect(alert.includes("already has a payment scheduled or recorded, so nothing was scheduled"), "409 then covered: clear message, editor closed");
+  await rowB.getByText(/Scheduled 2[67] Oct from Everyday Account/).waitFor({ timeout: 15000 });
+  const bSchedules = http("/v1/plans/local-plan/scheduled_transactions", "api-08-card-b-schedules.json").data.scheduled_transactions.filter((x) => !x.deleted && x.transfer_account_id === ids.card_b);
+  expect(bSchedules.length === 2 && !bSchedules.some((x) => x.amount === -480000), "the page created nothing; only the two other-device schedules exist");
+  await page.screenshot({ path: `${OUT}/12-desktop-409-covered.png`, fullPage: true });
+
+  // Carried overdue: Schedule… pays the unpaid statement from today; then the scheduled row still warns about the previous statement
+  await rowC.getByRole("button", { name: "Schedule payment for Card C" }).click();
+  ed = page.locator(".schedule-editor");
+  await ed.waitFor();
+  const noteC = await ed.locator(".section-meta").first().innerText();
+  note(`Card C prefill: amount ${await field(ed, "Amount").inputValue()}, date ${await field(ed, "First date").inputValue()}; note: ${noteC}`);
+  expect(await field(ed, "Amount").inputValue() === "-300" && await field(ed, "First date").inputValue() === "2026-10-18", "overdue prefill: 300.00 today");
+  expect(noteC.includes("15 Sep statement") && noteC.includes("unpaid past 12 Oct"), "note names the unpaid previous statement");
+  await ed.getByRole("button", { name: "Schedule payment" }).click();
+  await ed.waitFor({ state: "detached" });
+  await rowC.getByText(/Scheduled 18 Oct from Everyday Account/).waitFor({ timeout: 15000 });
+  const cAfter = http("/v1/plans/local-plan/card_payments", "api-09-card-payments-c-scheduled.json").data.cycles.find((c) => c.account_id === ids.card_c && c.cycle === "current");
+  note(`Card C after: ${JSON.stringify(cAfter.coverage)} previous_unpaid=${JSON.stringify(cAfter.previous_unpaid)}`);
+  if (cAfter.previous_unpaid) expect((await rowC.innerText()).includes("Previous statement 15 Sep unpaid, due 12 Oct"), "scheduled row still warns about the unpaid previous statement");
+  await page.screenshot({ path: `${OUT}/13-desktop-overdue-scheduled.png`, fullPage: true });
+
+  // W5: Card D's paying account is closed; the dialog drops it
+  const z = call("POST", "/v1/plans/local-plan/accounts", { account: { name: "Account Z", type: "checking", balance: 0 } }).data.account;
+  call("PUT", `/v1/plans/local-plan/accounts/${ids.card_d}/card_payment_terms`, { card_payment_terms: { statement_day: 3, due_gap_days: 25, due_weekend_rule: "next", default_funding_account_id: z.id } });
+  note(execSync(`python3 ${__dirname}/close-account.py ${z.id}`).toString().trim());
+  await page.reload();
+  await page.getByRole("button", { name: "Payment terms for Card D" }).click();
+  const dDialog = page.getByRole("dialog", { name: "Payment reminders for Card D" });
+  await dDialog.waitFor();
+  const payFrom = field(dDialog, "Pay from");
+  const selected = await payFrom.evaluate((el) => el.options[el.selectedIndex].text);
+  expect(await payFrom.inputValue() === "" && selected === "Choose an account", `closed paying account dropped (shows "${selected}")`);
+  expect((await dDialog.innerText()).includes("The account these terms paid from is closed"), "dialog explains the dropped account");
+  await dDialog.locator(".account-organiser-section").nth(1).screenshot({ path: `${OUT}/14-desktop-terms-closed-account.png` });
+  await dDialog.getByRole("button", { name: "Cancel" }).click();
+
+  // Phone width view of the states
+  const phone2 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, storageState: await context.storageState() });
+  const p2 = await phone2.newPage();
+  await p2.goto(`${state.web_url}/scheduled`);
+  await p2.locator(".card-payment-row", { hasText: "Card D" }).getByText("Nothing owed now").waitFor();
+  expect(await p2.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 0, "no horizontal page scroll at 390px with all states");
+  await p2.screenshot({ path: `${OUT}/15-phone-panel-states.png`, fullPage: true });
 
   fs.writeFileSync(`${OUT}/requests.json`, JSON.stringify(keys, null, 2));
   fs.writeFileSync(`${OUT}/browser-log.txt`, log.join("\n") + "\n");

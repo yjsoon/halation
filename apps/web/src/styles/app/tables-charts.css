@@ -814,3 +814,11 @@ tr:hover .share-bar {
   font-family: var(--font-ui);
   font-size: 11.5px;
 }
+
+.card-payment-warning {
+  display: block;
+  margin-top: 2px;
+  color: var(--red);
+  font-size: 11.5px;
+  font-weight: 500;
+}
