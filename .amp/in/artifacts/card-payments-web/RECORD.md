@@ -66,7 +66,15 @@ The run used base `4bf9205`. The backend agent's uncommitted R-B1/R-B2 edits to 
 | 18 | Another device schedules Card C while the tab still shows it overdue, then Schedule… (R-W1) | Schedule… re-reads card payments first, opens no editor, says it is already scheduled, and the panel refreshes to "Scheduled 20 Oct" | As expected (`12b-desktop-stale-open.png`). The prefilled earliest date is also clamped so it never passes `window_end` |
 | 19 | Card B terms paying from Account Y, Account Y deleted, open Terms (R-W4) | "The account these terms paid from is deleted." (Card D's closed account still says "closed") | As expected (`14b-desktop-terms-deleted-account.png`, `14-desktop-terms-closed-account.png`) |
 
-Every check in `browser-log.txt` reads PASS (49 checks); there were no page errors. `bun run verify:worker` exit 0; `bun test` 751 pass, 0 fail.
+### PR #351 review: suggested amount for a carried statement
+
+Card E, synthetic: 500.00 charged before the 3 Sep statement, then 20.00 paid on 10 Sep, below the 50.00 minimum. Its terms are backdated so the due date falls after setup. The API shows Oct `statement_balance` 480000, coverage `overdue` (since 28 Sep, `paid_amount` 0) and `previous_unpaid.statement_balance` 500000 (`api-10-card-e-carried.json`).
+
+| # | Step | Expected | Observed |
+|---|---|---|---|
+| 20 | Card E Schedule… | Amount -480 (the current statement balance less payments in this window), not -500 | -480 (`13b-desktop-carried-partial-prefill.png`) |
+
+Every check in `browser-log.txt` reads PASS (50 checks); there were no page errors. `bun run verify:worker` exit 0; `bun test` 751 pass, 0 fail.
 
 ## Notes
 

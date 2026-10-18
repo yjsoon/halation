@@ -187,6 +187,7 @@ const expect = (cond, label) => { note(`${cond ? "PASS" : "FAIL"} ${label}`); if
   const termsBeforeBackdate = http("/v1/plans/local-plan/card_payments", "api-06-card-payments-before-backdate.json").data.cycles.find((c) => c.account_id === ids.card_c && c.cycle === "current");
   expect(termsBeforeBackdate.coverage.state === "unscheduled" && termsBeforeBackdate.previous_unpaid === null, "B2: Card C set up today is not overdue for a due date before setup");
   note(execSync(`python3 ${__dirname}/backdate.py ${ids.card_c}`).toString().trim());
+  note(execSync(`python3 ${__dirname}/backdate.py ${ids.card_e}`).toString().trim());
   const states = http("/v1/plans/local-plan/card_payments", "api-07-card-payments-states.json").data.cycles.filter((c) => c.cycle === "current");
   const cur = (id) => states.find((c) => c.account_id === id);
   expect(cur(ids.card_b).coverage.state === "partial" && cur(ids.card_c).coverage.state === "overdue" && cur(ids.card_d).coverage.state === "settled", "API: Card B partial, Card C overdue (carried), Card D settled");
@@ -284,6 +285,20 @@ const expect = (cond, label) => { note(`${cond ? "PASS" : "FAIL"} ${label}`); if
   expect((await dDialog.innerText()).includes("The account these terms paid from is closed"), "dialog explains the dropped account");
   await dDialog.locator(".account-organiser-section").nth(1).screenshot({ path: `${OUT}/14-desktop-terms-closed-account.png` });
   await dDialog.getByRole("button", { name: "Cancel" }).click();
+
+  // PR #351 review: a carried partial statement suggests the remaining debt (480.00), not the old statement (500.00)
+  const eCycle = http("/v1/plans/local-plan/card_payments", "api-10-card-e-carried.json").data.cycles.find((c) => c.account_id === ids.card_e && c.cycle === "current");
+  note(`Card E: statement_balance ${eCycle.statement_balance}, coverage ${JSON.stringify(eCycle.coverage)}, previous_unpaid ${JSON.stringify(eCycle.previous_unpaid)}`);
+  await page.reload();
+  const rowE = page.locator(".card-payment-row", { hasText: "Card E" });
+  await rowE.getByRole("button", { name: "Schedule payment for Card E" }).click();
+  const edE = page.locator(".schedule-editor");
+  await edE.waitFor();
+  const amountE = await field(edE, "Amount").inputValue();
+  note(`Card E prefill amount: ${amountE}`);
+  expect(amountE === "-480", "carried partial statement prefills the remaining 480.00, not 500.00");
+  await page.screenshot({ path: `${OUT}/13b-desktop-carried-partial-prefill.png`, fullPage: true });
+  await edE.getByRole("button", { name: "Cancel" }).first().click();
 
   // R-W4: Card B's paying account is deleted; the dialog says deleted
   const y = call("POST", "/v1/plans/local-plan/accounts", { account: { name: "Account Y", type: "checking", balance: 0 } }).data.account;

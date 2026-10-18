@@ -35,4 +35,10 @@ txn(d["id"], "2026-10-01", -200000, payee_name="Shop C", memo="Synthetic charge"
 txn(d["id"], "2026-10-05", 200000, payee_name="Bank A", memo="Synthetic repayment, not a transfer")
 terms(d["id"], 3, 25, "next")
 
-print(json.dumps({"card_b": b["id"], "card_c": c["id"], "card_d": d["id"]}))
+# Card E: 500.00 before the 3 Sep statement, 20.00 paid on 10 Sep (below the 50.00 minimum) -> carried into Oct with 480.00 owed.
+e = account("Card E")
+txn(e["id"], "2026-09-01", -500000, payee_name="Shop D", memo="Synthetic charge")
+txn("acct-everyday", "2026-09-10", -20000, payee_id=e["transfer_payee_id"], memo="Synthetic part payment")
+terms(e["id"], 3, 25, "next")
+
+print(json.dumps({"card_b": b["id"], "card_c": c["id"], "card_d": d["id"], "card_e": e["id"]}))

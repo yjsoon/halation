@@ -27,7 +27,7 @@ PASS API: one-off transfer Everyday -> Travel Card on 26 Oct for the statement b
 PASS API: coverage scheduled, pointing at that schedule
 PASS create sent Idempotency-Key card-pay:acct-credit:2026-10-03
 after delete: row back to Unscheduled
-create keys: ["card-pay:acct-credit:2026-10-03","card-pay:acct-credit:2026-10-03","card-pay:acct-credit:2026-10-03:9a8b06e3"]
+create keys: ["card-pay:acct-credit:2026-10-03","card-pay:acct-credit:2026-10-03","card-pay:acct-credit:2026-10-03:55b655c8"]
 PASS re-scheduling after delete creates a new live schedule
 PASS second save replayed the base key, then used a suffixed key
 PASS register dialog loads saved terms
@@ -36,8 +36,9 @@ row (posted): Travel Card 3 Oct Wed 28 Oct $64,830.80 recorded min $1,944.93 Pos
 PASS API: coverage posted, unapproved after Enter now
 PASS paid row shows the amount: Paid $64,830.80 on 18 Oct
 PASS R-W3 footnote shown
-seeded states: {"card_b":"acct_2e13fae7-67fc-4b4f-a4ba-0798fbdb5638","card_c":"acct_701bdc82-44aa-4546-ae9e-c0eab0916b3e","card_d":"acct_76333f8c-db6f-4fc6-8212-7dfb0ea787ce"}
+seeded states: {"card_b":"acct_e0171f4e-de6e-4504-9ad3-1be8216a5109","card_c":"acct_f6c9408e-a395-4cd6-bfcb-163d966fd8f7","card_d":"acct_446ddba2-4010-43dd-9ad1-186399fdab57","card_e":"acct_c4c2112f-0884-4403-8732-3064117973f3"}
 PASS B2: Card C set up today is not overdue for a due date before setup
+backdated 1 row(s)
 backdated 1 row(s)
 PASS API: Card B partial, Card C overdue (carried), Card D settled
 PASS partial row keeps Schedule…
@@ -60,11 +61,14 @@ PASS stale Schedule… re-reads, refuses and refreshes instead of opening the ed
 Card C prefill: amount -300, date 2026-10-18; note: Statement 15 Oct, due 9 Nov 2026. The 15 Sep statement ($300.00) went unpaid past 12 Oct. Check your statement for the actual amount and change it here if it differs. Pay between 18 Oct and 15 Nov for it to count for this statement.
 PASS overdue prefill: 300.00 today
 PASS note names the unpaid previous statement
-Card C after: {"state":"scheduled","scheduled_transaction_id":"scheduled_6203af9afc8a4b713634c264","pay_date":"2026-10-18","amount":300000,"funding_account_id":"acct-everyday"} previous_unpaid={"statement_date":"2026-09-15","due_date":"2026-10-12","statement_balance":300000,"minimum_due":50000}
+Card C after: {"state":"scheduled","scheduled_transaction_id":"scheduled_bdb3de7f24511ac2c62675d0","pay_date":"2026-10-18","amount":300000,"funding_account_id":"acct-everyday"} previous_unpaid={"statement_date":"2026-09-15","due_date":"2026-10-12","statement_balance":300000,"minimum_due":50000}
 PASS scheduled row still warns about the unpaid previous statement
 closed 1 account(s)
 PASS closed paying account dropped (shows "Choose an account")
 PASS dialog explains the dropped account
+Card E: statement_balance 480000, coverage {"state":"overdue","since":"2026-09-28","paid_amount":0}, previous_unpaid {"statement_date":"2026-09-03","due_date":"2026-09-28","statement_balance":500000,"minimum_due":50000}
+Card E prefill amount: -480
+PASS carried partial statement prefills the remaining 480.00, not 500.00
 deleted 1 account(s)
 PASS deleted paying account: dialog says deleted
 PASS no horizontal page scroll at 390px with all states

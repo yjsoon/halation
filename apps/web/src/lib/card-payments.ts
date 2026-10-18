@@ -44,13 +44,17 @@ export function needsScheduling(cycle: CardPaymentCycle): boolean {
   return coverage.state === "unscheduled" && (cycle.statement_balance > 0 || cycle.previous_unpaid !== null);
 }
 
-/** What is still owed for the cycle: the statement (or a carried unpaid one), less anything already paid in the window. */
+/**
+ * What is still owed for the cycle. The current statement balance already
+ * includes any carried previous debt net of earlier payments, so it is the
+ * base; only payments in this cycle's own window come off it. A carried
+ * previous statement's (older, larger) balance is never used.
+ */
 function outstanding(cycle: CardPaymentCycle): number {
   const coverage = cycle.coverage;
   if (coverage.state === "partial") return coverage.remaining_amount;
-  const owed = Math.max(cycle.statement_balance, cycle.previous_unpaid?.statement_balance ?? 0);
   const paid = coverage.state === "overdue" ? coverage.paid_amount : 0;
-  return Math.max(owed - paid, 0);
+  return Math.max(cycle.statement_balance - paid, 0);
 }
 
 /** The positive amount the card's usual rule would pay this cycle. */
