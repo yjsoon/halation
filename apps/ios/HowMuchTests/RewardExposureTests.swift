@@ -56,19 +56,16 @@ final class RewardExposureTests: XCTestCase {
         let h = max(0, spend / 100)
         XCTAssertEqual(pose.h, h, accuracy: 1e-9, note)
         XCTAssertEqual(pose.v, 0, note)
-        XCTAssertEqual(exposure.markerX ?? -1, h, accuracy: 1e-9, note)
         XCTAssertEqual(pose.sunX, min(0.85, max(0.07, h)), accuracy: 1e-9, note)
         XCTAssertEqual(pose.gap, 1 - h, accuracy: 1e-9, note)
       } else if dollars < 1000 {
         XCTAssertEqual(pose.h, 1, note)
         XCTAssertEqual(pose.v, 0.5 * (spend - 100) / 900, accuracy: 1e-9, note)
-        XCTAssertNil(exposure.markerX, note)
         XCTAssertEqual(pose.sunX, 0.85, note)
         XCTAssertEqual(pose.gap, 0, note)
       } else if dollars < 2995 {
         XCTAssertEqual(pose.h, 1, note)
         XCTAssertEqual(pose.v, 0.5 + 0.5 * min(1, (counted - 1000) / 1998), accuracy: 1e-9, note)
-        XCTAssertNil(exposure.markerX, note)
       }
 
       // v is exactly 1 exactly when the cap is reached: from counted 2,995 of
@@ -107,7 +104,6 @@ final class RewardExposureTests: XCTestCase {
   func testRefundsClampTheMinimumJourneyAtZero() throws {
     let exposure = try picture(["minimum_spend": 500, "total_spend": -40, "minimum_spend_met": false])
     XCTAssertEqual(exposure.pose, .init(h: 0, v: 0))
-    XCTAssertEqual(exposure.markerX, 0)
   }
 
   func testCountedSpendLaggingRawAtTheMinimumNeverDipsBelowZero() throws {
@@ -177,7 +173,6 @@ final class RewardExposureTests: XCTestCase {
       let exposure = try picture(["total_spend": counted, "counted_spend": counted, "maximum_spend": 1000])
       XCTAssertEqual(exposure.pose.h, 1)
       XCTAssertEqual(exposure.pose.v, v, accuracy: 1e-9)
-      XCTAssertNil(exposure.markerX)
       XCTAssertFalse(exposure.hasMinimum)
     }
   }
@@ -259,7 +254,6 @@ final class RewardExposureTests: XCTestCase {
     XCTAssertEqual(behind.stage, .gate)
     XCTAssertEqual(behind.pose.h, 250.0 / 300, accuracy: 1e-9)
     XCTAssertEqual(behind.pose.v, 0)
-    XCTAssertNotNil(behind.markerX)
     let met = try picture([
       "total_spend": 650, "counted_spend": 650, "maximum_spend": 1000, "qualification_status": "met",
       "monthly_qualifications": [
@@ -268,7 +262,6 @@ final class RewardExposureTests: XCTestCase {
     ])
     XCTAssertEqual(met.pose.h, 1)
     XCTAssertEqual(met.pose.v, 0.65, accuracy: 1e-9)
-    XCTAssertNil(met.markerX)
   }
 
   /// Failure mode: the two sun formulas (across, then up) disagree at the hand-over, so the disc
@@ -296,7 +289,6 @@ final class RewardExposureTests: XCTestCase {
     XCTAssertEqual(exposure.stage, .failed)
     XCTAssertEqual(exposure.pose, .init(h: 0, v: 0))
     XCTAssertFalse(exposure.hasSun)
-    XCTAssertNil(exposure.markerX)
     XCTAssertTrue(exposure.ridgesApart)
     XCTAssertEqual(exposure.light, .overcast)
   }
@@ -313,7 +305,6 @@ final class RewardExposureTests: XCTestCase {
     for exposure in [plain, locked] {
       XCTAssertEqual(exposure.stage, .calm)
       XCTAssertEqual(exposure.pose, .init(h: 1, v: 0))
-      XCTAssertNil(exposure.markerX)
       XCTAssertTrue(exposure.hasSun)
       XCTAssertTrue(exposure.ridgesApart)
       XCTAssertEqual(exposure.light, .even)

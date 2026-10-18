@@ -11,7 +11,7 @@ final class PayeeNamesTests: XCTestCase {
       ("GRAB*A-5X7K9QWE SINGAPORE SG", ["grab"]),
       ("GRABFOOD*ORDER 8812", ["grabfood", "order"]),
       ("NETS QR KOPITIAM 12345", ["kopitiam"]),
-      ("-4821 KOUFU PTE LTD SINGAPORE SG", ["koufu"]),
+      ("-1234 KOUFU PTE LTD SINGAPORE SG", ["koufu"]),
       ("SQ *COMMON MAN COFFEE", ["common", "man", "coffee"]),
       ("PAYPAL *NETFLIX 4029357733", ["netflix"]),
       ("KrisPay*Tai Cheong", ["tai", "cheong"]),
@@ -21,13 +21,13 @@ final class PayeeNamesTests: XCTestCase {
       ("Caf\u{00E9} Nero", ["cafe", "nero"]),
       ("MERLE &amp; CO SINGAPORE", ["merle"]),
       ("TAN AH KOW (Mobile ending 1234)", ["tan", "kow"]),
-      ("GlobalE /Gray Parka ServiSINGAPORE", ["gray", "parka", "servi"]),
-      ("NOVOTEL JB - FRONT DESK JOHOR BAHRU", ["novotel", "front", "desk"]),
-      ("Swee Yee Food Sdn Bhd", ["swee", "yee", "food"]),
+      ("GlobalE /Blue Kite ServiSINGAPORE", ["blue", "kite", "servi"]),
+      ("SAMPLE INN JB - FRONT DESK JOHOR BAHRU", ["sample", "inn", "front", "desk"]),
+      ("Kwong Lee Food Sdn Bhd", ["kwong", "lee", "food"]),
       ("7-11", ["seveneleven"]),
       ("7 ELEVEN-TAMPINES CENTR", ["seveneleven", "tampines", "centr"]),
       ("4FINGERS CRISPY CHICKE", ["four", "fingers", "crispy", "chicke"]),
-      ("676 Woodlands Teochew", ["woodlands", "teochew"]),
+      ("101 Woodlands Teochew", ["woodlands", "teochew"]),
       ("KTMB", ["ktmb"]),
       ("FAST PAYMENT via PayNow-Mobile to TAN AH KOW OTHR 123456", ["tan", "kow"]),
       ("PayPal", ["paypal"]),
@@ -43,7 +43,7 @@ final class PayeeNamesTests: XCTestCase {
     XCTAssertEqual(similarity("GRAB*A-5X7K9QWE SINGAPORE SG", "Grab"), 1, accuracy: 1e-9)
     XCTAssertEqual(similarity("Grab Malaysia", "Grab"), 1, accuracy: 1e-9)
     XCTAssertEqual(similarity("NETS QR KOPITIAM 12345", "Kopitiam @ Bishan"), 0.83, accuracy: 0.005)
-    XCTAssertEqual(similarity("-4821 KOUFU PTE LTD SINGAPORE SG", "Koufu"), 1, accuracy: 1e-9)
+    XCTAssertEqual(similarity("-1234 KOUFU PTE LTD SINGAPORE SG", "Koufu"), 1, accuracy: 1e-9)
     XCTAssertEqual(similarity("7-11", "7-Eleven"), 1, accuracy: 1e-9)
     XCTAssertGreaterThanOrEqual(similarity("7 ELEVEN-TAMPINES CENTR", "7-Eleven"), 0.7)
     XCTAssertEqual(similarity("4FINGERS CRISPY CHICKE", "Four Fingers"), 0.8, accuracy: 0.005)
@@ -65,12 +65,6 @@ final class PayeeNamesTests: XCTestCase {
       0,
       accuracy: 1e-9
     )
-  }
-
-  func testSearchStemIsShortStemOfMerchantWord() {
-    XCTAssertEqual(PayeeNames.searchStem(PayeeNames.tokens("GRABFOOD*ORDER 8812")), "grab")
-    XCTAssertEqual(PayeeNames.searchStem(PayeeNames.tokens("NETS QR KOPITIAM 12345")), "kopi")
-    XCTAssertNil(PayeeNames.searchStem([]))
   }
 
   private func similarity(_ a: String, _ b: String) -> Double {

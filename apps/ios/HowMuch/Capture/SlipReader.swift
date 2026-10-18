@@ -44,14 +44,6 @@ struct SlipMappedDraft: Equatable, Codable, Sendable {
   var categoryCandidates: [SlipCandidate]
   var unrecognizedAccount: String? = nil
   var unrecognizedCategory: String? = nil
-
-  var parsedInflow: Bool {
-    parsedDirection && draft.direction == .inflow
-  }
-
-  var accountUnresolved: Bool {
-    parsedAccount && draft.accountID.isEmpty
-  }
 }
 
 enum ComposeParseApply {

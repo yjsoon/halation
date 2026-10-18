@@ -986,7 +986,7 @@ final class CaptureSnapshotTests: XCTestCase {
           phase: nil,
           elapsed: 12,
           reduceMotion: false
-        ).fullLine
+        ).visibleText
         let word = line.split { !$0.isLetter }.map(String.init).first { $0.count >= 4 } ?? line
         needles = [word]
       }
@@ -1529,11 +1529,11 @@ final class CaptureSnapshotTests: XCTestCase {
     let draftIDsBefore = session.drafts.map(\.id)
     let attachmentCount = session.attachments.count
     XCTAssertFalse(session.isBusy)
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: draftIDsBefore))
 
     let token = session.beginTurn()
     XCTAssertTrue(session.isBusy)
-    XCTAssertFalse(session.canSaveIncluded)
+    XCTAssertFalse(session.canSaveGroup(ids: draftIDsBefore))
     XCTAssertEqual(token.generation, session.generation)
 
     guard await openManualForm(on: surface) else { return }
@@ -1544,13 +1544,13 @@ final class CaptureSnapshotTests: XCTestCase {
     XCTAssertEqual(session.drafts.map(\.id), draftIDsBefore)
     XCTAssertEqual(session.attachments.count, attachmentCount)
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 12_000)
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: draftIDsBefore))
 
     var manual = session.drafts[0].draft
     manual.amountMagnitudeMilli = 50
     session.applyManualEdit(manual, id: session.drafts[0].id)
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 50)
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: draftIDsBefore))
 
     var lateDraft = TransactionDraft()
     lateDraft.payeeName = "Coffee"
@@ -1584,7 +1584,7 @@ final class CaptureSnapshotTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 50)
     XCTAssertEqual(session.drafts[0].draft.payeeName, "Lunch")
     XCTAssertEqual(session.composerText, composerBefore)
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: draftIDsBefore))
   }
 
   func testManualTransitionDuringIngestionPreservesGeneration() async {
