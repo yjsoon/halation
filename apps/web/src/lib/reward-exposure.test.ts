@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { configureMoney } from "./money";
-import { exposure, falls, gap, sunX, sunY, type Exposure } from "./reward-exposure";
+import { exposure, falls, sunX, sunY, type Exposure } from "./reward-exposure";
 import { projectRow, type RewardsRow } from "./reward-row-projection";
 
 const TODAY = "2026-09-23";
@@ -70,7 +70,7 @@ describe("the mapping walk", () => {
       const e = exposure(p)!;
       const { h, v } = e.pose;
       const y = sunY(e.pose, HORIZON, RADIUS);
-      for (const value of [h, v, sunX(e.pose), y, gap(e.pose)]) expect(Number.isFinite(value)).toBe(true);
+      for (const value of [h, v, sunX(e.pose), y]) expect(Number.isFinite(value)).toBe(true);
       expect(h).toBeGreaterThanOrEqual(0); expect(h).toBeLessThanOrEqual(1);
       expect(v).toBeGreaterThanOrEqual(0); expect(v).toBeLessThanOrEqual(1);
       expect(sunX(e.pose)).toBeGreaterThanOrEqual(0.07); expect(sunX(e.pose)).toBeLessThanOrEqual(0.85);
@@ -83,13 +83,11 @@ describe("the mapping walk", () => {
         expect(e.stage).toBe("gate");
         expect(e.markerX).toBeCloseTo(expectedH, 9);
         expect(sunX(e.pose)).toBeCloseTo(Math.min(0.85, Math.max(0.07, expectedH)), 9);
-        expect(gap(e.pose)).toBeCloseTo(1 - expectedH, 9);
       } else {
         expect(h).toBe(1);
         expect(e.markerX).toBeNull();
         expect(e.hasMarker).toBe(false);
         expect(sunX(e.pose)).toBe(0.85);
-        expect(gap(e.pose)).toBe(0);
         if (spend < TIER) {
           expect(v).toBeCloseTo(0.5 * (spend - MINIMUM) / (TIER - MINIMUM), 9);
         } else if (p.action.kind !== "capReached") {
@@ -145,7 +143,7 @@ describe("the edge cases", () => {
         expose({ minimum_spend: 100, total_spend: Number.NaN, minimum_spend_met: false }),
       ];
       for (const e of bad) {
-        for (const value of [e.pose.h, e.pose.v, sunX(e.pose), sunY(e.pose, HORIZON, RADIUS), gap(e.pose)]) expect(Number.isFinite(value)).toBe(true);
+        for (const value of [e.pose.h, e.pose.v, sunX(e.pose), sunY(e.pose, HORIZON, RADIUS)]) expect(Number.isFinite(value)).toBe(true);
       }
       expect(bad[0]!.hasMinimum).toBe(false);
       expect(bad[0]!.pose).toEqual({ h: 1, v: 0.5 });

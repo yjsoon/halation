@@ -159,11 +159,6 @@ export function sunX(pose: Pose): number {
   return pose.h >= 1 ? COLUMN : Math.min(Math.max(pose.h, RIDE_MIN), RIDE_MAX);
 }
 
-/** The share of the full gap between the ridges that is left. */
-export function gap(pose: Pose): number {
-  return 1 - pose.h;
-}
-
 /**
  * The sun's centre y for a target horizon at `horizon` and a disc of radius `r` (y points down).
  * `seat` is how far below the horizon the disc's centre sits while it rides it, as a share of `r`:

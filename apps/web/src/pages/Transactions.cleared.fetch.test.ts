@@ -30,6 +30,10 @@ let window: Window;
 let container: HTMLDivElement;
 let root: Root;
 const originalFetch = globalThis.fetch;
+const stubFailures: string[] = [];
+function checkStub(ok: boolean, message: string) {
+  if (!ok) stubFailures.push(message);
+}
 const globals = ["window", "document", "navigator", "HTMLElement", "HTMLInputElement", "HTMLSelectElement", "localStorage", "IS_REACT_ACT_ENVIRONMENT"] as const;
 const originalGlobals = new Map(globals.map((key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
 const requests: Array<{ path: string; method: string; body: any }> = [];
@@ -63,6 +67,7 @@ beforeEach(() => {
   holdNextItemRead = false;
   releaseItemRead = undefined;
   requests.length = 0;
+  stubFailures.length = 0;
   globalThis.fetch = async (input, init) => {
     const path = String(input);
     const method = init?.method ?? "GET";
@@ -70,12 +75,12 @@ beforeEach(() => {
     requests.push({ path, method, body });
     if (path.includes("unapproved_count")) return json({ count: 0, server_knowledge: 1 });
     if (path.endsWith("/t/cleared")) {
-      expect(body.expected_cleared).toBe(row.cleared);
+      checkStub(body.expected_cleared === row.cleared, `expected_cleared ${body.expected_cleared} != ${row.cleared}`);
       row = { ...row, cleared: body.cleared };
       return json({ transaction: row });
     }
     if (path.endsWith("/transactions/cleared")) {
-      expect(body.transactions[0].expected_cleared).toBe(row.cleared);
+      checkStub(body.transactions[0].expected_cleared === row.cleared, `bulk expected_cleared ${body.transactions[0].expected_cleared} != ${row.cleared}`);
       row = { ...row, cleared: body.transactions[0].cleared };
       // An unresolved response can follow a committed write. Only the GET may
       // establish the resulting state; the UI must not claim confirmed success.
@@ -95,12 +100,17 @@ beforeEach(() => {
       return json({ transactions: [row], has_more: false, next_offset: null, server_knowledge: 3 });
     }
     if (path.startsWith("/api/import/rewards-tracker?")) return json({ cards: [] });
-    throw new Error(`Unexpected fixture request: ${method} ${path}`);
+    const message = `Unexpected fixture request: ${method} ${path}`;
+    stubFailures.push(message);
+    throw new Error(message);
   };
 });
 
 afterEach(async () => {
   await act(async () => { releaseItemRead?.(); root.unmount(); });
+  // The page swallows a rejected request as an error state, so stub failures
+  // are collected here instead of thrown into the page.
+  expect(stubFailures).toEqual([]);
   await window.happyDOM.abort();
   globalThis.fetch = originalFetch;
   for (const key of globals) {
