@@ -127,3 +127,31 @@ Flow:
 Carried-over overdue (terms created today can never be overdue, by design), the background Paid and Scheduled coverage check, the "Tap to change" editor route, delivered-notification cleanup (needs a delivered reminder with this connection's fingerprint), and server-mode queue retries.
 
 The runner also saw the Accounts drill-down on the compact layout stop pushing until relaunch; that is the existing AccountsView navigation, not the payments code.
+
+## Round 3 (R-I1 to R-I10, plus the PR #351 review fixes)
+
+- Revisions: `1350563` (R-I1 to R-I10, on top of backend `c3eaa39` with the rebuilt engine) and the final `5612fb30b3c3e4ee1f9ad8fbb92045201dfb305f`, which adds the review fixes:
+  - the amount formula matches the web's (`d34b146`): partial uses `remaining_amount`, otherwise `max(statement_balance - overdue paid_amount, 0)`;
+  - a carried overdue cycle reminds daily from max(today, since + 1);
+  - snoozes until today survive a morning rebuild;
+  - a background Scheduled races the drain against its 22 s deadline and reports the tap as queued when it loses.
+- Runner: a Devin macOS session (read-only), Xcode 26.6, iPhone 17 simulator, iOS 26.5. Command: `scripts/ios-xcodebuild.sh test -- -collect-test-diagnostics never`.
+- Build and tests: at both revisions, 779 tests executed, 1 skipped (the opt-in live Foundation Models test), 0 failures.
+- Fixture (all at 5612fb3; simulator erased; local mode; steps run on 18 Oct 2026 before 08:00):
+  - Account B (Checking, 5,000.00).
+  - Card F ending 3333: a 600.00 charge on 10 Sep; DBS / POSB, statement day 20.
+  - Card E ending 4444: a 300.00 charge on 1 Sep; DBS / POSB, statement day 3. Card E's `card_payment_terms.created_at` was then backdated to `2026-08-01T00:00:00.000Z` in the app's local SQLite, and the app relaunched.
+- Screenshots: `screens-r3/` in this folder (downscaled), with full size copies in `/mnt/project-files/payment-reminders/screens/ios/31` to `38`.
+
+| Check | Expected | Observed |
+| --- | --- | --- |
+| Setup after due (R-I1) | Card F: the 20 Sep statement was due 15 Oct, before its terms were created. Shown neutrally, Schedule available, not overdue | "Due 15 Oct (passed)", Schedule (accent, not red), "Statement 20 Sep · min $50.00 · recorded so far" (31) |
+| Carried overdue (R-I1, R-I8) | Card E: the 3 Sep statement went unpaid past 28 Sep | "Overdue since 28 Sep", red Schedule; no separate previous-unpaid line (31) |
+| Band caption (R-I10) | Transfer advice added | "... Record payments as a transfer from your bank account so Halation can tell the statement is paid." (31) |
+| Overdue run (R-I2, review fix 2) | Card E: three daily overdue reminders from today; Card F: none for its 20 Sep cycle | `2026-10-03.overdue20`/`21`/`22` on 18, 19 and 20 Oct at 08:00. Card F's 7 entries are all for its 20 Oct cycle. 20 pending in total (32 to 36) |
+| App icon badge (R-I1) | "Card payments" mode counts Card E only | Home screen badge 1 (37) |
+| Late payment clears the carry (backend R-B2) | 50.00 transfer to Card E today | Card E row: "Paid · $50.00 on 18 Oct", "Due Wed 28 Oct"; no longer overdue (38) |
+
+The band's header count (2, then 1) counts rows with a Schedule button, which includes Card F; the app badge leaves Card F out.
+
+Covered by code review only, not exercised on the simulator: carried taps in background Paid, Scheduled and the drain (R-I3); the per-tap drain results and the deadline race (R-I4); the byte-identical schedule body (R-I5); the outstanding amounts (R-I6, review fix 1); Remember after terms were removed elsewhere (R-I7); the notice for a reminder from another connection (R-I9); the today-snooze fix (review fix 3).
