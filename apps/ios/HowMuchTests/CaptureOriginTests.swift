@@ -43,7 +43,6 @@ final class CaptureOriginTests: XCTestCase {
       lastUsedAccountID: "acct-closed"
     )
     XCTAssertNil(context.selectedAccountID)
-    XCTAssertNil(context.selectedAccountID)
   }
 
   func testPresetDraftKeepsExplicitAccount() {

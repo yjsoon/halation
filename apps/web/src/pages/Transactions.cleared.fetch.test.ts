@@ -107,17 +107,21 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await act(async () => { releaseItemRead?.(); root.unmount(); });
-  // The page swallows a rejected request as an error state, so stub failures
-  // are collected here instead of thrown into the page.
-  expect(stubFailures).toEqual([]);
-  await window.happyDOM.abort();
-  globalThis.fetch = originalFetch;
-  for (const key of globals) {
-    const original = originalGlobals.get(key);
-    if (original) Object.defineProperty(globalThis, key, original);
-    else Reflect.deleteProperty(globalThis, key);
+  try {
+    await act(async () => { releaseItemRead?.(); root.unmount(); });
+  } finally {
+    await window.happyDOM.abort();
+    globalThis.fetch = originalFetch;
+    for (const key of globals) {
+      const original = originalGlobals.get(key);
+      if (original) Object.defineProperty(globalThis, key, original);
+      else Reflect.deleteProperty(globalThis, key);
+    }
   }
+  // The page swallows a rejected request as an error state, so stub failures
+  // are collected here instead of thrown into the page. Checked after the
+  // restores so a failure cannot leak the stubs into later files.
+  expect(stubFailures).toEqual([]);
 });
 
 async function interact(action: () => void) {

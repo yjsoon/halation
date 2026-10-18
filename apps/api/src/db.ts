@@ -125,22 +125,20 @@ export function applyMigrations(db: Database): void {
     },
   ];
 
-  const recorded = (version: string) =>
-    Boolean(db.query("SELECT 1 AS ok FROM schema_migrations WHERE version = ?").get(version));
-  // The previous runner recorded 017 but ran the JS backfill only after every
-  // migration, leaving no record of it. A plan it left part-way through an
-  // upgrade may never have had it, so finish it once. A plan it migrated
-  // fully already had it at its last start; any emoji names since are the
-  // user's, so only record it.
-  const previousRunner = recorded(ICON_EMOJI_MIGRATION) && !recorded(PRESENTATION_BACKFILL_RECORD);
-  const upgradeUnfinished = migrations.some((migration) => !recorded(migration.version));
+  // The previous runner recorded 017 but ran the JS backfill after the
+  // migrations on every start, leaving no record of it. Such a plan has had
+  // it, so only record it: any emoji names since are the user's. (A start that
+  // crashed before the backfill was finished by the next start on that build,
+  // and the read path splits a leading emoji for display either way.)
+  const applied = new Set(
+    (db.query("SELECT version FROM schema_migrations").all() as Array<{ version: string }>).map((row) => row.version),
+  );
+  if (applied.has(ICON_EMOJI_MIGRATION) && !applied.has(PRESENTATION_BACKFILL_RECORD)) {
+    db.query("INSERT INTO schema_migrations (version) VALUES (?)").run(PRESENTATION_BACKFILL_RECORD);
+  }
 
   for (const migration of migrations) {
-    const applied = db
-      .query("SELECT version FROM schema_migrations WHERE version = ?")
-      .get(migration.version);
-
-    if (applied) {
+    if (applied.has(migration.version)) {
       continue;
     }
 
@@ -171,12 +169,6 @@ export function applyMigrations(db: Database): void {
     }
   }
 
-  if (previousRunner) {
-    db.transaction(() => {
-      if (upgradeUnfinished) backfillAccountPresentations(db);
-      db.query("INSERT INTO schema_migrations (version) VALUES (?)").run(PRESENTATION_BACKFILL_RECORD);
-    })();
-  }
 }
 
 const ICON_EMOJI_MIGRATION = "017_account_icon_emoji_backfill";

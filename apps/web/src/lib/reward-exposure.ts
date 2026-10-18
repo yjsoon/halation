@@ -36,8 +36,6 @@ export interface Exposure {
   light: Light;
   hasMarker: boolean;
   hasSun: boolean;
-  /** The marker's x as a share of the width: exactly the fill, in the minimum journey only. */
-  markerX: number | null;
   /** The brand pair, apart at rest: no journey to show. */
   ridgesApart: boolean;
   /** Where a first showing starts: a card with a minimum sweeps across and then rises. */
@@ -129,7 +127,6 @@ export function exposure(p: RewardRowProjection): Exposure | null {
     light: stage === "failed" ? "overcast" : stage === "calm" ? "even" : "journey",
     hasMarker: stage === "gate",
     hasSun: stage !== "failed",
-    markerX: stage === "gate" ? pose.h : null,
     ridgesApart: stage === "failed" || stage === "calm",
     journeyStart,
     metAt: p.minimumMetAt,
@@ -140,7 +137,7 @@ export function exposure(p: RewardRowProjection): Exposure | null {
 export function stillExposure(miles: boolean): Exposure {
   return {
     stage: "calm", pose: { h: 1, v: 0 }, miles, hasMinimum: false, target: "range", light: "even",
-    hasMarker: false, hasSun: false, markerX: null, ridgesApart: true, journeyStart: { h: 1, v: 0 }, metAt: null,
+    hasMarker: false, hasSun: false, ridgesApart: true, journeyStart: { h: 1, v: 0 }, metAt: null,
   };
 }
 

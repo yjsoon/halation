@@ -44,25 +44,22 @@ final class RewardExposureTests: XCTestCase {
       let note = "at spend \(dollars)"
 
       // Every value is finite and in range.
-      for value in [pose.h, pose.v, pose.sunX, pose.gap, pose.sunY(horizon: 42, r: 8)] {
+      for value in [pose.h, pose.v, pose.sunX, pose.sunY(horizon: 42, r: 8)] {
         XCTAssertTrue(value.isFinite, "Not finite \(note)")
       }
       XCTAssertTrue((0.0...1.0).contains(pose.h), "h out of range \(note)")
       XCTAssertTrue((0.0...1.0).contains(pose.v), "v out of range \(note)")
       XCTAssertTrue((0.07...0.85).contains(pose.sunX), "Sun column out of range \(note)")
-      XCTAssertTrue((0.0...1.0).contains(pose.gap), "Gap out of range \(note)")
 
       if dollars < 100 {
         let h = max(0, spend / 100)
         XCTAssertEqual(pose.h, h, accuracy: 1e-9, note)
         XCTAssertEqual(pose.v, 0, note)
         XCTAssertEqual(pose.sunX, min(0.85, max(0.07, h)), accuracy: 1e-9, note)
-        XCTAssertEqual(pose.gap, 1 - h, accuracy: 1e-9, note)
       } else if dollars < 1000 {
         XCTAssertEqual(pose.h, 1, note)
         XCTAssertEqual(pose.v, 0.5 * (spend - 100) / 900, accuracy: 1e-9, note)
         XCTAssertEqual(pose.sunX, 0.85, note)
-        XCTAssertEqual(pose.gap, 0, note)
       } else if dollars < 2995 {
         XCTAssertEqual(pose.h, 1, note)
         XCTAssertEqual(pose.v, 0.5 + 0.5 * min(1, (counted - 1000) / 1998), accuracy: 1e-9, note)

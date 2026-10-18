@@ -1,4 +1,3 @@
-== branch 81d27c8
 before restart: {"name":"Daily","icon":"💳"}
 stored row before: {"name":"💳 Daily","icon":"🏦"}
 after restart:  {"name":"Daily","icon":"💳"}

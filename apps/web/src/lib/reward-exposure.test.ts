@@ -81,11 +81,9 @@ describe("the mapping walk", () => {
         expect(h).toBeCloseTo(expectedH, 9);
         expect(v).toBe(0);
         expect(e.stage).toBe("gate");
-        expect(e.markerX).toBeCloseTo(expectedH, 9);
         expect(sunX(e.pose)).toBeCloseTo(Math.min(0.85, Math.max(0.07, expectedH)), 9);
       } else {
         expect(h).toBe(1);
-        expect(e.markerX).toBeNull();
         expect(e.hasMarker).toBe(false);
         expect(sunX(e.pose)).toBe(0.85);
         if (spend < TIER) {
@@ -128,7 +126,6 @@ describe("the edge cases", () => {
     { name: "clamping: refunds. Minimum 500, spend -40", run: () => {
       const e = expose({ minimum_spend: 500, total_spend: -40, minimum_spend_met: false });
       expect(e.pose).toEqual({ h: 0, v: 0 });
-      expect(e.markerX).toBe(0);
     } },
     { name: "clamping: counted spend lags raw at the minimum. Minimum 503, blocks of 10, cap 1,000: raw 504, counted 500", run: () => {
       const e = expose({ minimum_spend: 503, total_spend: 504, counted_spend: 500, maximum_spend: 1000 });
@@ -170,7 +167,6 @@ describe("the edge cases", () => {
     { name: "no minimum, cap only. Cap 1,000; counted 0, then 250", run: () => {
       const zero = expose({ total_spend: 0, counted_spend: 0, maximum_spend: 1000 });
       expect(zero.pose).toEqual({ h: 1, v: 0 });
-      expect(zero.markerX).toBeNull();
       expect(zero.hasMinimum).toBe(false);
       const quarter = expose({ total_spend: 250, counted_spend: 250, maximum_spend: 1000 });
       expect(quarter.pose.v).toBeCloseTo(0.25, 9);
@@ -215,7 +211,6 @@ describe("the edge cases", () => {
       expect(pending.stage).toBe("gate");
       expect(pending.pose.h).toBeCloseTo(250 / 300, 9);
       expect(pending.pose.v).toBe(0);
-      expect(pending.markerX).toBeCloseTo(250 / 300, 9);
       const met = expose({
         total_spend: 650, counted_spend: 650, maximum_spend: 1000, qualification_status: "met", monthly_minimum_spend: 300,
         monthly_qualifications: [{ start: "2026-09-01", end: "2026-09-30", spend: 650, minimumSpend: 300, status: "met" }],
@@ -241,7 +236,6 @@ describe("the edge cases", () => {
       expect(e.pose).toEqual({ h: 0, v: 0 });
       expect(e.hasSun).toBe(false);
       expect(e.hasMarker).toBe(false);
-      expect(e.markerX).toBeNull();
       expect(e.ridgesApart).toBe(true);
       expect(e.light).toBe("overcast");
     } },

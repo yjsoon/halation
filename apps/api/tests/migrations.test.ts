@@ -1,7 +1,5 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { applyMigrations } from "../src/db";
 import { nativeHarness } from "./helpers/native-harness";
 
@@ -271,27 +269,9 @@ describe("local schema migrations", () => {
     }
   });
 
-  // The previous runner committed 016/017 and ran the JS backfill only after
-  // every migration, so a failure in between left 017 recorded without it.
-  test("recovers an upgrade the previous runner left between 017 and the backfill", () => {
-    const db = new Database(":memory:");
-    try {
-      db.exec(PRE_ICON_PLAN);
-      for (const version of ["016_account_icons", "017_account_icon_emoji_backfill"]) {
-        db.run(readFileSync(join(import.meta.dir, "../migrations", `${version}.sql`), "utf8").trimEnd());
-        db.query("INSERT INTO schema_migrations (version) VALUES (?)").run(version);
-      }
-      expect(db.query("SELECT name, icon FROM accounts WHERE id = 'dev'").get()).toEqual({ name: "👩‍💻 Work", icon: "📈" });
-
-      applyMigrations(db);
-
-      expectWorkSplit(db);
-    } finally {
-      db.close();
-    }
-  });
-
-  test("a fully migrated plan from the previous runner keeps names typed since its last start", async () => {
+  // An older build that knew fewer migrations still ran the backfill on every
+  // start, so a newer migration pending is no sign that it never ran.
+  test("a plan from an older build of the previous runner keeps names typed since its last start", async () => {
     const harness = await nativeHarness("SQLite");
     try {
       const created = await (await harness.request("/v1/plans/p/accounts", {
@@ -301,7 +281,7 @@ describe("local schema migrations", () => {
       const id = created.data.account.id;
       await harness.request(`/v1/plans/p/accounts/${id}`, { method: "PATCH", body: { account: { name: "💳 Daily" } } });
       // The previous runner wrote no record of its backfill.
-      harness.db.run("DELETE FROM schema_migrations WHERE version LIKE '%presentation%'");
+      harness.db.run("DELETE FROM schema_migrations WHERE version LIKE '%presentation%' OR version = '023_drop_budgeting_tables'");
 
       applyMigrations(harness.db);
 

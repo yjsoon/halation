@@ -131,8 +131,6 @@ extension RewardExposure.Pose {
   var lift: Double { min(1, max(0, (h - 0.85) / 0.15)) }
   /// The sun's x as a share of the width, riding the marker while the minimum journey runs.
   var sunX: Double { h >= 1 ? RewardExposure.column : min(max(h, RewardExposure.ride.lowerBound), RewardExposure.ride.upperBound) }
-  /// The share of the full gap between the ridges that is left.
-  var gap: Double { 1 - h }
   /// The sun's centre y for a target horizon at `horizon` and a disc of radius `r` (y points down).
   /// `seat` is how far below the horizon the centre sits while the sun rides it, as a share of `r`:
   /// a hair below on the hero, and exactly on it on the phone strip, where the disc is a clean half-sun.
