@@ -484,8 +484,21 @@ final class IntakeCoordinator {
     var sourceIndexes: [Int] = []
     var fallbackIndexes: [Int] = []
     var readAnyText = false
-    // Nil when the owner reads on device or has no usable key yet.
-    let remote = try? model.captureAI.configuration()
+    // Nil when the owner reads on device. A chosen provider whose key cannot be
+    // read (no key saved, or the Keychain is locked) is not the same as "on
+    // device": in the background the read waits for the app to open, so a
+    // locked phone never reads on device a document meant for the provider.
+    let remote: CaptureAIConfiguration?
+    do {
+      remote = try model.captureAI.configuration()
+    } catch {
+      if Self.isReadingInBackground {
+        leaveForForeground(id)
+        return
+      }
+      Self.logger.info("Provider not usable; reading on device")
+      remote = nil
+    }
     for (index, file) in reading.sourceFiles.enumerated() {
       var readByProvider = false
       guard readable(id) != nil else {
