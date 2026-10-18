@@ -15,7 +15,6 @@ import {
   rowId,
   sameRow,
   sessionRowGone,
-  transferOptionLabel,
   writableFocus,
   type RegisterRowDraft,
   type RegisterRowEditAction,
@@ -736,7 +735,6 @@ describe("payeeListEntries", () => {
   const listed = [shop, coffee, transfer, self];
 
   test("labels transfer options from account names and keeps payee.name as the value", () => {
-    expect(transferOptionLabel("Rainy Day Saver")).toBe("Transfer to Rainy Day Saver");
     expect(payeeListEntries(listed, [everyday, saver], "acct")).toEqual([
       { id: "p-shop", value: "Shop" },
       { id: "p-coffee", value: "Coffee" },

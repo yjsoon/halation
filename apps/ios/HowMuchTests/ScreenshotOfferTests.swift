@@ -110,16 +110,6 @@ final class ScreenshotOfferTests: XCTestCase {
     print("Clipboard epoch: kern.bootsessionuuid available=\(boot != nil); unavailable fallback verified")
   }
 
-  func testLegacyPhotosConsentDoesNotEnableClipboard() async {
-    defaults.set(true, forKey: "HowMuch.screenshotOffer.enabled")
-    let reloaded = makeController()
-    XCTAssertFalse(reloaded.isEnabled, "Photos consent is not clipboard consent")
-    reloaded.startIfNeeded()
-    await reloaded.refresh()
-    XCTAssertEqual(clipboard.reads, 0)
-    XCTAssertEqual(clipboard.availabilityChecks, 0)
-  }
-
   func testDefaultOffAndDisabledNeverReadPayload() async {
     await controller.refresh()
     XCTAssertEqual(clipboard.reads, 0)

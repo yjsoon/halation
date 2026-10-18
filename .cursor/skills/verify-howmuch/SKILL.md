@@ -113,8 +113,6 @@ Check the running app, not the spec, before driving a planned recipe. If the han
 | [iOS edit account](features/ios-edit-account.md) | Accounts row **Edit Account** and register title editor exist |
 | [iOS capture](features/ios-capture.md) | Add Transaction sheet exists (always). After #98, Duplicate / + / Quick Action share one door |
 | [iOS capture typed replies](features/ios-capture-typed-replies.md) | Conversational Add Transactions on #153. Darwin / Xcode. `typed-wait` and `typed-reply-complete` proven; do not retry on-device Foundation Models on HowMuch Verification |
-| [iOS intake compose](features/ios-intake-compose.md) | A compose `TextField` sits above the amount header on Add Transaction (#99 / #102) |
-| [iOS intake review list](features/ios-intake-review-list.md) | Two spends in one typed sentence open **{N} Transactions** (#103) |
 | [iOS App Intents](features/ios-app-intents.md) | Shortcuts lists **Add Transaction** (#101). Catalog #100 is a precondition |
 | [iOS share and screenshots](features/ios-share-and-screenshots.md) | Share target or Accounts offer exists (#104 / #106) |
 
@@ -166,7 +164,7 @@ Stable iOS handles:
 | New account | Accounts trailing `New Account` (plus). Sheet title `New Account` |
 | More | `More` (ellipsis). iPhone items `Assistant`, `Settings`. iPad regular: `Settings` only |
 | Connection | `Settings` (inside More). Sheet title `Settings` (signed in) or `Connection` (signed out) |
-| Server field | placeholder `http://192.168.1.10:8787` under header `Server` |
+| Server field | placeholder `https://howmuch.example.com` when connecting, `https://halation.example.com` in Settings |
 | Access | `Username`, `Password`, button `Sign in` / `Sign in again` |
 | Sign out | `Sign out`, then confirm `Sign out` |
 | Capture | tab-row `Add Transaction` (manual form), floating `Assistant` (chat), or home-screen Quick Action `Add Expense` |
@@ -176,8 +174,7 @@ Stable iOS handles:
 | Amount direction | `Outflow` / `Inflow` |
 | Detail rows | `Payee` (`Choose Payee`), `Category` (`Choose Category`), `Account` (`Choose Account`), `Date` |
 | Duplicate | register row long-press / context menu `Duplicate for Today` |
-| Ambiguous (planned) | footnote `Which account?` / `Which category?` in uncategorised ochre |
-| Review list (planned) | title `{N} Transactions`, trailing `Add {n} to {account}` |
+| Ambiguous | footnote `Which account?` / `Which category?` in uncategorised ochre |
 | Reading (planned) | title `Reading…`, caption `Stays on this device` |
 | Shortcuts (planned) | `Add Transaction` / phrase `Add a transaction in Halation` |
 

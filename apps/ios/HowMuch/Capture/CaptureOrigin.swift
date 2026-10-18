@@ -29,8 +29,6 @@ enum CaptureOrigin: Equatable, Codable, Sendable {
 struct CaptureAccountContext: Equatable, Codable, Sendable {
   var selectedAccountID: String?
   var origin: CaptureOrigin
-  /// True when the user must pick an account before anything can inherit one.
-  var needsAccountChoice: Bool { selectedAccountID == nil }
 
   static func resolve(
     origin: CaptureOrigin,

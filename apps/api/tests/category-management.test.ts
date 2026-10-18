@@ -253,7 +253,7 @@ describe("D1 category commands re-check their preconditions inside the batch", (
     expect(db.query("SELECT server_knowledge FROM plans WHERE id = 'p'").get()).toEqual(knowledge);
   });
 
-  test("a YNAB month that lands after planning aborts the write", async () => {
+  test("a plan that becomes a YNAB mirror after planning aborts the write", async () => {
     const { request, db, repo } = await open("D1");
     const racing = repo as any;
     const plan = racing.planCreateCategoryGroup.bind(racing);

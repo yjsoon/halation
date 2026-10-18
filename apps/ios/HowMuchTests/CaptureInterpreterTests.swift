@@ -210,7 +210,7 @@ final class CaptureInterpreterTests: XCTestCase {
     draft.amountMagnitudeMilli = 5_000
     draft.accountID = "acct-everyday"
     session.replaceDrafts([CaptureDraftItem(draft: draft)])
-    session.markCommittedIncluded()
+    session.markCommitted(ids: session.includedDrafts.map(\.id))
     let context = CaptureInterpreterPrompt.context(
       text: "Add tea $3",
       session: session,
@@ -432,7 +432,7 @@ final class CaptureInterpreterTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 5_000)
     XCTAssertEqual(session.drafts[0].draft.signedMilliunits, -5_000)
     XCTAssertEqual(session.drafts[0].draft.accountID, "acct-everyday")
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: [session.drafts[0].id]))
     XCTAssertFalse(session.drafts[0].committed)
     let draftID = session.drafts[0].id
 
@@ -465,7 +465,7 @@ final class CaptureInterpreterTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 7_000)
     XCTAssertEqual(session.drafts[0].draft.signedMilliunits, -7_000)
     XCTAssertEqual(session.drafts[0].draft.accountID, "acct-everyday")
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: [draftID]))
     XCTAssertFalse(session.drafts[0].committed)
 
     let renameInput = "Name it Starbucks"
@@ -494,7 +494,7 @@ final class CaptureInterpreterTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.payeeName, "Starbucks")
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 7_000)
 
-    session.markCommittedIncluded()
+    session.markCommitted(ids: session.includedDrafts.map(\.id))
     let savedRenameInput = "Name it Coffee rebate"
     let savedRename = try await interpretLiveTurn(
       step: "rename-saved-coffee-rebate",

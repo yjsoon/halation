@@ -316,8 +316,9 @@ describe("RewardRowProjectionTests: dates", () => {
   });
 
   test("testDaysLeftDoNotDependOnTheDeviceZone", () => {
-    // Across the March DST change in the US and the UK. The suite also runs under
-    // TZ=America/Los_Angeles and TZ=Pacific/Kiritimati (see the module's header).
+    // Across the March DST change in the US and the UK. Nothing sets TZ for this
+    // suite, so rerun it by hand with TZ=America/Los_Angeles and TZ=Pacific/Kiritimati
+    // after touching the date maths.
     const p = project({ minimum_spend: 800, total_spend: 100 }, { period: ["2026-03-01", "2026-03-31"], asOf: "2026-03-07" });
     expect(p.deadline?.days).toBe(25);
     const lastDay = project({ minimum_spend: 800, total_spend: 100 }, { period: ["2026-03-01", "2026-03-31"], asOf: "2026-03-31" });

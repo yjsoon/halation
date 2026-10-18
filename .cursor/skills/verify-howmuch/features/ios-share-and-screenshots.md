@@ -36,7 +36,7 @@ Preconditions:
 
 - `control-howmuch doctor` passes.
 - [iOS connection](./ios-connection.md) signed in.
-- Compose/reader already prove typed `N == 1` / `N > 1` ([iOS intake compose](./ios-intake-compose.md), [iOS intake review list](./ios-intake-review-list.md)).
+- [iOS capture typed replies](./ios-capture-typed-replies.md) already proves typed intake in the conversation.
 - Share extension `sg.soon.howmuch.share` / App Group `group.sg.soon.howmuch` present.
 
 - **Image share.** In Simulator Photos (or any image), Share → HowMuch, choose the account, kind and optionally a note, then Send. The sheet shows **Sent to Halation** and closes without opening the app. Open HowMuch. The conversation sheet does not open. Accounts shows the **Inbox** band with the batch row and a **Reading** then **Ready** pill, and a summary such as `1 new`.

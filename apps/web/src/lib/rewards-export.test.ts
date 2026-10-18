@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { portableRewardsExport } from "./rewards-export";
 
 test("exports current cards and portable rules without cached data or credentials", () => {
-  const result = portableRewardsExport({ cards: [{ id: "current", maximumSpend: null, earningRate: 0 } as never],
+  const result = portableRewardsExport({ cards: [{ id: "current", maximumSpend: null, earningRate: 0, cachedData: { spend: 1 } } as never],
     snapshot: { cards: [{ id: "stale" } as never], rules: [{ id: "rule", apiKey: "secret" }], tagMappings: [{ id: "tag" }],
       settings: { milesValuation: 0, cloudSyncMnemonic: "secret", statementFormatter: { apiKeys: { openai: "secret" } },
         apiKeys: { anthropic: "secret" }, categoryImport: { credentials: "secret", providerKey: "secret" }, currency: "SGD" } },
@@ -11,7 +11,7 @@ test("exports current cards and portable rules without cached data or credential
   expect(result.rules).toEqual([{ id: "rule" }]);
   expect(result.settings).toEqual({ milesValuation: 0, currency: "SGD", statementFormatter: {} });
   expect(JSON.stringify(result)).not.toContain("secret");
-  expect(result).not.toHaveProperty("cachedData");
+  expect(JSON.stringify(result)).not.toContain("cachedData");
 });
 
 test("retains portable dashboard and theme configuration without embedded authorization", () => {

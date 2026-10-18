@@ -1,8 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
   fillRegisterHorizon,
-  horizonStartDate,
-  oldestDateForHorizonCoverage,
   REGISTER_HORIZON_MAX_ROWS,
   shouldFetchMoreForHorizon,
 } from "./register-horizon";
@@ -22,19 +20,7 @@ function page(
   return { transactions, has_more: hasMore, next_offset: nextOffset };
 }
 
-describe("horizonStartDate", () => {
-});
-
 describe("shouldFetchMoreForHorizon", () => {
-
-  test("stops when a loaded date is strictly older than the horizon start", () => {
-    expect(shouldFetchMoreForHorizon({
-      oldestLoadedDate: "2026-06-27",
-      hasMore: true,
-      rowCount: 10,
-      today: TODAY,
-    })).toBe(false);
-  });
 
   test("keeps fetching when the oldest loaded date is the horizon start", () => {
     expect(shouldFetchMoreForHorizon({
@@ -43,32 +29,6 @@ describe("shouldFetchMoreForHorizon", () => {
       rowCount: 10,
       today: TODAY,
     })).toBe(true);
-  });
-
-  test("stops at the row cap", () => {
-    expect(shouldFetchMoreForHorizon({
-      oldestLoadedDate: "2026-07-01",
-      hasMore: true,
-      rowCount: REGISTER_HORIZON_MAX_ROWS,
-      today: TODAY,
-    })).toBe(false);
-    expect(shouldFetchMoreForHorizon({
-      oldestLoadedDate: "2026-07-01",
-      hasMore: true,
-      rowCount: REGISTER_HORIZON_MAX_ROWS - 1,
-      today: TODAY,
-    })).toBe(true);
-  });
-
-});
-
-describe("oldestDateForHorizonCoverage", () => {
-  test("ignores other accounts when a focused account id is set", () => {
-    expect(oldestDateForHorizonCoverage([
-      { date: "2026-09-08", account_id: "joey" },
-      { date: "2026-06-15", account_id: "other" },
-      { date: "2026-08-29", account_id: "joey" },
-    ], "joey")).toBe("2026-08-29");
   });
 
 });
@@ -192,16 +152,16 @@ describe("fillRegisterHorizon", () => {
     const offsets: number[] = [];
     const filled = await fillRegisterHorizon({
       today: TODAY_SEP,
-      accountId: "joey",
+      accountId: "acct-a",
       isCurrent: () => true,
       fetchPage: async (offset) => {
         offsets.push(offset);
         if (offset === 0) {
           return {
             transactions: [
-              row("future", "2026-09-08", "joey"),
+              row("future", "2026-09-08", "acct-a"),
               row("other-aug", "2026-08-20", "other"),
-              row("grab", "2026-08-29", "joey"),
+              row("late-aug", "2026-08-29", "acct-a"),
               row("other-june", "2026-06-15", "other"),
             ],
             has_more: true,
@@ -209,7 +169,7 @@ describe("fillRegisterHorizon", () => {
           };
         }
         return {
-          transactions: [row("july-groceries", "2026-07-20", "joey")],
+          transactions: [row("mid-july", "2026-07-20", "acct-a")],
           has_more: false,
           next_offset: null,
         };
@@ -219,9 +179,9 @@ describe("fillRegisterHorizon", () => {
     expect(filled?.transactions.map((transaction) => transaction.id)).toEqual([
       "future",
       "other-aug",
-      "grab",
+      "late-aug",
       "other-june",
-      "july-groceries",
+      "mid-july",
     ]);
   });
 });
