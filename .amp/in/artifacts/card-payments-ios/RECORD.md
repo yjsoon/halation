@@ -103,7 +103,13 @@ All expectations met. Not exercised: notification action buttons on a delivered 
 | Settings footer (I12) | Monthly-open line | "... Open Halation at least once a month so reminders keep being added." (21) |
 | Zero-balance statement notice (I3) | Card D has a `2026-11-03.statement` request and nothing else | 16 pending; Card D (`acct_dca491b3...`) has only `2026-11-03.statement`; Card C only `2026-10-03.funds` for October (22 to 24) |
 
-Card A sat on the 3 Nov cycle in this fixture: its owed balance was entered today, after the 3 Oct statement, so that statement's balance was 0. A follow-up adds a 500.00 charge dated 1 Oct to show the partial state; the runner reported the band row reading "$20.00 of $500.00 paid" while working, and its final screenshot is pending.
+Card A sat on the 3 Nov cycle in the first pass: its owed balance was entered today, after the 3 Oct statement, so that statement's balance was 0. A follow-up on the same simulator added a 500.00 charge on Card A dated Thu 1 Oct 2026.
+
+| Check | Expected | Observed |
+| --- | --- | --- |
+| Partial (I11) | Card A: "$20.00 of $500.00 paid", Schedule still shown, remaining 480.00 | "$500.00", Schedule button, "$20.00 of $500.00 paid · due Wed 28 Oct", "$480.00 left to pay · min $50.00 · recorded so far"; header count 1 (26) |
+| Partial keeps reminding | Card A gains the 3 Oct cycle's payment reminders | Pending count 16 to 22: `2026-10-03.lead` 21 Oct, `lastSafe` 26 Oct, `due` 28 Oct, `overdue`/`overdue2`/`overdue3` 29 to 31 Oct, all 08:00 (27 to 29) |
+| One-tap Schedule on a partial cycle | Pays the remaining amount | Toast "Scheduled: $480.00 from Account B on Mon 26 Oct... Set it up in your bank app."; row "Scheduled · $480.00 from Account B on 26 Oct", header count cleared (30) |
 
 ### Demo recording
 
