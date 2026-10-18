@@ -186,15 +186,26 @@ extension AppModel {
   /// `refreshCardPayments()`, waited on for at most `timeout`. The fetch
   /// carries on past the deadline and lands when it lands.
   func refreshCardPaymentsBriefly(timeout: Duration) async {
+    _ = await finishesBefore(ContinuousClock.now + timeout) { [weak self] in
+      await self?.refreshCardPayments()
+    }
+  }
+
+  /// Runs `operation` and waits for it until `deadline` at most. Returns
+  /// whether it finished in time; when it did not, it keeps running.
+  func finishesBefore(
+    _ deadline: ContinuousClock.Instant,
+    _ operation: @escaping @MainActor () async -> Void
+  ) async -> Bool {
     let gate = CardRaceGate()
-    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-      Task { @MainActor [weak self] in
-        await self?.refreshCardPayments()
-        if gate.claim() { continuation.resume() }
+    return await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+      Task { @MainActor in
+        await operation()
+        if gate.claim() { continuation.resume(returning: true) }
       }
       Task { @MainActor in
-        try? await Task.sleep(for: timeout)
-        if gate.claim() { continuation.resume() }
+        try? await Task.sleep(until: deadline, clock: .continuous)
+        if gate.claim() { continuation.resume(returning: false) }
       }
     }
   }
@@ -450,8 +461,16 @@ extension AppModel {
     while isDrainingCardQueue, ContinuousClock.now < limit {
       try? await Task.sleep(for: .milliseconds(100))
     }
+    // The drain's requests can hang far longer than iOS waits; race it
+    // against the deadline. A lost race leaves the tap queued (the drain
+    // carries on) and reports it as pending.
     if ContinuousClock.now < limit {
-      await drainCardPaymentQueue(refreshAfter: false)
+      let finished = await finishesBefore(limit) { [weak self] in
+        await self?.drainCardPaymentQueue(refreshAfter: false)
+      }
+      if !finished {
+        return .pending
+      }
     }
     if let result = cardDrainResults[key] {
       return result

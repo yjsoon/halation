@@ -47,7 +47,9 @@ enum CardPaymentSnoozeStore {
   /// snoozed until. Snoozes that have passed are dropped.
   static func snoozes(fingerprint: String, today: String) -> [String: String] {
     let all = load()
-    let mine = (all[fingerprint] ?? [:]).filter { $0.value > today }
+    // A snooze until today still applies: its reminder fires later today,
+    // and the planner drops fire times already past.
+    let mine = (all[fingerprint] ?? [:]).filter { $0.value >= today }
     if mine.count != all[fingerprint]?.count ?? 0 {
       var next = all
       next[fingerprint] = mine.isEmpty ? nil : mine

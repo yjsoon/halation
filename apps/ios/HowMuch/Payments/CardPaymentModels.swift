@@ -320,15 +320,20 @@ struct CardPaymentCycle: Codable, Hashable, Identifiable {
     case previousUnpaid
   }
 
-  /// Still owed for this cycle, as the web's `outstanding()`: the statement
-  /// (or a carried unpaid one, whichever is larger) less what was paid in
-  /// the window.
+  /// Still owed for this cycle, exactly as the web's `outstanding()`. The
+  /// statement balance already includes any carried debt and earlier
+  /// payments, so only an overdue cycle's payments in this window come off.
   var outstanding: Int {
     if case .partial(_, _, _, let remaining) = coverage {
-      return max(remaining, 0)
+      return remaining
     }
-    let owed = max(statementBalance, previousUnpaid?.statementBalance ?? 0)
-    return max(owed - coverage.paidSoFar, 0)
+    let paid: Int
+    if case .overdue(_, let amount) = coverage {
+      paid = amount
+    } else {
+      paid = 0
+    }
+    return max(statementBalance - paid, 0)
   }
 
   /// The minimum still to pay, never more than what is outstanding.

@@ -296,14 +296,16 @@ enum CardPaymentPlanner {
       // The server decides what is overdue. A due date still ahead gets the
       // daily run planned in advance, in case it passes unpaid; a due date
       // that passed without the server calling it overdue (terms set up
-      // after it) gets none. The run starts the day after this cycle's own
-      // due date, or today when that is later, and `since` (the missed due
-      // date, possibly the previous statement's) is only in the wording.
+      // after it) gets none. An overdue cycle runs from the day after the
+      // missed due date (`since`, possibly the previous statement's, so a
+      // carried statement keeps reminding before this cycle's own due date)
+      // or today, whichever is later.
       let today = input.now.isoDateString
       if cycle.coverage.isOverdue || cycle.dueDate >= input.view.asOf {
         let missed = cycle.coverage.overdueSince ?? cycle.dueDate
+        let base = cycle.coverage.isOverdue ? missed : cycle.dueDate
         let paid = cycle.coverage.paidSoFar
-        let firstOffset = max(1, CardCycleMaths.days(from: cycle.dueDate, to: today))
+        let firstOffset = max(1, CardCycleMaths.days(from: base, to: today))
         var overdueCount = 0
         var offset = firstOffset
         while overdueCount < overduePending, offset < firstOffset + overduePending + 2 {
@@ -311,7 +313,7 @@ enum CardPaymentPlanner {
           add(
             .overdue,
             suffix: offset == 1 ? nil : "\(offset)",
-            on: CardCycleMaths.addDays(cycle.dueDate, offset),
+            on: CardCycleMaths.addDays(base, offset),
             hour: hour,
             title: "Overdue: \(name)",
             body: sentence(
