@@ -9,6 +9,7 @@ struct EditAccountSheet: View {
   @State private var icon: AccountIconChoice
   @State private var error: String?
   @State private var isSaving = false
+  @State private var isEditingReminders = false
   @FocusState private var nameFocused: Bool
 
   init(account: Account) {
@@ -39,6 +40,37 @@ struct EditAccountSheet: View {
               .font(.footnote)
               .foregroundStyle(Theme.outflow)
           }
+          if AccountKind(rawValue: account.type)?.isCredit == true {
+            Button {
+              isEditingReminders = true
+            } label: {
+              HStack(spacing: 12) {
+                Image(systemName: "bell")
+                  .foregroundStyle(Theme.accent)
+                  .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                  Text("Payment reminders")
+                    .font(.body)
+                    .foregroundStyle(Theme.textPrimary)
+                  Text(reminderSummary)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                  .font(.footnote.weight(.semibold))
+                  .foregroundStyle(.tertiary)
+                  .accessibilityHidden(true)
+              }
+              .padding(.horizontal, Theme.FormRow.horizontalPadding)
+              .padding(.vertical, Theme.FormRow.verticalPadding)
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .ynabCard()
+            .disabled(isSaving)
+            .accessibilityIdentifier("edit-account-payment-reminders")
+          }
         }
         .padding(16)
       }
@@ -49,7 +81,26 @@ struct EditAccountSheet: View {
         AccountSheetToolbar(isSaving: isSaving, canSave: canSave, cancel: { dismiss() }, save: save)
       }
       .interactiveDismissDisabled(isSaving)
+      .sheet(isPresented: $isEditingReminders) {
+        CardPaymentTermsSheet(account: account, existing: model.cardPayments.terms(for: account.id))
+      }
     }
+  }
+
+  private var reminderSummary: String {
+    guard let terms = model.cardPayments.terms(for: account.id) else {
+      return "Statement and due dates, and reminders before the due date"
+    }
+    guard terms.enabled else {
+      return "Off"
+    }
+    let next = CardCycleMaths.upcoming(
+      statementDay: terms.statementDay,
+      gapDays: terms.dueGapDays,
+      rule: terms.dueWeekendRule,
+      today: Date.now.isoDateString
+    )
+    return "Next due \(CardPaymentFormat.weekdayDay(next.due))"
   }
 
   private var trimmedName: String {

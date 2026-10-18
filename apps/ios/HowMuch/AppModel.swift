@@ -112,6 +112,13 @@ final class AppModel {
   /// Imported YNAB schedules remain an immutable source mirror; local edits
   /// and entered occurrences are reflected through HowMuch overlays.
   var scheduledTransactions: [ScheduledTransaction] = []
+  /// Card payment terms and the current and next cycle of each card with
+  /// terms. See `AppModel+CardPayments.swift`.
+  var cardPayments: CardPaymentsView = .empty
+  var cardPaymentsPhase: LoadPhase = .idle
+  @ObservationIgnored var cardPaymentsGeneration = 0
+  @ObservationIgnored var cardPaymentsRefreshToken = 0
+  @ObservationIgnored var isDrainingCardQueue = false
   private(set) var hasMoreTransactions = false
   private(set) var nextTransactionOffset: Int?
   private(set) var isLoadingOlderTransactions = false
@@ -617,6 +624,9 @@ final class AppModel {
     approvalSession = .empty
     syncApprovalPending()
     scheduledTransactions = []
+    cardPayments = .empty
+    cardPaymentsPhase = .idle
+    cardPaymentsGeneration &+= 1
     spendingBreakdown = nil
     incomeVsSpending = nil
     netWorth = nil
@@ -1998,6 +2008,8 @@ final class AppModel {
     async let ledger: Void = refreshLedger(quiet: quiet)
     async let schedules: Void = refreshScheduledTransactions(quiet: quiet)
     _ = await (sent, reference, ledger, schedules)
+    // Needs the accounts: only a plan with a credit account asks.
+    await refreshCardPaymentsAtLaunch()
   }
 
   /// Refreshes only the slices a write could not reproduce locally, and marks
@@ -2131,6 +2143,7 @@ final class AppModel {
       drainOutboxIfQueued()
       persistSnapshot()
       publishIntentCatalog()
+      noteCardPaymentInputsChanged()
     } catch {
       guard generation == accountsGeneration, planID == settings.planID, scope == activeViewPrefsScope
       else {
@@ -2369,6 +2382,7 @@ final class AppModel {
       ledgerPhase = .loaded
       ledgerIsProvisional = false
       provisionalLedgerRowIDs = []
+      noteCardPaymentInputsChanged()
       lastLedgerFirstPage = ReferenceSnapshot.LedgerPage(
         transactions: fetchedFirstPage,
         hasMore: page.hasMore,
@@ -2560,6 +2574,9 @@ final class AppModel {
     approvalSession = .empty
     syncApprovalPending()
     scheduledTransactions = []
+    cardPayments = .empty
+    cardPaymentsPhase = .idle
+    cardPaymentsGeneration &+= 1
     spendingBreakdown = nil
     incomeVsSpending = nil
     netWorth = nil
@@ -2760,6 +2777,7 @@ final class AppModel {
       scheduledTransactionsPhase = .loaded
       schedulesIsProvisional = false
       persistSnapshot()
+      noteCardPaymentInputsChanged()
     } catch {
       guard generation == scheduledTransactionsGeneration,
             planID == settings.planID,
@@ -2792,6 +2810,7 @@ final class AppModel {
     }
     scheduledTransactionsPhase = .loaded
     scheduleRefresh(after: .scheduleSaved)
+    noteCardPaymentInputsChanged()
     showSaveMessage(draft.id == nil ? "Added scheduled transaction" : "Saved scheduled transaction")
   }
 
@@ -2803,6 +2822,7 @@ final class AppModel {
     scheduledTransactions.removeAll { $0.id == id }
     scheduledTransactionsPhase = .loaded
     scheduleRefresh(after: .scheduleDeleted)
+    noteCardPaymentInputsChanged()
     showSaveMessage("Deleted scheduled transaction")
   }
 

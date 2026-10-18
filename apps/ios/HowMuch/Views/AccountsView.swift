@@ -262,6 +262,8 @@ struct AccountsView: View {
           onOpen: { job in pane = .intakeBatch(job.id) }
         )
 
+        PaymentsDueBand(onOpenAccount: { accountID in pane = .account(accountID) })
+
         if model.accounts.isEmpty, model.referencePhase != .loaded {
           PhasePlaceholder(phase: model.referencePhase) {
             await model.refreshReferenceData()

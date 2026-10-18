@@ -378,6 +378,42 @@ struct APIClient {
     return response.data
   }
 
+  /// Every card's payment terms. Local mode answers from the on-device engine.
+  func fetchCardPaymentTerms(planID: String) async throws -> [CardPaymentTerms] {
+    let response: APIEnvelope<CardPaymentTermsListPayload> = try await request(
+      path: "/v1/plans/\(planID)/card_payment_terms"
+    )
+    return response.data.cardPaymentTerms
+  }
+
+  /// PUT replaces the whole row: send every field.
+  func putCardPaymentTerms(planID: String, terms: CardPaymentTerms, idempotencyKey: String) async throws -> CardPaymentTerms {
+    let response: APIEnvelope<CardPaymentTermsPayload> = try await request(
+      path: "/v1/plans/\(planID)/accounts/\(terms.accountID)/card_payment_terms",
+      method: "PUT",
+      headers: ["Idempotency-Key": idempotencyKey],
+      body: CardPaymentTermsWriteEnvelope(cardPaymentTerms: terms)
+    )
+    return response.data.cardPaymentTerms
+  }
+
+  func deleteCardPaymentTerms(planID: String, accountID: String, idempotencyKey: String) async throws {
+    let _: APIEnvelope<CardPaymentTermsPayload> = try await request(
+      path: "/v1/plans/\(planID)/accounts/\(accountID)/card_payment_terms",
+      method: "DELETE",
+      headers: ["Idempotency-Key": idempotencyKey]
+    )
+  }
+
+  /// The current and next cycle of every card with terms, as of today in the
+  /// plan's time zone.
+  func fetchCardPayments(planID: String) async throws -> CardPaymentsPayload {
+    let response: APIEnvelope<CardPaymentsPayload> = try await request(
+      path: "/v1/plans/\(planID)/card_payments"
+    )
+    return response.data
+  }
+
   func reconcileAccount(
     planID: String,
     accountID: String,

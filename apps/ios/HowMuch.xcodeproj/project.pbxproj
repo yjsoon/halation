@@ -164,6 +164,14 @@
 		D20000000000000000000A01 /* IntakeTransferReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000A02 /* IntakeTransferReader.swift */; };
 		D20000000000000000000016 /* IntakeLineParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000015 /* IntakeLineParserTests.swift */; };
 		D20000000000000000000A03 /* IntakeTransferReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000A04 /* IntakeTransferReaderTests.swift */; };
+		E10000000000000000000002 /* CardPaymentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000001 /* CardPaymentModels.swift */; };
+		E10000000000000000000004 /* CardPaymentPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000003 /* CardPaymentPlanner.swift */; };
+		E10000000000000000000006 /* CardPaymentNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000005 /* CardPaymentNotifier.swift */; };
+		E10000000000000000000008 /* AppModel+CardPayments.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000007 /* AppModel+CardPayments.swift */; };
+		E1000000000000000000000A /* PaymentsDueBand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000009 /* PaymentsDueBand.swift */; };
+		E1000000000000000000000C /* CardPaymentScheduleSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000000000000000000000B /* CardPaymentScheduleSheet.swift */; };
+		E1000000000000000000000E /* CardPaymentTermsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000000000000000000000D /* CardPaymentTermsSheet.swift */; };
+		E10000000000000000000010 /* RemindersSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000000000000000000000F /* RemindersSettingsSection.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -325,6 +333,14 @@
 		D20000000000000000000A02 /* IntakeTransferReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeTransferReader.swift; sourceTree = "<group>"; };
 		D20000000000000000000015 /* IntakeLineParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeLineParserTests.swift; sourceTree = "<group>"; };
 		D20000000000000000000A04 /* IntakeTransferReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeTransferReaderTests.swift; sourceTree = "<group>"; };
+		E10000000000000000000001 /* CardPaymentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPaymentModels.swift; sourceTree = "<group>"; };
+		E10000000000000000000003 /* CardPaymentPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPaymentPlanner.swift; sourceTree = "<group>"; };
+		E10000000000000000000005 /* CardPaymentNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPaymentNotifier.swift; sourceTree = "<group>"; };
+		E10000000000000000000007 /* AppModel+CardPayments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+CardPayments.swift"; sourceTree = "<group>"; };
+		E10000000000000000000009 /* PaymentsDueBand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentsDueBand.swift; sourceTree = "<group>"; };
+		E1000000000000000000000B /* CardPaymentScheduleSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPaymentScheduleSheet.swift; sourceTree = "<group>"; };
+		E1000000000000000000000D /* CardPaymentTermsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPaymentTermsSheet.swift; sourceTree = "<group>"; };
+		E1000000000000000000000F /* RemindersSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersSettingsSection.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXContainerItemProxy section */
@@ -402,6 +418,7 @@
 				A1000000000000000000001A /* Assets.xcassets */,
 				A1000000000000000000001B /* Info.plist */,
 				A20000000000000000000014 /* Capture */,
+				E10000000000000000000000 /* Payments */,
 				B1000000000000000000000A /* Engine */,
 				A20000000000000000000032 /* Intents */,
 				A10000000000000000000005 /* Models */,
@@ -636,6 +653,21 @@
 			path = Engine;
 			sourceTree = "<group>";
 		};
+		E10000000000000000000000 /* Payments */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000001 /* CardPaymentModels.swift */,
+				E10000000000000000000003 /* CardPaymentPlanner.swift */,
+				E10000000000000000000005 /* CardPaymentNotifier.swift */,
+				E10000000000000000000007 /* AppModel+CardPayments.swift */,
+				E10000000000000000000009 /* PaymentsDueBand.swift */,
+				E1000000000000000000000B /* CardPaymentScheduleSheet.swift */,
+				E1000000000000000000000D /* CardPaymentTermsSheet.swift */,
+				E1000000000000000000000F /* RemindersSettingsSection.swift */,
+			);
+			path = Payments;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -766,6 +798,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E10000000000000000000002 /* CardPaymentModels.swift in Sources */,
+				E10000000000000000000004 /* CardPaymentPlanner.swift in Sources */,
+				E10000000000000000000006 /* CardPaymentNotifier.swift in Sources */,
+				E10000000000000000000008 /* AppModel+CardPayments.swift in Sources */,
+				E1000000000000000000000A /* PaymentsDueBand.swift in Sources */,
+				E1000000000000000000000C /* CardPaymentScheduleSheet.swift in Sources */,
+				E1000000000000000000000E /* CardPaymentTermsSheet.swift in Sources */,
+				E10000000000000000000010 /* RemindersSettingsSection.swift in Sources */,
 				A10000000000000000000021 /* AppModel.swift in Sources */,
 				A10000000000000000000022 /* APIModels.swift in Sources */,
 				A10000000000000000000C41 /* TransactionWriteModels.swift in Sources */,

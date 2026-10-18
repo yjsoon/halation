@@ -70,7 +70,9 @@ final class IntakeNotifier {
       title: "Discard",
       options: [.destructive, .authenticationRequired]
     )
-    center.setNotificationCategories([
+    // One registration replaces every category, so the card payment
+    // categories are registered here too.
+    center.setNotificationCategories(Set(CardPaymentNotifier.categories).union([
       UNNotificationCategory(
         identifier: Self.reviewCategory,
         actions: [review, later],
@@ -83,7 +85,7 @@ final class IntakeNotifier {
         intentIdentifiers: [],
         options: []
       ),
-    ])
+    ]))
   }
 
   /// Asks the first time a job reaches Ready, or a share is first taken, and
@@ -117,15 +119,18 @@ final class IntakeNotifier {
     Task { _ = await authorisationStatus(requestIfNeeded: true) }
   }
 
-  /// The app badge is Ready plus Needs you. Called on every job change.
-  func updateBadge(_ count: Int) {
+  /// The app badge is Ready plus Needs you by default; the Reminders setting
+  /// can make it count card payments instead, or both. Called on every job
+  /// change and whenever the card count moves.
+  func updateBadge(_ inboxCount: Int) {
+    if inboxCount == 0 {
+      center.removeDeliveredNotifications(withIdentifiers: [Self.summaryIdentifier])
+    }
+    let count = AppBadgeMode.current.count(inbox: inboxCount, cards: CardPaymentNotifier.shared.cardBadgeCount)
     guard lastBadge != count else {
       return
     }
     lastBadge = count
-    if count == 0 {
-      center.removeDeliveredNotifications(withIdentifiers: [Self.summaryIdentifier])
-    }
     let center = center
     track { [weak self] in
       do {
@@ -408,6 +413,25 @@ final class IntakeNotificationDelegate: NSObject, UNUserNotificationCenterDelega
     let jobID = (info["jobID"] as? String).flatMap { UUID(uuidString: $0) }
     let kind = info["kind"] as? String
     let action = response.actionIdentifier
+    if kind == "card" {
+      // Card payment reminders: copy the strings out before hopping.
+      let fields = info.reduce(into: [String: String]()) { result, entry in
+        if let key = entry.key as? String, let value = entry.value as? String {
+          result[key] = value
+        }
+      }
+      DispatchQueue.main.async {
+        MainActor.assumeIsolated {
+          let notifier = CardPaymentNotifier.shared
+          notifier.handle(action: action, info: fields)
+          Task { @MainActor in
+            await notifier.settle()
+            completionHandler()
+          }
+        }
+      }
+      return
+    }
     DispatchQueue.main.async {
       MainActor.assumeIsolated {
         let notifier = IntakeNotifier.shared
@@ -422,6 +446,20 @@ final class IntakeNotificationDelegate: NSObject, UNUserNotificationCenterDelega
           completionHandler()
         }
       }
+    }
+  }
+
+  /// A card reminder that comes due while the app is open still shows; Inbox
+  /// notifications are never posted while the app is active.
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    if notification.request.content.userInfo["kind"] as? String == "card" {
+      completionHandler([.banner, .list])
+    } else {
+      completionHandler([])
     }
   }
 }
@@ -533,6 +571,11 @@ final class IntakeBackgroundRefresh {
     Task { @MainActor in
       await coordinator.waitForDrain()
       await IntakeNotifier.shared.settle()
+      // Second step: card payments, so posted and scheduled states and the
+      // pending reminders stay current without the app being opened.
+      if !completion.isFinished {
+        await CardPaymentNotifier.shared.backgroundRefresh(model: model)
+      }
       completion.complete(success: true)
     }
   }
