@@ -1,5 +1,7 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { applyMigrations } from "../src/db";
 import { nativeHarness } from "./helpers/native-harness";
 
@@ -216,50 +218,96 @@ describe("local schema migrations", () => {
     }
   });
 
-  // A ZWJ emoji such as 👩‍💻 is left to the JS resolver. If startup failed after
-  // 016/017 were recorded, the next start must still finish that work.
+  // A ZWJ emoji such as 👩‍💻 is left to the JS resolver, which runs with 017.
+  // A plan from before the icon migrations, with the later migrations this
+  // minimal schema cannot run already recorded.
+  const PRE_ICON_PLAN = `
+    CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+    CREATE TABLE plans (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE accounts (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT NOT NULL REFERENCES plans(id),
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'checking',
+      deleted INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE TABLE payees (
+      id TEXT PRIMARY KEY,
+      plan_id TEXT,
+      name TEXT NOT NULL,
+      transfer_account_id TEXT,
+      deleted INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+    INSERT INTO plans(id,name) VALUES ('p','Plan');
+    INSERT INTO accounts(id,plan_id,name,type) VALUES ('dev','p','👩‍💻 Work','otherAsset');
+    INSERT INTO payees(id,plan_id,name,transfer_account_id) VALUES ('payee-dev','p','Transfer : 👩‍💻 Work','dev');
+    INSERT INTO schema_migrations(version) VALUES
+      ('001_initial'),('002_transaction_server_knowledge'),('003_transfer_payees'),('004_auth_foundation'),('005_password_auth'),
+      ('006_allow_duplicate_payee_names'),('007_ynab_raw_objects'),('008_plan_month_assignments'),('009_plan_month_category_targets'),
+      ('010_scheduled_transaction_edits'),('011_scheduled_transaction_snapshot_assertions'),('012_account_reconciliation_assertions'),
+      ('013_unique_live_import_id'),('014_personal_api_tokens'),('015_account_preferences'),
+      ('019_query_covering_indexes'),('020_ynab_source_month_activity'),('021_account_month_balances'),('022_own_imported_ynab_schedules');
+  `;
+  const expectWorkSplit = (db: Database) => {
+    expect(db.query("SELECT name, icon FROM accounts WHERE id = 'dev'").get()).toEqual({ name: "Work", icon: "👩‍💻" });
+    expect(db.query("SELECT name FROM payees WHERE id = 'payee-dev'").get()).toEqual({ name: "Transfer : Work" });
+  };
+
   test("an upgrade interrupted after the icon migrations still splits ZWJ emoji names", () => {
     const db = new Database(":memory:");
     try {
-      db.exec(`
-        CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
-        CREATE TABLE plans (id TEXT PRIMARY KEY, name TEXT NOT NULL);
-        CREATE TABLE accounts (
-          id TEXT PRIMARY KEY,
-          plan_id TEXT NOT NULL REFERENCES plans(id),
-          name TEXT NOT NULL,
-          type TEXT NOT NULL DEFAULT 'checking',
-          deleted INTEGER NOT NULL DEFAULT 0
-        );
-        CREATE TABLE payees (
-          id TEXT PRIMARY KEY,
-          plan_id TEXT,
-          name TEXT NOT NULL,
-          transfer_account_id TEXT,
-          deleted INTEGER NOT NULL DEFAULT 0,
-          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-        );
-        INSERT INTO plans(id,name) VALUES ('p','Plan');
-        INSERT INTO accounts(id,plan_id,name,type) VALUES ('dev','p','👩‍💻 Work','otherAsset');
-        INSERT INTO payees(id,plan_id,name,transfer_account_id) VALUES ('payee-dev','p','Transfer : 👩‍💻 Work','dev');
-        INSERT INTO schema_migrations(version) VALUES
-          ('001_initial'),('002_transaction_server_knowledge'),('003_transfer_payees'),('004_auth_foundation'),('005_password_auth'),
-          ('006_allow_duplicate_payee_names'),('007_ynab_raw_objects'),('008_plan_month_assignments'),('009_plan_month_category_targets'),
-          ('010_scheduled_transaction_edits'),('011_scheduled_transaction_snapshot_assertions'),('012_account_reconciliation_assertions'),
-          ('013_unique_live_import_id'),('014_personal_api_tokens'),('015_account_preferences'),
-          ('019_query_covering_indexes'),('020_ynab_source_month_activity'),('021_account_month_balances'),('022_own_imported_ynab_schedules');
-        -- Makes 018 fail, standing in for a crash after 016/017 committed.
-        CREATE TABLE rewards_tracker_snapshots (blocker INTEGER);
-      `);
+      db.exec(PRE_ICON_PLAN);
+      // Makes 018 fail, standing in for a crash after 016/017 committed.
+      db.exec("CREATE TABLE rewards_tracker_snapshots (blocker INTEGER)");
 
       expect(() => applyMigrations(db)).toThrow();
       db.run("DROP TABLE rewards_tracker_snapshots");
       applyMigrations(db);
 
-      expect(db.query("SELECT name, icon FROM accounts WHERE id = 'dev'").get()).toEqual({ name: "Work", icon: "👩‍💻" });
-      expect(db.query("SELECT name FROM payees WHERE id = 'payee-dev'").get()).toEqual({ name: "Transfer : Work" });
+      expectWorkSplit(db);
     } finally {
       db.close();
+    }
+  });
+
+  // The previous runner committed 016/017 and ran the JS backfill only after
+  // every migration, so a failure in between left 017 recorded without it.
+  test("recovers an upgrade the previous runner left between 017 and the backfill", () => {
+    const db = new Database(":memory:");
+    try {
+      db.exec(PRE_ICON_PLAN);
+      for (const version of ["016_account_icons", "017_account_icon_emoji_backfill"]) {
+        db.run(readFileSync(join(import.meta.dir, "../migrations", `${version}.sql`), "utf8").trimEnd());
+        db.query("INSERT INTO schema_migrations (version) VALUES (?)").run(version);
+      }
+      expect(db.query("SELECT name, icon FROM accounts WHERE id = 'dev'").get()).toEqual({ name: "👩‍💻 Work", icon: "📈" });
+
+      applyMigrations(db);
+
+      expectWorkSplit(db);
+    } finally {
+      db.close();
+    }
+  });
+
+  test("a fully migrated plan from the previous runner keeps names typed since its last start", async () => {
+    const harness = await nativeHarness("SQLite");
+    try {
+      const created = await (await harness.request("/v1/plans/p/accounts", {
+        method: "POST",
+        body: { account: { name: "Everyday", type: "checking" } },
+      })).json() as { data: { account: { id: string } } };
+      const id = created.data.account.id;
+      await harness.request(`/v1/plans/p/accounts/${id}`, { method: "PATCH", body: { account: { name: "💳 Daily" } } });
+      // The previous runner wrote no record of its backfill.
+      harness.db.run("DELETE FROM schema_migrations WHERE version LIKE '%presentation%'");
+
+      applyMigrations(harness.db);
+
+      expect(harness.db.query("SELECT name, icon FROM accounts WHERE id = ?").get(id)).toEqual({ name: "💳 Daily", icon: "🏦" });
+    } finally {
+      harness.close();
     }
   });
 
