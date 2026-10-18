@@ -43,8 +43,6 @@ struct RewardExposure: Equatable {
 
   var light: Light { stage == .failed ? .overcast : stage == .calm ? .even : .journey }
   var hasSun: Bool { stage != .failed }
-  /// The marker's x as a share of the width: exactly the fill, in the minimum journey only.
-  var markerX: Double? { stage == .gate ? pose.h : nil }
   /// The brand pair, apart at rest: no journey to show.
   var ridgesApart: Bool { stage == .failed || stage == .calm }
 
@@ -133,8 +131,6 @@ extension RewardExposure.Pose {
   var lift: Double { min(1, max(0, (h - 0.85) / 0.15)) }
   /// The sun's x as a share of the width, riding the marker while the minimum journey runs.
   var sunX: Double { h >= 1 ? RewardExposure.column : min(max(h, RewardExposure.ride.lowerBound), RewardExposure.ride.upperBound) }
-  /// The share of the full gap between the ridges that is left.
-  var gap: Double { 1 - h }
   /// The sun's centre y for a target horizon at `horizon` and a disc of radius `r` (y points down).
   /// `seat` is how far below the horizon the centre sits while the sun rides it, as a share of `r`:
   /// a hair below on the hero, and exactly on it on the phone strip, where the disc is a clean half-sun.

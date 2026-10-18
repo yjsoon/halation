@@ -294,7 +294,7 @@ final class SlipReaderMappingTests: XCTestCase {
       now: Self.now
     )[0]
     XCTAssertTrue(row.parsedAccount)
-    XCTAssertTrue(row.accountUnresolved)
+    XCTAssertTrue(row.parsedAccount && row.draft.accountID.isEmpty)
     XCTAssertEqual(row.unrecognizedAccount, "No Such Bank")
     let applied = ComposeParseApply.applying(row, to: draft)
     XCTAssertEqual(applied.draft.accountID, "")
@@ -316,7 +316,7 @@ final class SlipReaderMappingTests: XCTestCase {
       calendar: Self.calendar,
       now: Self.now
     )[0]
-    XCTAssertFalse(row.parsedInflow)
+    XCTAssertFalse(row.parsedDirection && row.draft.direction == .inflow)
     let applied = ComposeParseApply.applying(row, to: draft)
     XCTAssertEqual(applied.draft.direction, .inflow)
   }
@@ -332,7 +332,7 @@ final class SlipReaderMappingTests: XCTestCase {
       calendar: Self.calendar,
       now: Self.now
     )[0]
-    XCTAssertTrue(row.parsedInflow)
+    XCTAssertTrue(row.parsedDirection && row.draft.direction == .inflow)
     let applied = ComposeParseApply.applying(row, to: draft)
     XCTAssertEqual(applied.draft.direction, .inflow)
   }
@@ -353,7 +353,7 @@ final class SlipReaderMappingTests: XCTestCase {
       now: Self.now
     )[0]
     XCTAssertFalse(row.parsedAccount)
-    XCTAssertFalse(row.accountUnresolved)
+    XCTAssertFalse(row.parsedAccount && row.draft.accountID.isEmpty)
     let applied = ComposeParseApply.applying(row, to: draft)
     XCTAssertEqual(applied.draft.accountID, "acct-travel")
     XCTAssertTrue(applied.accountCandidates.isEmpty)
@@ -414,7 +414,7 @@ final class SlipReaderMappingTests: XCTestCase {
       now: Self.now
     )[0]
     XCTAssertFalse(row.parsedAccount)
-    XCTAssertFalse(row.accountUnresolved)
+    XCTAssertFalse(row.parsedAccount && row.draft.accountID.isEmpty)
     XCTAssertEqual(row.draft.accountID, "")
     let applied = ComposeParseApply.applying(row, to: draft)
     XCTAssertEqual(applied.draft.accountID, "acct-travel")
@@ -437,7 +437,7 @@ final class SlipReaderMappingTests: XCTestCase {
       now: Self.now
     )[0]
     XCTAssertFalse(row.parsedAccount)
-    XCTAssertFalse(row.accountUnresolved)
+    XCTAssertFalse(row.parsedAccount && row.draft.accountID.isEmpty)
     let applied = ComposeParseApply.applying(row, to: draft)
     XCTAssertEqual(applied.draft.accountID, "acct-everyday")
     XCTAssertTrue(applied.accountCandidates.isEmpty)

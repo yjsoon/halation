@@ -4,9 +4,8 @@
  * The table itself is maintained by triggers declared in migration
  * `021_account_month_balances.sql` (D1: `0018_account_month_balances.sql`), so
  * nothing here writes during a normal request.  What lives here is the month
- * arithmetic, the rebuild statements used by the migration, the parity script
- * and the drift test, and the pure net-worth fold that turns monthly rows into
- * report periods.
+ * arithmetic and the pure net-worth fold that turns monthly rows into report
+ * periods.
  */
 
 type MonthlyBalanceRow = { account_id: string; month: string; net_change_milli: number };
@@ -36,21 +35,6 @@ type NetWorthPeriod = {
   delta: number | null;
   accounts: NetWorthAccountBalance[];
 };
-
-/**
- * Statements that rebuild the whole aggregate from live transaction history.
- * The `HAVING` matches the triggers, which drop a pair once its net change
- * reaches zero, so a rebuild reproduces the maintained row set exactly.
- */
-export const REBUILD_ACCOUNT_MONTH_BALANCES_SQL = [
-  "DELETE FROM account_month_balances",
-  `INSERT INTO account_month_balances (plan_id, account_id, month, net_change_milli, updated_at)
-   SELECT t.plan_id, t.account_id, substr(t.date, 1, 7), SUM(t.amount_milli), CURRENT_TIMESTAMP
-   FROM transactions t
-   WHERE t.deleted = 0
-   GROUP BY t.plan_id, t.account_id, substr(t.date, 1, 7)
-   HAVING SUM(t.amount_milli) <> 0`,
-] as const;
 
 /** The `YYYY-MM` bucket an ISO date belongs to. */
 export function monthOf(date: string): string {

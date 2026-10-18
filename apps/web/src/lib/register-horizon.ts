@@ -7,12 +7,12 @@ export const REGISTER_HORIZON_MAX_ROWS = 600;
 // The largest page the API allows, so the horizon fill takes as few requests as it can.
 export const REGISTER_PAGE_SIZE = MAX_TRANSACTION_PAGE_SIZE;
 
-export function horizonStartDate(today: string): string {
+function horizonStartDate(today: string): string {
   const [year, month, day] = today.split("-").map(Number);
   return trailingMonthsRange(REGISTER_HORIZON_MONTHS, new Date(year, month - 1, day)).from;
 }
 
-export function oldestDateForHorizonCoverage<T extends { date: string; account_id?: string }>(
+function oldestDateForHorizonCoverage<T extends { date: string; account_id?: string }>(
   rows: T[],
   accountId?: string | null,
 ): string | null {

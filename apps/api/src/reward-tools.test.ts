@@ -2,14 +2,18 @@ import { expect, test } from "bun:test";
 import { fetchTerms, handleRewardTool, readLimited } from "./reward-tools";
 
 test("terms allow only exact HTTPS bank hosts; redirects never followed", async () => {
+  // fetchTerms turns any transport error into a rejection, so record what was
+  // sent and assert outside the transport.
+  const redirects: Array<RequestInit["redirect"]> = [];
   let calls = 0;
-  const transport = (async (_url: unknown, init: RequestInit) => { calls++; expect(init.redirect).toBe("error"); return new Response("redirect", { status: 302 }); }) as typeof fetch;
+  const transport = (async (_url: unknown, init: RequestInit) => { calls++; redirects.push(init.redirect); return new Response("redirect", { status: 302 }); }) as typeof fetch;
   for (const url of ["http://www.dbs.com.sg/x", "https://127.0.0.1/x", "https://www.dbs.com.sg.evil.test", "https://user@www.dbs.com.sg", "https://www.dbs.com.sg:444/x"]) {
     await expect(fetchTerms(url, transport)).rejects.toThrow();
   }
   expect(calls).toBe(0);
   await expect(fetchTerms("https://www.dbs.com.sg/terms", transport)).rejects.toThrow();
   expect(calls).toBe(1);
+  expect(redirects).toEqual(["error"]);
 });
 
 test("stream limit applies without content-length", async () => {
@@ -19,14 +23,19 @@ test("stream limit applies without content-length", async () => {
 test("fixed endpoint, exact model, no incoming credentials; provider failures sanitized", async () => {
   const body = { provider: "openai", apiKey: "secret-provider", model: "my-exact-model", terms: "Dining 4%", cardType: "cashback", consent: true };
   const request = () => new Request("https://howmuch.test/api/tools/reward-terms", { method: "POST", headers: { authorization: "Bearer ledger-secret", cookie: "login-secret" }, body: JSON.stringify(body) });
+  // handleRewardTool turns a transport error into a 502, so an expect inside the
+  // transport could never fail this test. Record the call and check it after.
+  const calls: Array<{ url: unknown; init: RequestInit }> = [];
   const result = await handleRewardTool(request(), "reward-terms", (async (url: unknown, init: RequestInit) => {
-    expect(url).toBe("https://api.openai.com/v1/chat/completions");
-    expect(init.redirect).toBe("error");
-    expect(JSON.stringify(init)).not.toContain("ledger-secret");
-    expect(JSON.stringify(init)).not.toContain("login-secret");
-    expect(JSON.parse(init.body as string).model).toBe("my-exact-model");
+    calls.push({ url, init });
     throw new Error("secret-provider + private body");
   }) as typeof fetch);
+  expect(calls).toHaveLength(1);
+  expect(calls[0]!.url).toBe("https://api.openai.com/v1/chat/completions");
+  expect(calls[0]!.init.redirect).toBe("error");
+  expect(JSON.stringify(calls[0]!.init)).not.toContain("ledger-secret");
+  expect(JSON.stringify(calls[0]!.init)).not.toContain("login-secret");
+  expect(JSON.parse(calls[0]!.init.body as string).model).toBe("my-exact-model");
   expect(result.status).toBe(502);
   expect(await result.text()).not.toContain("secret-provider");
 });

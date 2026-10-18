@@ -22,8 +22,8 @@ import XCTest
 @MainActor
 final class IntakeSkillTests: XCTestCase {
   private let everyday = "acct-everyday"
-  private let altitude = "acct-altitude"
-  private let uob = "acct-uob"
+  private let altitude = "acct-miles"
+  private let uob = "acct-cashback"
   private let closedAccount = "acct-closed"
   private let eatingOut = "cat-eating-out"
   private let groceries = "cat-groceries"
@@ -34,7 +34,7 @@ final class IntakeSkillTests: XCTestCase {
   private lazy var context = IntakeRuleContext(
     openAccountIDs: [everyday, altitude, uob],
     categoryIDs: [eatingOut, groceries, household, transport],
-    accountNames: [everyday: "Everyday", altitude: "DBS Altitude", uob: "UOB One"],
+    accountNames: [everyday: "Everyday", altitude: "Miles Card", uob: "Cashback Card"],
     categoryNames: [eatingOut: "Eating Out", groceries: "Groceries", household: "Household", transport: "Transport"],
     transferPayees: [everyday: IntakeTransferPayee(id: "payee-to-everyday", name: "Transfer : Everyday")],
     onBudgetAccountIDs: [everyday, altitude]
@@ -60,7 +60,7 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(category(after: [global], payee: "KOPITIAM AMK", account: altitude), groceries)
     // Listing order must not matter.
     XCTAssertEqual(category(after: all.reversed(), payee: "KOPITIAM AMK", account: altitude), transport)
-    // The payee + account rule is for DBS Altitude only; the same payee elsewhere gets the payee rule.
+    // The payee + account rule is for the Miles Card only; the same payee elsewhere gets the payee rule.
     XCTAssertEqual(category(after: all, payee: "KOPITIAM AMK", account: everyday), eatingOut)
   }
 
@@ -417,7 +417,7 @@ final class IntakeSkillTests: XCTestCase {
       openAccountIDs: [everyday, altitude],
       candidates: [existing]
     )
-    XCTAssertEqual(inAltitude.first?.targetTransactionID, "row-1", "DBS Altitude allows 5 days")
+    XCTAssertEqual(inAltitude.first?.targetTransactionID, "row-1", "the Miles Card allows 5 days")
 
     let sameRowOtherAccount = IntakeCandidateRow(
       id: "row-2", accountID: everyday, date: "2026-06-25", amountMilli: -8_900, payeeName: "Grab", categoryID: nil, approved: true
@@ -440,7 +440,7 @@ final class IntakeSkillTests: XCTestCase {
       "dedupe": { "dayWindow": 99, "somethingNew": true },
       "notes": "Food delivery is Eating Out.",
       "accounts": [
-        { "id": "acct-uob", "notes": "CR lines are cashback.", "dedupeDayWindow": 5 },
+        { "id": "acct-cashback", "notes": "CR lines are cashback.", "dedupeDayWindow": 5 },
         { "notes": "no id, so unusable" }
       ],
       "rules": [
@@ -489,7 +489,7 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(skill.locale.dateOrder, .dmy, "an unknown date order falls back to the default")
     XCTAssertEqual(skill.dedupe.dayWindow, 7, "out-of-range window is clamped")
     XCTAssertEqual(skill.notes, "Food delivery is Eating Out.")
-    XCTAssertEqual(skill.accounts.map(\.id), ["acct-uob"])
+    XCTAssertEqual(skill.accounts.map(\.id), ["acct-cashback"])
     XCTAssertEqual(skill.accounts.first?.dedupeDayWindow, 5)
   }
 
@@ -743,7 +743,7 @@ final class IntakeSkillTests: XCTestCase {
     )
     XCTAssertNotNil(
       IntakeRuleSuggester.suggest(applied: [kopiAtDBS], jobID: UUID(), skill: skill, now: now),
-      "a UOB rule does not block offering one for DBS"
+      "a rule on one card does not block offering one for another"
     )
     var allAccounts = IntakeSkill()
     allAccounts.add(rule(scope: .payee("kopitiam"), when: .init(payeeToken: "kopitiam"), then: .setCategory(eatingOut)))
@@ -821,7 +821,7 @@ final class IntakeSkillTests: XCTestCase {
 
   private func line(
     payee: String,
-    account: String = "acct-altitude",
+    account: String = "acct-miles",
     direction: EntryDirection = .outflow,
     date: String = "2026-06-30"
   ) -> SlipMappedDraft {
@@ -847,7 +847,7 @@ final class IntakeSkillTests: XCTestCase {
   private func category(
     after rules: [IntakeRule],
     payee: String,
-    account: String = "acct-altitude",
+    account: String = "acct-miles",
     direction: EntryDirection = .outflow
   ) -> String? {
     var read = line(payee: payee, account: account, direction: direction)
@@ -862,7 +862,7 @@ final class IntakeSkillTests: XCTestCase {
     proposedCategory: String?,
     category: String?,
     finalPayee: String? = nil,
-    account: String = "acct-altitude"
+    account: String = "acct-miles"
   ) -> IntakeProposal {
     var proposed = TransactionDraft()
     proposed.payeeName = payee

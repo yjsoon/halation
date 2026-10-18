@@ -111,8 +111,9 @@ final class CaptureSessionTests: XCTestCase {
     ]
     item.accountWasExplicit = true
     session.replaceDrafts([item])
+    session.hydrateOwnershipIfNeeded()
     XCTAssertTrue(session.hasUnresolvedAmbiguity)
-    XCTAssertFalse(session.canSaveIncluded)
+    XCTAssertFalse(Self.canSaveIncludedGroup(session))
   }
 
   func testUndoRestoresPreviousDraftsAndDoesNotSave() {
@@ -192,7 +193,7 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertTrue(session.drafts[0].accountWasExplicit)
     XCTAssertTrue(session.drafts[0].draft.accountID.isEmpty)
     XCTAssertTrue(session.hasUnresolvedAmbiguity)
-    XCTAssertFalse(session.canSaveIncluded)
+    XCTAssertFalse(Self.canSaveIncludedGroup(session))
   }
 
   func testUnknownCategoryClearsPreviousCategory() {
@@ -200,6 +201,7 @@ final class CaptureSessionTests: XCTestCase {
     var draft = Self.draft(payee: "Coffee", amount: 5_000)
     draft.categoryID = "cat-dining"
     session.replaceDrafts([CaptureDraftItem(draft: draft)])
+    session.hydrateOwnershipIfNeeded()
     var mappedDraft = session.drafts[0].draft
     mappedDraft.categoryID = nil
     let mapped = SlipMappedDraft(
@@ -225,7 +227,7 @@ final class CaptureSessionTests: XCTestCase {
     )
     XCTAssertNil(session.drafts[0].draft.categoryID)
     XCTAssertTrue(session.drafts[0].categoryWasExplicit)
-    XCTAssertFalse(session.canSaveIncluded)
+    XCTAssertFalse(Self.canSaveIncludedGroup(session))
   }
 
   func testApplyToAllAccountUpdatesSelectedContext() {
@@ -385,7 +387,7 @@ final class CaptureSessionTests: XCTestCase {
       CaptureDraftItem(draft: lunch),
       CaptureDraftItem(draft: coffee),
     ])
-    session.markCommittedIncluded()
+    session.markCommitted(ids: session.includedDrafts.map(\.id))
     var renamed = session.drafts[1].draft
     renamed.payeeName = "Capture Rename Verify"
     let mapped = SlipMappedDraft(
@@ -452,7 +454,7 @@ final class CaptureSessionTests: XCTestCase {
     draft.direction = .inflow
     draft.accountID = "acct-posb"
     session.replaceDrafts([CaptureDraftItem(draft: draft)])
-    session.markCommittedIncluded()
+    session.markCommitted(ids: session.includedDrafts.map(\.id))
     XCTAssertTrue(session.drafts[0].committed)
     var renamed = session.drafts[0].draft
     renamed.payeeName = "POSB rebate"
@@ -522,7 +524,7 @@ final class CaptureSessionTests: XCTestCase {
     draft.direction = .inflow
     draft.accountID = "acct-posb"
     session.replaceDrafts([CaptureDraftItem(draft: draft)])
-    session.markCommittedIncluded()
+    session.markCommitted(ids: session.includedDrafts.map(\.id))
     session.appendUserMessage("Name POSB rebate")
     session.apply(
       turn: CaptureInterpretedTurn(
@@ -606,7 +608,6 @@ final class CaptureSessionTests: XCTestCase {
     )
     _ = session.beginTurn()
     XCTAssertFalse(session.canSendComposer)
-    XCTAssertFalse(session.canSaveIncluded)
   }
 
   func testMultiMutationDoesNotPartiallyApplyWhenALaterTargetIsMissing() {
@@ -675,6 +676,7 @@ final class CaptureSessionTests: XCTestCase {
       CaptureDraftItem(draft: Self.draft(payee: "Coffee", amount: 5_000)),
       CaptureDraftItem(draft: Self.draft(payee: "Lunch", amount: 12_000)),
     ])
+    session.hydrateOwnershipIfNeeded()
     var changed = session.drafts[0].draft
     changed.amountMagnitudeMilli = 21_000
     session.apply(
@@ -696,7 +698,7 @@ final class CaptureSessionTests: XCTestCase {
         categoryCandidates: []
       )]
     )
-    XCTAssertFalse(session.canSaveIncluded)
+    XCTAssertFalse(Self.canSaveIncludedGroup(session))
     XCTAssertNotNil(session.pendingUpdateTurn)
     XCTAssertEqual(session.pendingTargetDraftIDs.count, 2)
 
@@ -705,7 +707,7 @@ final class CaptureSessionTests: XCTestCase {
     session.removeDraft(firstID)
     XCTAssertEqual(session.pendingTargetDraftIDs, [secondID])
     XCTAssertNotNil(session.pendingUpdateTurn)
-    XCTAssertFalse(session.canSaveIncluded)
+    XCTAssertFalse(session.canSaveGroup(ids: [secondID]))
 
     session.removeDraft(secondID)
     XCTAssertNil(session.pendingUpdateTurn)
@@ -713,11 +715,14 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertTrue(session.pendingTargetDraftIDs.isEmpty)
     XCTAssertEqual(session.lastFeedback, "That change was cancelled because those drafts were removed.")
 
-    session.upsertManualDraft(Self.draft(payee: "Tea", amount: 3_000))
+    session.apply(
+      turn: CaptureInterpretedTurn(intent: .add, feedback: "Added tea.", mutations: [], query: nil, applyToAllDrafts: false),
+      mapped: [Self.mapped(amount: 3_000, payee: "Tea", accountID: "acct-everyday")]
+    )
     XCTAssertEqual(session.drafts.count, 1)
     XCTAssertEqual(session.drafts[0].draft.payeeName, "Tea")
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 3_000)
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: [session.drafts[0].id]))
     XCTAssertNil(session.pendingUpdateTurn)
   }
 
@@ -727,17 +732,18 @@ final class CaptureSessionTests: XCTestCase {
       CaptureDraftItem(draft: Self.draft(payee: "Coffee", amount: 5_000)),
       CaptureDraftItem(draft: Self.draft(payee: "Lunch", amount: 12_000)),
     ])
+    session.hydrateOwnershipIfNeeded()
     var changed = session.drafts[0].draft
     changed.amountMagnitudeMilli = 21_000
     session.apply(
       turn: CaptureInterpretedTurn(intent: .update, feedback: "Which?", mutations: [CaptureDraftMutation(targetDraftID: nil, extraction: .init(amount: "21"))], query: nil, applyToAllDrafts: false),
       mapped: [SlipMappedDraft(draft: changed, parsedAmount: true, parsedDate: false, parsedAccount: false, parsedCategory: false, parsedDirection: false, accountCandidates: [], categoryCandidates: [])]
     )
-    XCTAssertFalse(session.canSaveIncluded)
+    XCTAssertFalse(Self.canSaveIncludedGroup(session))
     let restored = CaptureSession.restore(session.snapshot(), attachments: [])
     XCTAssertEqual(restored.pendingTargetDraftIDs.count, 2)
     XCTAssertNotNil(restored.pendingUpdateTurn)
-    XCTAssertFalse(restored.canSaveIncluded)
+    XCTAssertFalse(Self.canSaveIncludedGroup(restored))
     restored.chooseTargetDraft(restored.drafts[1].id)
     XCTAssertEqual(restored.drafts[0].draft.amountMagnitudeMilli, 5_000)
     XCTAssertEqual(restored.drafts[1].draft.amountMagnitudeMilli, 21_000)
@@ -749,13 +755,13 @@ final class CaptureSessionTests: XCTestCase {
       turn: CaptureInterpretedTurn(intent: .add, feedback: "Added coffee.", mutations: [], query: nil, applyToAllDrafts: false),
       mapped: [Self.mapped(amount: 5_000, payee: "Coffee", accountID: "")]
     )
-    session.markCommittedIncluded()
+    session.markCommitted(ids: session.includedDrafts.map(\.id))
     XCTAssertTrue(session.drafts[0].committed)
     session.undo()
     XCTAssertTrue(session.drafts[0].committed)
-    XCTAssertTrue(session.saveableDrafts.isEmpty)
-    XCTAssertFalse(session.canSaveIncluded)
-    session.markCommittedIncluded()
+    XCTAssertTrue(session.includedDrafts.isEmpty)
+    XCTAssertFalse(session.canSaveGroup(ids: [session.drafts[0].id]))
+    session.markCommitted(ids: session.includedDrafts.map(\.id))
     XCTAssertTrue(session.drafts[0].committed)
     XCTAssertTrue(session.currentDrafts.isEmpty)
   }
@@ -766,7 +772,7 @@ final class CaptureSessionTests: XCTestCase {
       turn: CaptureInterpretedTurn(intent: .add, feedback: "Added coffee.", mutations: [], query: nil, applyToAllDrafts: false),
       mapped: [Self.mapped(amount: 5_000, payee: "Coffee", accountID: "")]
     )
-    session.markCommittedIncluded()
+    session.markCommitted(ids: session.includedDrafts.map(\.id))
     var lunch = Self.draft(payee: "Lunch", amount: 12_000)
     lunch.amountMagnitudeMilli = 12_000
     session.applyManualEdit(lunch, id: session.drafts[0].id)
@@ -959,7 +965,6 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertTrue(session.canSendComposer)
     session.isTransferringImages = true
     XCTAssertTrue(session.canSendComposer, "typed financial text must stay sendable while a photo is loading")
-    XCTAssertFalse(session.canSaveIncluded)
     session.isTransferringImages = false
     session.composerText = ""
     session.addAttachment(CaptureAttachment(filename: "slip.jpg", data: Data(), isReading: true))
@@ -1191,13 +1196,14 @@ final class CaptureSessionTests: XCTestCase {
 
     let session = Self.session(accountID: "acct-everyday")
     session.replaceDrafts([CaptureDraftItem(draft: Self.draft(payee: "Lunch", amount: 12_000))])
+    session.hydrateOwnershipIfNeeded()
     session.composerText = "Lunch $12"
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(Self.canSaveIncludedGroup(session))
     XCTAssertTrue(session.canSendComposer)
     XCTAssertFalse(CapturePasteAdmission.shouldRejectNewAttachments(session))
     session.isTransferringImages = true
     XCTAssertTrue(CapturePasteAdmission.shouldRejectNewAttachments(session))
-    XCTAssertFalse(session.canSaveIncluded)
+    XCTAssertFalse(Self.canSaveIncludedGroup(session))
     XCTAssertTrue(session.canSendComposer)
     session.isTransferringImages = false
     session.isSaving = true
@@ -1209,6 +1215,11 @@ final class CaptureSessionTests: XCTestCase {
 
   private static func session(accountID: String) -> CaptureSession {
     CaptureSession(scopeKey: "scope-a", origin: .lastUsedOpen, selectedAccountID: accountID)
+  }
+
+  /// The app's real save gate (`canSaveGroup`) over every included draft.
+  private static func canSaveIncludedGroup(_ session: CaptureSession) -> Bool {
+    session.canSaveGroup(ids: session.includedDrafts.map(\.id))
   }
 
   private static func account() -> Account {

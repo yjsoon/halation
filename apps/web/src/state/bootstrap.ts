@@ -67,7 +67,7 @@ export function planBootstrapRequests(
 }
 
 /** The remembered plan if it is still readable, else the first one listed. */
-export function choosePlanId(plans: readonly PlanRef[], hint: string | null): string | null {
+function choosePlanId(plans: readonly PlanRef[], hint: string | null): string | null {
   if (hint && plans.some((plan) => plan.id === hint)) {
     return hint;
   }
@@ -75,7 +75,7 @@ export function choosePlanId(plans: readonly PlanRef[], hint: string | null): st
 }
 
 /** A URL request wins only after the authenticated plan list confirms access. */
-export function chooseRequestedPlanId(
+function chooseRequestedPlanId(
   plans: readonly PlanRef[],
   hint: string | null,
   requestedPlanId: string | null,

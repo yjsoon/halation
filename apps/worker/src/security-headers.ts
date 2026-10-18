@@ -1,4 +1,4 @@
-export const DOCUMENT_SECURITY_HEADERS: Record<string, string> = {
+const DOCUMENT_SECURITY_HEADERS: Record<string, string> = {
   "content-security-policy": [
     "default-src 'self'",
     "script-src 'self'",

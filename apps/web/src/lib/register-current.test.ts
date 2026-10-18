@@ -2,14 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
   asOfTodayBalance,
   dateInRegisterWindow,
-  isUpcomingRegisterDate,
   registerFetchUntilDate,
 } from "./register-current";
 
 const TODAY = "2026-09-01";
-
-describe("isUpcomingRegisterDate", () => {
-});
 
 describe("registerFetchUntilDate", () => {
   test("drops until_date when the window ends today or later, so posted futures load", () => {
@@ -35,19 +31,19 @@ describe("dateInRegisterWindow", () => {
 
 describe("asOfTodayBalance", () => {
   test("excludes future-dated rows from the headline current balance", () => {
-    const working = -206_590;
+    const working = -200_000;
     const current = asOfTodayBalance(working, [
-      { account_id: "joey", date: "2026-09-08", amount: 435_160, deleted: false },
-      { account_id: "joey", date: "2026-08-29", amount: -7_710, deleted: false },
+      { account_id: "acct-a", date: "2026-09-08", amount: 40_000, deleted: false },
+      { account_id: "acct-a", date: "2026-08-29", amount: -7_000, deleted: false },
       { account_id: "other", date: "2026-09-10", amount: -50_000, deleted: false },
-    ], { accountId: "joey", today: TODAY });
-    expect(current).toBe(working - 435_160);
+    ], { accountId: "acct-a", today: TODAY });
+    expect(current).toBe(working - 40_000);
   });
 
   test("does not subtract deleted or other-account future rows", () => {
     expect(asOfTodayBalance(1000, [
-      { account_id: "joey", date: "2026-09-08", amount: -200, deleted: true },
+      { account_id: "acct-a", date: "2026-09-08", amount: -200, deleted: true },
       { account_id: "other", date: "2026-09-08", amount: -300, deleted: false },
-    ], { accountId: "joey", today: TODAY })).toBe(1000);
+    ], { accountId: "acct-a", today: TODAY })).toBe(1000);
   });
 });

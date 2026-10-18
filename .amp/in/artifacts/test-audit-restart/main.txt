@@ -1,0 +1,7 @@
+== same run with apps/api/src/db.ts from main (73e6731)
+before restart: {"name":"Daily","icon":"💳"}
+stored row before: {"name":"💳 Daily","icon":"🏦"}
+after restart:  {"name":"Daily","icon":"💳"}
+stored row after:  {"name":"Daily","icon":"💳"}
+payee server_knowledge before/after restart: 40 / 40
+transfer payee: "Transfer : Daily"

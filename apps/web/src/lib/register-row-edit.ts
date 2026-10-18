@@ -294,7 +294,7 @@ export function postingAccountId(row: RegisterRowRef): string {
   return row.kind === "posted" ? row.transaction.account_id : row.parent.account_id;
 }
 
-export function transferOptionLabel(accountName: string): string {
+function transferOptionLabel(accountName: string): string {
   return `Transfer to ${accountName}`;
 }
 

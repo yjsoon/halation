@@ -1,6 +1,5 @@
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
-import { REBUILD_ACCOUNT_MONTH_BALANCES_SQL } from "../src/account-month-balances";
 import { AsyncReportService } from "../src/async-reports";
 import { D1Database } from "../src/d1";
 import { D1LedgerRepository } from "../src/d1-ledger-repository";
@@ -100,19 +99,20 @@ async function syntheticLedger(): Promise<{ db: Database; repo: D1LedgerReposito
   return { db, repo };
 }
 
-/** What the aggregate would be if it were rebuilt from history right now. */
+/**
+ * What the aggregate would be if it were rebuilt from live history right now.
+ * The `HAVING` matches the triggers, which drop a pair once its net change
+ * reaches zero.
+ */
 function rebuilt(db: Database): unknown[] {
-  const snapshot = db.query("SELECT plan_id,account_id,month,net_change_milli FROM account_month_balances ORDER BY 1,2,3").all();
-  for (const statement of REBUILD_ACCOUNT_MONTH_BALANCES_SQL) db.run(statement);
-  const fresh = db.query("SELECT plan_id,account_id,month,net_change_milli FROM account_month_balances ORDER BY 1,2,3").all();
-  for (const row of snapshot as any[]) {
-    db.run(
-      `INSERT INTO account_month_balances (plan_id,account_id,month,net_change_milli) VALUES ($1,$2,$3,$4)
-       ON CONFLICT(plan_id,account_id,month) DO UPDATE SET net_change_milli=excluded.net_change_milli`,
-      [row.plan_id, row.account_id, row.month, row.net_change_milli],
-    );
-  }
-  return fresh;
+  return db.query(
+    `SELECT plan_id, account_id, substr(date, 1, 7) AS month, SUM(amount_milli) AS net_change_milli
+     FROM transactions
+     WHERE deleted = 0
+     GROUP BY plan_id, account_id, substr(date, 1, 7)
+     HAVING SUM(amount_milli) <> 0
+     ORDER BY 1, 2, 3`,
+  ).all();
 }
 
 describe("report aggregates", () => {
