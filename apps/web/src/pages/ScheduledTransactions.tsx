@@ -89,10 +89,28 @@ export function ScheduledTransactionsPage() {
   const cardPayments = useSticky<CardPaymentsView>(cardPaymentsQuery.data, `${planId}`);
   const termsByAccount = useMemo(() => new Map((cardTerms?.card_payment_terms ?? []).map((terms) => [terms.account_id, terms])), [cardTerms]);
 
-  const openCardSchedule = (cycle: CardPaymentCycle, terms: CardPaymentTerms) => {
+  // Re-reads the view first: a tab left open past the window would otherwise prefill a stale cycle.
+  const openCardSchedule = async (stale: CardPaymentCycle, terms: CardPaymentTerms) => {
+    setMutationError(null);
+    setMutationSuccess(null);
+    let cycle: CardPaymentCycle | undefined;
+    try {
+      const view = await api.cardPayments(planId);
+      cycle = view.cycles.find((candidate) => candidate.account_id === stale.account_id && candidate.statement_date === stale.statement_date);
+    } catch (cause) {
+      setMutationError(cause instanceof Error ? cause.message : String(cause));
+      return;
+    }
+    if (!cycle || !needsScheduling(cycle)) {
+      refresh();
+      setMutationError(cycle ? "This statement already has a payment scheduled or recorded. Payments due has been refreshed." : "This statement is no longer in Payments due. Payments due has been refreshed.");
+      return;
+    }
     const cardName = accountNames.get(cycle.account_id) ?? "Card";
     const funding = terms.default_funding_account_id && accounts.some((account) => account.id === terms.default_funding_account_id && !account.closed && !account.deleted) ? terms.default_funding_account_id : "";
     const today = todayIso();
+    // Never let the earliest date pass the window's end, even if the clocks disagree.
+    const dateMin = [today > cycle.window_start ? today : cycle.window_start, cycle.window_end].sort()[0]!;
     const previous = cycle.previous_unpaid;
     const owedNote = cycle.coverage.state === "partial"
       ? `${formatMoney(cycle.coverage.paid_amount)} paid so far, ${formatMoney(cycle.coverage.remaining_amount)} left.`
@@ -107,17 +125,15 @@ export function ScheduledTransactionsPage() {
         accountId: funding,
         transferAccountId: cycle.account_id,
         amount: -usualPaymentAmount(cycle, terms),
-        date: payDateFor(cycle, today),
-        dateMin: today > cycle.window_start ? today : cycle.window_start,
+        date: payDateFor(cycle, dateMin),
+        dateMin,
         dateMax: cycle.window_end,
         frequency: "never",
         memo: cardPaymentMemo(cardName, cycle.statement_date),
         heading: `Schedule ${cardName} payment`,
-        note: `Statement ${formatDayMonth(cycle.statement_date)}, due ${formatDate(cycle.due_date)}. ${owedNote} Check your statement for the actual amount and change it here if it differs. Pay between ${formatDayMonth(today > cycle.window_start ? today : cycle.window_start)} and ${formatDayMonth(cycle.window_end)} for it to count for this statement.`,
+        note: `Statement ${formatDayMonth(cycle.statement_date)}, due ${formatDate(cycle.due_date)}. ${owedNote} Check your statement for the actual amount and change it here if it differs. Pay between ${formatDayMonth(dateMin)} and ${formatDayMonth(cycle.window_end)} for it to count for this statement.`,
       },
     });
-    setMutationError(null);
-    setMutationSuccess(null);
   };
 
   // Same key as the phone's Scheduled action, so a second tap anywhere replays
@@ -240,7 +256,7 @@ export function ScheduledTransactionsPage() {
           accountNames={accountNames}
           loading={cardPaymentsQuery.loading || cardTermsQuery.loading}
           busy={Boolean(mutatingId)}
-          onSchedule={(cycle) => { const terms = termsByAccount.get(cycle.account_id); if (terms) openCardSchedule(cycle, terms); }}
+          onSchedule={(cycle) => { const terms = termsByAccount.get(cycle.account_id); if (terms) void openCardSchedule(cycle, terms); }}
           onEditSchedule={(scheduleId) => { const schedule = active.find((candidate) => candidate.id === scheduleId); if (schedule) { setEditor({ mode: "edit", schedule }); setMutationError(null); setMutationSuccess(null); } }}
           onEditTerms={(accountId) => setTermsDialog({ accountId })}
         />

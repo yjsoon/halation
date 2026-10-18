@@ -72,6 +72,7 @@ export function CardPaymentsPanel({
           <tbody>{rows.map((row) => <CardPaymentRow key={row.account.id} row={row} accountNames={accountNames} busy={busy} onSchedule={onSchedule} onEditSchedule={onEditSchedule} onEditTerms={onEditTerms} />)}</tbody>
         </table>
       </div>
+      <p className="card-payments-footnote">Record payments as a transfer from your bank account so Halation can tell the statement is paid.</p>
       {unconfigured.length > 0 && (
         <p className="card-payments-footnote">
           {unconfigured.length === 1 ? `${unconfigured[0]!.name} has no payment terms yet.` : `${unconfigured.length} cards have no payment terms yet.`}{" "}

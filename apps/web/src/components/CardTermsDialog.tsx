@@ -16,8 +16,8 @@ type Draft = {
   gap: string;
   rule: CardPaymentTerms["due_weekend_rule"];
   fundingAccountId: string;
-  /** The saved paying account is closed or deleted, so the draft dropped it. */
-  fundingDropped: boolean;
+  /** Why the draft dropped the saved paying account, if it did. */
+  fundingDropped: "closed" | "deleted" | null;
   amountRule: CardPaymentTerms["default_amount_rule"];
   fixedAmount: string;
   payDaysBefore: string;
@@ -29,7 +29,8 @@ const DEFAULTS = { gap: 25, rule: "next" as const, payDaysBefore: 2, leadDays: 7
 
 function draftFor(accountId: string, terms: CardPaymentTerms | undefined, accounts: Account[]): Draft {
   const savedFunding = terms?.default_funding_account_id ?? null;
-  const fundingUsable = savedFunding !== null && accounts.some((account) => account.id === savedFunding && !account.closed && !account.deleted);
+  const savedAccount = savedFunding === null ? undefined : accounts.find((account) => account.id === savedFunding);
+  const fundingUsable = Boolean(savedAccount && !savedAccount.closed && !savedAccount.deleted);
   const gap = terms?.due_gap_days ?? DEFAULTS.gap;
   const rule = terms?.due_weekend_rule ?? DEFAULTS.rule;
   return {
@@ -39,8 +40,9 @@ function draftFor(accountId: string, terms: CardPaymentTerms | undefined, accoun
     statementDay: terms ? String(terms.statement_day) : "",
     gap: String(gap),
     rule,
-    fundingAccountId: fundingUsable ? savedFunding : "",
-    fundingDropped: savedFunding !== null && !fundingUsable,
+    fundingAccountId: fundingUsable && savedFunding ? savedFunding : "",
+    // The plan's account list leaves deleted accounts out, so a missing one was deleted.
+    fundingDropped: savedFunding === null || fundingUsable ? null : savedAccount && savedAccount.closed && !savedAccount.deleted ? "closed" : "deleted",
     amountRule: terms?.default_amount_rule ?? "statement",
     fixedAmount: terms?.default_amount_milli ? formatMilliunitsField(terms.default_amount_milli) : "",
     payDaysBefore: String(terms?.pay_days_before_due ?? DEFAULTS.payDaysBefore),
@@ -248,11 +250,11 @@ function TermsForm({ planId, initialAccountId, lockAccount, cards, accounts, ter
           <div className="account-organiser-section-heading"><div><h3 id="card-terms-pay-heading">Paying it</h3><p>Schedule… starts from these. You can change any of them before saving a payment.</p></div></div>
           <div className="field-row">
             <label className="field"><span className="field-label">Pay from</span>
-              <select value={draft.fundingAccountId} onChange={(event) => patch({ fundingAccountId: event.target.value, fundingDropped: false })}>
+              <select value={draft.fundingAccountId} onChange={(event) => patch({ fundingAccountId: event.target.value, fundingDropped: null })}>
                 <option value="">{draft.fundingDropped ? "Choose an account" : "Choose each time"}</option>
                 {fundingAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
               </select>
-              {draft.fundingDropped && <span className="field-note card-terms-field-warning">The account these terms paid from is closed. Choose another, or leave it to choose each time.</span>}
+              {draft.fundingDropped && <span className="field-note card-terms-field-warning">The account these terms paid from is {draft.fundingDropped}. Choose another, or leave it to choose each time.</span>}
             </label>
             <label className="field"><span className="field-label">Usually pay</span>
               <select value={draft.amountRule} onChange={(event) => patch({ amountRule: event.target.value as Draft["amountRule"] })}>

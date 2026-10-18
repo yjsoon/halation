@@ -89,7 +89,7 @@ export function coverageStatus(cycle: CardPaymentCycle, accountNames: Map<string
     case "posted":
       return { label: `Posted ${formatDayMonth(coverage.date)}, awaiting approval`, tone: "posted" };
     case "paid":
-      return { label: `Paid ${formatDayMonth(coverage.date)}`, tone: "paid" };
+      return { label: `Paid ${formatMoney(coverage.amount)} on ${formatDayMonth(coverage.date)}`, tone: "paid" };
     case "settled":
       return { label: "Nothing owed now", tone: "paid" };
     case "partial":

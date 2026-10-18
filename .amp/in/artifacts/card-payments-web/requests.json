@@ -2,7 +2,7 @@
   {
     "method": "PUT",
     "url": "/v1/plans/local-plan/accounts/acct-credit/card_payment_terms",
-    "idempotency_key": "card-terms-b740ecf5-f834-4181-82a1-f9513c2e5923-uwja8e",
+    "idempotency_key": "card-terms-2c105041-7f1b-4d64-9dc9-a1832829e8f2-uwja8e",
     "body": "{\"card_payment_terms\":{\"statement_day\":3,\"due_gap_days\":25,\"due_weekend_rule\":\"next\",\"default_funding_account_id\":\"acct-everyday\",\"default_amount_rule\":\"statement\",\"default_amount_milli\":null,\"pay_days_before_due\":2,\"lead_days\":7,\"delivery_hour\":8,\"enabled\":true}}"
   },
   {
@@ -14,7 +14,7 @@
   {
     "method": "DELETE",
     "url": "/v1/plans/local-plan/scheduled_transactions/scheduled_33f16312018de6010357d4c0",
-    "idempotency_key": "scheduled-delete-scheduled_33f16312018de6010357d4c0-bdb941dc-deba-4aa2-8c21-48cff14c77e8",
+    "idempotency_key": "scheduled-delete-scheduled_33f16312018de6010357d4c0-e2642cb9-42c1-4879-a777-9df8b2d7b883",
     "body": null
   },
   {
@@ -26,25 +26,25 @@
   {
     "method": "POST",
     "url": "/v1/plans/local-plan/scheduled_transactions",
-    "idempotency_key": "card-pay:acct-credit:2026-10-03:372d925d",
+    "idempotency_key": "card-pay:acct-credit:2026-10-03:9a8b06e3",
     "body": "{\"scheduled_transaction\":{\"account_id\":\"acct-everyday\",\"date_first\":\"2026-10-26\",\"date_next\":\"2026-10-26\",\"frequency\":\"never\",\"amount\":-64830800,\"memo\":\"Travel Card statement 3 Oct\",\"flag_color\":null,\"subtransactions\":[],\"payee_id\":null,\"category_id\":null,\"transfer_account_id\":\"acct-credit\"}}"
   },
   {
     "method": "POST",
-    "url": "/v1/plans/local-plan/scheduled_transactions/scheduled_553283c41bfae3edf7828f04/materialize",
-    "idempotency_key": "scheduled-enter-3689527b-0219-474f-90e8-317323198bb1-1o5kwbz",
+    "url": "/v1/plans/local-plan/scheduled_transactions/scheduled_baad62f41df0288236266308/materialize",
+    "idempotency_key": "scheduled-enter-d8815815-8ee6-4333-b418-95055663f180-1291b6p",
     "body": "{\"occurrence_date\":\"2026-10-26\",\"date\":\"2026-10-18\"}"
   },
   {
     "method": "POST",
     "url": "/v1/plans/local-plan/scheduled_transactions",
-    "idempotency_key": "card-pay:acct_1f75bef9-2125-4818-9d95-a08ee5b76d76:2026-10-03",
-    "body": "{\"scheduled_transaction\":{\"account_id\":\"acct-everyday\",\"date_first\":\"2026-10-26\",\"date_next\":\"2026-10-26\",\"frequency\":\"never\",\"amount\":-480000,\"memo\":\"Card B statement 3 Oct\",\"flag_color\":null,\"subtransactions\":[],\"payee_id\":null,\"category_id\":null,\"transfer_account_id\":\"acct_1f75bef9-2125-4818-9d95-a08ee5b76d76\"}}"
+    "idempotency_key": "card-pay:acct_2e13fae7-67fc-4b4f-a4ba-0798fbdb5638:2026-10-03",
+    "body": "{\"scheduled_transaction\":{\"account_id\":\"acct-everyday\",\"date_first\":\"2026-10-26\",\"date_next\":\"2026-10-26\",\"frequency\":\"never\",\"amount\":-480000,\"memo\":\"Card B statement 3 Oct\",\"flag_color\":null,\"subtransactions\":[],\"payee_id\":null,\"category_id\":null,\"transfer_account_id\":\"acct_2e13fae7-67fc-4b4f-a4ba-0798fbdb5638\"}}"
   },
   {
     "method": "POST",
     "url": "/v1/plans/local-plan/scheduled_transactions",
-    "idempotency_key": "card-pay:acct_4596cbbe-3998-45df-92bd-da26b58e8a05:2026-10-15",
-    "body": "{\"scheduled_transaction\":{\"account_id\":\"acct-everyday\",\"date_first\":\"2026-10-18\",\"date_next\":\"2026-10-18\",\"frequency\":\"never\",\"amount\":-300000,\"memo\":\"Card C statement 15 Oct\",\"flag_color\":null,\"subtransactions\":[],\"payee_id\":null,\"category_id\":null,\"transfer_account_id\":\"acct_4596cbbe-3998-45df-92bd-da26b58e8a05\"}}"
+    "idempotency_key": "card-pay:acct_701bdc82-44aa-4546-ae9e-c0eab0916b3e:2026-10-15",
+    "body": "{\"scheduled_transaction\":{\"account_id\":\"acct-everyday\",\"date_first\":\"2026-10-18\",\"date_next\":\"2026-10-18\",\"frequency\":\"never\",\"amount\":-300000,\"memo\":\"Card C statement 15 Oct\",\"flag_color\":null,\"subtransactions\":[],\"payee_id\":null,\"category_id\":null,\"transfer_account_id\":\"acct_701bdc82-44aa-4546-ae9e-c0eab0916b3e\"}}"
   }
 ]

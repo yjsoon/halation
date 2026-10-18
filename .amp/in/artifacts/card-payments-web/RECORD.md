@@ -55,7 +55,18 @@ Extra setup, all synthetic: `seed-states.py` (run by the script through the API)
 
 A "refuse if the cycle is missing after a 409" case is in the code: it shows "This statement is no longer in Payments due, so nothing was scheduled." It was not driven, because the stack cannot drop a cycle in the middle of a save.
 
-Every check in `browser-log.txt` reads PASS (45 checks); there were no page errors.
+### Round 3 (R-W1 to R-W4)
+
+The run used base `4bf9205`. The backend agent's uncommitted R-B1/R-B2 edits to `apps/api` were in the working tree at the time and were served by the local API. `mark-deleted.py` marks Account Y deleted in SQLite (setup only).
+
+| # | Step | Expected | Observed |
+|---|---|---|---|
+| 16 | Approve the posted Travel Card payment (API), reload (R-W2) | Row reads "Paid $64,830.80 on 18 Oct" | As expected (`09b-desktop-panel-paid.png`) |
+| 17 | Panel footnote (R-W3) | "Record payments as a transfer from your bank account so Halation can tell the statement is paid." | Shown |
+| 18 | Another device schedules Card C while the tab still shows it overdue, then Schedule… (R-W1) | Schedule… re-reads card payments first, opens no editor, says it is already scheduled, and the panel refreshes to "Scheduled 20 Oct" | As expected (`12b-desktop-stale-open.png`). The prefilled earliest date is also clamped so it never passes `window_end` |
+| 19 | Card B terms paying from Account Y, Account Y deleted, open Terms (R-W4) | "The account these terms paid from is deleted." (Card D's closed account still says "closed") | As expected (`14b-desktop-terms-deleted-account.png`, `14-desktop-terms-closed-account.png`) |
+
+Every check in `browser-log.txt` reads PASS (49 checks); there were no page errors. `bun run verify:worker` exit 0; `bun test` 751 pass, 0 fail.
 
 ## Notes
 

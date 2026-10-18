@@ -173,6 +173,13 @@ const expect = (cond, label) => { note(`${cond ? "PASS" : "FAIL"} ${label}`); if
   await page.screenshot({ path: `${OUT}/09-desktop-panel-posted.png`, fullPage: true });
   const posted = http("/v1/plans/local-plan/card_payments", "api-05-card-payments-posted.json").data.cycles.find((c) => c.account_id === "acct-credit" && c.cycle === "current");
   expect(posted.coverage.state === "posted" && posted.coverage.approved === false, "API: coverage posted, unapproved after Enter now");
+  // R-W2: approve it, and the row reads "Paid <amount> on <date>"
+  call("PATCH", `/v1/plans/local-plan/transactions/${posted.coverage.transaction_id}`, { transaction: { approved: true } });
+  await page.reload();
+  await row.getByText("Paid $64,830.80 on 18 Oct").waitFor({ timeout: 15000 });
+  expect(true, "paid row shows the amount: Paid $64,830.80 on 18 Oct");
+  expect((await page.locator(".card-payments").innerText()).includes("Record payments as a transfer from your bank account so Halation can tell the statement is paid."), "R-W3 footnote shown");
+  await page.screenshot({ path: `${OUT}/09b-desktop-panel-paid.png`, fullPage: true });
 
   // ---- Review round: new coverage states on synthetic cards ----
   const ids = JSON.parse(execSync(`python3 ${__dirname}/seed-states.py`, { env: ENV }).toString());
@@ -236,6 +243,17 @@ const expect = (cond, label) => { note(`${cond ? "PASS" : "FAIL"} ${label}`); if
   expect(bSchedules.length === 2 && !bSchedules.some((x) => x.amount === -480000), "the page created nothing; only the two other-device schedules exist");
   await page.screenshot({ path: `${OUT}/12-desktop-409-covered.png`, fullPage: true });
 
+  // R-W1: the tab is stale (another device scheduled Card C); Schedule… re-reads first and refuses
+  const otherC = call("POST", "/v1/plans/local-plan/scheduled_transactions", { scheduled_transaction: { account_id: "acct-everyday", transfer_account_id: ids.card_c, date_first: "2026-10-20", frequency: "never", amount: -300000, memo: "Card C statement 15 Oct" } }).data.scheduled_transaction;
+  await rowC.getByRole("button", { name: "Schedule payment for Card C" }).click();
+  await rowC.getByText(/Scheduled 20 Oct/).waitFor({ timeout: 15000 });
+  const staleAlert = await page.getByRole("alert").first().innerText();
+  expect(staleAlert.includes("already has a payment scheduled or recorded") && await page.locator(".schedule-editor").count() === 0, "stale Schedule… re-reads, refuses and refreshes instead of opening the editor");
+  await page.screenshot({ path: `${OUT}/12b-desktop-stale-open.png`, fullPage: true });
+  execSync(`control-howmuch http DELETE "/v1/plans/local-plan/scheduled_transactions/${otherC.id}"`, { env: ENV });
+  await page.reload();
+  await rowC.getByText("Overdue since 12 Oct").waitFor({ timeout: 15000 });
+
   // Carried overdue: Schedule… pays the unpaid statement from today; then the scheduled row still warns about the previous statement
   await rowC.getByRole("button", { name: "Schedule payment for Card C" }).click();
   ed = page.locator(".schedule-editor");
@@ -266,6 +284,18 @@ const expect = (cond, label) => { note(`${cond ? "PASS" : "FAIL"} ${label}`); if
   expect((await dDialog.innerText()).includes("The account these terms paid from is closed"), "dialog explains the dropped account");
   await dDialog.locator(".account-organiser-section").nth(1).screenshot({ path: `${OUT}/14-desktop-terms-closed-account.png` });
   await dDialog.getByRole("button", { name: "Cancel" }).click();
+
+  // R-W4: Card B's paying account is deleted; the dialog says deleted
+  const y = call("POST", "/v1/plans/local-plan/accounts", { account: { name: "Account Y", type: "checking", balance: 0 } }).data.account;
+  call("PUT", `/v1/plans/local-plan/accounts/${ids.card_b}/card_payment_terms`, { card_payment_terms: { statement_day: 3, due_gap_days: 25, due_weekend_rule: "next", default_funding_account_id: y.id } });
+  note(execSync(`python3 ${__dirname}/mark-deleted.py ${y.id}`).toString().trim());
+  await page.reload();
+  await page.getByRole("button", { name: "Payment terms for Card B" }).click();
+  const bDialog = page.getByRole("dialog", { name: "Payment reminders for Card B" });
+  await bDialog.waitFor();
+  expect(await field(bDialog, "Pay from").inputValue() === "" && (await bDialog.innerText()).includes("The account these terms paid from is deleted"), "deleted paying account: dialog says deleted");
+  await bDialog.locator(".account-organiser-section").nth(1).screenshot({ path: `${OUT}/14b-desktop-terms-deleted-account.png` });
+  await bDialog.getByRole("button", { name: "Cancel" }).click();
 
   // Phone width view of the states
   const phone2 = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, storageState: await context.storageState() });
