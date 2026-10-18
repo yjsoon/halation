@@ -129,12 +129,20 @@ export function applyMigrations(db: Database): void {
     },
   ];
 
-  for (const migration of migrations) {
-    const applied = db
-      .query("SELECT version FROM schema_migrations WHERE version = ?")
-      .get(migration.version);
+  // The previous runner recorded 017 but ran the JS backfill after the
+  // migrations on every start, leaving no record of it. Such a plan has had
+  // it, so only record it: any emoji names since are the user's. (A start that
+  // crashed before the backfill was finished by the next start on that build,
+  // and the read path splits a leading emoji for display either way.)
+  const applied = new Set(
+    (db.query("SELECT version FROM schema_migrations").all() as Array<{ version: string }>).map((row) => row.version),
+  );
+  if (applied.has(ICON_EMOJI_MIGRATION) && !applied.has(PRESENTATION_BACKFILL_RECORD)) {
+    db.query("INSERT INTO schema_migrations (version) VALUES (?)").run(PRESENTATION_BACKFILL_RECORD);
+  }
 
-    if (applied) {
+  for (const migration of migrations) {
+    if (applied.has(migration.version)) {
       continue;
     }
 
@@ -147,6 +155,13 @@ export function applyMigrations(db: Database): void {
         // newline would hide a failing final statement (a migration's own
         // consistency check).
         db.run(sql.trimEnd());
+        // The JS half of 017, in the same transaction so an interrupted upgrade
+        // retries it. It must never run again later: by then a leading emoji in
+        // a name is one the user typed on purpose.
+        if (migration.version === ICON_EMOJI_MIGRATION) {
+          backfillAccountPresentations(db);
+          db.query("INSERT INTO schema_migrations (version) VALUES (?)").run(PRESENTATION_BACKFILL_RECORD);
+        }
         db.query("INSERT INTO schema_migrations (version) VALUES (?)").run(migration.version);
       })();
     } finally {
@@ -158,8 +173,11 @@ export function applyMigrations(db: Database): void {
     }
   }
 
-  backfillAccountPresentations(db);
 }
+
+const ICON_EMOJI_MIGRATION = "017_account_icon_emoji_backfill";
+/** Recorded with the JS backfill. Not a migration file. */
+const PRESENTATION_BACKFILL_RECORD = "017_account_presentation_backfill";
 
 function backfillAccountPresentations(db: Database): void {
   const hasIcon = db.query("SELECT 1 AS ok FROM pragma_table_info('accounts') WHERE name='icon'").get();

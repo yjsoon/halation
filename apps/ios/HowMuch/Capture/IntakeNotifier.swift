@@ -500,7 +500,8 @@ final class IntakeBackgroundTaskBox: @unchecked Sendable {
 
 /// Reads the Inbox queue when the app is not in front: a refresh iOS grants
 /// every so often, and a short extension when the app backgrounds mid-read.
-/// Reading is on-device, so nothing here touches a server beyond what the app
+/// Reading is on this device, or with the owner's own AI provider when one is
+/// set up; nothing here touches the Halation server beyond what the app
 /// already does when it refreshes reference data.
 @MainActor
 final class IntakeBackgroundRefresh {

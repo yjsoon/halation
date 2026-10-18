@@ -26,11 +26,7 @@ tmux new-session -d -s "$SESSION_NAME" -c "$ROOT_DIR" "PORT=$API_PORT HOWMUCH_PO
 tmux rename-window -t "$SESSION_NAME" api
 tmux set-option -t "$SESSION_NAME" -g remain-on-exit on >/dev/null
 
-if [ -f "$ROOT_DIR/apps/web/package.json" ]; then
-  tmux new-window -t "$SESSION_NAME" -n web -c "$ROOT_DIR/apps/web" "HOWMUCH_API_URL=${HOWMUCH_API_URL:-http://127.0.0.1:$API_PORT} bun run dev"
-else
-  tmux new-window -t "$SESSION_NAME" -n web-status -c "$ROOT_DIR" "zsh -lc 'printf \"apps/web is not present in this checkout yet.\nMerge the web track, then rerun bun run dev:stack in a fresh session if needed.\n\"; exec zsh'"
-fi
+tmux new-window -t "$SESSION_NAME" -n web -c "$ROOT_DIR/apps/web" "HOWMUCH_API_URL=${HOWMUCH_API_URL:-http://127.0.0.1:$API_PORT} bun run dev"
 
 echo "Started tmux session '$SESSION_NAME'"
 echo "Attach with: tmux attach -t $SESSION_NAME"

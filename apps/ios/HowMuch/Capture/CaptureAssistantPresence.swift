@@ -9,7 +9,6 @@ enum CaptureAssistantPresence: Sendable {
 
   struct Frame: Equatable, Sendable {
     var visibleText: String
-    var fullLine: String
     var showsCursor: Bool
   }
 
@@ -104,7 +103,7 @@ enum CaptureAssistantPresence: Sendable {
       } else {
         line = lines[0]
       }
-      return Frame(visibleText: line, fullLine: line, showsCursor: false)
+      return Frame(visibleText: line, showsCursor: false)
     }
     var remaining = max(0, elapsed)
     for (index, line) in lines.enumerated() {
@@ -112,18 +111,18 @@ enum CaptureAssistantPresence: Sendable {
       let isLast = index == lines.count - 1
       if isLast {
         let visible = revealedText(line, elapsed: remaining, reduceMotion: false)
-        return Frame(visibleText: visible, fullLine: line, showsCursor: true)
+        return Frame(visibleText: visible, showsCursor: true)
       }
       let span = typing + pauseAfterLine
       if remaining < span {
         let inHold = remaining >= typing
         let visible = inHold ? line : revealedText(line, elapsed: remaining, reduceMotion: false)
-        return Frame(visibleText: visible, fullLine: line, showsCursor: !inHold)
+        return Frame(visibleText: visible, showsCursor: !inHold)
       }
       remaining -= span
     }
     let last = lines[lines.count - 1]
-    return Frame(visibleText: last, fullLine: last, showsCursor: true)
+    return Frame(visibleText: last, showsCursor: true)
   }
 
   static func stableIndex(_ id: UUID, modulo: Int) -> Int {
