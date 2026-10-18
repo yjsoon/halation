@@ -153,7 +153,7 @@ enum IntakeRemoteReader {
     payees: [Payee],
     guidance: String?,
     currencyCode: String?,
-    client: CaptureAIClient = CaptureAIClient()
+    client: CaptureAIClient? = nil
   ) async throws -> [SlipMappedDraft] {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
@@ -172,15 +172,40 @@ enum IntakeRemoteReader {
     guard request.input.utf8.count <= CaptureAIClient.maximumPromptBytes else {
       throw IntakeRemoteReadError.tooLong
     }
-    let answer = try await client.send(request, configuration: configuration, conversationID: UUID())
-    return SlipReaderMapping.map(
-      try decode(Data(answer.utf8)),
-      sentence: trimmed,
-      accounts: accounts,
-      categoryGroups: categoryGroups,
-      payees: payees,
-      calendar: .current,
-      now: .now
-    )
+    // Made only once a request is certain: a client that never sends is never
+    // invalidated.
+    let answer = try await (client ?? CaptureAIClient())
+      .send(request, configuration: configuration, conversationID: UUID())
+    let now = Date.now
+    return try decode(Data(answer.utf8)).flatMap { extraction in
+      SlipReaderMapping.map(
+        [extraction],
+        sentence: trimmed,
+        accounts: accounts,
+        categoryGroups: categoryGroups,
+        payees: payees,
+        calendar: .current,
+        now: now
+      ).map { mapped in
+        markGuessedCategory(mapped, category: extraction.category, text: trimmed)
+      }
+    }
+  }
+
+  /// A category the document does not print is the provider's guess. It stays
+  /// on the draft as a suggestion, but is not treated as read from the
+  /// document, so it never marks a saved transaction as different, and the
+  /// owner's learned category rules still apply over it.
+  static func markGuessedCategory(_ mapped: SlipMappedDraft, category: String, text: String) -> SlipMappedDraft {
+    let name = category.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard mapped.parsedCategory,
+          name.isEmpty || text.range(of: name, options: [.caseInsensitive, .diacriticInsensitive]) == nil else {
+      return mapped
+    }
+    var guessed = mapped
+    guessed.parsedCategory = false
+    guessed.categoryCandidates = []
+    guessed.unrecognizedCategory = nil
+    return guessed
   }
 }

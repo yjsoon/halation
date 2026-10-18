@@ -407,7 +407,7 @@ struct ShareSheetView: View {
         enabled: model.canSaveForLater,
         action: { Task { await model.saveForLater() } }
       )
-      footnote(readerLine, "Nothing is saved without your review")
+      footnote("Read after you sign in", "Nothing is saved without your review")
     }
   }
 

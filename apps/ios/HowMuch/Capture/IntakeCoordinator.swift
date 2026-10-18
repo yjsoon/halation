@@ -46,6 +46,10 @@ final class IntakeCoordinator {
   @ObservationIgnored private let hashIndex: IntakeHashIndex
   /// Shares whose files could not all be found; left alone until the next drain re-adopts them.
   @ObservationIgnored private var unadoptable: Set<UUID> = []
+  /// Jobs waiting on the owner's AI provider. If iOS ends background time
+  /// mid-request, these wait for the app to open, so the document is not sent
+  /// again on every short background run that can't finish it.
+  @ObservationIgnored private var providerReads: Set<UUID> = []
 
   /// Applied and discarded jobs (and quarantined folders) are kept this long, then pruned.
   private static let retention: TimeInterval = 30 * 24 * 3600
@@ -174,6 +178,12 @@ final class IntakeCoordinator {
   /// nothing) and is picked up by the next drain. Used when iOS ends the
   /// time it gave the app in the background.
   func cancelDrain() {
+    if Self.isReadingInBackground {
+      for id in providerReads {
+        leaveForForeground(id)
+      }
+    }
+    providerReads.removeAll()
     drainEpoch += 1
     redrainRequested = false
     drainTask?.cancel()
@@ -508,7 +518,7 @@ final class IntakeCoordinator {
     }
     for (index, file) in reading.sourceFiles.enumerated() {
       var readByProvider = false
-      var providerFailed = providerUnusable
+      var providerFailed = false
       guard readable(id) != nil else {
         return
       }
@@ -538,10 +548,16 @@ final class IntakeCoordinator {
         accounts: accounts,
         payees: model.payees
       )
+      // Only rows the provider would have read say it didn't.
+      if drafts.isEmpty, providerUnusable {
+        providerFailed = true
+      }
       if drafts.isEmpty, let remote {
         // The owner's own AI provider reads first. If it fails, the read falls
         // through to this device, except in the background, where it waits
         // for the app to open so the provider can be tried again.
+        providerReads.insert(id)
+        defer { providerReads.remove(id) }
         do {
           drafts = try await IntakeRemoteReader.read(
             text: text,
@@ -553,12 +569,15 @@ final class IntakeCoordinator {
             currencyCode: model.currencyFormat?.isoCode
           )
           readByProvider = true
-          if drafts.isEmpty {
+          // Blank text is never sent, so the provider can't be said to have
+          // found nothing in it.
+          if drafts.isEmpty, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             providerFoundNothing = true
           }
         } catch {
           // Too long to send can't succeed on a retry: read it on device now.
-          if !(error is IntakeRemoteReadError), background, readable(id) != nil {
+          // The app may have gone to the background while the request ran.
+          if !(error is IntakeRemoteReadError), background || Self.isReadingInBackground, readable(id) != nil {
             leaveForForeground(id)
             return
           }
@@ -580,7 +599,7 @@ final class IntakeCoordinator {
             guidance: guidance
           )
         } catch {
-          if background, readable(id) != nil {
+          if background || Self.isReadingInBackground, readable(id) != nil {
             // The model failed (not "returned no spends"). Don't settle for the
             // line parser in the background: wait for a foreground read.
             leaveForForeground(id)

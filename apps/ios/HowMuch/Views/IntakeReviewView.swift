@@ -355,10 +355,11 @@ struct IntakeReviewView: View {
           .padding(.horizontal, 16)
           .padding(.vertical, 12)
           .background(Theme.accent, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-        // The note informs the model reader. The line parser reads none, so say so
-        // when every row came from it.
+        // The note informs the model reader (the owner's AI provider or Apple
+        // Intelligence). The line parser reads none, so say so when every row
+        // came from it.
         if notesNotApplied(in: job) {
-          Label("Note not applied: needs Apple Intelligence", systemImage: "exclamationmark.circle")
+          Label("Note not applied: read without an AI model", systemImage: "exclamationmark.circle")
             .font(.footnote)
             .foregroundStyle(Theme.uncategorised)
         }
@@ -366,7 +367,7 @@ struct IntakeReviewView: View {
       .frame(maxWidth: .infinity, alignment: .trailing)
       .accessibilityElement(children: .combine)
       .accessibilityLabel(
-        notesNotApplied(in: job) ? "Your note: \(note). Note not applied: needs Apple Intelligence" : "Your note: \(note)"
+        notesNotApplied(in: job) ? "Your note: \(note). Note not applied: read without an AI model" : "Your note: \(note)"
       )
     }
   }

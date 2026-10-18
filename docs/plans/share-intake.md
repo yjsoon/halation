@@ -1,6 +1,6 @@
 # Share to Halation: document intake
 
-Status: first version built in yjsoon/howmuch#273–#277 (on device; phase 2 and 3 not built). Screens are in [`share-intake/`](share-intake/). Interactive original (owner only): https://claude.ai/artifact/KneQW91pq5pGNh4eqaAprJ
+Status: first version built in yjsoon/howmuch#273–#277 ; phase 2, reading with the owner's own AI provider, built in yjsoon/howmuch#350; phase 3 not built. Screens are in [`share-intake/`](share-intake/). Interactive original (owner only): https://claude.ai/artifact/KneQW91pq5pGNh4eqaAprJ
 
 This plan changes two statements in [`docs/frontend/intake-ui.md`](../frontend/intake-ui.md): "No push notifications" (intake uses local notifications) and the blanket "Stays on this device" promise (with an AI provider set up, a document's text, never the image, goes to that provider). Update that doc when the feature lands.
 
