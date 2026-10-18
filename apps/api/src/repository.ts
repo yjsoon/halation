@@ -82,10 +82,12 @@ import {
   CardPaymentTermsValidationError,
   cardCycles,
   cycleDatesFor,
+  localDate,
   parseCardPaymentTermsInput,
   termsFromRow,
   type CardPaymentCycle,
   type CardPaymentTerms,
+  type CardPaymentTermsFields,
   type CardScheduleRow,
   type HolidayList,
 } from "./card-payments";
@@ -1024,7 +1026,7 @@ export class LedgerRepository {
         sql: `SELECT t.account_id, t.statement_day, t.due_gap_days, t.due_weekend_rule,
                 (SELECT f.id FROM accounts f WHERE f.id = t.default_funding_account_id AND f.plan_id = t.plan_id AND f.deleted = 0) AS default_funding_account_id,
                 t.default_amount_rule, t.default_amount_milli, t.minimum_floor_milli, t.minimum_rate_bp,
-                t.pay_days_before_due, t.lead_days, t.delivery_hour, t.enabled
+                t.pay_days_before_due, t.lead_days, t.delivery_hour, t.enabled, t.created_at
               FROM card_payment_terms t
               JOIN accounts a ON a.id = t.account_id AND a.plan_id = t.plan_id AND a.deleted = 0
                 AND a.type IN ('creditCard', 'lineOfCredit')
@@ -2605,8 +2607,8 @@ export class LedgerRepository {
    * line of credit in this plan, and the funding account a live account of
    * the same plan. A missing card is a 404; anything else is a 400.
    */
-  protected async planCardPaymentTerms(planId: string, accountId: string, input: unknown): Promise<CardPaymentTerms> {
-    let terms: CardPaymentTerms;
+  protected async planCardPaymentTerms(planId: string, accountId: string, input: unknown): Promise<CardPaymentTermsFields> {
+    let terms: CardPaymentTermsFields;
     try {
       terms = parseCardPaymentTermsInput(input, accountId);
     } catch (error) {
@@ -2672,7 +2674,8 @@ export class LedgerRepository {
    * The derived payment view: the current and next cycle of every enabled
    * card. Read-only; every number is computed by `card-payments.ts`.
    */
-  async getCardPaymentsView(planId: string, asOf: string, holidays?: HolidayList): Promise<{ as_of: string; cycles: CardPaymentCycle[]; server_knowledge: number }> {
+  async getCardPaymentsView(planId: string, asOf: string, options: { holidays?: HolidayList; timeZone?: string } = {}): Promise<{ as_of: string; cycles: CardPaymentCycle[]; server_knowledge: number }> {
+    const { holidays, timeZone } = options;
     const values = [planId];
     const [termRows, editRows, editSubRows, payeeRows, knowledge] = await this.db.batchRead([
       {
@@ -2689,23 +2692,27 @@ export class LedgerRepository {
       { sql: SERVER_KNOWLEDGE_SQL, values },
     ]);
     const serverKnowledge = knowledgeFrom(knowledge);
-    const cards = (termRows ?? []).map((row) => ({ row, terms: termsFromRow(row), dates: cycleDatesFor(termsFromRow(row), asOf, holidays) }));
+    const cards = (termRows ?? []).map((row) => {
+      const terms = termsFromRow(row);
+      return { row, terms, dates: cycleDatesFor(terms, asOf, holidays) };
+    });
     if (cards.length === 0) return { as_of: asOf, cycles: [], server_knowledge: serverKnowledge };
     const ledger = await this.db.batchRead(cards.flatMap(({ terms, dates }) => [
       {
         sql: `SELECT
+                COALESCE(SUM(CASE WHEN date <= ? THEN amount_milli ELSE 0 END), 0) AS previous_sum,
                 COALESCE(SUM(CASE WHEN date <= ? THEN amount_milli ELSE 0 END), 0) AS current_sum,
                 COALESCE(SUM(CASE WHEN date <= ? THEN amount_milli ELSE 0 END), 0) AS next_sum
               FROM transactions WHERE plan_id = ? AND account_id = ? AND deleted = 0`,
-        values: [dates.current.statement_date, dates.next.statement_date, planId, terms.account_id],
+        values: [dates.previous.statement_date, dates.current.statement_date, dates.next.statement_date, planId, terms.account_id],
       },
       {
         sql: `SELECT id, date, amount_milli, approved, cleared, transfer_account_id
               FROM transactions
               WHERE plan_id = ? AND account_id = ? AND deleted = 0 AND amount_milli > 0
-                AND transfer_account_id IS NOT NULL AND date > ? AND date < ?
+                AND transfer_account_id IS NOT NULL AND date >= ? AND date <= ?
               ORDER BY date, id`,
-        values: [planId, terms.account_id, dates.current.statement_date, dates.next.next_statement_date],
+        values: [planId, terms.account_id, dates.previous.window_start, dates.next.window_end],
       },
     ]));
     const schedules = assembleScheduledTransactions(editRows ?? [], editSubRows ?? []) as CardScheduleRow[];
@@ -2714,14 +2721,19 @@ export class LedgerRepository {
       const sums = ledger[index * 2]?.[0] ?? {};
       const opening = Number(row.opening_balance_milli ?? 0);
       const through = new Map([
+        [dates.previous.statement_date, opening + Number(sums.previous_sum ?? 0)],
         [dates.current.statement_date, opening + Number(sums.current_sum ?? 0)],
         [dates.next.statement_date, opening + Number(sums.next_sum ?? 0)],
       ]);
+      const createdAt = new Date(terms.created_at);
       return cardCycles({
         terms,
+        // The day the terms were created, in the plan's zone when known.
+        termsCreatedOn: Number.isFinite(createdAt.getTime()) ? localDate(createdAt, timeZone ?? "UTC") : "0000-01-01",
         asOf,
         balanceThrough: (date) => through.get(date) ?? 0,
         balance: Number(row.balance_milli ?? 0),
+        accountId: terms.account_id,
         transferPayeeId: row.transfer_payee_id ?? null,
         transferPayeeAccounts,
         rows: (ledger[index * 2 + 1] ?? []).map((transaction) => ({
@@ -3478,7 +3490,7 @@ const CARD_PAYMENT_TERMS_LIST_SQL = "SELECT * FROM card_payment_terms WHERE plan
  * Every statement a card terms PUT writes, shared by SQLite and D1 so both
  * store the same row, move `server_knowledge` and keep the same receipt.
  */
-export function cardPaymentTermsPutStatements(planId: string, terms: CardPaymentTerms, auditId: string, requestHash: string): PlannedSql[] {
+export function cardPaymentTermsPutStatements(planId: string, terms: CardPaymentTermsFields, auditId: string, requestHash: string): PlannedSql[] {
   return [
     {
       sql: `INSERT INTO card_payment_terms

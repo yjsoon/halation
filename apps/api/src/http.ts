@@ -386,8 +386,9 @@ async function handleV1(
   if (resource === "card_payments" && segments.length === 4 && method === "GET") {
     const requested = url.searchParams.get("as_of");
     if (requested !== null && !isIsoDate(requested)) throw new ValidationError("as_of must be an ISO date (YYYY-MM-DD)");
-    const asOf = requested ?? localDate(new Date(), timeZone ?? defaultTimeZone());
-    return json({ data: await repo.getCardPaymentsView(planId, asOf) });
+    const zone = timeZone ?? defaultTimeZone();
+    const asOf = requested ?? localDate(new Date(), zone);
+    return json({ data: await repo.getCardPaymentsView(planId, asOf, { timeZone: zone }) });
   }
 
   if (resource === "export_snapshot" && segments.length === 4 && method === "GET") {

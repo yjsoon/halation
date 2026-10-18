@@ -1,5 +1,28 @@
 # Card payment reminders: backend E2E record
 
+## Review fix round (B1 to B7), rerun 2026-10-18
+
+Base revision `4e1c86e` (branch head with the web and iOS commits) plus the backend fixes; the commit containing this section is the tested code. Same commands as below; the script was extended. Results: **Bun/SQLite 62/62**, **D1 path 66/66**, `bun test` 751 pass, `bun run verify:worker` (web typecheck, bundle, Worker dry run) clean, `check:ios-engine` up to date after a Bun 1.4.0 rebuild. Bun stack db: `/tmp/howmuch-verify/20261018T131751-9147/howmuch.sqlite` (persisted rows in `db-bun.txt`: seven `card_payment_terms.put` and one `.delete` receipt, terms rows with `created_at`).
+
+New expectations (terms created on 2026-10-18; weekdays from Python `datetime`; 1 Mar 2027 is a Monday):
+
+| Fix | Setup | Expected and observed |
+|---|---|---|
+| windows | Card A, statement day 3, gap 25 | current window 2026-10-04 to 2026-11-03, next 2026-11-04 to 2026-12-03 |
+| B2 | Card D owes S$100.00 at 3 Sep (due 28 Sep, before the terms existed) | as_of 2026-10-01: `unscheduled`, not overdue; as_of 2026-10-05: `previous_unpaid` null |
+| B3 | Card D owes S$500.00 at 3 Oct, transfer S$20.00 on 20 Oct | as_of 2026-10-21: `partial` paid 20,000, remaining 480,000; as_of 2026-10-29: `overdue` since 2026-10-28, paid 20,000 |
+| B1 | same, as_of 2026-11-05 | current (3 Nov statement) `overdue` since 2026-10-28, `previous_unpaid` {2026-10-03, 2026-10-28, 500,000, 50,000}, default pay date 2026-11-05; next cycle carries nothing |
+| B1 | transfer S$480.00 on 6 Nov | as_of 2026-11-07: `paid` 480,000, `previous_unpaid` null |
+| B4 | Card E owes S$300.00 at 3 Oct; control overdue at 29 Oct; then a plain inflow (no transfer) of S$300.00 on 15 Oct | both cycles `settled`, owed now 0 |
+| B5 | Card F, statement day 1, gap 28; Feb 2027 statement due Mon 1 Mar | as_of 2027-03-01: Feb cycle current, window 2027-02-02 to 2027-03-01, March window starts 2027-03-02; a transfer dated 1 Mar pays the Feb cycle; as_of 2027-03-02: March cycle current, nothing carried |
+| B6 | Card A after the one-off S$1,234.56 schedule | next statement projection 165,440 (1,400,000 less the pending payment) |
+| created_at | PUTs on Card C | set once (ISO UTC), kept on later PUTs, a sent-back value ignored; kept through the D1 snapshot round trip |
+
+Changed from the first run: a zero-owed Card C past its due date is now `settled` (B4) rather than `unscheduled`; the overdue state carries `since` and `paid_amount`.
+
+---
+
+
 - Base revision: `73e67313f9eb52626c9fdcee41e6dfc10ef60048` (branch `claude/project-thread-gnrkc7`) plus the uncommitted backend change recorded here; the commit that contains this file is the tested code.
 - Date of run: 2026-10-18 (container clock UTC; host time zone UTC).
 - Data: synthetic only. Accounts "Card A ending 0000 <run>", "Account B <run>", "Card C ending 1111 <run>", payee "Shop A". No production data, no remote D1, no Wrangler deploy.

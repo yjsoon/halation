@@ -18,7 +18,7 @@ import { resolveAccountPresentation } from "./account-icon";
 import { onBudgetForKind, parseAccountKind } from "./account-kind";
 import { ENTITY_ID_PATTERN, type PlannedSql } from "./category-management";
 import { scheduledTransactionMutation, ScheduledTransactionValidationError } from "./scheduled-transactions";
-import { CARD_PAYMENT_ACCOUNT_KINDS, CardPaymentTermsValidationError, parseCardPaymentTermsInput, termsFromRow, type CardPaymentTerms } from "./card-payments";
+import { CARD_PAYMENT_ACCOUNT_KINDS, CardPaymentTermsValidationError, parseCardPaymentTermsInput, termsFromRow, type CardPaymentTerms, type CardPaymentTermsFields } from "./card-payments";
 
 export const SNAPSHOT_FORMAT = "howmuch-plan-snapshot";
 export const SNAPSHOT_VERSION = 1;
@@ -507,7 +507,7 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
     if (!CARD_PAYMENT_ACCOUNT_KINDS.has(String(accounts.get(accountId)!.type))) {
       throw new SnapshotValidationError(`${path}.account_id must be a creditCard or lineOfCredit account`);
     }
-    let terms: CardPaymentTerms;
+    let terms: CardPaymentTermsFields;
     try {
       terms = parseCardPaymentTermsInput(input, accountId);
     } catch (error) {
@@ -515,7 +515,15 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
       throw error;
     }
     accountRef(terms.default_funding_account_id, `${path}.default_funding_account_id`);
-    cardTerms.push({ ...terms, enabled: terms.enabled ? 1 : 0 });
+    // Keep when the terms were first set up, so the import does not change
+    // which past due dates can be overdue. Stored in SQLite's UTC format.
+    let createdAt: string | null = null;
+    if (input.created_at !== undefined && input.created_at !== null) {
+      const match = typeof input.created_at === "string" ? /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\.\d+)?Z?$/.exec(input.created_at) : null;
+      if (!match) throw new SnapshotValidationError(`${path}.created_at must be a UTC timestamp (YYYY-MM-DDTHH:MM:SSZ)`);
+      createdAt = `${match[1]} ${match[2]}`;
+    }
+    cardTerms.push({ ...terms, enabled: terms.enabled ? 1 : 0, created_at: createdAt });
   }
 
   const rows = {
@@ -576,7 +584,7 @@ const TABLES: Array<[keyof Omit<SnapshotRows, "counts">, TablePlan]> = [
   ["card_payment_terms", { table: "card_payment_terms", columns: [
     ["plan_id", "?"], ["account_id"], ["statement_day"], ["due_gap_days"], ["due_weekend_rule"], ["default_funding_account_id"],
     ["default_amount_rule"], ["default_amount_milli"], ["minimum_floor_milli"], ["minimum_rate_bp"], ["pay_days_before_due"],
-    ["lead_days"], ["delivery_hour"], ["enabled"],
+    ["lead_days"], ["delivery_hour"], ["enabled"], ["created_at", "COALESCE(json_extract(value, '$.created_at'), CURRENT_TIMESTAMP)"],
   ] }],
 ];
 
