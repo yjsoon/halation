@@ -39,3 +39,5 @@
 - **C first attempt** on the `FAKE GROCER / TOTAL 41.20` image honestly failed with "Couldn't read this. No transactions were found." — `IntakeLineParser` ignores `TOTAL` lines by design; re-shared `PET STORE 9.99` which parses.
 - **F3:** `Intake/share-context.json` was overwritten with `{"isSignedIn":false,…}` to stage the signed-out extension view; the app republished the real signed-in context on next launch (verified).
 - 37 `job.json` snapshots preserved under `jobs/`; `sqlite/` holds ledger queries; `logs/` keychain SQL; `shots/` all screenshots; `stub/` server + throwaway localhost CA keys (synthetic only).
+
+_Removed after the run: the stub TLS private keys (`stub/*.key`) and the captured Simulator keychain row (`logs/restore-key.sql`). They held no real credentials, but key material does not belong in a public repo. The stub scripts regenerate the keys._

@@ -41,3 +41,5 @@ On the Simulator, locking the device does not lock the Keychain: the locked-scre
 - `jobs/` — job.json for the deferred-and-resolved jobs.
 - `sqlite/final-transactions.txt` — read-only query.
 - `stub/` — stub server + CA script; `fixtures/` — fixture generator + PNGs; `logs/restore-key.sql` — captured keychain row used in D4.
+
+_Removed after the run: the stub TLS private keys (`stub/*.key`) and the captured Simulator keychain row (`logs/restore-key.sql`). They held no real credentials, but key material does not belong in a public repo. The stub scripts regenerate the keys._
