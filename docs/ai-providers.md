@@ -55,6 +55,12 @@ This is Xcode's normal simulator packaging/link/sign pipeline. It needs no Apple
 
 `HOWMUCH_SIM_SIGNING=unsigned` restores `CODE_SIGNING_ALLOWED=NO` (for example, to reproduce an unsigned-only problem); the Keychain test is then expected to fail with `-34018`. Rebuild with `build-for-testing` whenever you switch modes, and pass the same mode to `test-without-building`. To check a build, `codesign -dv build/xcode/DerivedData-simulator/Build/Products/Debug-iphonesimulator/HowMuch.app` should report `flags=0x2(adhoc)`. An unsigned build also says `Signature=adhoc`, but its flags include `linker-signed` and the binary has no `__TEXT,__entitlements` section (`otool -l …/HowMuch.app/HowMuch | grep __entitlements`). There should be no `embedded.mobileprovision` either way. Never treat zero collected tests as success or clear simulator data to manufacture a pass.
 
+## Shared documents (Share to Halation)
+
+The same provider and key also read documents shared to Halation. The image or PDF is read into text on the device; only that text, the owner's notes for reading documents (up to 1,500 characters) and account/category names are sent, using an intake-specific prompt and schema (`IntakeRemoteReader`). The answer must be one `spends` list of at most 100 complete rows with positive amounts, or the read is rejected. Rows then go through the usual mapping, add-vs-fix matching, learned rules and review; nothing is saved without approval. The output budget is 8,192 tokens (16,384 on the Anthropic Messages API).
+
+If the provider fails (network, key, rate limit, invalid answer), a foreground read falls back to Apple Intelligence and then the line reader. A background read instead waits for the app to open and tries the provider again. A provider answer of "no transactions" is final; the line reader does not second-guess it. With **On device** selected, nothing changes: Apple Intelligence, then the line reader.
+
 ## Privacy and recovery boundaries
 
 - External requests contain the entered text, selected receipt transcripts, current unsaved drafts, bounded recent instructions/answers, and account/category names. They do not contain the full ledger, images, HowMuch login tokens, or provider keys inside the prompt. Prior answers can contain spending summaries.

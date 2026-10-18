@@ -663,7 +663,8 @@ struct IntakeSkill: Codable, Equatable, Sendable {
 
   /// The owner's notes for the reader's prompt: the account's first, then the
   /// global notes, cut to `promptGuidanceLimit`. Nil when there are none. Only
-  /// the Apple Intelligence reader sees it; the line parser reads no notes.
+  /// the model readers (the owner's AI provider or Apple Intelligence) see it;
+  /// the line parser reads no notes.
   func promptGuidance(accountID: String?) -> String? {
     var parts: [String] = []
     if let accountID, let own = account(accountID)?.notes.trimmingCharacters(in: .whitespacesAndNewlines), !own.isEmpty {

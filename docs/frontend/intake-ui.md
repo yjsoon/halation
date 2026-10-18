@@ -60,7 +60,7 @@ Today is the local calendar day, using recorded-spending reports and excluding u
 
 Show unavailable, downloading, and error states explicitly. Stop and Retry reuse the same frozen turn and reply slot. Later typed text is not swallowed. True unavailable status offers Add manually, not a fake fallback. There is no cloud or regex fallback for reading amounts. A Name / call it / rename line can still update payee when the model returns no spends. Simulator model unavailability is a validation limit. Tests may inject deterministic doubles. In-flight replies use typed waiting copy rather than a single frozen status line.
 
-Share to Halation Inbox is the one exception. It tries Apple Intelligence first. If that is unavailable or finds nothing, a deterministic on-device line reader (`IntakeLineParser`) reads bank, card and wallet lines. Those rows say "Read without Apple Intelligence", are capped at Likely and are never saved without review.
+Share to Halation Inbox is the one exception. When an external AI provider and key are saved in AI provider settings, it sends the document's text (read on device, never the image) to that provider first; if the provider fails, it reads on device instead, except in the background, where it waits for the app to open and tries the provider again. Without a provider it tries Apple Intelligence first. If that is unavailable or finds nothing, a deterministic on-device line reader (`IntakeLineParser`) reads bank, card and wallet lines. Those rows say "Read without Apple Intelligence", are capped at Likely and are never saved without review.
 
 ## Skill & Memory
 

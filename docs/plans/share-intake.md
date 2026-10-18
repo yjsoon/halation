@@ -32,7 +32,7 @@ Decision: Share becomes the main way in. Chat becomes follow-up on a batch ("Ask
 
 | Question | Decision |
 | --- | --- |
-| Where reading happens | Hybrid, "fit for purpose": single screenshots on device; PDFs, multi-page and long documents on the server Worker. Thresholds set by evals (section 10). |
+| Where reading happens | On the phone. Most people will use Halation as a standalone iOS app, so there is no server step (owner, 18 Oct 2026; this replaces the earlier hybrid plan that read PDFs and long documents on the Worker). Text is read on device; when the owner has set up their own AI provider and key, that provider reads the text first, then Apple Intelligence, then the line reader. |
 | Images to outside models | Allowed. The Worker may send images to a vision model. |
 | Flow after Send | Fire and forget; a local notification when ready to review. |
 | Auto-saving | High-confidence items may save themselves as **unapproved** ("new"), using a different-colour new indicator (teal) so agent-added rows are obvious. Everything else waits for review. |
@@ -201,6 +201,8 @@ API: `GET/PUT /api/intake/skill`, `GET/POST/PATCH/DELETE /api/intake/rules`. On 
 
 ## 10. Routing and evals
 
+Routing below is superseded: reading stays on the phone (section 4). The eval set still applies, now comparing the owner's provider with Apple Intelligence and the line reader.
+
 Starting rule: one image under N recognised lines → on device; PDF, multi-page or over N lines → server. The share sheet shows the destination; the owner can override it. Do not surface eval scores in the product.
 
 Measure per source type: field accuracy (amount, date, payee, direction), add-vs-fix precision, duplicate recall, latency, cost, and auto-save precision (how often an auto-saved row is later edited or deleted).
@@ -251,7 +253,7 @@ The likely split: a reading model (on-device or vision) extracts text and struct
 - Skill notes reach only the Apple Intelligence reader, capped at 1,500 characters including account notes.
 - Added in the first version: an on-device fallback line reader (`IntakeLineParser`) for when Apple Intelligence is unavailable or finds nothing. Its rows are capped at Likely and always reviewed.
 
-**Phase 2:** server-side reading on the Worker with file lifecycle and vision models; skill and rules synced to the server with API; reconcile jobs; auto-save as unapproved with the teal indicator; eval harness; Jev decisions that pass the evals.
+**Phase 2:** reading with the owner's own AI provider first (built: the document's text, never the image, goes to the provider chosen in AI provider settings; on failure the read falls back to this device); reconcile jobs; auto-save as unapproved with the teal indicator; eval harness; Jev decisions that pass the evals. Server-side reading on the Worker is dropped. Syncing the skill and rules to the server waits until external agents need them (phase 3).
 
 **Phase 3:** chat follow-up on batches; job submission through the API for external agents (OpenClaw and others), shown with their origin in the Inbox; iPad and web review; rules export through Export everything.
 

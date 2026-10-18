@@ -11,7 +11,8 @@ extension InboxItem {
   }
 }
 
-/// Turns share-sheet entries into jobs, reads them on device, proposes what to
+/// Turns share-sheet entries into jobs, reads them (with the owner's own AI
+/// provider when one is set up, otherwise on device), proposes what to
 /// add or fix, and applies what the owner approves. Reading never writes to the
 /// ledger: only `approve` does, through `AppModel.commit` and the outbox.
 ///
@@ -483,7 +484,10 @@ final class IntakeCoordinator {
     var sourceIndexes: [Int] = []
     var fallbackIndexes: [Int] = []
     var readAnyText = false
+    // Nil when the owner reads on device or has no usable key yet.
+    let remote = try? model.captureAI.configuration()
     for (index, file) in reading.sourceFiles.enumerated() {
+      var readByProvider = false
       guard readable(id) != nil else {
         return
       }
@@ -513,7 +517,33 @@ final class IntakeCoordinator {
         accounts: accounts,
         payees: model.payees
       )
-      if drafts.isEmpty {
+      if drafts.isEmpty, let remote {
+        // The owner's own AI provider reads first. If it fails, the read falls
+        // through to this device, except in the background, where it waits
+        // for the app to open so the provider can be tried again.
+        do {
+          drafts = try await IntakeRemoteReader.read(
+            text: text,
+            configuration: remote,
+            accounts: accounts,
+            categoryGroups: model.categoryGroups,
+            payees: model.payees,
+            guidance: guidance
+          )
+          readByProvider = true
+        } catch {
+          if background, readable(id) != nil {
+            leaveForForeground(id)
+            return
+          }
+          Self.logger.info("Provider read failed; reading on device")
+          drafts = []
+        }
+        guard readable(id) != nil else {
+          return
+        }
+      }
+      if drafts.isEmpty, !readByProvider {
         do {
           drafts = try await SlipReader.shared.interpretOrThrow(
             text: text,
@@ -535,8 +565,9 @@ final class IntakeCoordinator {
       guard readable(id) != nil else {
         return
       }
-      if drafts.isEmpty {
+      if drafts.isEmpty, !readByProvider {
         // No Apple Intelligence (or the model declined): read the lines directly.
+        // A provider that read the text and found nothing is taken at its word.
         drafts = IntakeLineParser.interpret(
           text: text,
           accounts: accounts,

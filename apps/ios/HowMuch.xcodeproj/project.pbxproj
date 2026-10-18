@@ -161,6 +161,7 @@
 		D5000000000000000000000A /* IntakeSkillTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000009 /* IntakeSkillTests.swift */; };
 		D20000000000000000000012 /* PayeeNamesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000011 /* PayeeNamesTests.swift */; };
 		D20000000000000000000014 /* IntakeLineParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000013 /* IntakeLineParser.swift */; };
+		D60000000000000000000002 /* IntakeRemoteReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000001 /* IntakeRemoteReader.swift */; };
 		D20000000000000000000A01 /* IntakeTransferReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000A02 /* IntakeTransferReader.swift */; };
 		D20000000000000000000016 /* IntakeLineParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000015 /* IntakeLineParserTests.swift */; };
 		D20000000000000000000A03 /* IntakeTransferReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000A04 /* IntakeTransferReaderTests.swift */; };
@@ -322,6 +323,7 @@
 		D50000000000000000000009 /* IntakeSkillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeSkillTests.swift; sourceTree = "<group>"; };
 		D20000000000000000000011 /* PayeeNamesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeNamesTests.swift; sourceTree = "<group>"; };
 		D20000000000000000000013 /* IntakeLineParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeLineParser.swift; sourceTree = "<group>"; };
+		D60000000000000000000001 /* IntakeRemoteReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeRemoteReader.swift; sourceTree = "<group>"; };
 		D20000000000000000000A02 /* IntakeTransferReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeTransferReader.swift; sourceTree = "<group>"; };
 		D20000000000000000000015 /* IntakeLineParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeLineParserTests.swift; sourceTree = "<group>"; };
 		D20000000000000000000A04 /* IntakeTransferReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeTransferReaderTests.swift; sourceTree = "<group>"; };
@@ -536,6 +538,7 @@
 				D20000000000000000000009 /* IntakeCoordinator.swift */,
 				D50000000000000000000001 /* IntakeSkill.swift */,
 				D20000000000000000000013 /* IntakeLineParser.swift */,
+				D60000000000000000000001 /* IntakeRemoteReader.swift */,
 				D20000000000000000000A02 /* IntakeTransferReader.swift */,
 				A20000000000000000000094 /* InboxReadingView.swift */,
 				A20000000000000000000096 /* IntelligenceAura.swift */,
@@ -853,6 +856,7 @@
 				D2000000000000000000000A /* IntakeCoordinator.swift in Sources */,
 				D50000000000000000000002 /* IntakeSkill.swift in Sources */,
 				D20000000000000000000014 /* IntakeLineParser.swift in Sources */,
+				D60000000000000000000002 /* IntakeRemoteReader.swift in Sources */,
 				D20000000000000000000A01 /* IntakeTransferReader.swift in Sources */,
 				D20000000000000000000006 /* PayeeNames.swift in Sources */,
 				D2000000000000000000000C /* IntakeInboxBand.swift in Sources */,
