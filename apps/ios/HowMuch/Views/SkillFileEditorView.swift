@@ -49,7 +49,7 @@ struct SkillFileEditorView: View {
         SkillNotesField(text: $notes, limit: IntakeSkill.notesLimit, readLimit: IntakeSkill.promptGuidanceLimit) {
           notes += Self.example(fittingAfter: notes, limit: IntakeSkill.notesLimit)
         }
-        Text("Plain instructions. Halation reads this before every document, alongside per-account notes and learned rules. Apple Intelligence reads only the first \(IntakeSkill.promptGuidanceLimit.formatted()) characters, after any notes for the account; without it, only the duplicate window and learned rules apply.")
+        Text("Plain instructions. Halation reads this before every document, alongside per-account notes and learned rules. Your AI provider, or Apple Intelligence, reads only the first \(IntakeSkill.promptGuidanceLimit.formatted()) characters, after any notes for the account; without either, only the duplicate window and learned rules apply.")
           .font(.footnote)
           .foregroundStyle(.secondary)
           .padding(.horizontal, 4)
@@ -233,7 +233,7 @@ struct SkillNotesField: View {
     guard let read = readLimitExceeded else {
       return base
     }
-    return "\(base). Apple Intelligence reads at most the first \(read.formatted()) characters."
+    return "\(base). Halation reads at most the first \(read.formatted()) characters."
   }
 
   var body: some View {

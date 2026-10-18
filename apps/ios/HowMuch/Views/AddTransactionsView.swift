@@ -136,6 +136,7 @@ struct AddTransactionsView: View {
       }
       .sheet(isPresented: $showingAISettings) {
         NavigationStack { CaptureAISettingsView(settings: model.captureAI) }
+          .onDisappear { model.publishShareContext() }
           .blocksCapturePresentation()
       }
       .sheet(isPresented: $creatingManual) {

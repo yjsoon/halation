@@ -11,7 +11,8 @@ extension InboxItem {
   }
 }
 
-/// Turns share-sheet entries into jobs, reads them on device, proposes what to
+/// Turns share-sheet entries into jobs, reads them (with the owner's own AI
+/// provider when one is set up, otherwise on device), proposes what to
 /// add or fix, and applies what the owner approves. Reading never writes to the
 /// ledger: only `approve` does, through `AppModel.commit` and the outbox.
 ///
@@ -45,6 +46,10 @@ final class IntakeCoordinator {
   @ObservationIgnored private let hashIndex: IntakeHashIndex
   /// Shares whose files could not all be found; left alone until the next drain re-adopts them.
   @ObservationIgnored private var unadoptable: Set<UUID> = []
+  /// Jobs waiting on the owner's AI provider. If iOS ends background time
+  /// mid-request, these wait for the app to open, so the document is not sent
+  /// again on every short background run that can't finish it.
+  @ObservationIgnored private var providerReads: Set<UUID> = []
 
   /// Applied and discarded jobs (and quarantined folders) are kept this long, then pruned.
   private static let retention: TimeInterval = 30 * 24 * 3600
@@ -57,6 +62,8 @@ final class IntakeCoordinator {
   /// "Likely" is 0.75 up to 0.9; lines read by the fallback never reach "Sure".
   static let fallbackConfidenceCap = 0.85
   static let fallbackReason = "Read without Apple Intelligence"
+  static let providerFailedReason = "Not read by your AI provider, so read on this device"
+  static let providerFoundNothingMessage = "Your AI provider found no transactions in this. To read it on this phone instead, choose On device in AI provider settings."
 
   init(
     inbox: InboxStore = IntakeJobStore.isUnitTestHost
@@ -171,6 +178,12 @@ final class IntakeCoordinator {
   /// nothing) and is picked up by the next drain. Used when iOS ends the
   /// time it gave the app in the background.
   func cancelDrain() {
+    if Self.isReadingInBackground {
+      for id in providerReads {
+        leaveForForeground(id)
+      }
+    }
+    providerReads.removeAll()
     drainEpoch += 1
     redrainRequested = false
     drainTask?.cancel()
@@ -482,8 +495,30 @@ final class IntakeCoordinator {
     var extracted: [SlipMappedDraft] = []
     var sourceIndexes: [Int] = []
     var fallbackIndexes: [Int] = []
+    var providerFailedIndexes: [Int] = []
+    var providerFoundNothing = false
     var readAnyText = false
+    // Nil when the owner reads on device. A chosen provider whose key is
+    // locked away (the phone is locked) is not the same as "on device": in the
+    // background the read waits for the app to open, so a locked phone never
+    // reads on device a document meant for the provider. A provider with no
+    // key, or a model that no longer exists, reads on device and says so.
+    let remote: CaptureAIConfiguration?
+    var providerUnusable = false
+    do {
+      remote = try model.captureAI.configuration()
+    } catch {
+      if case CaptureAIError.keychain = error, Self.isReadingInBackground {
+        leaveForForeground(id)
+        return
+      }
+      Self.logger.info("Provider not usable; reading on device")
+      remote = nil
+      providerUnusable = true
+    }
     for (index, file) in reading.sourceFiles.enumerated() {
+      var readByProvider = false
+      var providerFailed = false
       guard readable(id) != nil else {
         return
       }
@@ -513,7 +548,48 @@ final class IntakeCoordinator {
         accounts: accounts,
         payees: model.payees
       )
-      if drafts.isEmpty {
+      // Only rows the provider would have read say it didn't.
+      if drafts.isEmpty, providerUnusable {
+        providerFailed = true
+      }
+      if drafts.isEmpty, let remote {
+        // The owner's own AI provider reads first. If it fails, the read falls
+        // through to this device, except in the background, where it waits
+        // for the app to open so the provider can be tried again.
+        providerReads.insert(id)
+        defer { providerReads.remove(id) }
+        do {
+          drafts = try await IntakeRemoteReader.read(
+            text: text,
+            configuration: remote,
+            accounts: accounts,
+            categoryGroups: model.categoryGroups,
+            payees: model.payees,
+            guidance: guidance,
+            currencyCode: model.currencyFormat?.isoCode
+          )
+          readByProvider = true
+          // Blank text is never sent, so the provider can't be said to have
+          // found nothing in it.
+          if drafts.isEmpty, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            providerFoundNothing = true
+          }
+        } catch {
+          // Too long to send can't succeed on a retry: read it on device now.
+          // The app may have gone to the background while the request ran.
+          if !(error is IntakeRemoteReadError), background || Self.isReadingInBackground, readable(id) != nil {
+            leaveForForeground(id)
+            return
+          }
+          Self.logger.info("Provider read failed; reading on device")
+          drafts = []
+          providerFailed = true
+        }
+        guard readable(id) != nil else {
+          return
+        }
+      }
+      if drafts.isEmpty, !readByProvider {
         do {
           drafts = try await SlipReader.shared.interpretOrThrow(
             text: text,
@@ -523,7 +599,7 @@ final class IntakeCoordinator {
             guidance: guidance
           )
         } catch {
-          if background, readable(id) != nil {
+          if background || Self.isReadingInBackground, readable(id) != nil {
             // The model failed (not "returned no spends"). Don't settle for the
             // line parser in the background: wait for a foreground read.
             leaveForForeground(id)
@@ -535,8 +611,9 @@ final class IntakeCoordinator {
       guard readable(id) != nil else {
         return
       }
-      if drafts.isEmpty {
+      if drafts.isEmpty, !readByProvider {
         // No Apple Intelligence (or the model declined): read the lines directly.
+        // A provider that read the text and found nothing is taken at its word.
         drafts = IntakeLineParser.interpret(
           text: text,
           accounts: accounts,
@@ -544,6 +621,9 @@ final class IntakeCoordinator {
           payees: model.payees
         )
         fallbackIndexes.append(contentsOf: (extracted.count..<(extracted.count + drafts.count)))
+      }
+      if providerFailed {
+        providerFailedIndexes.append(contentsOf: (extracted.count..<(extracted.count + drafts.count)))
       }
       extracted.append(contentsOf: drafts)
       sourceIndexes.append(contentsOf: Array(repeating: index, count: drafts.count))
@@ -561,9 +641,11 @@ final class IntakeCoordinator {
         return
       }
       current.state = .failed
-      current.failureMessage = readAnyText
-        ? "Couldn’t read this. No transactions were found."
-        : "Couldn’t read this. No text was found."
+      current.failureMessage = !readAnyText
+        ? "Couldn’t read this. No text was found."
+        : providerFoundNothing
+          ? Self.providerFoundNothingMessage
+          : "Couldn’t read this. No transactions were found."
       save(current)
       return
     }
@@ -596,6 +678,7 @@ final class IntakeCoordinator {
       extracted,
       sourceIndexes: sourceIndexes,
       fallbackIndexes: fallbackIndexes,
+      providerFailedIndexes: providerFailedIndexes,
       hint: reading.hint,
       model: model
     )
@@ -605,6 +688,7 @@ final class IntakeCoordinator {
     final.extractions = extracted
     final.extractionSourceIndexes = sourceIndexes
     final.fallbackExtractionIndexes = fallbackIndexes
+    final.providerFailedExtractionIndexes = providerFailedIndexes
     final.proposals = result.proposals
     final.duplicateCheckLimited = result.limited
     final.state = needsYouMessage == nil ? .proposed : .needsYou
@@ -616,6 +700,7 @@ final class IntakeCoordinator {
     _ extracted: [SlipMappedDraft],
     sourceIndexes: [Int],
     fallbackIndexes: [Int] = [],
+    providerFailedIndexes: [Int] = [],
     hint: IntakeHint,
     model: AppModel
   ) async -> (proposals: [IntakeProposal], limited: Bool) {
@@ -652,6 +737,9 @@ final class IntakeCoordinator {
         proposals[index].confidence = min(proposals[index].confidence, Self.fallbackConfidenceCap)
         proposals[index].reasons.append(Self.fallbackReason)
       }
+      if providerFailedIndexes.contains(index) {
+        proposals[index].reasons.append(Self.providerFailedReason)
+      }
     }
     return (proposals, !set.isComplete)
   }
@@ -668,6 +756,7 @@ final class IntakeCoordinator {
       job.extractions,
       sourceIndexes: job.extractionSourceIndexes,
       fallbackIndexes: job.fallbackExtractionIndexes,
+      providerFailedIndexes: job.providerFailedExtractionIndexes,
       hint: job.hint,
       model: model
     )
@@ -1007,6 +1096,7 @@ final class IntakeCoordinator {
       extracted,
       sourceIndexes: job.extractionSourceIndexes,
       fallbackIndexes: job.fallbackExtractionIndexes,
+      providerFailedIndexes: job.providerFailedExtractionIndexes,
       hint: job.hint,
       model: model
     )
@@ -1311,6 +1401,7 @@ final class IntakeCoordinator {
     mutateProposal(proposalID, in: id, model: model) { proposal in
       // A row first read without Apple Intelligence keeps that note and its cap.
       let readByFallback = proposal.reasons.contains(Self.fallbackReason)
+      let providerFailed = proposal.reasons.contains(Self.providerFailedReason)
       if keepMatch {
         // The search was incomplete, so the match stays as it was (and so does its
         // confidence, bar a flag rule's cap).
@@ -1351,6 +1442,9 @@ final class IntakeCoordinator {
       if readByFallback {
         proposal.confidence = min(proposal.confidence, Self.fallbackConfidenceCap)
         proposal.reasons.append(Self.fallbackReason)
+      }
+      if providerFailed, !proposal.reasons.contains(Self.providerFailedReason) {
+        proposal.reasons.append(Self.providerFailedReason)
       }
       proposal.flippedFrom = nil
       proposal.preFlipDecision = nil

@@ -13,10 +13,22 @@ struct CaptureAIActivity: Equatable {
   var phase: CaptureAIPhase = .waiting
 }
 
+/// One structured-output request: instructions, the user turn, and the JSON
+/// schema the answer must match.
+struct CaptureAIPrompt: @unchecked Sendable {
+  var instructions: String
+  var input: String
+  var schema: [String: Any]
+  var schemaName: String
+  /// Output budget. The Anthropic Messages API gets twice this, since thinking shares it.
+  var outputTokens = 4096
+}
+
 /// Per-request ephemeral transport: no cookies, cache, redirects, service tokens, or automatic retries.
 struct CaptureAIClient: Sendable {
   private let session: URLSession
   static let maximumBytes = 1_048_576
+  static let maximumPromptBytes = 65_536
 
   init(configuration: URLSessionConfiguration = .ephemeral) {
     configuration.urlCache = nil
@@ -36,10 +48,28 @@ struct CaptureAIClient: Sendable {
     conversationID: UUID,
     progress: @escaping @Sendable (CaptureAIPhase) async -> Void
   ) async throws -> CaptureTurnPayload {
+    let prompt: CaptureAIPrompt
+    do {
+      prompt = try Self.capturePrompt(context: context, accounts: accounts, categories: categories)
+    } catch {
+      session.invalidateAndCancel()
+      throw CaptureAIError.invalidResponse
+    }
+    let text = try await send(prompt, configuration: configuration, conversationID: conversationID, progress: progress)
+    return try CaptureTurnPayload.decodeRemote(Data(text.utf8))
+  }
+
+  /// Sends one structured-output request and returns the model's complete JSON
+  /// text. Only a successful terminal event yields text; the caller validates it.
+  func send(
+    _ prompt: CaptureAIPrompt,
+    configuration: CaptureAIConfiguration,
+    conversationID: UUID,
+    progress: @escaping @Sendable (CaptureAIPhase) async -> Void = { _ in }
+  ) async throws -> String {
     defer { session.invalidateAndCancel() }
     do {
-      let request = try Self.request(configuration: configuration, context: context,
-                                     accounts: accounts, categories: categories, conversationID: conversationID)
+      let request = try Self.request(configuration: configuration, prompt: prompt, conversationID: conversationID)
       try Task.checkCancellation()
       let (bytes, response) = try await session.bytes(for: request)
       guard let http = response as? HTTPURLResponse else { throw CaptureAIError.network }
@@ -82,7 +112,7 @@ struct CaptureAIClient: Sendable {
       } else {
         text = try CaptureAIStream.nonStreaming(buffer, api: configuration.model.api)
       }
-      return try CaptureTurnPayload.decodeRemote(Data(text.utf8))
+      return text
     } catch is CancellationError {
       throw CancellationError()
     } catch let error as CaptureAIError {
@@ -103,12 +133,18 @@ struct CaptureAIClient: Sendable {
     categories: [CategoryGroup],
     conversationID: UUID
   ) throws -> URLRequest {
-    let base = try CaptureAISelection.validatedBaseURL(configuration.baseURL.absoluteString)
-    guard !configuration.apiKey.isEmpty,
-          !configuration.apiKey.contains(where: \.isNewline) else { throw CaptureAIError.key }
-    let prompt = CaptureInterpreterPrompt.prefix(context: context, accounts: accounts, categoryGroups: categories)
-      + context.text
-    guard prompt.utf8.count <= 65_536 else { throw CaptureAIError.tooLarge }
+    try request(
+      configuration: configuration,
+      prompt: capturePrompt(context: context, accounts: accounts, categories: categories),
+      conversationID: conversationID
+    )
+  }
+
+  static func capturePrompt(
+    context: CaptureTurnContext,
+    accounts: [Account],
+    categories: [CategoryGroup]
+  ) throws -> CaptureAIPrompt {
     let schema = CaptureTurnPayload.remoteSchema
     let schemaText = String(decoding: try JSONSerialization.data(withJSONObject: schema, options: [.sortedKeys]), as: UTF8.self)
     let instructions = CaptureInterpreterPrompt.instructions
@@ -117,30 +153,50 @@ struct CaptureAIClient: Sendable {
       + "Use yyyy-MM-dd for every nonempty date field, including spend dates.\n"
       + "Use ASCII decimal amounts with at most three fractional digits and an optional leading sign; no whitespace, currency symbols, grouping separators, or trailing text.\n"
       + schemaText
+    return CaptureAIPrompt(
+      instructions: instructions,
+      input: CaptureInterpreterPrompt.prefix(context: context, accounts: accounts, categoryGroups: categories)
+        + context.text,
+      schema: schema,
+      schemaName: "capture_turn"
+    )
+  }
+
+  static func request(
+    configuration: CaptureAIConfiguration,
+    prompt: CaptureAIPrompt,
+    conversationID: UUID
+  ) throws -> URLRequest {
+    let base = try CaptureAISelection.validatedBaseURL(configuration.baseURL.absoluteString)
+    guard !configuration.apiKey.isEmpty,
+          !configuration.apiKey.contains(where: \.isNewline) else { throw CaptureAIError.key }
+    guard prompt.input.utf8.count <= maximumPromptBytes else { throw CaptureAIError.tooLarge }
+    let instructions = prompt.instructions
+    let schema = prompt.schema
     let model = configuration.model
     var body: [String: Any] = ["model": model.id, "stream": true]
     let format: [String: Any] = model.format == .jsonSchema
-      ? ["type": "json_schema", "name": "capture_turn", "strict": true, "schema": schema]
+      ? ["type": "json_schema", "name": prompt.schemaName, "strict": true, "schema": schema]
       : ["type": "json_object"]
     switch model.api {
     case .responses:
       body["instructions"] = instructions
-      body["input"] = prompt
+      body["input"] = prompt.input
       body["text"] = ["format": format]
-      body["max_output_tokens"] = 4096
+      body["max_output_tokens"] = prompt.outputTokens
       body["store"] = false
     case .chatCompletions:
-      body["messages"] = [["role": "system", "content": instructions], ["role": "user", "content": prompt]]
-      body["max_tokens"] = 4096
+      body["messages"] = [["role": "system", "content": instructions], ["role": "user", "content": prompt.input]]
+      body["max_tokens"] = prompt.outputTokens
       body["response_format"] = model.format == .jsonSchema
-        ? ["type": "json_schema", "json_schema": ["name": "capture_turn", "strict": true, "schema": schema]]
+        ? ["type": "json_schema", "json_schema": ["name": prompt.schemaName, "strict": true, "schema": schema]]
         : ["type": "json_object"]
     case .messages:
       body["system"] = instructions
-      body["messages"] = [["role": "user", "content": prompt]]
+      body["messages"] = [["role": "user", "content": prompt.input]]
       // Current Claude models think adaptively and cannot always turn it off;
-      // thinking shares this budget, so it is larger than the other APIs'.
-      body["max_tokens"] = 8192
+      // thinking shares this budget, so it is twice the other APIs'.
+      body["max_tokens"] = prompt.outputTokens * 2
       if model.format == .jsonSchema {
         body["output_config"] = ["format": ["type": "json_schema", "schema": schema]]
       }
