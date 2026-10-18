@@ -1,5 +1,14 @@
 # Card payment reminders: backend E2E record
 
+## Round 3 (R-B1, R-B2), rerun 2026-10-18
+
+Base `4bf9205` plus the fix; the commit containing this section is the tested code. Bun/SQLite **67/67** (db `/tmp/howmuch-verify/20261018T142559-17435/howmuch.sqlite`, `db-bun.txt`), D1 path **71/71**.
+
+| Fix | Setup (terms created 2026-10-18, statement day 3, gap 25) | Expected and observed at as_of 2026-11-05 |
+|---|---|---|
+| R-B1 | Card G owes S$300.00 at 3 Oct, S$200.00 more spent 1 Nov | control: carried (`previous_unpaid` 3 Oct, `overdue`); after a plain inflow (no transfer) of S$300.00 dated 20 Oct: `previous_unpaid` null, `unscheduled`, statement 200,000, owed now 200,000 |
+| R-B2 | Card H owes S$300.00 at 3 Oct, unpaid by 28 Oct | control: carried, previous minimum 50,000; after a plain inflow of S$60.00 dated 4 Nov: carry cleared, `unscheduled`, owed now 240,000; at as_of 2026-10-30 the October cycle itself is still `overdue` |
+
 ## Review fix round (B1 to B7), rerun 2026-10-18
 
 Base revision `4e1c86e` (branch head with the web and iOS commits) plus the backend fixes; the commit containing this section is the tested code. Same commands as below; the script was extended. Results: **Bun/SQLite 62/62**, **D1 path 66/66**, `bun test` 751 pass, `bun run verify:worker` (web typecheck, bundle, Worker dry run) clean, `check:ios-engine` up to date after a Bun 1.4.0 rebuild. Bun stack db: `/tmp/howmuch-verify/20261018T131751-9147/howmuch.sqlite` (persisted rows in `db-bun.txt`: seven `card_payment_terms.put` and one `.delete` receipt, terms rows with `created_at`).

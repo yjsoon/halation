@@ -236,14 +236,38 @@ check("B5: a payment on the due day pays the Feb cycle", f[0]?.statement_date ==
 f = await cyclesOf("2027-03-02", cardF.id);
 check("B5: next day the March cycle is current, nothing carried", f[0]?.statement_date === "2027-03-01" && f[0]?.previous_unpaid === null, f[0]);
 
+// ---- Round 3: R-B1 and R-B2 ---------------------------------------------
+const plainInflow = (card: string, date: string, amount: number) => call("POST", `${P}/transactions`, { transaction: { account_id: card, date, amount, payee_name: "Card payment", approved: true, cleared: "cleared" } });
+// Card G: S$300.00 owed at the 3 Oct statement, then S$200.00 more spent on 1 Nov.
+const cardG = await newCard("Card G ending 5555");
+await call("PUT", `${P}/accounts/${cardG.id}/card_payment_terms`, { card_payment_terms: { statement_day: 3 } }, `terms-g-${run}`);
+await spend(cardG.id, "2026-10-01", -300_000);
+await spend(cardG.id, "2026-11-01", -200_000);
+let g = await cyclesOf("2026-11-05", cardG.id);
+check("R-B1 control: unpaid October statement is carried", g[0]?.previous_unpaid?.statement_date === "2026-10-03" && g[0]?.coverage?.state === "overdue", g[0]);
+await plainInflow(cardG.id, "2026-10-20", 300_000);
+g = await cyclesOf("2026-11-05", cardG.id);
+check("R-B1: October paid by a plain inflow is not carried", g[0]?.previous_unpaid === null && g[0]?.coverage?.state === "unscheduled" && g[0]?.statement_balance === 200_000 && g[0]?.current_balance === 200_000, g[0]);
+// Card H: S$300.00 owed at 3 Oct, nothing paid by 28 Oct; S$60.00 paid late on 4 Nov as a plain inflow.
+const cardH = await newCard("Card H ending 6666");
+await call("PUT", `${P}/accounts/${cardH.id}/card_payment_terms`, { card_payment_terms: { statement_day: 3 } }, `terms-h-${run}`);
+await spend(cardH.id, "2026-10-01", -300_000);
+let h = await cyclesOf("2026-11-05", cardH.id);
+check("R-B2 control: carried before the late payment", h[0]?.previous_unpaid?.minimum_due === 50_000 && h[0]?.coverage?.state === "overdue", h[0]);
+await plainInflow(cardH.id, "2026-11-04", 60_000);
+h = await cyclesOf("2026-11-05", cardH.id);
+check("R-B2: a late payment reaching the previous minimum clears the carry", h[0]?.previous_unpaid === null && h[0]?.coverage?.state === "unscheduled" && h[0]?.current_balance === 240_000, h[0]);
+h = await cyclesOf("2026-10-30", cardH.id);
+check("R-B2: the October cycle itself still reports its own overdue", h[0]?.statement_date === "2026-10-03" && h[0]?.coverage?.state === "overdue", h[0]);
+
 // 12. List and snapshot export
 const list = await call("GET", `${P}/card_payment_terms`);
-const ours = new Set([cardA.id, cardC.id, cardD.id, cardE.id, cardF.id]);
+const ours = new Set([cardA.id, cardC.id, cardD.id, cardE.id, cardF.id, cardG.id, cardH.id]);
 const listed = list.json.data.card_payment_terms.filter((t: any) => ours.has(t.account_id));
-check("list returns all five cards", listed.length === 5, list);
+check("list returns all seven cards", listed.length === 7, list);
 const exported = await call("GET", `${P}/export_snapshot`);
 const exportedTerms = (exported.json.data.snapshot.card_payment_terms ?? []).filter((t: any) => ours.has(t.account_id));
-check("snapshot carries card_payment_terms", exportedTerms.length === 5 && deepEqual(exportedTerms.find((t: any) => t.account_id === cardA.id), putA.json.data.card_payment_terms), exportedTerms);
+check("snapshot carries card_payment_terms", exportedTerms.length === 7 && deepEqual(exportedTerms.find((t: any) => t.account_id === cardA.id), putA.json.data.card_payment_terms), exportedTerms);
 
 // 13. Delete, replay delete, 404 after
 const del = await call("DELETE", `${P}/accounts/${cardC.id}/card_payment_terms`, undefined, `terms-c-del-${run}`);
@@ -263,7 +287,7 @@ if (d1Mode) {
   const second = d1Server("Asia/Singapore");
   await second.repo.ensurePlan("p");
   const imported = await call("POST", `/v1/plans/p/import_snapshot`, { snapshot: exported.json.data.snapshot }, `import-${run}`, second.base);
-  check("snapshot import 201 with card_payment_terms count", imported.status === 201 && imported.json.data.imported.card_payment_terms === 5, imported);
+  check("snapshot import 201 with card_payment_terms count", imported.status === 201 && imported.json.data.imported.card_payment_terms === 7, imported);
   const back = await call("GET", `/v1/plans/p/accounts/${cardA.id}/card_payment_terms`, undefined, undefined, second.base);
   check("imported terms identical, created_at kept", deepEqual(back.json?.data?.card_payment_terms, putA.json.data.card_payment_terms), back);
   const view2 = await call("GET", `/v1/plans/p/card_payments?as_of=2026-10-27`, undefined, undefined, second.base);

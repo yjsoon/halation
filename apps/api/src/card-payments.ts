@@ -456,7 +456,13 @@ export function cardCycles(input: CardCyclesInput): CardPaymentCycle[] {
   };
   const previousBalance = -input.balanceThrough(previous.statement_date);
   const previousResult = evaluate(previous, previousBalance);
-  const previousOverdue = previousResult.coverage.state === "overdue";
+  // Carry-over only: every inflow counts (transfers and plain positive
+  // inflows such as a payment entered without a transfer), never payees.
+  const inflowsIn = (from: string, to: string) => input.rows.reduce((total, row) => (row.amount > 0 && row.date >= from && row.date <= to ? total + row.amount : total), 0);
+  const previousPaidByInflows = inflowsIn(previous.window_start, previous.window_end) >= previousResult.minimum;
+  // A late payment of the previous statement, made in the current window after its due date, clears the carry.
+  const paidLate = inflowsIn(addDays(previous.due_date, 1) > current.window_start ? addDays(previous.due_date, 1) : current.window_start, current.window_end) >= previousResult.minimum;
+  const previousOverdue = previousResult.coverage.state === "overdue" && !previousPaidByInflows && !paidLate;
 
   return ([["current", current], ["next", next]] as const).map(([cycle, dates]) => {
     const recorded = -input.balanceThrough(dates.statement_date);

@@ -2710,7 +2710,7 @@ export class LedgerRepository {
         sql: `SELECT id, date, amount_milli, approved, cleared, transfer_account_id
               FROM transactions
               WHERE plan_id = ? AND account_id = ? AND deleted = 0 AND amount_milli > 0
-                AND transfer_account_id IS NOT NULL AND date >= ? AND date <= ?
+                AND date >= ? AND date <= ?
               ORDER BY date, id`,
         values: [planId, terms.account_id, dates.previous.window_start, dates.next.window_end],
       },
