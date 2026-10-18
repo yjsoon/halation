@@ -472,19 +472,22 @@ enum CardPaymentFormat {
     return formatter
   }()
 
-  /// The idempotency key both clients use for a Scheduled tap, so a retry or
-  /// a second tap for the same statement creates one schedule.
-  static func idempotencyKey(accountID: String, statementDate: String) -> String {
-    let raw = "card-pay:\(accountID):\(statementDate)"
+  /// The idempotency key the phone and the web both send for "schedule this
+  /// statement's payment", so a second tap anywhere replays rather than
+  /// doubles. A suffix makes a fresh key once that schedule was deleted and
+  /// the statement is scheduled again.
+  static func idempotencyKey(accountID: String, statementDate: String, suffix: String? = nil) -> String {
+    let raw = (["card-pay", accountID, statementDate] + (suffix.map { [$0] } ?? [])).joined(separator: ":")
     let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-")
-    if raw.count <= 128, raw.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
-      return raw
+    let clean = String(String.UnicodeScalarView(raw.unicodeScalars.map { allowed.contains($0) ? $0 : "-" }))
+    if clean.count <= 128 {
+      return clean
     }
     var hash: UInt64 = 14_695_981_039_346_656_037
-    for byte in raw.utf8 {
+    for byte in clean.utf8 {
       hash ^= UInt64(byte)
       hash &*= 1_099_511_628_211
     }
-    return "card-pay:\(String(hash, radix: 16))"
+    return "card-pay:\(String(hash, radix: 16)):\(statementDate)"
   }
 }

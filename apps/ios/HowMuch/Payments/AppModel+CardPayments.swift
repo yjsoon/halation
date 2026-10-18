@@ -257,19 +257,21 @@ extension AppModel {
       payDate: payDate
     )
     if settings.isLocal {
-      let saved = try await apiClient.createScheduledTransaction(
-        planID: settings.planID,
-        idempotencyKey: key,
+      let saved = try await createCardSchedule(
+        accountID: accountID,
+        statementDate: statementDate,
         request: Self.cardScheduleRequest(
           cardID: accountID, fundingAccountID: fundingAccountID, payDate: payDate, amount: amount, memo: memo
         )
       )
-      adoptCardSchedule(saved)
-      projectCardCoverage(
-        accountID: accountID,
-        statementDate: statementDate,
-        coverage: .scheduled(scheduledTransactionID: saved.id, payDate: payDate, amount: amount, fundingAccountID: fundingAccountID)
-      )
+      if let saved {
+        adoptCardSchedule(saved)
+        projectCardCoverage(
+          accountID: accountID,
+          statementDate: statementDate,
+          coverage: .scheduled(scheduledTransactionID: saved.id, payDate: payDate, amount: amount, fundingAccountID: fundingAccountID)
+        )
+      }
       if showsMessage {
         showSaveMessage(message)
       }
@@ -298,6 +300,41 @@ extension AppModel {
     Task { @MainActor [weak self] in
       await self?.drainCardPaymentQueue()
     }
+  }
+
+  /// Creates the schedule under the shared key. A replay of a schedule that
+  /// was since deleted, or a 409 because the key was used for a different
+  /// payment, retries with a fresh key, but only while the statement is
+  /// still unpaid. Returns nil when it turned out to be covered already.
+  private func createCardSchedule(
+    accountID: String,
+    statementDate: String,
+    request: ScheduledTransactionWriteRequest
+  ) async throws -> ScheduledTransaction? {
+    let planID = settings.planID
+    do {
+      let created = try await apiClient.createScheduledTransaction(
+        planID: planID,
+        idempotencyKey: CardPaymentFormat.idempotencyKey(accountID: accountID, statementDate: statementDate),
+        request: request
+      )
+      if !created.deleted {
+        return created
+      }
+    } catch APIClientError.conflict(_) {
+      // Fall through to the retry below.
+    }
+    let fresh = try await apiClient.fetchCardPayments(planID: planID)
+    if let cycle = fresh.cycles.first(where: { $0.accountID == accountID && $0.statementDate == statementDate }),
+       cycle.coverage.isCovered {
+      return nil
+    }
+    let suffix = String(UUID().uuidString.lowercased().prefix(8))
+    return try await apiClient.createScheduledTransaction(
+      planID: planID,
+      idempotencyKey: CardPaymentFormat.idempotencyKey(accountID: accountID, statementDate: statementDate, suffix: suffix),
+      request: request
+    )
   }
 
   static func cardScheduleRequest(
@@ -342,9 +379,9 @@ extension AppModel {
         break queueLoop
       }
       do {
-        let saved = try await apiClient.createScheduledTransaction(
-          planID: settings.planID,
-          idempotencyKey: item.id,
+        let saved = try await createCardSchedule(
+          accountID: item.accountID,
+          statementDate: item.statementDate,
           request: Self.cardScheduleRequest(
             cardID: item.accountID,
             fundingAccountID: item.fundingAccountID,
@@ -354,17 +391,16 @@ extension AppModel {
           )
         )
         CardScheduleQueue.remove(id: item.id, fingerprint: fingerprint)
-        adoptCardSchedule(saved)
-        projectCardCoverage(
-          accountID: item.accountID,
-          statementDate: item.statementDate,
-          coverage: .scheduled(
-            scheduledTransactionID: saved.id, payDate: item.payDate, amount: item.amount, fundingAccountID: item.fundingAccountID
+        if let saved {
+          adoptCardSchedule(saved)
+          projectCardCoverage(
+            accountID: item.accountID,
+            statementDate: item.statementDate,
+            coverage: .scheduled(
+              scheduledTransactionID: saved.id, payDate: item.payDate, amount: item.amount, fundingAccountID: item.fundingAccountID
+            )
           )
-        )
-        changed = true
-      } catch APIClientError.conflict(_) {
-        CardScheduleQueue.remove(id: item.id, fingerprint: fingerprint)
+        }
         changed = true
       } catch let error as APIClientError {
         if case .authenticationExpired = error {
