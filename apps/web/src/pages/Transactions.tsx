@@ -13,9 +13,11 @@ import { colourNamesByAccount, ledgerFlagNames, namedFlagLabel } from "../lib/re
 import { FilterRail } from "../components/FilterRail";
 import { FlagTag } from "../components/FlagTag";
 import { CategorySelect } from "../components/CategorySelect";
+import { CardTermsDialog } from "../components/CardTermsDialog";
 import { CategorySuggestionReview } from "../components/CategorySuggestionReview";
 import { RegisterComposeRow } from "../components/RegisterComposeRow";
 import { RegisterEditableRow, type RowEditSurface } from "../components/RegisterEditableRow";
+import { isCardAccount } from "../lib/card-payments";
 import { splitCategoryGroups, UNCATEGORISED_CATEGORY_ID } from "../lib/categories";
 import { appliedReviewItems, reviewRows, suggestionRequestItems, suggestionTargets, type SuggestionReviewRow } from "../lib/category-suggestions";
 import { formatDate, todayIso, trailingMonthsRange } from "../lib/dates";
@@ -255,6 +257,7 @@ export function TransactionsPage() {
   useConfirmationFocus(suggestionReview !== null, suggestionHeadingRef, () =>
     suggestButtonRef.current?.isConnected ? suggestButtonRef.current : selectAllFallback());
   const [reconcileDraft, setReconcileDraft] = useState<ReconcileDraft | null>(null);
+  const [cardTermsOpen, setCardTermsOpen] = useState(false);
   const reconcileFirstFieldRef = useRef<HTMLSelectElement>(null);
   useConfirmationFocus(reconcileDraft?.operationSeed, reconcileFirstFieldRef, () => addTransactionRef.current);
   const [reconciliationPreviewGeneration, setReconciliationPreviewGeneration] = useState(0);
@@ -1568,6 +1571,22 @@ export function TransactionsPage() {
           >
             Reconcile
           </button>
+          {selectedAccount && isCardAccount(selectedAccount) && !selectedAccount.closed && (
+            <button
+              type="button"
+              className="register-add-link register-secondary-action"
+              onClick={() => setCardTermsOpen(true)}
+            >
+              Payment reminders
+            </button>
+          )}
+          {cardTermsOpen && selectedAccount && (
+            <CardTermsDialog
+              accountId={selectedAccount.id}
+              onClose={() => setCardTermsOpen(false)}
+              onSaved={(message) => { setMutationError(null); setMutationSuccess(message); }}
+            />
+          )}
         </div>
         <div className="headline-row">
           {showsUnapprovedBadge(unapprovedCount, unapprovedOnly, Boolean(unapprovedCountQuery.error)) && (

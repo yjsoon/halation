@@ -17,6 +17,11 @@ import type {
   SpendingTierSubcategory,
   CardSpendingTier,
   CreditCard,
+  CardPaymentTerms,
+  CardPaymentTermsInput,
+  CardPaymentCoverage,
+  CardPaymentCycle,
+  CardPaymentsView,
 } from "@howmuch/contract";
 
 export type {
@@ -38,6 +43,11 @@ export type {
   SpendingTierSubcategory,
   CardSpendingTier,
   CreditCard,
+  CardPaymentTerms,
+  CardPaymentTermsInput,
+  CardPaymentCoverage,
+  CardPaymentCycle,
+  CardPaymentsView,
 };
 
 export type Interval = "day" | "week" | "month" | "year";

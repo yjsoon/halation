@@ -135,6 +135,22 @@ export function formatDate(date: string): string {
   return formatPeriod(date);
 }
 
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** "3 Nov" (or "Nov 3" for a month-first plan): a date in the current year's context, without the year. */
+export function formatDayMonth(date: string): string {
+  const [, month, day] = date.split("-");
+  if (planDateFormat === "MM/DD/YYYY") return `${MONTHS[Number(month) - 1]} ${Number(day)}`;
+  if (planDateFormat === "YYYY-MM-DD") return date.slice(5);
+  return `${Number(day)} ${MONTHS[Number(month) - 1]}`;
+}
+
+/** "Fri 28 Nov": a near date with its weekday, for due dates where the weekday matters. */
+export function formatWeekdayDayMonth(date: string): string {
+  const weekday = WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()];
+  return `${weekday} ${formatDayMonth(date)}`;
+}
+
 export function formatDateRange(from?: string, to?: string): string {
   if (from && to) {
     return `${formatDate(from)} to ${formatDate(to)}`;

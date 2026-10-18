@@ -1,0 +1,17 @@
+import { Database } from "bun:sqlite";
+import { readFileSync, readdirSync } from "node:fs";
+const dir = new URL("../../../../apps/api/d1-migrations/", import.meta.url).pathname;
+const db = new Database(":memory:");
+for (const f of readdirSync(dir).filter((n) => n.endsWith(".sql")).sort()) db.exec(readFileSync(dir + f, "utf8"));
+db.exec("PRAGMA foreign_keys=ON; INSERT INTO plans(id,name) VALUES ('p1','One'),('p2','Two');");
+db.exec("INSERT INTO payees(id,plan_id,name,transfer_account_id) VALUES ('tp1','p1','Transfer : Card','card1'),('tp2','p2','Transfer : Other','other2'),('tp3','p1','Transfer : Gone','gone1')");
+db.exec("INSERT INTO accounts(id,plan_id,name,type,transfer_payee_id) VALUES ('card1','p1','Card','creditCard','tp1'),('other2','p2','Other','checking','tp2'),('gone1','p1','Gone','checking','tp3')");
+db.exec("UPDATE accounts SET deleted=1 WHERE id='gone1'");
+const attempt = (label: string, sql: string) => { try { db.exec(sql); console.log(`${label}: accepted`); } catch (e) { console.log(`${label}: rejected (${(e as Error).message})`); } };
+attempt("card in its own plan", "INSERT INTO card_payment_terms(plan_id,account_id,statement_day) VALUES ('p1','card1',3)");
+attempt("card under another plan", "INSERT INTO card_payment_terms(plan_id,account_id,statement_day) VALUES ('p2','card1',3)");
+attempt("funding from another plan", "UPDATE card_payment_terms SET default_funding_account_id='other2' WHERE account_id='card1'");
+attempt("funding deleted account", "UPDATE card_payment_terms SET default_funding_account_id='gone1' WHERE account_id='card1'");
+attempt("card funds itself", "UPDATE card_payment_terms SET default_funding_account_id='card1' WHERE account_id='card1'");
+attempt("fixed without amount", "UPDATE card_payment_terms SET default_amount_rule='fixed' WHERE account_id='card1'");
+attempt("statement_day 0", "UPDATE card_payment_terms SET statement_day=0 WHERE account_id='card1'");

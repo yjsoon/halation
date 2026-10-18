@@ -29,6 +29,12 @@ export type ApiConfig = {
   typesafeApiKey?: string;
   /** TypeSafe model override; the SDK defaults to `jev-latest`. */
   typesafeModel?: string;
+  /**
+   * IANA zone that decides "today" for date-relative reads such as
+   * `card_payments`. The Worker and the phone always set it; the Bun server
+   * reads HOWMUCH_TIME_ZONE and otherwise uses the host's zone.
+   */
+  timeZone?: string;
 };
 
 export function loadConfig(env: Record<string, string | undefined> = Bun.env): ApiConfig {
@@ -50,6 +56,7 @@ export function loadConfig(env: Record<string, string | undefined> = Bun.env): A
     ynabMinSimilarity: ratio(env.HOWMUCH_YNAB_MIN_SIMILARITY) ?? DEFAULT_YNAB_MIN_SIMILARITY,
     typesafeApiKey: emptyToUndefined(env.TYPESAFE_API_KEY),
     typesafeModel: emptyToUndefined(env.TYPESAFE_MODEL),
+    timeZone: emptyToUndefined(env.HOWMUCH_TIME_ZONE),
   };
 }
 

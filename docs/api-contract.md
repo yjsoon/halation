@@ -285,6 +285,100 @@ Materialised transactions use deterministic occurrence IDs and immutable receipt
 
 Production invokes a separate, private automatic materialiser at `16:05 UTC` each day (`00:05 Asia/Singapore`). It is not the owner bulk route: each invocation is capped at 25 occurrences, takes one stable-order due occurrence per schedule before starting another round, re-reads the schedule before entry, and continues past an invalid schedule. Its count-only Worker log reports occurrence, closed-skip, failure, and remaining-work counts; no schedule or transaction payloads are logged. A retry uses deterministic daily and per-occurrence seeds and never duplicates already committed rows. Preview has no cron, so it remains an explicit verification environment. The Worker cron is Halation-only and never reads a YNAB token or starts a YNAB sync.
 
+### Card payment terms and payments due
+
+A card's payment terms say when its statement is generated and how long until payment is due. Terms belong to the plan, so every member and local mode see the same ones, and they travel in [plan snapshots](#plan-snapshots). Only `creditCard` and `lineOfCredit` accounts can have terms.
+
+- `GET /v1/plans/{plan_id}/card_payment_terms` lists every card's terms: `{ "card_payment_terms": [ … ], "server_knowledge": 41 }`.
+- `GET /v1/plans/{plan_id}/accounts/{account_id}/card_payment_terms` returns one card's terms as `{ "card_payment_terms": { … }, "server_knowledge": 41 }`, or `404` when the card has none.
+- `PUT /v1/plans/{plan_id}/accounts/{account_id}/card_payment_terms` replaces them.
+- `DELETE /v1/plans/{plan_id}/accounts/{account_id}/card_payment_terms` removes them and returns the removed terms, or `404` when there were none.
+
+Reads are open to owners, editors and viewers; writes need an owner or editor, and the default-plan API token (which local mode uses) is accepted for both. The PUT body is:
+
+```json
+{
+  "card_payment_terms": {
+    "statement_day": 3,
+    "due_gap_days": 25,
+    "due_weekend_rule": "next",
+    "default_funding_account_id": "acct_everyday",
+    "default_amount_rule": "statement",
+    "default_amount_milli": null,
+    "minimum_floor_milli": 50000,
+    "minimum_rate_bp": 300,
+    "pay_days_before_due": 2,
+    "lead_days": 7,
+    "delivery_hour": 8,
+    "enabled": true
+  }
+}
+```
+
+| Field | Rule | Default |
+|---|---|---|
+| `statement_day` | required, 1 to 31; a day past the month's end means its last day | |
+| `due_gap_days` | 1 to 60 calendar days from statement date to due date | 25 |
+| `due_weekend_rule` | `next` or `previous`: which way a due date on a Saturday or Sunday moves | `next` |
+| `default_funding_account_id` | a live account in the same plan other than the card, or `null` | `null` |
+| `default_amount_rule` | `statement`, `minimum` or `fixed` | `statement` |
+| `default_amount_milli` | positive milliunits or `null`; required when the rule is `fixed` | `null` |
+| `minimum_floor_milli` | 0 or more milliunits | 50000 |
+| `minimum_rate_bp` | 0 to 10000 basis points of the statement balance | 300 |
+| `pay_days_before_due` | 0 to 10 working days | 2 |
+| `lead_days` | 0 to 30 days before the due date for the main reminder | 7 |
+| `delivery_hour` | 0 to 23, the phone's local hour for reminders | 8 |
+| `enabled` | `true` or `false` | `true` |
+
+Responses also carry `created_at`, when the card's terms were first saved (ISO 8601, UTC, for example `"2026-10-18T12:01:48Z"`). The server sets it on the first PUT and keeps it on later ones; a PUT body may send it back and it is ignored.
+
+PUT replaces the whole row: an omitted field takes its default, not its stored value. `account_id` may be sent and must match the path. Unknown fields, a missing or deleted card (`404`), a non-card account, or a funding account outside the plan return `400`. Send an `Idempotency-Key` (the schedule rules above apply): an exact retry replays, and reusing the key for a different request returns `409 conflict`. Every write moves `server_knowledge`. D1 writes are guarded batches that re-check the card and funding account inside the batch.
+
+`GET /v1/plans/{plan_id}/card_payments?as_of=2026-10-18` returns the derived view. `as_of` is optional and defaults to today in the plan's time zone (`HOWMUCH_TIME_ZONE` on the Worker and the Bun server, falling back to the host's zone on Bun; the configured zone in local mode). Viewers may read it. Nothing is stored; every number is computed by `apps/api/src/card-payments.ts`.
+
+```json
+{
+  "data": {
+    "as_of": "2026-10-18",
+    "cycles": [
+      {
+        "account_id": "acct_card_a",
+        "cycle": "current",
+        "statement_date": "2026-10-03",
+        "due_date": "2026-10-28",
+        "last_safe_pay_date": "2026-10-26",
+        "default_pay_date": "2026-10-26",
+        "window_start": "2026-10-04",
+        "window_end": "2026-11-03",
+        "statement_balance": 1234560,
+        "minimum_due": 50000,
+        "current_balance": 1400000,
+        "coverage": { "state": "unscheduled" },
+        "previous_unpaid": null
+      }
+    ],
+    "server_knowledge": 41
+  }
+}
+```
+
+`cycles` holds the current and the next cycle of every enabled card whose account is live, open and still a card, ordered by due date. The rules:
+
+- **Payment window.** Windows follow each other without gaps or overlap. A cycle's window ends on the later of its next statement date and its own due date (`window_end`), and the next cycle's window starts the day after (`window_start`). A payment dated on a statement day therefore pays the previous statement, and when the gap is longer than the month (statement day 1, gap 28 in February) the cycle keeps its window until its due date.
+- **Cycle.** The current cycle is the one with the latest statement date on or before `as_of`, unless the cycle before it is not yet past its due date, in which case that earlier cycle stays current until its due date. `next` is the cycle after the current one.
+- **Dates.** `due_date` is the statement date plus `due_gap_days`, moved to the next (or previous) working day if it lands on a weekend. Saturdays and Sundays are the only non-working days for now; public holidays are not applied yet. `last_safe_pay_date` is `pay_days_before_due` working days before the due date. `default_pay_date` is the last safe day, or `as_of` once that has passed or while the cycle is overdue, always kept inside the window.
+- **Amounts** are positive when owed. `statement_balance` is what the register says was owed at the end of the statement date (opening balance plus live rows dated on or before it, negated), so it is an estimate to check against the real statement. For the next cycle it is a projection: what has been recorded so far, less payments still waiting as schedules into the card dated on or before its statement date. Zero or negative means nothing is due. `minimum_due` is the higher of `minimum_floor_milli` and `minimum_rate_bp` of the statement balance (rounded up to a cent), capped at the statement balance, and `0` when nothing is due. `current_balance` is the amount owed now (the account balance negated).
+- **Coverage.** A payment is a transfer into the card dated in the window. The states, best first:
+  - `paid` `{ transaction_id, amount, date }`: approved or cleared payments add up to at least `minimum_due` (`amount` is their sum, `transaction_id` and `date` the latest).
+  - `posted` `{ transaction_id, approved: false, amount, date }`: counting unapproved, uncleared payments too, they reach `minimum_due` (typically a materialised schedule waiting for approval).
+  - `scheduled` `{ scheduled_transaction_id, pay_date, amount, funding_account_id }`: a schedule moving money into the card (a `never` one-off or any recurrence, split schedules excluded) has an occurrence in the window; `pay_date` is the first one.
+  - `settled` `{}`: nothing is owed on the card now (`current_balance` is zero or less), for example after a payment entered as a plain inflow rather than a transfer. It replaces `partial`, `overdue` and `unscheduled`. Payees are never used to guess payments.
+  - `overdue` `{ since, paid_amount }`: a due date on or after the day the terms were created has passed with a positive statement balance and no payment reaching the minimum. `since` is the missed due date and `paid_amount` what was paid in this cycle's window. When the previous statement is overdue and the current cycle is not paid, posted or settled, the current cycle carries it: `previous_unpaid` is `{ statement_date, due_date, statement_balance, minimum_due }` of that statement, and an otherwise uncovered current cycle is `overdue` with `since` set to the previous due date. A current cycle that is `scheduled` keeps that state and still reports `previous_unpaid`. For this carry-over decision only, every inflow into the card counts, not just transfers: the previous statement is not carried when inflows (transfers or plain positive amounts, never judged by payee) dated in its window reach its minimum, and the carry clears once inflows in the current window, dated after the previous due date, reach the previous `minimum_due` (a late payment). The previous cycle's own coverage rules are unchanged.
+  - `partial` `{ transaction_id, date, paid_amount, remaining_amount }`: payments in the window, but less than `minimum_due`, before the due date. `remaining_amount` is `statement_balance - paid_amount`, floored at zero.
+  - `unscheduled` `{}`: nothing yet.
+
+  `paid`, `posted`, `scheduled` and `settled` count as covered; `partial`, `overdue` and `unscheduled` do not, so reminders continue. A due date before the terms were created (in the plan's time zone) is never overdue, so setting up a card does not report old statements as missed. `previous_unpaid` is always `null` on the next cycle.
+
 ### Imported read-only collections
 
 `GET /v1/plans/{plan_id}/payee_locations` returns exact objects from the imported YNAB mirror. It has no Halation mutation endpoint yet.
@@ -618,6 +712,7 @@ Snapshot format, version 1. Every section is an array and may be omitted. Amount
 - `accounts`: `id`, `name`, `icon`, `type`, `on_budget`, `closed`, `opening_balance`, `transfer_payee_id`
 - `transactions`: `id`, `account_id`, `date`, `amount`, `memo`, `cleared`, `approved`, `flag_color`, `flag_name`, `payee_id`, `payee_name`, `category_id`, `transfer_account_id`, `transfer_transaction_id`, `matched_transaction_id`, `import_id`, `import_payee_name`, `import_payee_name_original`, `subtransactions` (`id`, `amount`, `memo`, `payee_id`, `payee_name`, `category_id`, `transfer_account_id`, `transfer_transaction_id`)
 - `scheduled_transactions`: `id`, `account_id`, `date_first`, `date_next`, `frequency`, `amount`, `memo`, `flag_color`, `payee_id`, `category_id`, `transfer_account_id`, `subtransactions` (`id`, `amount`, `memo`, `payee_id`, `category_id`, `transfer_account_id`)
+- `card_payment_terms`: the [card payment terms](#card-payment-terms-and-payments-due) fields, one entry per card account. Each `account_id` must be a `creditCard` or `lineOfCredit` account in the snapshot and `default_funding_account_id`, when set, another account in the snapshot; the field rules of the PUT apply. `created_at` is exported and, when present on import, kept (any `YYYY-MM-DDTHH:MM:SSZ` value); without it the import time is used. Export writes this section only when the plan has terms, so a snapshot without card terms is still accepted by a server that predates the section; terms for a deleted card are left out and a deleted funding account is exported as `null`.
 
 `payee_name` (optional, at most 500 characters) is the free-text payee of a row or split line that has no payee row. Export sets it only when `payee_id` is null; import ignores it when `payee_id` is set and takes the name from that payee, as reads do. It was added without a version bump: the parser rejects unknown top-level sections but not unknown fields inside a row, so a server that predates it accepts a snapshot carrying it and simply drops the name, as before.
 

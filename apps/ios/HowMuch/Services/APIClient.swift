@@ -378,6 +378,43 @@ struct APIClient {
     return response.data
   }
 
+  /// Every card's payment terms. Local mode answers from the on-device engine.
+  func fetchCardPaymentTerms(planID: String) async throws -> [CardPaymentTerms] {
+    let response: APIEnvelope<CardPaymentTermsListPayload> = try await request(
+      path: "/v1/plans/\(planID)/card_payment_terms"
+    )
+    return response.data.cardPaymentTerms
+  }
+
+  /// PUT replaces the whole row: send every field.
+  func putCardPaymentTerms(planID: String, terms: CardPaymentTerms, idempotencyKey: String) async throws -> CardPaymentTerms {
+    let response: APIEnvelope<CardPaymentTermsPayload> = try await request(
+      path: "/v1/plans/\(planID)/accounts/\(terms.accountID)/card_payment_terms",
+      method: "PUT",
+      headers: ["Idempotency-Key": idempotencyKey],
+      body: CardPaymentTermsWriteEnvelope(cardPaymentTerms: terms)
+    )
+    return response.data.cardPaymentTerms
+  }
+
+  func deleteCardPaymentTerms(planID: String, accountID: String, idempotencyKey: String) async throws {
+    let _: APIEnvelope<CardPaymentTermsPayload> = try await request(
+      path: "/v1/plans/\(planID)/accounts/\(accountID)/card_payment_terms",
+      method: "DELETE",
+      headers: ["Idempotency-Key": idempotencyKey]
+    )
+  }
+
+  /// The current and next cycle of every card with terms, as of the
+  /// device's local today, so the phone and its reminders agree on the day.
+  func fetchCardPayments(planID: String, asOf: String = Date.now.isoDateString) async throws -> CardPaymentsPayload {
+    let response: APIEnvelope<CardPaymentsPayload> = try await request(
+      path: "/v1/plans/\(planID)/card_payments",
+      queryItems: [URLQueryItem(name: "as_of", value: asOf)]
+    )
+    return response.data
+  }
+
   func reconcileAccount(
     planID: String,
     accountID: String,
@@ -961,6 +998,27 @@ extension APIClient {
     )
   }
 
+  /// Creates a card payment schedule, returning the status rather than
+  /// throwing, so a queued Scheduled tap can tell a passing server error
+  /// (retry) from a refusal (drop and say so).
+  func cardScheduleCreate(
+    planID: String,
+    idempotencyKey: String,
+    body: CardScheduleWriteBody
+  ) async throws -> OutboxReply {
+    try await outboxSend(
+      path: "/v1/plans/\(planID)/scheduled_transactions",
+      method: "POST",
+      headers: ["Idempotency-Key": idempotencyKey],
+      body: try encoder.encode(CardScheduleWriteEnvelope(scheduledTransaction: body))
+    )
+  }
+
+  /// The schedule in a single-schedule reply, or nil when the body is not one.
+  func outboxScheduledTransaction(in reply: OutboxReply) -> ScheduledTransaction? {
+    (try? decoder.decode(APIEnvelope<ScheduledTransactionPayload>.self, from: reply.data))?.data.scheduledTransaction
+  }
+
   func outboxFetch(planID: String, transactionID: String) async throws -> OutboxReply {
     try await outboxSend(path: "/v1/plans/\(planID)/transactions/\(transactionID)", method: "GET")
   }
@@ -1032,12 +1090,16 @@ extension APIClient {
     path: String,
     method: String,
     queryItems: [URLQueryItem] = [],
+    headers: [String: String] = [:],
     body: Data? = nil
   ) async throws -> OutboxReply {
     let url = try makeURL(path: path, appendedPathSegments: [], queryItems: queryItems)
     var request = URLRequest(url: url)
     request.httpMethod = method
     request.setValue("application/json", forHTTPHeaderField: "Accept")
+    for (name, value) in headers {
+      request.setValue(value, forHTTPHeaderField: name)
+    }
     let token = settings.sessionToken.trimmingCharacters(in: .whitespacesAndNewlines)
     if !token.isEmpty {
       request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

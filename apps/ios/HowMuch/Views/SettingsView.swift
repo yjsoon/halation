@@ -392,6 +392,7 @@ struct SettingsView: View {
       }
       assistantSection
       captureSection
+      RemindersSettingsSection()
       DataSection()
     }
     .navigationTitle("Settings")
@@ -450,6 +451,7 @@ struct SettingsView: View {
       }
       assistantSection
       captureSection
+      RemindersSettingsSection()
       DataSection(isSelectionSaved: exportSelectionSaved)
       if let localArchive {
         LocalArchiveSection(archive: localArchive)

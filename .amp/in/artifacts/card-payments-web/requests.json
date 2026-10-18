@@ -1,0 +1,50 @@
+[
+  {
+    "method": "PUT",
+    "url": "/v1/plans/local-plan/accounts/acct-credit/card_payment_terms",
+    "idempotency_key": "card-terms-57aaee99-1130-422f-a513-3593897d77e1-uwja8e",
+    "body": "{\"card_payment_terms\":{\"statement_day\":3,\"due_gap_days\":25,\"due_weekend_rule\":\"next\",\"default_funding_account_id\":\"acct-everyday\",\"default_amount_rule\":\"statement\",\"default_amount_milli\":null,\"pay_days_before_due\":2,\"lead_days\":7,\"delivery_hour\":8,\"enabled\":true}}"
+  },
+  {
+    "method": "POST",
+    "url": "/v1/plans/local-plan/scheduled_transactions",
+    "idempotency_key": "card-pay:acct-credit:2026-10-03",
+    "body": "{\"scheduled_transaction\":{\"account_id\":\"acct-everyday\",\"date_first\":\"2026-10-26\",\"date_next\":\"2026-10-26\",\"frequency\":\"never\",\"amount\":-64830800,\"memo\":\"Travel Card statement 3 Oct\",\"flag_color\":null,\"subtransactions\":[],\"payee_id\":null,\"category_id\":null,\"transfer_account_id\":\"acct-credit\"}}"
+  },
+  {
+    "method": "DELETE",
+    "url": "/v1/plans/local-plan/scheduled_transactions/scheduled_33f16312018de6010357d4c0",
+    "idempotency_key": "scheduled-delete-scheduled_33f16312018de6010357d4c0-109d9c74-5b7a-405e-a5e3-e6be34c5d6ac",
+    "body": null
+  },
+  {
+    "method": "POST",
+    "url": "/v1/plans/local-plan/scheduled_transactions",
+    "idempotency_key": "card-pay:acct-credit:2026-10-03",
+    "body": "{\"scheduled_transaction\":{\"account_id\":\"acct-everyday\",\"date_first\":\"2026-10-26\",\"date_next\":\"2026-10-26\",\"frequency\":\"never\",\"amount\":-64830800,\"memo\":\"Travel Card statement 3 Oct\",\"flag_color\":null,\"subtransactions\":[],\"payee_id\":null,\"category_id\":null,\"transfer_account_id\":\"acct-credit\"}}"
+  },
+  {
+    "method": "POST",
+    "url": "/v1/plans/local-plan/scheduled_transactions",
+    "idempotency_key": "card-pay:acct-credit:2026-10-03:55b655c8",
+    "body": "{\"scheduled_transaction\":{\"account_id\":\"acct-everyday\",\"date_first\":\"2026-10-26\",\"date_next\":\"2026-10-26\",\"frequency\":\"never\",\"amount\":-64830800,\"memo\":\"Travel Card statement 3 Oct\",\"flag_color\":null,\"subtransactions\":[],\"payee_id\":null,\"category_id\":null,\"transfer_account_id\":\"acct-credit\"}}"
+  },
+  {
+    "method": "POST",
+    "url": "/v1/plans/local-plan/scheduled_transactions/scheduled_22819315a591e6e1287eb36a/materialize",
+    "idempotency_key": "scheduled-enter-1d28e2f5-77ca-4079-abcf-bfe471e832c2-4khot2",
+    "body": "{\"occurrence_date\":\"2026-10-26\",\"date\":\"2026-10-18\"}"
+  },
+  {
+    "method": "POST",
+    "url": "/v1/plans/local-plan/scheduled_transactions",
+    "idempotency_key": "card-pay:acct_e0171f4e-de6e-4504-9ad3-1be8216a5109:2026-10-03",
+    "body": "{\"scheduled_transaction\":{\"account_id\":\"acct-everyday\",\"date_first\":\"2026-10-26\",\"date_next\":\"2026-10-26\",\"frequency\":\"never\",\"amount\":-480000,\"memo\":\"Card B statement 3 Oct\",\"flag_color\":null,\"subtransactions\":[],\"payee_id\":null,\"category_id\":null,\"transfer_account_id\":\"acct_e0171f4e-de6e-4504-9ad3-1be8216a5109\"}}"
+  },
+  {
+    "method": "POST",
+    "url": "/v1/plans/local-plan/scheduled_transactions",
+    "idempotency_key": "card-pay:acct_f6c9408e-a395-4cd6-bfcb-163d966fd8f7:2026-10-15",
+    "body": "{\"scheduled_transaction\":{\"account_id\":\"acct-everyday\",\"date_first\":\"2026-10-18\",\"date_next\":\"2026-10-18\",\"frequency\":\"never\",\"amount\":-300000,\"memo\":\"Card C statement 15 Oct\",\"flag_color\":null,\"subtransactions\":[],\"payee_id\":null,\"category_id\":null,\"transfer_account_id\":\"acct_f6c9408e-a395-4cd6-bfcb-163d966fd8f7\"}}"
+  }
+]

@@ -152,6 +152,7 @@ private struct RootView: View {
     @Bindable var capture = CaptureRouter.shared
     @Bindable var chrome = chrome
     @Bindable var workspace = CaptureWorkspace.shared
+    @Bindable var cardReminders = CardPaymentNotifier.shared
 
     RootTabView(chrome: chrome, usesSidebar: usesSidebar, workspace: workspace)
       .onChange(of: usesSidebar, initial: true) { _, sidebar in
@@ -221,6 +222,25 @@ private struct RootView: View {
       CaptureIntakeHost(request: request)
         .id(request.id)
     }
+    .sheet(item: $cardReminders.presentedSheet) { route in
+      Group {
+        switch route {
+        case .schedule(let request):
+          CardPaymentScheduleSheet(accountID: request.accountID, statementDate: request.statementDate)
+        case .editSchedule(let scheduleID):
+          CardScheduleEditorHost(scheduleID: scheduleID)
+        }
+      }
+      .environment(model)
+      .blocksCapturePresentation()
+    }
+    .onChange(of: cardReminders.pendingAccountID, initial: true) { _, accountID in
+      guard let accountID else {
+        return
+      }
+      cardReminders.pendingAccountID = nil
+      chrome.showAccount(accountID)
+    }
     .onAppear {
       consumePendingCapture()
       enqueueInboxIfNeeded(force: false)
@@ -254,6 +274,7 @@ private struct RootView: View {
         ScreenshotOfferController.shared.startIfNeeded()
         Task { await model.runLocalScheduledTransactions() }
         model.sceneDidBecomeActive()
+        Task { await model.cardPaymentsSceneDidBecomeActive() }
       } else if phase == .background {
         CaptureWorkspace.shared.persistCurrentIfNeeded()
         IntakeBackgroundRefresh.shared.appDidEnterBackground()
@@ -263,6 +284,7 @@ private struct RootView: View {
       if !isAuthenticated {
         IntakeCoordinator.shared.cancelDrain()
         IntakeNotifier.shared.clearAll()
+        CardPaymentNotifier.shared.clearAll()
         capture.dropForSignOut()
       } else {
         drainIntakeInbox()

@@ -491,3 +491,87 @@
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* Card payment terms reuse the organiser dialog, sized for one form. */
+.card-terms-dialog {
+  width: min(640px, calc(100vw - 32px));
+  height: auto;
+  max-height: calc(100dvh - 48px);
+}
+
+.card-terms-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.card-terms-form .account-organiser-content {
+  flex: 1 1 auto;
+}
+
+.card-terms-form .field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.card-terms-form .transaction-editor-checkbox {
+  margin-bottom: 12px;
+}
+
+.card-terms-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.card-terms-inline input {
+  width: 72px;
+  flex: 0 0 auto;
+}
+
+.card-terms-preview {
+  margin: 4px 0 0;
+  padding: 8px 10px;
+  background: var(--paper-sunk);
+  border-left: 2px solid var(--plan-accent);
+  font-size: 12.5px;
+}
+
+.card-terms-loading {
+  padding: 22px 24px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.card-terms-remove-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--red-wash);
+  border: 1px solid var(--red);
+  font-size: 12.5px;
+}
+
+.card-terms-remove-confirm p {
+  flex: 1 1 100%;
+  margin: 0 0 4px;
+}
+
+.card-terms-footer {
+  align-items: center;
+  gap: 14px;
+}
+
+.card-terms-footer .organiser-danger-link {
+  margin-right: auto;
+}
+
+.card-terms-field-warning {
+  color: var(--red);
+}
