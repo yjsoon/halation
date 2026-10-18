@@ -458,7 +458,7 @@ struct IntakeJob: Codable, Equatable, Identifiable, Sendable {
   var statusSummary: String {
     switch state {
     case .queued, .reading:
-      return waitingMessage ?? "Reading on this phone…"
+      return waitingMessage ?? "Reading…"
     case .proposed:
       return proposalSummary ?? "Nothing to add"
     case .needsYou:

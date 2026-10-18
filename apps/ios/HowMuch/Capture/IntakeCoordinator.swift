@@ -58,7 +58,8 @@ final class IntakeCoordinator {
   /// "Likely" is 0.75 up to 0.9; lines read by the fallback never reach "Sure".
   static let fallbackConfidenceCap = 0.85
   static let fallbackReason = "Read without Apple Intelligence"
-  static let providerFailedReason = "Your AI provider couldn’t read this, so it was read on this device"
+  static let providerFailedReason = "Not read by your AI provider, so read on this device"
+  static let providerFoundNothingMessage = "Your AI provider found no transactions in this. To read it on this phone instead, choose On device in AI provider settings."
 
   init(
     inbox: InboxStore = IntakeJobStore.isUnitTestHost
@@ -485,17 +486,19 @@ final class IntakeCoordinator {
     var sourceIndexes: [Int] = []
     var fallbackIndexes: [Int] = []
     var providerFailedIndexes: [Int] = []
+    var providerFoundNothing = false
     var readAnyText = false
-    // Nil when the owner reads on device. A chosen provider whose key cannot be
-    // read (no key saved, or the Keychain is locked) is not the same as "on
-    // device": in the background the read waits for the app to open, so a
-    // locked phone never reads on device a document meant for the provider.
+    // Nil when the owner reads on device. A chosen provider whose key is
+    // locked away (the phone is locked) is not the same as "on device": in the
+    // background the read waits for the app to open, so a locked phone never
+    // reads on device a document meant for the provider. A provider with no
+    // key, or a model that no longer exists, reads on device and says so.
     let remote: CaptureAIConfiguration?
     var providerUnusable = false
     do {
       remote = try model.captureAI.configuration()
     } catch {
-      if Self.isReadingInBackground {
+      if case CaptureAIError.keychain = error, Self.isReadingInBackground {
         leaveForForeground(id)
         return
       }
@@ -546,11 +549,16 @@ final class IntakeCoordinator {
             accounts: accounts,
             categoryGroups: model.categoryGroups,
             payees: model.payees,
-            guidance: guidance
+            guidance: guidance,
+            currencyCode: model.currencyFormat?.isoCode
           )
           readByProvider = true
+          if drafts.isEmpty {
+            providerFoundNothing = true
+          }
         } catch {
-          if background, readable(id) != nil {
+          // Too long to send can't succeed on a retry: read it on device now.
+          if !(error is IntakeRemoteReadError), background, readable(id) != nil {
             leaveForForeground(id)
             return
           }
@@ -614,9 +622,11 @@ final class IntakeCoordinator {
         return
       }
       current.state = .failed
-      current.failureMessage = readAnyText
-        ? "Couldn’t read this. No transactions were found."
-        : "Couldn’t read this. No text was found."
+      current.failureMessage = !readAnyText
+        ? "Couldn’t read this. No text was found."
+        : providerFoundNothing
+          ? Self.providerFoundNothingMessage
+          : "Couldn’t read this. No transactions were found."
       save(current)
       return
     }

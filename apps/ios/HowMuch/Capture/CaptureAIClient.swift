@@ -28,6 +28,7 @@ struct CaptureAIPrompt: @unchecked Sendable {
 struct CaptureAIClient: Sendable {
   private let session: URLSession
   static let maximumBytes = 1_048_576
+  static let maximumPromptBytes = 65_536
 
   init(configuration: URLSessionConfiguration = .ephemeral) {
     configuration.urlCache = nil
@@ -169,7 +170,7 @@ struct CaptureAIClient: Sendable {
     let base = try CaptureAISelection.validatedBaseURL(configuration.baseURL.absoluteString)
     guard !configuration.apiKey.isEmpty,
           !configuration.apiKey.contains(where: \.isNewline) else { throw CaptureAIError.key }
-    guard prompt.input.utf8.count <= 65_536 else { throw CaptureAIError.tooLarge }
+    guard prompt.input.utf8.count <= maximumPromptBytes else { throw CaptureAIError.tooLarge }
     let instructions = prompt.instructions
     let schema = prompt.schema
     let model = configuration.model

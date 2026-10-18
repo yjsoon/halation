@@ -333,6 +333,7 @@ struct SettingsView: View {
     Section {
       NavigationLink {
         CaptureAISettingsView(settings: model.captureAI)
+          .onDisappear { model.publishShareContext() }
       } label: {
         LabeledContent {
           Text(model.captureAI.displayName)

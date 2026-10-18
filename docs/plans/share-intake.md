@@ -2,7 +2,7 @@
 
 Status: first version built in yjsoon/howmuch#273–#277 (on device; phase 2 and 3 not built). Screens are in [`share-intake/`](share-intake/). Interactive original (owner only): https://claude.ai/artifact/KneQW91pq5pGNh4eqaAprJ
 
-This plan changes two statements in [`docs/frontend/intake-ui.md`](../frontend/intake-ui.md): "No push notifications" (intake uses local notifications) and the blanket "Stays on this device" promise (statement PDFs and some images go to the owner's server and may reach a vision model). Update that doc when the feature lands.
+This plan changes two statements in [`docs/frontend/intake-ui.md`](../frontend/intake-ui.md): "No push notifications" (intake uses local notifications) and the blanket "Stays on this device" promise (with an AI provider set up, a document's text, never the image, goes to that provider). Update that doc when the feature lands.
 
 ## 1. Why
 
@@ -33,7 +33,7 @@ Decision: Share becomes the main way in. Chat becomes follow-up on a batch ("Ask
 | Question | Decision |
 | --- | --- |
 | Where reading happens | On the phone. Most people will use Halation as a standalone iOS app, so there is no server step (owner, 18 Oct 2026; this replaces the earlier hybrid plan that read PDFs and long documents on the Worker). Text is read on device; when the owner has set up their own AI provider and key, that provider reads the text first, then Apple Intelligence, then the line reader. |
-| Images to outside models | Allowed. The Worker may send images to a vision model. |
+| Images to outside models | Allowed in principle (owner, 7 Oct 2026), but not built: only the text read on the phone goes to the owner's AI provider. Images never leave the phone. |
 | Flow after Send | Fire and forget; a local notification when ready to review. |
 | Auto-saving | High-confidence items may save themselves as **unapproved** ("new"), using a different-colour new indicator (teal) so agent-added rows are obvious. Everything else waits for review. |
 | Fix to a reconciled row | Warn, don't block ("Reconciled 6 Oct · approving reopens it"). |
@@ -77,7 +77,7 @@ SwiftUI inside the extension, medium detent. Top to bottom:
   - Fix: "Match to transactions already in the register."
   - Statement: "Reconcile against the register for the statement period." (pre-selected for PDFs)
 - **Note** field: "Add a note (optional)", one to three lines.
-- **Send**, then a footnote naming where it will be read: "Reads on this phone" or "Sent to your Halation server" (never "sent to AI"), and "Nothing is saved without your review" (or, when auto-save applies, "Sure items save as new for you to approve").
+- **Send**, then a footnote naming where it will be read: "Reads on this phone", or "Text is read by <provider>" when an AI provider is set up, and "Nothing is saved without your review" (or, when auto-save applies, "Sure items save as new for you to approve").
 
 States: items loading (static placeholder under Reduce Motion, Send disabled); not signed in ("Open Halation to finish setting up" with **Open Halation**, and **Save for later** keeps the item in the app group: "Kept on this device until you sign in"); unsupported type ("Halation can read screenshots, photos and PDFs."); offline ("Offline · will process when connected" when server reading is needed); write failure ("Couldn't hand this to Halation. Try again.").
 
@@ -209,7 +209,7 @@ Measure per source type: field accuracy (amount, date, payee, direction), add-vs
 
 Eval set from the owner's own material, de-identified, alongside `fixtures/`, each with an expected-proposals JSON: about 15 GrabPay/PayNow screenshots, 10 card receipts, 5 multi-currency receipts, 3 bank statement PDFs (one scanned), 5 fix cases with the target row and a note, 5 near-duplicates.
 
-Privacy: uploads go only to the owner's Worker over the authenticated session, stored (R2 or D1) for the job's life, deleted on apply or discard. The Worker may send images to a vision model (owner approved). Copy says "Sent to your Halation server", never "sent to AI".
+Privacy: superseded with the routing above. Nothing is uploaded to the Worker; the document's text goes only to the owner's own AI provider when one is set up (see [`docs/ai-providers.md`](../ai-providers.md#shared-documents-share-to-halation)).
 
 ## 11. Where Jev fits (to investigate)
 
@@ -250,7 +250,7 @@ The likely split: a reading model (on-device or vision) extracts text and struct
 - Currency and date order are stored in the skill file but nothing reads them, so the editor hides them. The duplicate window is live.
 - Rule hit and override counts come from approvals in review only, not from later edits made in the register.
 - Rules never change a row that is already in the register (Fix and Already in rows); they shape New rows only.
-- Skill notes reach only the Apple Intelligence reader, capped at 1,500 characters including account notes.
+- Skill notes reach only the model readers (the owner's AI provider or Apple Intelligence), capped at 1,500 characters including account notes.
 - Added in the first version: an on-device fallback line reader (`IntakeLineParser`) for when Apple Intelligence is unavailable or finds nothing. Its rows are capped at Likely and always reviewed.
 
 **Phase 2:** reading with the owner's own AI provider first (built: the document's text, never the image, goes to the provider chosen in AI provider settings; on failure the read falls back to this device); reconcile jobs; auto-save as unapproved with the teal indicator; eval harness; Jev decisions that pass the evals. Server-side reading on the Worker is dropped. Syncing the skill and rules to the server waits until external agents need them (phase 3).

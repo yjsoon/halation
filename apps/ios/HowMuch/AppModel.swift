@@ -2725,12 +2725,14 @@ final class AppModel {
       accounts: openAccounts.filter { !$0.deleted }.map {
         ShareAccount(id: $0.id, name: $0.name, isClosed: false)
       },
-      writtenAt: Date()
+      writtenAt: Date(),
+      readerName: captureAI.selection.isOnDevice ? nil : captureAI.displayName
     )
     if let last = lastPublishedShareContext,
        last.isSignedIn == context.isSignedIn,
        last.lastUsedOpenAccountID == context.lastUsedOpenAccountID,
-       last.accounts == context.accounts {
+       last.accounts == context.accounts,
+       last.readerName == context.readerName {
       return
     }
     store.write(context)
