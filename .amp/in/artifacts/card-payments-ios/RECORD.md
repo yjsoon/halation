@@ -105,6 +105,17 @@ All expectations met. Not exercised: notification action buttons on a delivered 
 
 Card A sat on the 3 Nov cycle in this fixture: its owed balance was entered today, after the 3 Oct statement, so that statement's balance was 0. A follow-up adds a 500.00 charge dated 1 Oct to show the partial state; the runner reported the band row reading "$20.00 of $500.00 paid" while working, and its final screenshot is pending.
 
+### Demo recording
+
+Same runner and commit, simulator erased, local mode with Account B and Card A ending 0000 (a 1,234.56 charge dated 1 Oct). Recorded with `xcrun simctl io booted recordVideo --codec h264`, trimmed to 84.5 s and sped up 1.6x, about 1.0 MB, stored outside the repository at `/mnt/project-files/payment-reminders/demo/card-payment-reminders-demo.mp4`.
+
+Flow:
+1. Payment reminders: DBS / POSB, statement day 3, Pay from "Ask each time". Save, then Allow notifications.
+2. Payments due band, then Schedule opens the sheet: Statement 1,234.56, From Account B, Pay on 26 Oct. Mark as scheduled.
+3. The band row flips to "Scheduled · $1,234.56 from Account B on 26 Oct".
+4. Settings, Reminders: the App icon badge options (Inbox only, Card payments, Both), then Pending reminders: `2026-10-03.funds` at 25 Oct 18:00 and `2026-11-03.statement` at 3 Nov 08:00.
+5. Home screen: a pushed fake card reminder in category `halation.card.urgent.setup` is pulled down to show Scheduled, Paid and Open. No action is tapped, and the pushed payload carries no connection fingerprint.
+
 ### Not exercised
 
 Carried-over overdue (terms created today can never be overdue, by design), the background Paid and Scheduled coverage check, the "Tap to change" editor route, delivered-notification cleanup (needs a delivered reminder with this connection's fingerprint), and server-mode queue retries.
