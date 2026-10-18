@@ -18,6 +18,7 @@ import { resolveAccountPresentation } from "./account-icon";
 import { onBudgetForKind, parseAccountKind } from "./account-kind";
 import { ENTITY_ID_PATTERN, type PlannedSql } from "./category-management";
 import { scheduledTransactionMutation, ScheduledTransactionValidationError } from "./scheduled-transactions";
+import { CARD_PAYMENT_ACCOUNT_KINDS, CardPaymentTermsValidationError, parseCardPaymentTermsInput, termsFromRow, type CardPaymentTerms } from "./card-payments";
 
 export const SNAPSHOT_FORMAT = "howmuch-plan-snapshot";
 export const SNAPSHOT_VERSION = 1;
@@ -141,6 +142,12 @@ export type PlanSnapshot = {
   accounts: SnapshotAccount[];
   transactions: SnapshotTransaction[];
   scheduled_transactions: SnapshotScheduledTransaction[];
+  /**
+   * Card payment terms, one per card account. Export omits the key when a
+   * plan has none, so the snapshot stays importable by a server that
+   * predates it.
+   */
+  card_payment_terms?: CardPaymentTerms[];
 };
 
 export type SnapshotCounts = {
@@ -151,6 +158,7 @@ export type SnapshotCounts = {
   transactions: number;
   subtransactions: number;
   scheduled_transactions: number;
+  card_payment_terms: number;
 };
 
 /** Database-ready rows, keyed by column name, in insertion order. */
@@ -163,12 +171,14 @@ type SnapshotRows = {
   subtransactions: Row[];
   scheduled_transactions: Row[];
   scheduled_subtransactions: Row[];
+  card_payment_terms: Row[];
   counts: SnapshotCounts;
 };
 
 const TOP_LEVEL_KEYS = new Set([
   "format", "version", "exported_at",
   "category_groups", "categories", "payees", "accounts", "transactions", "scheduled_transactions",
+  "card_payment_terms",
 ]);
 const CLEARED = new Set(["cleared", "uncleared", "reconciled"]);
 
@@ -487,6 +497,27 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
     }
   }
 
+  const cardTerms: Row[] = [];
+  for (const [index, item] of list(snapshot.card_payment_terms, "card_payment_terms").entries()) {
+    const path = `card_payment_terms[${index}]`;
+    const input = object(item, path);
+    const accountId = accountRef(input.account_id, `${path}.account_id`);
+    if (!accountId) throw new SnapshotValidationError(`${path}.account_id is required`);
+    if (cardTerms.some((row) => row.account_id === accountId)) throw new SnapshotValidationError(`${path}: account ${accountId} already has card payment terms`);
+    if (!CARD_PAYMENT_ACCOUNT_KINDS.has(String(accounts.get(accountId)!.type))) {
+      throw new SnapshotValidationError(`${path}.account_id must be a creditCard or lineOfCredit account`);
+    }
+    let terms: CardPaymentTerms;
+    try {
+      terms = parseCardPaymentTermsInput(input, accountId);
+    } catch (error) {
+      if (error instanceof CardPaymentTermsValidationError) throw new SnapshotValidationError(`${path}: ${error.message}`);
+      throw error;
+    }
+    accountRef(terms.default_funding_account_id, `${path}.default_funding_account_id`);
+    cardTerms.push({ ...terms, enabled: terms.enabled ? 1 : 0 });
+  }
+
   const rows = {
     category_groups: [...groups.values()],
     categories: [...categories.values()],
@@ -496,6 +527,7 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
     subtransactions,
     scheduled_transactions: scheduled,
     scheduled_subtransactions: scheduledSubs,
+    card_payment_terms: cardTerms,
   };
   return {
     ...rows,
@@ -507,6 +539,7 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
       transactions: rows.transactions.length,
       subtransactions: rows.subtransactions.length,
       scheduled_transactions: rows.scheduled_transactions.length,
+      card_payment_terms: rows.card_payment_terms.length,
     },
   };
 }
@@ -539,6 +572,11 @@ const TABLES: Array<[keyof Omit<SnapshotRows, "counts">, TablePlan]> = [
   ] }],
   ["scheduled_subtransactions", { table: "scheduled_subtransaction_edits", columns: [
     ["plan_id", "?"], ["id"], ["scheduled_transaction_id"], ["payload_json"], ["amount_milli"], ["payee_id"], ["category_id"], ["transfer_account_id"],
+  ] }],
+  ["card_payment_terms", { table: "card_payment_terms", columns: [
+    ["plan_id", "?"], ["account_id"], ["statement_day"], ["due_gap_days"], ["due_weekend_rule"], ["default_funding_account_id"],
+    ["default_amount_rule"], ["default_amount_milli"], ["minimum_floor_milli"], ["minimum_rate_bp"], ["pay_days_before_due"],
+    ["lead_days"], ["delivery_hour"], ["enabled"],
   ] }],
 ];
 
@@ -634,6 +672,7 @@ type SnapshotSource = {
   transactions: Row[];
   subtransactions: Row[];
   scheduledTransactions: Row[];
+  cardPaymentTerms?: Row[];
 };
 
 /** Projects stored rows into the snapshot format the importer reads. */
@@ -728,6 +767,9 @@ export function projectPlanSnapshot(source: SnapshotSource): PlanSnapshot {
           })),
       }))
       .sort((left, right) => left.id.localeCompare(right.id)),
+    ...(source.cardPaymentTerms && source.cardPaymentTerms.length > 0
+      ? { card_payment_terms: source.cardPaymentTerms.map(termsFromRow) }
+      : {}),
   };
 }
 

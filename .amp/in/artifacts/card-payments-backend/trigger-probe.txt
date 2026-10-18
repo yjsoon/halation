@@ -1,0 +1,7 @@
+card in its own plan: accepted
+card under another plan: rejected (card payment terms ownership failed)
+funding from another plan: rejected (card payment terms ownership failed)
+funding deleted account: rejected (card payment terms ownership failed)
+card funds itself: rejected (card payment terms ownership failed)
+fixed without amount: rejected (CHECK constraint failed: default_amount_rule <> 'fixed' OR (default_amount_milli IS NOT NULL AND default_amount_milli > 0))
+statement_day 0: rejected (CHECK constraint failed: statement_day BETWEEN 1 AND 31)

@@ -10,6 +10,9 @@ import type {
   AccountReconciliationResult,
   AccountUsageSnapshot,
   AgeOfMoneyReport,
+  CardPaymentTerms,
+  CardPaymentTermsInput,
+  CardPaymentsView,
   CategoryGroup,
   CreditCard,
   IncomeVsSpendingReport,
@@ -468,6 +471,27 @@ export const api = {
       planUrl(planId, "scheduled_transactions", scheduledTransactionId, "materialize"),
       { method: "POST", headers: { "idempotency-key": idempotencyKey }, body: JSON.stringify({ occurrence_date: occurrenceDate, date }) },
     ),
+  /** Every card's payment terms in the plan. */
+  cardPaymentTerms: (planId: string, options?: ApiRequestOptions) =>
+    request<{ card_payment_terms: CardPaymentTerms[]; server_knowledge: number }>(planUrl(planId, "card_payment_terms"), undefined, options),
+  /** One card's terms; rejects with a 404 `ApiError` when the card has none. */
+  accountCardPaymentTerms: (planId: string, accountId: string) =>
+    request<{ card_payment_terms: CardPaymentTerms; server_knowledge: number }>(planUrl(planId, "accounts", accountId, "card_payment_terms"))
+      .then((data) => data.card_payment_terms),
+  /** Replaces a card's terms. Omitted optional fields take their defaults. */
+  putCardPaymentTerms: (planId: string, accountId: string, terms: CardPaymentTermsInput, idempotencyKey: string) =>
+    request<{ card_payment_terms: CardPaymentTerms; server_knowledge: number }>(
+      planUrl(planId, "accounts", accountId, "card_payment_terms"),
+      { method: "PUT", headers: { "idempotency-key": idempotencyKey }, body: JSON.stringify({ card_payment_terms: terms }) },
+    ).then((data) => data.card_payment_terms),
+  deleteCardPaymentTerms: (planId: string, accountId: string, idempotencyKey: string) =>
+    request<{ card_payment_terms: CardPaymentTerms; server_knowledge: number }>(
+      planUrl(planId, "accounts", accountId, "card_payment_terms"),
+      { method: "DELETE", headers: { "idempotency-key": idempotencyKey } },
+    ).then((data) => data.card_payment_terms),
+  /** Current and next cycle per enabled card. `asOf` defaults to today in the server's plan time zone. */
+  cardPayments: (planId: string, asOf?: string, options?: ApiRequestOptions) =>
+    request<CardPaymentsView>(`${planUrl(planId, "card_payments")}${query({ as_of: asOf })}`, undefined, options),
   accountReconciliation: (planId: string, accountId: string, statementDate: string) =>
     request<AccountReconciliationPreview>(
       `${planUrl(planId, "accounts", accountId, "reconciliation")}${query({ statement_date: statementDate })}`,

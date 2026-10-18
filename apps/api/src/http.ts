@@ -50,6 +50,7 @@ import {
 import { MAX_SNAPSHOT_BYTES, PlanNotEmptyError, SnapshotValidationError } from "./plan-snapshot";
 import { buildPlanExport, transactionsCsv } from "./plan-export";
 import { parseSeedCurrencyFormat, parseSeedDateFormat } from "./plan-settings-seed";
+import { isIsoDate, localDate } from "./card-payments";
 
 type HandlerOptions = {
   db?: Database;
@@ -107,7 +108,7 @@ export function createHandler(options: HandlerOptions): (request: Request) => Pr
       };
 
       if (segments[0] === "v1") {
-        return await handleV1(request, url, segments, repo, principal, config.defaultPlanId, config.transitionReadOnly, categoriser);
+        return await handleV1(request, url, segments, repo, principal, config.defaultPlanId, config.transitionReadOnly, categoriser, config.timeZone);
       }
 
       if (segments[0] === "api") {
@@ -197,6 +198,7 @@ async function handleV1(
   defaultPlanId: string,
   transitionReadOnly: boolean,
   categoriser: CategoriserConfig,
+  timeZone: string | undefined,
 ): Promise<Response> {
   const method = request.method.toUpperCase();
 
@@ -318,6 +320,23 @@ async function handleV1(
       }
       return json({ data: await repo.reconcileAccount(planId, accountId, body.statement_date, body.statement_balance, { operationId }) });
     }
+    if (segments.length === 6 && segments[5] === "card_payment_terms") {
+      if (method === "GET") {
+        return json({ data: { card_payment_terms: await repo.getCardPaymentTerms(planId, accountId), server_knowledge: await repo.getServerKnowledge(planId) } });
+      }
+      if (method === "PUT") {
+        const body = await readJson(request);
+        if (!body.card_payment_terms || typeof body.card_payment_terms !== "object" || Array.isArray(body.card_payment_terms)) {
+          throw new ValidationError("card_payment_terms is required");
+        }
+        const terms = await repo.putCardPaymentTerms(planId, accountId, body.card_payment_terms, scheduledWriteOptions(request));
+        return json({ data: { card_payment_terms: terms, server_knowledge: await repo.getServerKnowledge(planId) } });
+      }
+      if (method === "DELETE") {
+        const terms = await repo.deleteCardPaymentTerms(planId, accountId, scheduledWriteOptions(request));
+        return json({ data: { card_payment_terms: terms, server_knowledge: await repo.getServerKnowledge(planId) } });
+      }
+    }
     if (segments.length === 5 && method === "GET") {
       return json({ data: { account: await repo.getAccount(planId, accountId) } });
     }
@@ -358,6 +377,17 @@ async function handleV1(
     if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "unapproved_count" && method === "GET") {
       return unapprovedCountResponse(repo, planId, countFilters(url, { accountId }));
     }
+  }
+
+  if (resource === "card_payment_terms" && segments.length === 4 && method === "GET") {
+    return json({ data: await repo.listCardPaymentTerms(planId) });
+  }
+
+  if (resource === "card_payments" && segments.length === 4 && method === "GET") {
+    const requested = url.searchParams.get("as_of");
+    if (requested !== null && !isIsoDate(requested)) throw new ValidationError("as_of must be an ISO date (YYYY-MM-DD)");
+    const asOf = requested ?? localDate(new Date(), timeZone ?? defaultTimeZone());
+    return json({ data: await repo.getCardPaymentsView(planId, asOf) });
   }
 
   if (resource === "export_snapshot" && segments.length === 4 && method === "GET") {
@@ -1132,6 +1162,15 @@ function scheduledWriteOptions(request: Request): { operationId?: string } {
     throw new ValidationError("Idempotency-Key must be 8-128 letters, numbers, dots, underscores, colons, or hyphens");
   }
   return { operationId: `http_${sha256(key)}` };
+}
+
+/** The host's zone, for a Bun server started without HOWMUCH_TIME_ZONE. */
+function defaultTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
 }
 
 function requireIdempotencyKey(request: Request): string {

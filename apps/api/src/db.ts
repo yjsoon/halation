@@ -123,6 +123,10 @@ export function applyMigrations(db: Database): void {
       version: "023_drop_budgeting_tables",
       path: join(migrationsDir, "023_drop_budgeting_tables.sql"),
     },
+    {
+      version: "024_card_payment_terms",
+      path: join(migrationsDir, "024_card_payment_terms.sql"),
+    },
   ];
 
   for (const migration of migrations) {

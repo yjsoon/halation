@@ -61,6 +61,7 @@ import {
   type CategoryGroupRow,
   type CategoryPatch,
   type CategoryRow,
+  type PlannedSql,
 } from "./category-management";
 import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
 import { cardFlagNames, flagNameForColour } from "./rewards/flag-names";
@@ -76,7 +77,22 @@ import {
   type SnapshotCounts,
 } from "./plan-snapshot";
 
+import {
+  CARD_PAYMENT_ACCOUNT_KINDS,
+  CardPaymentTermsValidationError,
+  cardCycles,
+  cycleDatesFor,
+  parseCardPaymentTermsInput,
+  termsFromRow,
+  type CardPaymentCycle,
+  type CardPaymentTerms,
+  type CardScheduleRow,
+  type HolidayList,
+} from "./card-payments";
+
 type Row = Record<string, any>;
+
+export type CardPaymentTermsWriteOptions = { operationId?: string };
 
 export type PlanFormatsPatch = { currency_format?: SeedCurrencyFormat; date_format?: SeedDateFormat };
 export type SnapshotImportResult = { imported: SnapshotCounts; replayed: boolean; server_knowledge: number };
@@ -976,7 +992,7 @@ export class LedgerRepository {
 
   /** The plan's ledger in `howmuch-plan-snapshot` form, read in one consistent batch. */
   async exportPlanSnapshot(planId: string): Promise<{ snapshot: PlanSnapshot; server_knowledge: number }> {
-    const [groups, categories, payees, accounts, transactions, subtransactions, editRows, editSubRows, knowledge] = await this.db.batchRead([
+    const [groups, categories, payees, accounts, transactions, subtransactions, editRows, editSubRows, cardTermRows, knowledge] = await this.db.batchRead([
       { sql: "SELECT id, name, hidden, internal, deleted FROM category_groups WHERE plan_id = ? ORDER BY id", values: [planId] },
       { sql: "SELECT id, category_group_id, name, hidden, internal, deleted FROM categories WHERE plan_id = ? ORDER BY id", values: [planId] },
       { sql: "SELECT id, name, transfer_account_id, deleted FROM payees WHERE plan_id = ? ORDER BY id", values: [planId] },
@@ -1002,6 +1018,19 @@ export class LedgerRepository {
         values: [planId],
       },
       ...SCHEDULED_SQL.map((sql) => ({ sql, values: [planId] })),
+      {
+        // Only terms a snapshot can carry: a live card account, and a funding
+        // account that is still live (otherwise the default is dropped).
+        sql: `SELECT t.account_id, t.statement_day, t.due_gap_days, t.due_weekend_rule,
+                (SELECT f.id FROM accounts f WHERE f.id = t.default_funding_account_id AND f.plan_id = t.plan_id AND f.deleted = 0) AS default_funding_account_id,
+                t.default_amount_rule, t.default_amount_milli, t.minimum_floor_milli, t.minimum_rate_bp,
+                t.pay_days_before_due, t.lead_days, t.delivery_hour, t.enabled
+              FROM card_payment_terms t
+              JOIN accounts a ON a.id = t.account_id AND a.plan_id = t.plan_id AND a.deleted = 0
+                AND a.type IN ('creditCard', 'lineOfCredit')
+              WHERE t.plan_id = ? ORDER BY t.account_id`,
+        values: [planId],
+      },
       { sql: SERVER_KNOWLEDGE_SQL, values: [planId] },
     ]);
     return {
@@ -1013,6 +1042,7 @@ export class LedgerRepository {
         transactions: transactions ?? [],
         subtransactions: subtransactions ?? [],
         scheduledTransactions: assembleScheduledTransactions(editRows ?? [], editSubRows ?? []),
+        cardPaymentTerms: cardTermRows ?? [],
       }),
       server_knowledge: knowledgeFrom(knowledge),
     };
@@ -2552,6 +2582,164 @@ export class LedgerRepository {
     return true;
   }
 
+  // ---- Card payment terms -------------------------------------------------
+
+  async listCardPaymentTerms(planId: string): Promise<{ card_payment_terms: CardPaymentTerms[]; server_knowledge: number }> {
+    const [rows, knowledge] = await this.db.batchRead([
+      { sql: CARD_PAYMENT_TERMS_LIST_SQL, values: [planId] },
+      { sql: SERVER_KNOWLEDGE_SQL, values: [planId] },
+    ]);
+    return { card_payment_terms: (rows ?? []).map(termsFromRow), server_knowledge: knowledgeFrom(knowledge) };
+  }
+
+  async getCardPaymentTerms(planId: string, accountId: string): Promise<CardPaymentTerms> {
+    const row = await this.db
+      .query("SELECT * FROM card_payment_terms WHERE plan_id = ? AND account_id = ?")
+      .get(planId, accountId) as Row | null;
+    if (!row) throw new NotFoundError("Card payment terms not found");
+    return termsFromRow(row);
+  }
+
+  /**
+   * Validates a PUT against live rows: the card must be a live credit card or
+   * line of credit in this plan, and the funding account a live account of
+   * the same plan. A missing card is a 404; anything else is a 400.
+   */
+  protected async planCardPaymentTerms(planId: string, accountId: string, input: unknown): Promise<CardPaymentTerms> {
+    let terms: CardPaymentTerms;
+    try {
+      terms = parseCardPaymentTermsInput(input, accountId);
+    } catch (error) {
+      if (error instanceof CardPaymentTermsValidationError) throw new ValidationError(error.message);
+      throw error;
+    }
+    const account = await this.db
+      .query("SELECT type FROM accounts WHERE plan_id = ? AND id = ? AND deleted = 0")
+      .get(planId, accountId) as Row | null;
+    if (!account) throw new NotFoundError("Account not found");
+    if (!CARD_PAYMENT_ACCOUNT_KINDS.has(String(account.type))) {
+      throw new ValidationError("Card payment terms need a creditCard or lineOfCredit account");
+    }
+    if (terms.default_funding_account_id) {
+      const funding = await this.db
+        .query("SELECT 1 AS ok FROM accounts WHERE plan_id = ? AND id = ? AND deleted = 0")
+        .get(planId, terms.default_funding_account_id);
+      if (!funding) throw new ValidationError("card_payment_terms.default_funding_account_id is not a live account in this plan");
+    }
+    return terms;
+  }
+
+  protected async readCardPaymentTermsReceipt(auditId: string): Promise<CardPaymentTerms | null> {
+    const row = await this.db.query("SELECT metadata_json FROM audit_events WHERE id = ?").get(auditId) as Row | null;
+    if (!row) return null;
+    const terms = JSON.parse(String(row.metadata_json)).terms;
+    return terms ? terms as CardPaymentTerms : null;
+  }
+
+  async putCardPaymentTerms(planId: string, accountId: string, input: unknown, options: CardPaymentTermsWriteOptions = {}): Promise<CardPaymentTerms> {
+    const hash = requestHash({ action: "card_payment_terms.put", planId, accountId, request: input });
+    return this.db.transaction(async () => {
+      if (await this.replayedScheduleMutation(planId, accountId, "card_payment_terms.put", options.operationId, hash)) {
+        return this.getCardPaymentTerms(planId, accountId);
+      }
+      const terms = await this.planCardPaymentTerms(planId, accountId, input);
+      const auditId = options.operationId ? `audit_${sha256Hex(options.operationId).slice(0, 24)}` : createId("audit");
+      for (const planned of cardPaymentTermsPutStatements(planId, terms, auditId, hash)) {
+        await this.db.query(planned.sql).run(...planned.values);
+      }
+      return this.getCardPaymentTerms(planId, accountId);
+    })();
+  }
+
+  async deleteCardPaymentTerms(planId: string, accountId: string, options: CardPaymentTermsWriteOptions = {}): Promise<CardPaymentTerms> {
+    const hash = requestHash({ action: "card_payment_terms.delete", planId, accountId });
+    return this.db.transaction(async () => {
+      const auditId = options.operationId ? `audit_${sha256Hex(options.operationId).slice(0, 24)}` : createId("audit");
+      if (await this.replayedScheduleMutation(planId, accountId, "card_payment_terms.delete", options.operationId, hash)) {
+        const receipt = await this.readCardPaymentTermsReceipt(auditId);
+        if (!receipt) throw new Error("Card payment terms receipt is missing");
+        return receipt;
+      }
+      const terms = await this.getCardPaymentTerms(planId, accountId);
+      for (const planned of cardPaymentTermsDeleteStatements(planId, terms, auditId, hash)) {
+        await this.db.query(planned.sql).run(...planned.values);
+      }
+      return terms;
+    })();
+  }
+
+  /**
+   * The derived payment view: the current and next cycle of every enabled
+   * card. Read-only; every number is computed by `card-payments.ts`.
+   */
+  async getCardPaymentsView(planId: string, asOf: string, holidays?: HolidayList): Promise<{ as_of: string; cycles: CardPaymentCycle[]; server_knowledge: number }> {
+    const values = [planId];
+    const [termRows, editRows, editSubRows, payeeRows, knowledge] = await this.db.batchRead([
+      {
+        sql: `SELECT t.*, a.balance_milli, a.opening_balance_milli, a.transfer_payee_id
+              FROM card_payment_terms t
+              JOIN accounts a ON a.id = t.account_id AND a.plan_id = t.plan_id
+              WHERE t.plan_id = ? AND t.enabled = 1 AND a.deleted = 0 AND a.closed = 0
+                AND a.type IN ('creditCard', 'lineOfCredit')
+              ORDER BY t.account_id`,
+        values,
+      },
+      ...SCHEDULED_SQL.map((sql) => ({ sql, values })),
+      { sql: "SELECT id, transfer_account_id FROM payees WHERE plan_id = ? AND deleted = 0 AND transfer_account_id IS NOT NULL", values },
+      { sql: SERVER_KNOWLEDGE_SQL, values },
+    ]);
+    const serverKnowledge = knowledgeFrom(knowledge);
+    const cards = (termRows ?? []).map((row) => ({ row, terms: termsFromRow(row), dates: cycleDatesFor(termsFromRow(row), asOf, holidays) }));
+    if (cards.length === 0) return { as_of: asOf, cycles: [], server_knowledge: serverKnowledge };
+    const ledger = await this.db.batchRead(cards.flatMap(({ terms, dates }) => [
+      {
+        sql: `SELECT
+                COALESCE(SUM(CASE WHEN date <= ? THEN amount_milli ELSE 0 END), 0) AS current_sum,
+                COALESCE(SUM(CASE WHEN date <= ? THEN amount_milli ELSE 0 END), 0) AS next_sum
+              FROM transactions WHERE plan_id = ? AND account_id = ? AND deleted = 0`,
+        values: [dates.current.statement_date, dates.next.statement_date, planId, terms.account_id],
+      },
+      {
+        sql: `SELECT id, date, amount_milli, approved, cleared, transfer_account_id
+              FROM transactions
+              WHERE plan_id = ? AND account_id = ? AND deleted = 0 AND amount_milli > 0
+                AND transfer_account_id IS NOT NULL AND date > ? AND date < ?
+              ORDER BY date, id`,
+        values: [planId, terms.account_id, dates.current.statement_date, dates.next.next_statement_date],
+      },
+    ]));
+    const schedules = assembleScheduledTransactions(editRows ?? [], editSubRows ?? []) as CardScheduleRow[];
+    const transferPayeeAccounts = new Map((payeeRows ?? []).map((row) => [String(row.id), String(row.transfer_account_id)]));
+    const cycles = cards.flatMap(({ row, terms, dates }, index) => {
+      const sums = ledger[index * 2]?.[0] ?? {};
+      const opening = Number(row.opening_balance_milli ?? 0);
+      const through = new Map([
+        [dates.current.statement_date, opening + Number(sums.current_sum ?? 0)],
+        [dates.next.statement_date, opening + Number(sums.next_sum ?? 0)],
+      ]);
+      return cardCycles({
+        terms,
+        asOf,
+        balanceThrough: (date) => through.get(date) ?? 0,
+        balance: Number(row.balance_milli ?? 0),
+        transferPayeeId: row.transfer_payee_id ?? null,
+        transferPayeeAccounts,
+        rows: (ledger[index * 2 + 1] ?? []).map((transaction) => ({
+          id: String(transaction.id),
+          date: String(transaction.date),
+          amount: Number(transaction.amount_milli),
+          approved: toBoolean(transaction.approved),
+          cleared: String(transaction.cleared),
+          transfer_account_id: transaction.transfer_account_id ?? null,
+        })),
+        schedules,
+        holidays,
+      });
+    });
+    cycles.sort((left, right) => left.due_date.localeCompare(right.due_date) || left.account_id.localeCompare(right.account_id));
+    return { as_of: asOf, cycles, server_knowledge: serverKnowledge };
+  }
+
   async listYnabTransactionFingerprints(planId: string): Promise<Array<{ external_ynab_id: string; date: string; amount_milli: number }>> {
     return await this.db
       .query(
@@ -3282,6 +3470,53 @@ function assertExpectedSchedule(payload: Record<string, any>, expected: Schedule
   if (payload.date_first !== expected.date_first || payload.date_next !== expected.date_next || payload.frequency !== expected.frequency) {
     throw new Error("stale scheduled occurrence");
   }
+}
+
+const CARD_PAYMENT_TERMS_LIST_SQL = "SELECT * FROM card_payment_terms WHERE plan_id = ? ORDER BY account_id";
+
+/**
+ * Every statement a card terms PUT writes, shared by SQLite and D1 so both
+ * store the same row, move `server_knowledge` and keep the same receipt.
+ */
+export function cardPaymentTermsPutStatements(planId: string, terms: CardPaymentTerms, auditId: string, requestHash: string): PlannedSql[] {
+  return [
+    {
+      sql: `INSERT INTO card_payment_terms
+              (plan_id, account_id, statement_day, due_gap_days, due_weekend_rule, default_funding_account_id,
+               default_amount_rule, default_amount_milli, minimum_floor_milli, minimum_rate_bp,
+               pay_days_before_due, lead_days, delivery_hour, enabled, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
+            ON CONFLICT(plan_id, account_id) DO UPDATE SET
+              statement_day=excluded.statement_day, due_gap_days=excluded.due_gap_days,
+              due_weekend_rule=excluded.due_weekend_rule, default_funding_account_id=excluded.default_funding_account_id,
+              default_amount_rule=excluded.default_amount_rule, default_amount_milli=excluded.default_amount_milli,
+              minimum_floor_milli=excluded.minimum_floor_milli, minimum_rate_bp=excluded.minimum_rate_bp,
+              pay_days_before_due=excluded.pay_days_before_due, lead_days=excluded.lead_days,
+              delivery_hour=excluded.delivery_hour, enabled=excluded.enabled, updated_at=CURRENT_TIMESTAMP`,
+      values: [
+        planId, terms.account_id, terms.statement_day, terms.due_gap_days, terms.due_weekend_rule, terms.default_funding_account_id,
+        terms.default_amount_rule, terms.default_amount_milli, terms.minimum_floor_milli, terms.minimum_rate_bp,
+        terms.pay_days_before_due, terms.lead_days, terms.delivery_hour, terms.enabled ? 1 : 0,
+      ],
+    },
+    { sql: "UPDATE plans SET server_knowledge=server_knowledge+1,updated_at=CURRENT_TIMESTAMP WHERE id=?", values: [planId] },
+    {
+      sql: "INSERT INTO audit_events(id,plan_id,action,resource_type,resource_id,source,metadata_json) VALUES (?,?,'card_payment_terms.put','account',?,'howmuch-local',?)",
+      values: [auditId, planId, terms.account_id, JSON.stringify({ request_hash: requestHash })],
+    },
+  ];
+}
+
+/** The delete's statements; the receipt keeps the removed terms so a retry can return them. */
+export function cardPaymentTermsDeleteStatements(planId: string, terms: CardPaymentTerms, auditId: string, requestHash: string): PlannedSql[] {
+  return [
+    { sql: "DELETE FROM card_payment_terms WHERE plan_id=? AND account_id=?", values: [planId, terms.account_id] },
+    { sql: "UPDATE plans SET server_knowledge=server_knowledge+1,updated_at=CURRENT_TIMESTAMP WHERE id=?", values: [planId] },
+    {
+      sql: "INSERT INTO audit_events(id,plan_id,action,resource_type,resource_id,source,metadata_json) VALUES (?,?,'card_payment_terms.delete','account',?,'howmuch-local',?)",
+      values: [auditId, planId, terms.account_id, JSON.stringify({ request_hash: requestHash, terms })],
+    },
+  ];
 }
 
 export class NotFoundError extends Error {}

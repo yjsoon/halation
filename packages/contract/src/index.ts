@@ -137,6 +137,68 @@ export interface AccountReconciliationPreview {
   server_knowledge: number;
 }
 
+/**
+ * A card's payment terms (`creditCard` or `lineOfCredit` accounts only).
+ * Amounts are integer milliunits; `statement_day` 29 to 31 is clamped to the
+ * month's last day.
+ */
+export interface CardPaymentTerms {
+  account_id: string;
+  statement_day: number;
+  due_gap_days: number;
+  due_weekend_rule: "next" | "previous";
+  default_funding_account_id: string | null;
+  default_amount_rule: "statement" | "minimum" | "fixed";
+  default_amount_milli: number | null;
+  minimum_floor_milli: number;
+  minimum_rate_bp: number;
+  pay_days_before_due: number;
+  lead_days: number;
+  delivery_hour: number;
+  enabled: boolean;
+}
+
+/** PUT body fields: `statement_day` is required, everything else defaults. */
+export type CardPaymentTermsInput = Pick<CardPaymentTerms, "statement_day"> & Partial<Omit<CardPaymentTerms, "statement_day">>;
+
+/**
+ * How a cycle is covered, best first: `paid` (an approved or cleared transfer
+ * into the card in the cycle's window), `posted` (only unapproved, uncleared
+ * ones, typically a materialised schedule), `scheduled` (a schedule into the
+ * card with an occurrence in the window), then `overdue` (past the due date
+ * with a positive statement balance) or `unscheduled`.
+ */
+export type CardPaymentCoverage =
+  | { state: "unscheduled" }
+  | { state: "scheduled"; scheduled_transaction_id: string; pay_date: string; amount: number; funding_account_id: string }
+  | { state: "posted"; transaction_id: string; approved: boolean; amount: number; date: string }
+  | { state: "paid"; transaction_id: string; amount: number; date: string }
+  | { state: "overdue" };
+
+export interface CardPaymentCycle {
+  account_id: string;
+  cycle: "current" | "next";
+  statement_date: string;
+  due_date: string;
+  /** Due date minus `pay_days_before_due` working days. */
+  last_safe_pay_date: string;
+  /** `last_safe_pay_date`, or `as_of` once that has passed. */
+  default_pay_date: string;
+  /** Amount owed at the end of the statement date, recorded so far; positive means owed, zero or negative means nothing due. */
+  statement_balance: number;
+  minimum_due: number;
+  /** Amount owed now (the account balance negated), positive means owed. */
+  current_balance: number;
+  coverage: CardPaymentCoverage;
+}
+
+export interface CardPaymentsView {
+  as_of: string;
+  /** The current and next cycle of every enabled card, ordered by due date. */
+  cycles: CardPaymentCycle[];
+  server_knowledge: number;
+}
+
 /** One requested row's outcome in a bulk cleared or delete command. */
 export type TransactionBulkStatus =
   /** The server confirmed this item's own write. */
