@@ -58,6 +58,7 @@ final class IntakeCoordinator {
   /// "Likely" is 0.75 up to 0.9; lines read by the fallback never reach "Sure".
   static let fallbackConfidenceCap = 0.85
   static let fallbackReason = "Read without Apple Intelligence"
+  static let providerFailedReason = "Your AI provider couldn’t read this, so it was read on this device"
 
   init(
     inbox: InboxStore = IntakeJobStore.isUnitTestHost
@@ -483,12 +484,14 @@ final class IntakeCoordinator {
     var extracted: [SlipMappedDraft] = []
     var sourceIndexes: [Int] = []
     var fallbackIndexes: [Int] = []
+    var providerFailedIndexes: [Int] = []
     var readAnyText = false
     // Nil when the owner reads on device. A chosen provider whose key cannot be
     // read (no key saved, or the Keychain is locked) is not the same as "on
     // device": in the background the read waits for the app to open, so a
     // locked phone never reads on device a document meant for the provider.
     let remote: CaptureAIConfiguration?
+    var providerUnusable = false
     do {
       remote = try model.captureAI.configuration()
     } catch {
@@ -498,9 +501,11 @@ final class IntakeCoordinator {
       }
       Self.logger.info("Provider not usable; reading on device")
       remote = nil
+      providerUnusable = true
     }
     for (index, file) in reading.sourceFiles.enumerated() {
       var readByProvider = false
+      var providerFailed = providerUnusable
       guard readable(id) != nil else {
         return
       }
@@ -551,6 +556,7 @@ final class IntakeCoordinator {
           }
           Self.logger.info("Provider read failed; reading on device")
           drafts = []
+          providerFailed = true
         }
         guard readable(id) != nil else {
           return
@@ -588,6 +594,9 @@ final class IntakeCoordinator {
           payees: model.payees
         )
         fallbackIndexes.append(contentsOf: (extracted.count..<(extracted.count + drafts.count)))
+      }
+      if providerFailed {
+        providerFailedIndexes.append(contentsOf: (extracted.count..<(extracted.count + drafts.count)))
       }
       extracted.append(contentsOf: drafts)
       sourceIndexes.append(contentsOf: Array(repeating: index, count: drafts.count))
@@ -640,6 +649,7 @@ final class IntakeCoordinator {
       extracted,
       sourceIndexes: sourceIndexes,
       fallbackIndexes: fallbackIndexes,
+      providerFailedIndexes: providerFailedIndexes,
       hint: reading.hint,
       model: model
     )
@@ -649,6 +659,7 @@ final class IntakeCoordinator {
     final.extractions = extracted
     final.extractionSourceIndexes = sourceIndexes
     final.fallbackExtractionIndexes = fallbackIndexes
+    final.providerFailedExtractionIndexes = providerFailedIndexes
     final.proposals = result.proposals
     final.duplicateCheckLimited = result.limited
     final.state = needsYouMessage == nil ? .proposed : .needsYou
@@ -660,6 +671,7 @@ final class IntakeCoordinator {
     _ extracted: [SlipMappedDraft],
     sourceIndexes: [Int],
     fallbackIndexes: [Int] = [],
+    providerFailedIndexes: [Int] = [],
     hint: IntakeHint,
     model: AppModel
   ) async -> (proposals: [IntakeProposal], limited: Bool) {
@@ -696,6 +708,9 @@ final class IntakeCoordinator {
         proposals[index].confidence = min(proposals[index].confidence, Self.fallbackConfidenceCap)
         proposals[index].reasons.append(Self.fallbackReason)
       }
+      if providerFailedIndexes.contains(index) {
+        proposals[index].reasons.append(Self.providerFailedReason)
+      }
     }
     return (proposals, !set.isComplete)
   }
@@ -712,6 +727,7 @@ final class IntakeCoordinator {
       job.extractions,
       sourceIndexes: job.extractionSourceIndexes,
       fallbackIndexes: job.fallbackExtractionIndexes,
+      providerFailedIndexes: job.providerFailedExtractionIndexes,
       hint: job.hint,
       model: model
     )
@@ -1051,6 +1067,7 @@ final class IntakeCoordinator {
       extracted,
       sourceIndexes: job.extractionSourceIndexes,
       fallbackIndexes: job.fallbackExtractionIndexes,
+      providerFailedIndexes: job.providerFailedExtractionIndexes,
       hint: job.hint,
       model: model
     )
@@ -1355,6 +1372,7 @@ final class IntakeCoordinator {
     mutateProposal(proposalID, in: id, model: model) { proposal in
       // A row first read without Apple Intelligence keeps that note and its cap.
       let readByFallback = proposal.reasons.contains(Self.fallbackReason)
+      let providerFailed = proposal.reasons.contains(Self.providerFailedReason)
       if keepMatch {
         // The search was incomplete, so the match stays as it was (and so does its
         // confidence, bar a flag rule's cap).
@@ -1395,6 +1413,9 @@ final class IntakeCoordinator {
       if readByFallback {
         proposal.confidence = min(proposal.confidence, Self.fallbackConfidenceCap)
         proposal.reasons.append(Self.fallbackReason)
+      }
+      if providerFailed, !proposal.reasons.contains(Self.providerFailedReason) {
+        proposal.reasons.append(Self.providerFailedReason)
       }
       proposal.flippedFrom = nil
       proposal.preFlipDecision = nil

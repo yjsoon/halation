@@ -297,6 +297,9 @@ struct IntakeJob: Codable, Equatable, Identifiable, Sendable {
   /// Extractions read by the deterministic line parser because the model
   /// returned nothing. Their proposals are capped at Likely and say so.
   var fallbackExtractionIndexes: [Int]
+  /// Extractions read on this device because the owner's AI provider was
+  /// chosen but could not read the file (no key, network, or a bad answer).
+  var providerFailedExtractionIndexes: [Int]
   /// True while a queued job has been tried but its accounts were not
   /// available yet; cleared when reading starts.
   var waitingForAccounts: Bool
@@ -334,6 +337,7 @@ struct IntakeJob: Codable, Equatable, Identifiable, Sendable {
     extractions: [SlipMappedDraft] = [],
     extractionSourceIndexes: [Int] = [],
     fallbackExtractionIndexes: [Int] = [],
+    providerFailedExtractionIndexes: [Int] = [],
     waitingForAccounts: Bool = false,
     planID: String? = nil,
     connectionFingerprint: String? = nil,
@@ -358,6 +362,7 @@ struct IntakeJob: Codable, Equatable, Identifiable, Sendable {
     self.extractions = extractions
     self.extractionSourceIndexes = extractionSourceIndexes
     self.fallbackExtractionIndexes = fallbackExtractionIndexes
+    self.providerFailedExtractionIndexes = providerFailedExtractionIndexes
     self.waitingForAccounts = waitingForAccounts
     self.planID = planID
     self.connectionFingerprint = connectionFingerprint
@@ -371,7 +376,7 @@ struct IntakeJob: Codable, Equatable, Identifiable, Sendable {
   private enum CodingKeys: String, CodingKey {
     case id, createdAt, origin, sourceFiles, accountID, decideAccount, hint, note, contentHash
     case state, failureMessage, proposals, extractions, extractionSourceIndexes, fallbackExtractionIndexes
-    case waitingForAccounts
+    case providerFailedExtractionIndexes, waitingForAccounts
     case planID, connectionFingerprint, duplicateCheckLimited, applyStartedAt, appliedSummary, deferredToForeground, updatedAt
   }
 
@@ -396,6 +401,8 @@ struct IntakeJob: Codable, Equatable, Identifiable, Sendable {
     extractionSourceIndexes = (try? container.decodeIfPresent([Int].self, forKey: .extractionSourceIndexes)) ?? []
     fallbackExtractionIndexes =
       (try? container.decodeIfPresent([Int].self, forKey: .fallbackExtractionIndexes)) ?? []
+    providerFailedExtractionIndexes =
+      (try? container.decodeIfPresent([Int].self, forKey: .providerFailedExtractionIndexes)) ?? []
     waitingForAccounts = (try? container.decodeIfPresent(Bool.self, forKey: .waitingForAccounts)) ?? false
     planID = try container.decodeIfPresent(String.self, forKey: .planID)
     connectionFingerprint = try container.decodeIfPresent(String.self, forKey: .connectionFingerprint)
