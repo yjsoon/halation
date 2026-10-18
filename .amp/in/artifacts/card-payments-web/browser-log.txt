@@ -1,0 +1,36 @@
+setup: owner created, Ledger shown
+PASS no Payments due panel before any terms
+PASS dialog defaults to Travel Card
+PASS preset defaults to DBS / POSB
+PASS OCBC preset sets 23 days
+PASS OCBC preset sets previous working day
+PASS DBS preset sets 25 days
+preview: Next due Wed 28 Oct, for the 3 Oct statement. Pay by Mon 26 Oct.
+PASS Next line: due Wed 28 Oct, 3 Oct statement, pay by Mon 26 Oct
+row (unscheduled): Travel Card 3 Oct Wed 28 Oct $64,830.80 recorded min $1,944.93 Unscheduled Schedule…Terms
+PASS row shows 'recorded' amount and minimum
+PASS save message names the card and next dates
+PASS estimate caveat shown
+PASS API: terms stored for Travel Card (day 3, 25, next, from Everyday)
+PASS API: current cycle 3 Oct / 28 Oct unscheduled
+prefill: {"heading":"Schedule Travel Card payment","account":"acct-everyday","amount":"-64830.8","first":"2026-10-26","next":"2026-10-26","repeat":"never","transfer":"acct-credit","memo":"Travel Card statement 3 Oct"}
+PASS editor heading
+PASS funding account from terms, transfer to card
+PASS date is default pay day 26 Oct
+PASS repeat Once
+PASS memo
+row (scheduled): Travel Card 3 Oct Wed 28 Oct $64,830.80 recorded min $1,944.93 Scheduled 26 Oct from Everyday Account EditTerms
+status: Scheduled $64,830.80 to Travel Card on 26 Oct 2026. Set up the same payment in your bank app.
+PASS confirmation tells the user to set it up in the bank app
+PASS Schedule… gone once scheduled
+PASS API: one-off transfer Everyday -> Travel Card on 26 Oct for the statement balance, memo set
+PASS API: coverage scheduled, pointing at that schedule
+PASS create sent Idempotency-Key card-pay:acct-credit:2026-10-03
+after delete: row back to Unscheduled
+create keys: ["card-pay:acct-credit:2026-10-03","card-pay:acct-credit:2026-10-03","card-pay:acct-credit:2026-10-03:10bceab2"]
+PASS re-scheduling after delete creates a new live schedule
+PASS second save replayed the base key, then used a suffixed key
+PASS register dialog loads saved terms
+PASS no horizontal page scroll at 390px (overflow 0)
+row (posted): Travel Card 3 Oct Wed 28 Oct $64,830.80 recorded min $1,944.93 Posted 18 Oct, awaiting approval Terms
+PASS API: coverage posted, unapproved after Enter now

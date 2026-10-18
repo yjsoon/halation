@@ -1,10 +1,13 @@
 import { useMemo, useRef, useState } from "react";
-import { api, useApi } from "../api/client";
-import type { Account, CategoryGroup, Payee, ScheduledSubtransaction, ScheduledTransaction, ScheduledTransactionInput } from "../api/types";
+import { api, ApiError, useApi } from "../api/client";
+import type { Account, CardPaymentCycle, CardPaymentTerms, CardPaymentsView, CategoryGroup, Payee, ScheduledSubtransaction, ScheduledTransaction, ScheduledTransactionInput } from "../api/types";
+import { CardPaymentsPanel } from "../components/CardPaymentsPanel";
+import { CardTermsDialog } from "../components/CardTermsDialog";
 import { CategorySelect } from "../components/CategorySelect";
 import { FlagPicker, FlagTag } from "../components/FlagTag";
+import { cardPaymentKey, cardPaymentMemo, isCardAccount, needsScheduling, usualPaymentAmount } from "../lib/card-payments";
 import { splitCategoryGroups } from "../lib/categories";
-import { formatDate, todayIso } from "../lib/dates";
+import { formatDate, formatDayMonth, todayIso } from "../lib/dates";
 import { stableHash } from "../lib/hash";
 import { formatMilliunitsField, formatMoney, parseMilliunits } from "../lib/money";
 import { scheduleRecurrence } from "../lib/schedules";
@@ -16,7 +19,9 @@ import { useCachedApi } from "../state/use-cached-api";
 import { StatusPanel } from "../components/StatusPanel";
 
 type ScheduleGroup = { date: string; schedules: ScheduledTransaction[] };
-type EditorState = { mode: "create" } | { mode: "edit"; schedule: ScheduledTransaction };
+type EditorState = { mode: "create" } | { mode: "edit"; schedule: ScheduledTransaction } | { mode: "card"; cycle: CardPaymentCycle; prefill: SchedulePrefill };
+/** Starting values for a new schedule, such as a card payment from Payments due. */
+type SchedulePrefill = { key: string; accountId: string; transferAccountId: string; amount: number; date: string; frequency: string; memo: string; heading: string; note: string };
 type PendingDeletion = { schedule: ScheduledTransaction; idempotencyKey: string };
 type PendingEntry = { schedule: ScheduledTransaction; occurrenceDate: string; enteredDate: string; operationSeed: string; idempotencyKey: string };
 type SplitDraft = { key: string; sourceId?: string; amount: string; payeeId: string; categoryId: string; transferAccountId: string; memo: string };
@@ -28,6 +33,8 @@ export function ScheduledTransactionsPage() {
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<PendingDeletion | null>(null);
   const [pendingEntry, setPendingEntry] = useState<PendingEntry | null>(null);
+  const [termsDialog, setTermsDialog] = useState<{ accountId: string | null } | null>(null);
+  const [termsGeneration, setTermsGeneration] = useState(0);
   // Both confirmations render above the list, behind the row's buttons in tab order.
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const entryCancelRef = useRef<HTMLButtonElement>(null);
@@ -37,7 +44,7 @@ export function ScheduledTransactionsPage() {
   // focused control, so focus goes back to the Edit (or Add) that opened it.
   const editorFirstFieldRef = useRef<HTMLSelectElement>(null);
   const addScheduleRef = useRef<HTMLButtonElement>(null);
-  useConfirmationFocus(editor ? (editor.mode === "edit" ? `edit-${editor.schedule.id}` : "create") : null, editorFirstFieldRef, () => addScheduleRef.current);
+  useConfirmationFocus(editor ? (editor.mode === "edit" ? `edit-${editor.schedule.id}` : editor.mode === "card" ? editor.prefill.key : "create") : null, editorFirstFieldRef, () => addScheduleRef.current);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [mutationSuccess, setMutationSuccess] = useState<string | null>(null);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
@@ -71,6 +78,56 @@ export function ScheduledTransactionsPage() {
   const payeeNames = useMemo(() => new Map((payees.data ?? []).map((payee) => [payee.id, payee.name])), [payees.data]);
   const nextDate = groups[0]?.date;
   const refresh = () => setGeneration((value) => value + 1);
+  // Payments due: refetched after any schedule write (generation) or terms change.
+  // An older server without these routes errors, and the panel simply stays hidden.
+  const cardAccounts = useMemo(() => accounts.filter(isCardAccount), [accounts]);
+  const cardTermsQuery = useApi(`${planId}:card-payment-terms:${termsGeneration}`, () => api.cardPaymentTerms(planId));
+  const cardPaymentsQuery = useApi(`${planId}:card-payments:${generation}:${termsGeneration}`, () => api.cardPayments(planId));
+  const cardTerms = useSticky(cardTermsQuery.data, `${planId}`);
+  const cardPayments = useSticky<CardPaymentsView>(cardPaymentsQuery.data, `${planId}`);
+  const termsByAccount = useMemo(() => new Map((cardTerms?.card_payment_terms ?? []).map((terms) => [terms.account_id, terms])), [cardTerms]);
+
+  const openCardSchedule = (cycle: CardPaymentCycle, terms: CardPaymentTerms) => {
+    const cardName = accountNames.get(cycle.account_id) ?? "Card";
+    const funding = terms.default_funding_account_id && accounts.some((account) => account.id === terms.default_funding_account_id && !account.closed) ? terms.default_funding_account_id : "";
+    setEditor({
+      mode: "card",
+      cycle,
+      prefill: {
+        key: `card-${cycle.account_id}-${cycle.statement_date}`,
+        accountId: funding,
+        transferAccountId: cycle.account_id,
+        amount: -usualPaymentAmount(cycle, terms),
+        date: cycle.default_pay_date,
+        frequency: "never",
+        memo: cardPaymentMemo(cardName, cycle.statement_date),
+        heading: `Schedule ${cardName} payment`,
+        note: `Statement ${formatDayMonth(cycle.statement_date)}, due ${formatDate(cycle.due_date)}. ${formatMoney(cycle.statement_balance)} recorded so far. Check your statement for the actual amount and change it here if it differs.`,
+      },
+    });
+    setMutationError(null);
+    setMutationSuccess(null);
+  };
+
+  // Same key as the phone's Scheduled action, so a second tap anywhere replays
+  // instead of doubling. If that key already made a schedule that was later
+  // deleted (or holds different details), check the statement is still
+  // uncovered and use a fresh key.
+  const createCardPayment = async (cycle: CardPaymentCycle, input: ScheduledTransactionInput) => {
+    const retry = async () => {
+      const view = await api.cardPayments(planId);
+      const fresh = view.cycles.find((candidate) => candidate.account_id === cycle.account_id && candidate.statement_date === cycle.statement_date);
+      if (fresh && !needsScheduling(fresh)) throw new Error("This statement already has a payment scheduled or recorded. Payments due has been refreshed.");
+      await api.createScheduledTransaction(planId, input, cardPaymentKey(cycle.account_id, cycle.statement_date, crypto.randomUUID().slice(0, 8)));
+    };
+    try {
+      const created = await api.createScheduledTransaction(planId, input, cardPaymentKey(cycle.account_id, cycle.statement_date));
+      if (created.deleted) await retry();
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 409) await retry();
+      else throw cause;
+    }
+  };
 
   const saveSchedule = async (input: ScheduledTransactionInput, idempotencyKey: string) => {
     const mutationId = editor?.mode === "edit" ? editor.schedule.id : "creating";
@@ -80,6 +137,9 @@ export function ScheduledTransactionsPage() {
     try {
       if (editor?.mode === "edit") {
         await api.updateScheduledTransaction(planId, editor.schedule.id, input, idempotencyKey);
+      } else if (editor?.mode === "card") {
+        await createCardPayment(editor.cycle, input);
+        setMutationSuccess(`Scheduled ${formatMoney(Math.abs(input.amount ?? 0))} to ${accountNames.get(editor.cycle.account_id) ?? "the card"} on ${formatDate(input.date_first)}. Set up the same payment in your bank app.`);
       } else {
         await api.createScheduledTransaction(planId, input, idempotencyKey);
       }
@@ -158,9 +218,31 @@ export function ScheduledTransactionsPage() {
 
       {mutationError && <StatusPanel error role="alert" title="Could not update scheduled transactions.">{mutationError}</StatusPanel>}
       {mutationSuccess && <StatusPanel role="status" title={mutationSuccess} />}
+      {cardTerms && (
+        <CardPaymentsPanel
+          asOf={cardPayments?.as_of ?? null}
+          cycles={cardPayments?.cycles ?? []}
+          terms={cardTerms.card_payment_terms}
+          cardAccounts={cardAccounts}
+          accountNames={accountNames}
+          loading={cardPaymentsQuery.loading || cardTermsQuery.loading}
+          busy={Boolean(mutatingId)}
+          onSchedule={(cycle) => { const terms = termsByAccount.get(cycle.account_id); if (terms) openCardSchedule(cycle, terms); }}
+          onEditSchedule={(scheduleId) => { const schedule = active.find((candidate) => candidate.id === scheduleId); if (schedule) { setEditor({ mode: "edit", schedule }); setMutationError(null); setMutationSuccess(null); } }}
+          onEditTerms={(accountId) => setTermsDialog({ accountId })}
+        />
+      )}
+      {termsDialog && (
+        <CardTermsDialog
+          accountId={termsDialog.accountId}
+          onClose={() => setTermsDialog(null)}
+          onSaved={(message) => { setTermsGeneration((value) => value + 1); setMutationError(null); setMutationSuccess(message); }}
+        />
+      )}
       {editor && (
         <ScheduleEditor
           schedule={editor.mode === "edit" ? editor.schedule : undefined}
+          prefill={editor.mode === "card" ? editor.prefill : undefined}
           accounts={accounts}
           categoryGroups={categoryGroups}
           payees={payees.data ?? []}
@@ -243,26 +325,26 @@ function SplitScheduleRow({ line, accounts, categories, payees }: { line: Schedu
   return <tr className="split-line-row schedule-split-row"><td aria-hidden="true" /><td className="split-line-cell"><span className="schedule-split-mark">Split</span> {payee}{line.memo ? ` · ${line.memo}` : ""}<div className="schedule-mobile-detail">{category}</div></td><td aria-hidden="true" /><td>{category}</td><td aria-hidden="true" /><td className={line.amount < 0 ? "num amount-negative" : line.amount > 0 ? "num amount-positive" : "num"}>{formatMoney(line.amount, { sign: line.amount > 0 })}</td><td aria-hidden="true" /></tr>;
 }
 
-type ScheduleEditorProps = { schedule?: ScheduledTransaction; accounts: Account[]; categoryGroups: CategoryGroup[]; payees: Payee[]; saving: boolean; firstFieldRef: React.Ref<HTMLSelectElement>; onCancel: () => void; onSave: (input: ScheduledTransactionInput, idempotencyKey: string) => Promise<void> };
+type ScheduleEditorProps = { schedule?: ScheduledTransaction; prefill?: SchedulePrefill; accounts: Account[]; categoryGroups: CategoryGroup[]; payees: Payee[]; saving: boolean; firstFieldRef: React.Ref<HTMLSelectElement>; onCancel: () => void; onSave: (input: ScheduledTransactionInput, idempotencyKey: string) => Promise<void> };
 
 // Keyed by schedule: the form seeds its state from `schedule` once, so each schedule (and Add) gets a fresh form.
 function ScheduleEditor(props: ScheduleEditorProps) {
-  return <ScheduleEditorForm key={props.schedule?.id ?? "create"} {...props} />;
+  return <ScheduleEditorForm key={props.schedule?.id ?? props.prefill?.key ?? "create"} {...props} />;
 }
 
-function ScheduleEditorForm({ schedule, accounts, categoryGroups, payees, saving, firstFieldRef, onCancel, onSave }: ScheduleEditorProps) {
+function ScheduleEditorForm({ schedule, prefill, accounts, categoryGroups, payees, saving, firstFieldRef, onCancel, onSave }: ScheduleEditorProps) {
   const { planId } = usePlan();
   const rewardsSnapshot = useApi(`${planId}:reward-flag-names`, () => api.rewardsTrackerSnapshot(planId));
   const namesByAccount = useMemo(() => colourNamesByAccount(rewardsSnapshot.data?.cards), [rewardsSnapshot.data]);
-  const [accountId, setAccountId] = useState(schedule?.account_id ?? accounts.find((account) => !account.closed)?.id ?? "");
-  const [firstDate, setFirstDate] = useState(schedule?.date_first ?? schedule?.date_next ?? todayIso());
-  const [nextDate, setNextDate] = useState(schedule?.date_next ?? schedule?.date_first ?? todayIso());
-  const [frequency, setFrequency] = useState(schedule?.frequency ?? "monthly");
-  const [amount, setAmount] = useState(formatMilliunitsField(amountFor(schedule ?? {} as ScheduledTransaction)));
+  const [accountId, setAccountId] = useState(schedule?.account_id ?? prefill?.accountId ?? accounts.find((account) => !account.closed)?.id ?? "");
+  const [firstDate, setFirstDate] = useState(schedule?.date_first ?? schedule?.date_next ?? prefill?.date ?? todayIso());
+  const [nextDate, setNextDate] = useState(schedule?.date_next ?? schedule?.date_first ?? prefill?.date ?? todayIso());
+  const [frequency, setFrequency] = useState(schedule?.frequency ?? prefill?.frequency ?? "monthly");
+  const [amount, setAmount] = useState(formatMilliunitsField(prefill && !schedule ? prefill.amount : amountFor(schedule ?? {} as ScheduledTransaction)));
   const [payeeId, setPayeeId] = useState(schedule?.payee_id ?? "");
   const [categoryId, setCategoryId] = useState(schedule?.category_id ?? "");
-  const [transferAccountId, setTransferAccountId] = useState(schedule?.transfer_account_id ?? "");
-  const [memo, setMemo] = useState(schedule?.memo ?? "");
+  const [transferAccountId, setTransferAccountId] = useState(schedule?.transfer_account_id ?? prefill?.transferAccountId ?? "");
+  const [memo, setMemo] = useState(schedule?.memo ?? prefill?.memo ?? "");
   const [flagColor, setFlagColor] = useState(schedule?.flag_color ?? "");
   const [splitLines, setSplitLines] = useState<SplitDraft[]>(() => (schedule?.subtransactions ?? []).map((line) => ({ key: line.id, sourceId: line.id, amount: formatMilliunitsField(line.amount), payeeId: line.payee_id ?? "", categoryId: line.category_id ?? "", transferAccountId: line.transfer_account_id ?? "", memo: line.memo ?? "" })));
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -300,7 +382,7 @@ function ScheduleEditorForm({ schedule, accounts, categoryGroups, payees, saving
   };
 
   return <section className="transaction-editor schedule-editor" aria-labelledby="schedule-editor-heading">
-    <div className="section-heading"><div><span className="section-title" id="schedule-editor-heading">{schedule ? "Edit scheduled transaction" : "Add scheduled transaction"}</span><span className="section-meta">{schedule ? "Changes apply to future repeats." : "Add a repeating transaction."}</span></div><button type="button" className="text-button" onClick={onCancel} disabled={saving}>Cancel</button></div>
+    <div className="section-heading"><div><span className="section-title" id="schedule-editor-heading">{schedule ? "Edit scheduled transaction" : prefill?.heading ?? "Add scheduled transaction"}</span><span className="section-meta">{schedule ? "Changes apply to future repeats." : prefill?.note ?? "Add a repeating transaction."}</span></div><button type="button" className="text-button" onClick={onCancel} disabled={saving}>Cancel</button></div>
     <form className="transaction-editor-form" onSubmit={(event) => void submit(event)}>
       <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">Account</span><select ref={firstFieldRef} value={accountId} onChange={(event) => setAccountId(event.target.value)} required><option value="">Choose account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.closed ? " (closed)" : ""}</option>)}</select></label><label className="field"><span className="field-label">Amount</span><input type="text" inputMode="decimal" value={isSplit ? formatMilliunitsField(splitTotal) : amount} onChange={(event) => setAmount(event.target.value)} disabled={isSplit} required /><span className="field-note">Use a minus sign for outflow. Amounts use up to three decimal places.</span></label></div>
       <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">First date</span><input type="date" value={firstDate} onChange={(event) => setFirstDate(event.target.value)} required /></label><label className="field"><span className="field-label">Next date</span><input type="date" value={nextDate} onChange={(event) => setNextDate(event.target.value)} required /></label><label className="field"><span className="field-label">Repeat</span><select value={frequency} onChange={(event) => setFrequency(event.target.value)}>{FREQUENCIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
@@ -310,9 +392,16 @@ function ScheduleEditorForm({ schedule, accounts, categoryGroups, payees, saving
       <label className="field"><span className="field-label">Memo</span><input value={memo} onChange={(event) => setMemo(event.target.value)} placeholder="Note" /></label>
       <div className="field"><span className="field-label" id="schedule-flag-label">Flag</span><FlagPicker labelledBy="schedule-flag-label" value={flagColor} onChange={setFlagColor} disabled={saving} names={ledgerFlagNames(namesByAccount.get(accountId) ?? {})} /></div>
       {validationError && <p className="transaction-editor-error" role="alert">{validationError}</p>}
-      <div className="transaction-editor-actions"><button type="button" className="text-button" onClick={onCancel} disabled={saving}>Cancel</button><button type="submit" className="save-button" disabled={saving}>{saving ? "Saving…" : schedule ? "Save changes" : "Add schedule"}</button></div>
+      <div className="transaction-editor-actions"><button type="button" className="text-button" onClick={onCancel} disabled={saving}>Cancel</button><button type="submit" className="save-button" disabled={saving}>{saving ? "Saving…" : schedule ? "Save changes" : prefill ? "Schedule payment" : "Add schedule"}</button></div>
     </form>
   </section>;
+}
+
+/** Keeps the last loaded value while a refetch runs, so the panel does not blink out and back. */
+function useSticky<T>(value: T | null, scope: string): T | null {
+  const last = useRef<{ scope: string; value: T } | null>(null);
+  if (value !== null) last.current = { scope, value };
+  return value ?? (last.current?.scope === scope ? last.current.value : null);
 }
 
 function Figure({ label, value }: { label: string; value: string }) { return <div className="headline-figure"><span className="figure-label">{label}</span><span className="figure-value schedule-figure-value">{value}</span></div>; }

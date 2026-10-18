@@ -720,3 +720,97 @@ tr:hover .share-bar {
   border-color: var(--ink);
   width: 100%;
 }
+
+/* Payments due on Scheduled: one row per card with payment terms. */
+.card-payments {
+  margin-top: 20px;
+}
+
+.card-payments .section-heading > div:first-child .section-meta {
+  max-width: 64ch;
+}
+
+.card-payments-table td {
+  padding-top: 8px;
+  padding-bottom: 8px;
+  vertical-align: top;
+}
+
+.card-payment-name {
+  font-weight: 500;
+}
+
+.card-payment-amount {
+  white-space: nowrap;
+}
+
+.card-payment-recorded {
+  display: block;
+  font-family: var(--font-figures);
+}
+
+.card-payment-minimum,
+.card-payment-next,
+.card-payment-muted {
+  display: block;
+  margin-top: 1px;
+  color: var(--ink-soft);
+  font-size: 11.5px;
+}
+
+.card-payment-status {
+  display: inline-block;
+  padding: 1px 7px;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.card-payment-status-needs { color: var(--tone-needs); background: var(--tone-needs-wash); }
+.card-payment-status-scheduled { color: var(--plan-accent); background: var(--plan-accent-wash); }
+.card-payment-status-posted { color: var(--ink-soft); background: var(--paper-sunk); }
+.card-payment-status-paid { color: var(--green); background: var(--green-wash); }
+.card-payment-status-overdue { color: var(--red); background: var(--red-wash); }
+.card-payment-status-quiet { color: var(--ink-faint); border-color: var(--rule); }
+
+.card-payment-row-overdue .card-payment-recorded {
+  color: var(--red);
+}
+
+.card-payment-row-off .card-payment-name {
+  color: var(--ink-soft);
+}
+
+.card-payments-footnote {
+  margin: 8px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.card-payments-inline-button {
+  font-size: 12px;
+}
+
+.card-payments-setup {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.card-payments-setup > div {
+  display: grid;
+  gap: 2px;
+}
+
+.card-payment-recorded-word {
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size: 11.5px;
+}
