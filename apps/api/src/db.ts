@@ -125,9 +125,6 @@ export function applyMigrations(db: Database): void {
     },
   ];
 
-  // The JS half of migrations 016/017. It must not run again later: by then a
-  // leading emoji in a name is one the user typed on purpose.
-  let backfillPresentations = false;
   for (const migration of migrations) {
     const applied = db
       .query("SELECT version FROM schema_migrations WHERE version = ?")
@@ -146,11 +143,12 @@ export function applyMigrations(db: Database): void {
         // newline would hide a failing final statement (a migration's own
         // consistency check).
         db.run(sql.trimEnd());
+        // The JS half of 017, in the same transaction so an interrupted upgrade
+        // retries it. It must never run again later: by then a leading emoji in
+        // a name is one the user typed on purpose.
+        if (migration.version === "017_account_icon_emoji_backfill") backfillAccountPresentations(db);
         db.query("INSERT INTO schema_migrations (version) VALUES (?)").run(migration.version);
       })();
-      if (migration.version === "016_account_icons" || migration.version === "017_account_icon_emoji_backfill") {
-        backfillPresentations = true;
-      }
     } finally {
       if (migration.rebuildsForeignKeyTarget) db.run("PRAGMA foreign_keys = ON");
     }
@@ -159,8 +157,6 @@ export function applyMigrations(db: Database): void {
       throw new Error(`Migration ${migration.version} introduced foreign-key violations`);
     }
   }
-
-  if (backfillPresentations) backfillAccountPresentations(db);
 }
 
 function backfillAccountPresentations(db: Database): void {

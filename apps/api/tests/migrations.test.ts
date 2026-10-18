@@ -216,6 +216,53 @@ describe("local schema migrations", () => {
     }
   });
 
+  // A ZWJ emoji such as 👩‍💻 is left to the JS resolver. If startup failed after
+  // 016/017 were recorded, the next start must still finish that work.
+  test("an upgrade interrupted after the icon migrations still splits ZWJ emoji names", () => {
+    const db = new Database(":memory:");
+    try {
+      db.exec(`
+        CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+        CREATE TABLE plans (id TEXT PRIMARY KEY, name TEXT NOT NULL);
+        CREATE TABLE accounts (
+          id TEXT PRIMARY KEY,
+          plan_id TEXT NOT NULL REFERENCES plans(id),
+          name TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'checking',
+          deleted INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE payees (
+          id TEXT PRIMARY KEY,
+          plan_id TEXT,
+          name TEXT NOT NULL,
+          transfer_account_id TEXT,
+          deleted INTEGER NOT NULL DEFAULT 0,
+          updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        INSERT INTO plans(id,name) VALUES ('p','Plan');
+        INSERT INTO accounts(id,plan_id,name,type) VALUES ('dev','p','👩‍💻 Work','otherAsset');
+        INSERT INTO payees(id,plan_id,name,transfer_account_id) VALUES ('payee-dev','p','Transfer : 👩‍💻 Work','dev');
+        INSERT INTO schema_migrations(version) VALUES
+          ('001_initial'),('002_transaction_server_knowledge'),('003_transfer_payees'),('004_auth_foundation'),('005_password_auth'),
+          ('006_allow_duplicate_payee_names'),('007_ynab_raw_objects'),('008_plan_month_assignments'),('009_plan_month_category_targets'),
+          ('010_scheduled_transaction_edits'),('011_scheduled_transaction_snapshot_assertions'),('012_account_reconciliation_assertions'),
+          ('013_unique_live_import_id'),('014_personal_api_tokens'),('015_account_preferences'),
+          ('019_query_covering_indexes'),('020_ynab_source_month_activity'),('021_account_month_balances'),('022_own_imported_ynab_schedules');
+        -- Makes 018 fail, standing in for a crash after 016/017 committed.
+        CREATE TABLE rewards_tracker_snapshots (blocker INTEGER);
+      `);
+
+      expect(() => applyMigrations(db)).toThrow();
+      db.run("DROP TABLE rewards_tracker_snapshots");
+      applyMigrations(db);
+
+      expect(db.query("SELECT name, icon FROM accounts WHERE id = 'dev'").get()).toEqual({ name: "Work", icon: "👩‍💻" });
+      expect(db.query("SELECT name FROM payees WHERE id = 'payee-dev'").get()).toEqual({ name: "Transfer : Work" });
+    } finally {
+      db.close();
+    }
+  });
+
   // The emoji backfill belongs to migrations 016/017. Running it on every boot
   // lifted an emoji the user typed into a later rename into the icon.
   test("a server restart keeps an emoji typed into an account rename", async () => {
