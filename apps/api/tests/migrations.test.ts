@@ -1,6 +1,7 @@
 import { Database } from "bun:sqlite";
 import { describe, expect, test } from "bun:test";
 import { applyMigrations } from "../src/db";
+import { nativeHarness } from "./helpers/native-harness";
 
 describe("local schema migrations", () => {
   test("rebuilds legacy payees without losing referenced rows or allowing name collisions", () => {
@@ -212,6 +213,32 @@ describe("local schema migrations", () => {
       expect(db.query("SELECT name FROM payees WHERE id='payee-thumbs'").get()).toEqual({ name: "Transfer : Banana" });
     } finally {
       db.close();
+    }
+  });
+
+  // The emoji backfill belongs to migrations 016/017. Running it on every boot
+  // lifted an emoji the user typed into a later rename into the icon.
+  test("a server restart keeps an emoji typed into an account rename", async () => {
+    const harness = await nativeHarness("SQLite");
+    try {
+      const created = await (await harness.request("/v1/plans/p/accounts", {
+        method: "POST",
+        body: { account: { name: "Everyday", type: "checking" } },
+      })).json() as { data: { account: { id: string } } };
+      const id = created.data.account.id;
+      await harness.request(`/v1/plans/p/accounts/${id}`, { method: "PATCH", body: { account: { name: "💳 Daily" } } });
+      const read = () => ({
+        account: harness.db.query("SELECT name, icon FROM accounts WHERE id = ?").get(id),
+        payee: harness.db.query("SELECT name FROM payees WHERE transfer_account_id = ?").get(id),
+      });
+      const before = read();
+      expect(before.account).toEqual({ name: "💳 Daily", icon: "🏦" });
+
+      applyMigrations(harness.db);
+
+      expect(read()).toEqual(before);
+    } finally {
+      harness.close();
     }
   });
 
