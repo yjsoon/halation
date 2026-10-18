@@ -83,3 +83,30 @@ halation.card.acct_b98c8b5f-b214-44e4-ad93-abb175b5b965.2026-11-03.overdue3 — 
 ## Result
 
 All expectations met. Not exercised: notification action buttons on a delivered notification (Scheduled, Paid, Snooze from the lock screen), server-mode queueing while offline, the background refresh task, and denied-permission rows.
+
+## Review fix round (I1 to I14)
+
+- Revision under test: `cd532edf5bfe49f7860f7ab997f711208ef1f9ed`, checked out detached and clean on a Devin macOS runner (read-only). Xcode 26.6 (17F113), iPhone 17 simulator, iOS 26.5.
+- Command: `scripts/ios-xcodebuild.sh test -- -collect-test-diagnostics never` from the repository root, accessibility enabled per `apps/ios/AGENTS.md`.
+- Fixture: erased simulator, local mode, synthetic data only: Account B (Checking, 5,000.00), Card A ending 0000 (1,234.56 owed, entered today), Card C ending 1111 (412.00 owed), Card D ending 2222 (0 owed). All three cards: DBS / POSB, statement day 3; Pay from Account B for A and D, "Ask each time" for C. A 20.00 transfer from Account B to Card A dated today. Simulator date 18 Oct 2026.
+- Screenshots: `/mnt/project-files/payment-reminders/screens/ios/16` to `25` (not committed).
+
+### Expected and observed
+
+| Check | Expected | Observed |
+| --- | --- | --- |
+| Build and tests | Build succeeds, suite passes | 779 tests executed, 1 skipped (opt-in live Foundation Models test), 0 failures; no warnings under `apps/ios/HowMuch/Payments/` |
+| Settled (I11) | Card D, nothing owed: "Settled" chip, "Nothing owed now" | As expected (16) |
+| Pay day window (I7) | Card C sheet: no date after window end 3 Nov | November shows only 1 to 3 enabled; tapping 5 Nov does nothing (17) |
+| Other with Remember (I2) | Footer explains; terms keep Statement balance | Footer "Remembers the paying account and pay day. Other amounts are not remembered."; Card C terms afterwards: Pay from "Account B", Usually pay "Statement balance" (18, 19) |
+| Memo (I7) | "Card C ending 1111 statement 3 Oct" | Exactly that on the 400.00 schedule (20) |
+| Settings footer (I12) | Monthly-open line | "... Open Halation at least once a month so reminders keep being added." (21) |
+| Zero-balance statement notice (I3) | Card D has a `2026-11-03.statement` request and nothing else | 16 pending; Card D (`acct_dca491b3...`) has only `2026-11-03.statement`; Card C only `2026-10-03.funds` for October (22 to 24) |
+
+Card A sat on the 3 Nov cycle in this fixture: its owed balance was entered today, after the 3 Oct statement, so that statement's balance was 0. A follow-up adds a 500.00 charge dated 1 Oct to show the partial state; the runner reported the band row reading "$20.00 of $500.00 paid" while working, and its final screenshot is pending.
+
+### Not exercised
+
+Carried-over overdue (terms created today can never be overdue, by design), the background Paid and Scheduled coverage check, the "Tap to change" editor route, delivered-notification cleanup (needs a delivered reminder with this connection's fingerprint), and server-mode queue retries.
+
+The runner also saw the Accounts drill-down on the compact layout stop pushing until relaunch; that is the existing AccountsView navigation, not the payments code.
