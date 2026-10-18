@@ -119,6 +119,9 @@ final class AppModel {
   @ObservationIgnored var cardPaymentsGeneration = 0
   @ObservationIgnored var cardPaymentsRefreshToken = 0
   @ObservationIgnored var isDrainingCardQueue = false
+  /// The last outcome of each queued Scheduled tap, by idempotency key, so a
+  /// background action can report a tap another drain sent.
+  @ObservationIgnored var cardDrainResults: [String: CardDrainResult] = [:]
   private(set) var hasMoreTransactions = false
   private(set) var nextTransactionOffset: Int?
   private(set) var isLoadingOlderTransactions = false

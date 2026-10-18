@@ -109,7 +109,7 @@ struct CardPaymentScheduleSheet: View {
 
       Section {
         amountRow(.statement, title: statementTitle(cycle), value: statementAmount(cycle))
-        amountRow(.minimum, title: "Minimum", value: cycle.minimumDue)
+        amountRow(.minimum, title: "Minimum", value: cycle.minimumOutstanding)
         amountRow(.fixed, title: "Other", value: nil)
         if amountChoice == .fixed {
           TextField("Amount from your statement", text: $otherText)
@@ -120,7 +120,7 @@ struct CardPaymentScheduleSheet: View {
       } header: {
         Text("Amount")
       } footer: {
-        Text("\(money(cycle.statementBalance)) recorded so far. Check your statement for the actual amount, and use Other to enter it.")
+        Text(amountFooter(cycle))
       }
 
       Section {
@@ -233,14 +233,32 @@ struct CardPaymentScheduleSheet: View {
     .accessibilityAddTraits(amountChoice == rule ? .isSelected : [])
   }
 
+  /// "Left to pay" once something was paid towards the statement;
   /// "Statement balance unknown" when nothing is recorded before the
-  /// statement date; the amount then defaults to what is owed now.
+  /// statement date, and the amount then defaults to what is owed now.
   private func statementTitle(_ cycle: CardPaymentCycle) -> String {
-    cycle.statementBalance > 0 ? "Statement" : "Statement balance unknown"
+    if cycle.coverage.paidSoFar > 0 {
+      return "Left to pay"
+    }
+    return cycle.outstanding > 0 ? "Statement" : "Statement balance unknown"
   }
 
+  /// The same figure the web suggests: the statement (or a carried one) less
+  /// what was paid in the window.
   private func statementAmount(_ cycle: CardPaymentCycle) -> Int {
-    cycle.statementBalance > 0 ? cycle.statementBalance : max(cycle.currentBalance, 0)
+    cycle.outstanding > 0 ? cycle.outstanding : max(cycle.currentBalance, 0)
+  }
+
+  private func amountFooter(_ cycle: CardPaymentCycle) -> String {
+    let check = "Check your statement for the actual amount, and use Other to enter it."
+    if let previous = cycle.previousUnpaid {
+      return "The \(CardPaymentFormat.day(previous.statementDate)) statement (\(money(previous.statementBalance))) went unpaid past \(CardPaymentFormat.day(previous.dueDate)). \(check)"
+    }
+    let paid = cycle.coverage.paidSoFar
+    if paid > 0 {
+      return "\(money(paid)) paid so far, \(money(cycle.outstanding)) left. \(check)"
+    }
+    return "\(money(cycle.statementBalance)) recorded so far. \(check)"
   }
 
   private func payDayNote(_ cycle: CardPaymentCycle) -> String {
@@ -261,7 +279,7 @@ struct CardPaymentScheduleSheet: View {
       let value = statementAmount(cycle)
       return value > 0 ? value : nil
     case .minimum:
-      return cycle.minimumDue > 0 ? cycle.minimumDue : nil
+      return cycle.minimumOutstanding > 0 ? cycle.minimumOutstanding : nil
     case .fixed:
       guard let value = MoneyCodec.milliunits(fromTyped: otherText), value > 0 else { return nil }
       return value

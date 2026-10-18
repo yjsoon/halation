@@ -70,9 +70,8 @@ enum CardPaymentCategory {
 enum CardPaymentPlanner {
   static let identifierPrefix = "halation.card."
   static let pendingLimit = 56
-  /// Overdue reminders run daily for a week after the due date, at most three
-  /// pending at once; a later rebuild adds the next.
-  static let overdueDays = 7
+  /// Overdue reminders run daily while the cycle stays overdue, at most
+  /// three pending at once; a later rebuild adds the next ones.
   static let overduePending = 3
   static let fundsHour = 18
 
@@ -294,29 +293,40 @@ enum CardPaymentPlanner {
         category: urgentCategory,
         level: .timeSensitive
       )
-      // Overdue counts from the missed due date: this cycle's, or the
-      // previous statement's when the server carried it over.
-      let missed = cycle.coverage.overdueSince ?? cycle.dueDate
-      var overdueCount = 0
-      for offset in 1 ... overdueDays where overdueCount < overduePending {
-        let day = CardCycleMaths.addDays(missed, offset)
-        let before = result.count
-        add(
-          .overdue,
-          suffix: offset == 1 ? nil : "\(offset)",
-          on: day,
-          hour: hour,
-          title: "Overdue: \(name)",
-          body: sentence(
-            "Payment was due \(CardPaymentFormat.day(missed)).",
-            quotesAmounts ? "\(recorded)." : "",
-            "Late fees and interest may apply."
-          ),
-          category: urgentCategory,
-          level: .timeSensitive
-        )
-        if result.count > before {
-          overdueCount += 1
+      // The server decides what is overdue. A due date still ahead gets the
+      // daily run planned in advance, in case it passes unpaid; a due date
+      // that passed without the server calling it overdue (terms set up
+      // after it) gets none. The run starts the day after this cycle's own
+      // due date, or today when that is later, and `since` (the missed due
+      // date, possibly the previous statement's) is only in the wording.
+      let today = input.now.isoDateString
+      if cycle.coverage.isOverdue || cycle.dueDate >= input.view.asOf {
+        let missed = cycle.coverage.overdueSince ?? cycle.dueDate
+        let paid = cycle.coverage.paidSoFar
+        let firstOffset = max(1, CardCycleMaths.days(from: cycle.dueDate, to: today))
+        var overdueCount = 0
+        var offset = firstOffset
+        while overdueCount < overduePending, offset < firstOffset + overduePending + 2 {
+          let before = result.count
+          add(
+            .overdue,
+            suffix: offset == 1 ? nil : "\(offset)",
+            on: CardCycleMaths.addDays(cycle.dueDate, offset),
+            hour: hour,
+            title: "Overdue: \(name)",
+            body: sentence(
+              "Overdue since \(CardPaymentFormat.day(missed)).",
+              paid > 0 ? "\(input.money(paid)) paid so far." : "",
+              quotesAmounts && paid == 0 ? "\(recorded)." : "",
+              "Late fees and interest may apply."
+            ),
+            category: urgentCategory,
+            level: .timeSensitive
+          )
+          if result.count > before {
+            overdueCount += 1
+          }
+          offset += 1
         }
       }
     }
@@ -349,14 +359,15 @@ enum CardPaymentPlanner {
     return (components, date)
   }
 
-  /// Cards overdue or due today and not covered: the card payments badge.
-  /// A previous statement carried over as overdue counts too.
+  /// Cards the server calls overdue, or due today, and not covered: the
+  /// card payments badge. A due date that passed without the server calling
+  /// it overdue (terms set up after it) does not count.
   static func attentionCount(view: CardPaymentsView, today: String) -> Int {
     Set(view.cycles.filter { cycle in
       cycle.isCurrent
         && !cycle.coverage.isCovered
         && view.terms(for: cycle.accountID)?.enabled == true
-        && (cycle.coverage.isOverdue || (cycle.needsPaying && cycle.dueDate <= today))
+        && (cycle.coverage.isOverdue || (cycle.needsPaying && cycle.dueDate == today))
     }.map(\.accountID)).count
   }
 }

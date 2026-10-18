@@ -1004,13 +1004,13 @@ extension APIClient {
   func cardScheduleCreate(
     planID: String,
     idempotencyKey: String,
-    request scheduledTransaction: ScheduledTransactionWriteRequest
+    body: CardScheduleWriteBody
   ) async throws -> OutboxReply {
     try await outboxSend(
       path: "/v1/plans/\(planID)/scheduled_transactions",
       method: "POST",
       headers: ["Idempotency-Key": idempotencyKey],
-      body: try encoder.encode(ScheduledTransactionWriteEnvelope(scheduledTransaction: scheduledTransaction))
+      body: try encoder.encode(CardScheduleWriteEnvelope(scheduledTransaction: body))
     )
   }
 

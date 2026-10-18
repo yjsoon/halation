@@ -51,7 +51,7 @@ struct PaymentsDueBand: View {
             rowView(row)
           }
           Divider().padding(.leading, 16)
-          Text("Amounts are what Halation has recorded so far. Check your statement for the actual amount.")
+          Text("Amounts are what Halation has recorded so far. Check your statement for the actual amount. Record payments as a transfer from your bank account so Halation can tell the statement is paid.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -268,9 +268,11 @@ struct PaymentsDueRow: Identifiable {
     return !cycle.coverage.isCovered
   }
 
+  /// Only the server's overdue state counts: a due date that passed before
+  /// the card was set up is not overdue.
   var isOverdue: Bool {
     guard let cycle, needsAction else { return false }
-    return cycle.coverage.isOverdue || cycle.dueDate < today
+    return cycle.coverage.isOverdue
   }
 
   func primaryLine(money: (Int) -> String) -> String {
@@ -278,7 +280,9 @@ struct PaymentsDueRow: Identifiable {
       return "No statement yet"
     }
     if isOverdue {
-      return "Overdue since \(CardPaymentFormat.day(cycle.coverage.overdueSince ?? cycle.dueDate))"
+      let since = "Overdue since \(CardPaymentFormat.day(cycle.coverage.overdueSince ?? cycle.dueDate))"
+      let paid = cycle.coverage.paidSoFar
+      return paid > 0 ? "\(since) · \(money(paid)) paid" : since
     }
     switch cycle.coverage {
     case .partial(_, _, let paid, _):
@@ -297,6 +301,9 @@ struct PaymentsDueRow: Identifiable {
       }
       if cycle.statementDate > today {
         return "Statement \(CardPaymentFormat.day(cycle.statementDate))"
+      }
+      if cycle.dueDate < today {
+        return "Due \(CardPaymentFormat.day(cycle.dueDate)) (passed)"
       }
       return "Due \(CardPaymentFormat.weekdayDay(cycle.dueDate)) · \(Self.daysLabel(from: today, to: cycle.dueDate))"
     }
@@ -321,7 +328,8 @@ struct PaymentsDueRow: Identifiable {
   /// A covered or current cycle can still carry an unpaid previous
   /// statement: say so, so a schedule for this one does not hide it.
   func previousUnpaidLine(money: (Int) -> String) -> String? {
-    guard let previous = cycle?.previousUnpaid else {
+    // An overdue row already says so, as on the web.
+    guard let cycle, let previous = cycle.previousUnpaid, !cycle.coverage.isOverdue else {
       return nil
     }
     return "Previous statement (\(CardPaymentFormat.day(previous.statementDate))) unpaid: \(money(previous.statementBalance)) was due \(CardPaymentFormat.day(previous.dueDate))"

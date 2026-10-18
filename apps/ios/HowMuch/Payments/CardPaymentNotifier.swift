@@ -194,7 +194,9 @@ final class CardPaymentNotifier {
   /// means its leftovers need clearing even if this plan has no cards.
   private static let lastFingerprintKey = "halation.card.last-fingerprint"
   /// Notices that are not reminders for a cycle: they stay until dismissed.
-  private static let followUpTouchpoints: Set<String> = ["confirm", "failed", "unsent", "already", "dropped"]
+  private static let followUpTouchpoints: Set<String> = ["confirm", "failed", "unsent", "already", "dropped", "queued", "ignored"]
+  /// The time a background Paid or Scheduled may spend before it reports.
+  static let actionBudget: Duration = .seconds(22)
 
   init(center: UNUserNotificationCenter = .current()) {
     self.center = center
@@ -503,7 +505,9 @@ final class CardPaymentNotifier {
     }
   }
 
-  func settle(timeout: Duration = .seconds(8)) async {
+  /// iOS gives a background action about 30 seconds; the actions budget
+  /// their own work against `actionBudget` and this waits a little longer.
+  func settle(timeout: Duration = .seconds(26)) async {
     let deadline = ContinuousClock.now + timeout
     while !inFlight.isEmpty, ContinuousClock.now < deadline {
       try? await Task.sleep(for: .milliseconds(50))
@@ -519,6 +523,19 @@ final class CardPaymentNotifier {
     let statementDate = info["statementDate"] ?? ""
     guard let model = IntakeBackgroundRefresh.shared.model, model.settings.isAuthenticated,
           info["connectionFingerprint"] == model.settings.connectionFingerprint else {
+      // Signed out, or a reminder from another plan or server: say why
+      // nothing happened rather than doing nothing.
+      if action != UNNotificationDismissActionIdentifier {
+        track { [weak self] in
+          await self?.postNow(
+            identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: statementDate, touchpoint: "ignored"),
+            title: "Reminder not used",
+            body: "This reminder belongs to another plan or server, or you are signed out. Open Halation to check your card payments.",
+            info: ["kind": "card", "touchpoint": "ignored", "accountId": accountID, "statementDate": statementDate,
+                   "connectionFingerprint": IntakeBackgroundRefresh.shared.model?.settings.connectionFingerprint ?? ""]
+          )
+        }
+      }
       return
     }
     switch action {
@@ -530,7 +547,8 @@ final class CardPaymentNotifier {
       // A cold launch has no fetched view yet: the cached one seeds the sheet
       // and the sheet refreshes when the cycle is missing.
       model.restoreCardPaymentsIfNeeded()
-      presentedSheet = .schedule(CardScheduleRequest(accountID: accountID, statementDate: statementDate))
+      let target = model.effectiveCardPayments.payableCycle(accountID: accountID, statementDate: statementDate)?.statementDate
+      presentedSheet = .schedule(CardScheduleRequest(accountID: accountID, statementDate: target ?? statementDate))
     case CardPaymentCategory.Action.paid:
       track { [weak self] in
         await self?.paidInBackground(model: model, accountID: accountID, statementDate: statementDate, info: info)
@@ -545,13 +563,14 @@ final class CardPaymentNotifier {
       // Open, or a plain tap: an unpaid cycle opens its sheet; anything
       // else opens the card's register.
       model.restoreCardPaymentsIfNeeded()
-      let cycle = model.effectiveCardPayments.cycle(accountID: accountID, statementDate: statementDate)
+      let cycle = model.effectiveCardPayments.payableCycle(accountID: accountID, statementDate: statementDate)
       let touchpoint = info["touchpoint"] ?? ""
       if touchpoint == "confirm", let scheduleID = info["scheduleId"], !scheduleID.isEmpty {
         // "Tap to change" on a background Scheduled confirmation.
         presentedSheet = .editSchedule(scheduleID)
       } else if let cycle, !cycle.coverage.isCovered, cycle.needsPaying, touchpoint != "funds", touchpoint != "confirm" {
-        presentedSheet = .schedule(CardScheduleRequest(accountID: accountID, statementDate: statementDate))
+        // A carried statement opens the current cycle it was carried into.
+        presentedSheet = .schedule(CardScheduleRequest(accountID: accountID, statementDate: cycle.statementDate))
       } else {
         pendingAccountID = accountID
       }
@@ -559,54 +578,85 @@ final class CardPaymentNotifier {
   }
 
   private func scheduleInBackground(model: AppModel, accountID: String, statementDate: String, info: [String: String]) async {
+    let deadline = ContinuousClock.now + Self.actionBudget
     let name = info["cardName"] ?? model.account(withID: accountID)?.name ?? "your card"
-    guard await proceedAfterCheck(model: model, accountID: accountID, statementDate: statementDate, name: name) else {
+    guard let checked = await checkedCycle(model: model, accountID: accountID, statementDate: statementDate, name: name) else {
       return
     }
-    let context = model.cardPaymentContext(accountID: accountID, statementDate: statementDate, info: info)
+    // A statement carried into the current cycle is scheduled there.
+    let target = checked?.statementDate ?? statementDate
+    let context = model.cardPaymentContext(accountID: accountID, statementDate: target, info: info)
     guard let context, let funding = context.fundingAccountID,
           model.openAccounts.isEmpty || model.openAccounts.contains(where: { $0.id == funding }),
           let amount = context.defaultAmount, amount > 0 else {
-      await postSetupNeeded(accountID: accountID, statementDate: statementDate, name: name, model: model)
+      await postSetupNeeded(accountID: accountID, statementDate: target, name: name, model: model)
       return
     }
     let payDate = context.suggestedPayDate(today: Date.now.isoDateString)
+    let fingerprint = model.settings.connectionFingerprint
+    let money = MoneyCodec.displayString(for: amount, currencyFormat: model.currencyFormat)
+    let fundingName = model.account(withID: funding)?.name ?? "your account"
+    func fields(_ touchpoint: String, scheduleID: String? = nil) -> [String: String] {
+      var result = ["kind": "card", "touchpoint": touchpoint, "accountId": accountID, "statementDate": target,
+                    "connectionFingerprint": fingerprint]
+      result["scheduleId"] = scheduleID
+      return result
+    }
     do {
-      let scheduleID = try await model.scheduleCardPayment(
+      let result = try await model.scheduleCardPayment(
         accountID: accountID,
-        statementDate: statementDate,
+        statementDate: target,
         amount: amount,
         fundingAccountID: funding,
         payDate: payDate,
         showsMessage: false,
-        sendsNow: true
+        sendsNow: true,
+        deadline: deadline
       )
-      let fundingName = model.account(withID: funding)?.name ?? "your account"
-      var confirmInfo = ["kind": "card", "touchpoint": "confirm", "accountId": accountID, "statementDate": statementDate,
-                         "connectionFingerprint": model.settings.connectionFingerprint]
-      if let scheduleID {
-        confirmInfo["scheduleId"] = scheduleID
+      // Report first; refreshes come after, in whatever time is left.
+      switch result {
+      case .scheduled(let scheduleID):
+        await postNow(
+          identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: target, touchpoint: "confirm"),
+          title: "Scheduled",
+          body: Self.scheduledConfirmation(amount: money, fundingName: fundingName, payDate: payDate) + " " + Self.amountCaveat,
+          info: fields("confirm", scheduleID: scheduleID)
+        )
+      case .pending:
+        await postNow(
+          identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: target, touchpoint: "queued"),
+          title: "Saved on this iPhone",
+          body: "\(money) from \(fundingName) on \(CardPaymentFormat.weekdayDay(payDate)) is queued and will be sent when Halation can reach the server.",
+          info: fields("queued")
+        )
+      case .covered, .gone:
+        await postNow(
+          identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: target, touchpoint: "already"),
+          title: "Already paid or scheduled",
+          body: "\(name) needs nothing more for this statement. Nothing was changed.",
+          info: fields("already")
+        )
+      case .refused(let message):
+        await postFailure(name: name, message: message, accountID: accountID, statementDate: target, fingerprint: fingerprint)
       }
-      await postNow(
-        identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: statementDate, touchpoint: "confirm"),
-        title: "Scheduled",
-        body: Self.scheduledConfirmation(
-          amount: MoneyCodec.displayString(for: amount, currencyFormat: model.currencyFormat),
-          fundingName: fundingName,
-          payDate: payDate
-        ) + " " + Self.amountCaveat,
-        info: confirmInfo
-      )
     } catch {
-      await postNow(
-        identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: statementDate, touchpoint: "failed"),
-        title: "Couldn’t schedule \(name)",
-        body: "\(error.localizedDescription) Open Halation to try again.",
-        info: ["kind": "card", "touchpoint": "failed", "accountId": accountID, "statementDate": statementDate,
-               "connectionFingerprint": model.settings.connectionFingerprint]
-      )
+      await postFailure(name: name, message: error.localizedDescription, accountID: accountID, statementDate: target, fingerprint: fingerprint)
     }
-    await rebuild(model: model)
+    if ContinuousClock.now < deadline, !model.settings.isLocal {
+      await model.refreshAfterCardScheduling()
+    } else {
+      await rebuild(model: model)
+    }
+  }
+
+  private func postFailure(name: String, message: String, accountID: String, statementDate: String, fingerprint: String) async {
+    await postNow(
+      identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: statementDate, touchpoint: "failed"),
+      title: "Couldn’t schedule \(name)",
+      body: "\(message) Open Halation to try again.",
+      info: ["kind": "card", "touchpoint": "failed", "accountId": accountID, "statementDate": statementDate,
+             "connectionFingerprint": fingerprint]
+    )
   }
 
   /// The caveat on a background Scheduled confirmation; a tap opens the
@@ -614,13 +664,19 @@ final class CardPaymentNotifier {
   static let amountCaveat = "Check the amount against your statement. Tap to change."
 
   /// Checks the cycle before a background Paid or Scheduled writes anything.
-  /// Covered elsewhere, or gone from the view: a quiet notice, no write.
-  private func proceedAfterCheck(model: AppModel, accountID: String, statementDate: String, name: String) async -> Bool {
-    let check = await model.checkCardCycleBeforeAction(accountID: accountID, statementDate: statementDate)
+  /// Returns the cycle to act on (`.some(nil)` when the view cannot say), or
+  /// nil after posting a quiet notice when it is covered elsewhere or gone.
+  private func checkedCycle(
+    model: AppModel,
+    accountID: String,
+    statementDate: String,
+    name: String
+  ) async -> CardPaymentCycle?? {
+    let check = await model.checkCardCycleBeforeAction(accountID: accountID, statementDate: statementDate, timeout: .seconds(4))
     let body: String
     switch check {
-    case .due:
-      return true
+    case .due(let cycle):
+      return .some(cycle)
     case .covered:
       body = "\(name) is already paid or scheduled for this statement. Nothing was changed."
     case .gone:
@@ -634,36 +690,38 @@ final class CardPaymentNotifier {
              "connectionFingerprint": model.settings.connectionFingerprint]
     )
     await rebuild(model: model)
-    return false
+    return nil
   }
 
   private func paidInBackground(model: AppModel, accountID: String, statementDate: String, info: [String: String]) async {
     let name = info["cardName"] ?? model.account(withID: accountID)?.name ?? "your card"
-    guard await proceedAfterCheck(model: model, accountID: accountID, statementDate: statementDate, name: name) else {
+    guard let checked = await checkedCycle(model: model, accountID: accountID, statementDate: statementDate, name: name) else {
       return
     }
-    let context = model.cardPaymentContext(accountID: accountID, statementDate: statementDate, info: info)
+    // A statement carried into the current cycle is paid there.
+    let target = checked?.statementDate ?? statementDate
+    let context = model.cardPaymentContext(accountID: accountID, statementDate: target, info: info)
     guard let context, let funding = context.fundingAccountID, let amount = context.defaultAmount, amount > 0 else {
-      await postSetupNeeded(accountID: accountID, statementDate: statementDate, name: name, model: model)
+      await postSetupNeeded(accountID: accountID, statementDate: target, name: name, model: model)
       return
     }
     do {
       try model.recordCardPaymentPaid(
         accountID: accountID,
-        statementDate: statementDate,
+        statementDate: target,
         amount: amount,
         fundingAccountID: funding
       )
       let fundingName = model.account(withID: funding)?.name ?? "your account"
       await postNow(
-        identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: statementDate, touchpoint: "confirm"),
+        identifier: CardPaymentPlanner.identifier(accountID: accountID, statementDate: target, touchpoint: "confirm"),
         title: "Recorded",
         body: "Recorded \(MoneyCodec.displayString(for: amount, currencyFormat: model.currencyFormat)) paid to \(name) from \(fundingName) today.",
-        info: ["kind": "card", "touchpoint": "confirm", "accountId": accountID, "statementDate": statementDate,
+        info: ["kind": "card", "touchpoint": "confirm", "accountId": accountID, "statementDate": target,
                "connectionFingerprint": model.settings.connectionFingerprint]
       )
     } catch {
-      await postSetupNeeded(accountID: accountID, statementDate: statementDate, name: name, model: model)
+      await postSetupNeeded(accountID: accountID, statementDate: target, name: name, model: model)
     }
     // Give the outbox a moment to send before re-planning.
     await model.waitForOutboxDrain()

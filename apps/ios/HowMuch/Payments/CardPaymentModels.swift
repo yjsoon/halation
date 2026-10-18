@@ -241,6 +241,14 @@ enum CardPaymentCoverage: Codable, Hashable {
     if case .overdue(let since, _) = self { return since }
     return nil
   }
+
+  /// What was paid in the window towards a cycle that is still short.
+  var paidSoFar: Int {
+    switch self {
+    case .partial(_, _, let paid, _), .overdue(_, let paid): paid
+    default: 0
+    }
+  }
 }
 
 /// The previous statement, when it went past its due date unpaid.
@@ -312,6 +320,23 @@ struct CardPaymentCycle: Codable, Hashable, Identifiable {
     case previousUnpaid
   }
 
+  /// Still owed for this cycle, as the web's `outstanding()`: the statement
+  /// (or a carried unpaid one, whichever is larger) less what was paid in
+  /// the window.
+  var outstanding: Int {
+    if case .partial(_, _, _, let remaining) = coverage {
+      return max(remaining, 0)
+    }
+    let owed = max(statementBalance, previousUnpaid?.statementBalance ?? 0)
+    return max(owed - coverage.paidSoFar, 0)
+  }
+
+  /// The minimum still to pay, never more than what is outstanding.
+  var minimumOutstanding: Int {
+    let minimum = max(minimumDue, previousUnpaid?.minimumDue ?? 0)
+    return min(max(minimum - coverage.paidSoFar, 0), outstanding)
+  }
+
   func with(coverage: CardPaymentCoverage) -> CardPaymentCycle {
     var copy = self
     copy.coverage = coverage
@@ -337,6 +362,18 @@ struct CardPaymentsView: Codable, Equatable {
 
   func cycle(accountID: String, statementDate: String) -> CardPaymentCycle? {
     cycles.first { $0.accountID == accountID && $0.statementDate == statementDate }
+  }
+
+  /// The cycle a tap for `statementDate` should act on: that cycle, or the
+  /// current one when the tapped statement went unpaid and was carried into
+  /// it.
+  func payableCycle(accountID: String, statementDate: String) -> CardPaymentCycle? {
+    if let cycle = cycle(accountID: accountID, statementDate: statementDate) {
+      return cycle
+    }
+    return cycles.first {
+      $0.accountID == accountID && $0.isCurrent && $0.previousUnpaid?.statementDate == statementDate
+    }
   }
 }
 
@@ -471,6 +508,12 @@ enum CardCycleMaths {
     return String(format: "%04d-%02d-%02d", normalisedYear, normalisedMonth + 1, min(statementDay, length))
   }
 
+  /// Whole days from `start` to `end` (negative when `end` is earlier).
+  static func days(from start: String, to end: String) -> Int {
+    guard let first = date(start), let last = date(end) else { return 0 }
+    return calendar.dateComponents([.day], from: first, to: last).day ?? 0
+  }
+
   static func isWorkingDay(_ value: String) -> Bool {
     guard let day = date(value) else { return true }
     let weekday = calendar.component(.weekday, from: day)
@@ -515,6 +558,15 @@ enum CardPaymentFormat {
   static func weekdayDay(_ iso: String) -> String {
     guard let date = Date(isoDateString: iso) else { return iso }
     return weekdayFormatter.string(from: date)
+  }
+
+  /// "3 Sep" from a fixed month list, byte-identical with the web's memo
+  /// whatever the device's locale ("Sept" never appears).
+  static func memoDay(_ iso: String) -> String {
+    let months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    let parts = iso.split(separator: "-").compactMap { Int($0) }
+    guard parts.count == 3, (1 ... 12).contains(parts[1]) else { return iso }
+    return "\(parts[2]) \(months[parts[1] - 1])"
   }
 
   /// "28 Nov"
