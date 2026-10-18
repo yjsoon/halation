@@ -1,3 +1,4 @@
+== branch b569efb (run before commit, same tree)
 before restart: {"name":"Daily","icon":"💳"}
 stored row before: {"name":"💳 Daily","icon":"🏦"}
 after restart:  {"name":"Daily","icon":"💳"}

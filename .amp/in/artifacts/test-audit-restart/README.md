@@ -1,6 +1,6 @@
 # Account emoji across a SQLite server restart
 
-Revision: branch `claude/test-audit-legacy-4sbyfh` at 81d27c8, compared with `apps/api/src/db.ts` from main (73e6731).
+Revision: branch `claude/test-audit-legacy-4sbyfh` at b569efb, compared with `apps/api/src/db.ts` from main (73e6731).
 
 Fixture: a fresh disposable SQLite file seeded from `fixtures/demo-ledger.json` (`scripts/seed-demo.ts`, plan `local-plan`). Synthetic data only.
 
