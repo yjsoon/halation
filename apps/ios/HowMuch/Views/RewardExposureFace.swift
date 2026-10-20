@@ -395,17 +395,18 @@ private struct ExposurePainter {
 final class ExposureMemory {
   static let shared = ExposureMemory()
 
-  private var shown: [String: (target: String, pose: RewardExposure.Pose)] = [:]
+  private var shown: [String: (target: String, light: RewardExposure.Light, pose: RewardExposure.Pose)] = [:]
 
   /// Where a row starts: its journey's start the first time, the remembered pose when the
-  /// target is unchanged, and in place when the target changed while the row was off screen.
+  /// target and light are unchanged, and in place when either changed while the row was off
+  /// screen (failed and calm cards can share a target string).
   func startPose(for key: String, exposure: RewardExposure) -> RewardExposure.Pose {
     guard let last = shown[key] else { return exposure.journeyStart }
-    return last.target == exposure.target ? last.pose : exposure.pose
+    return last.target == exposure.target && last.light == exposure.light ? last.pose : exposure.pose
   }
 
   func remember(_ exposure: RewardExposure, key: String) {
-    shown[key] = (exposure.target, exposure.pose)
+    shown[key] = (exposure.target, exposure.light, exposure.pose)
   }
 }
 
