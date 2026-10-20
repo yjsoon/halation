@@ -429,8 +429,10 @@ struct RewardExposureAnimator: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.colorScheme) private var colorScheme
   @State private var shown: RewardExposure.Pose
-  /// Changes only when a target change falls or relights.
-  @State private var faceID: String
+  /// Steps only when the face falls or relights. A counter rather than the target, because failed,
+  /// calm and top-tier cards can share a target string, and a glided target can later fall back to one
+  /// the face was already keyed on.
+  @State private var faceID = 0
   @State private var glideTask: Task<Void, Never>?
 
   init(exposure: RewardExposure, layout: ExposureLayout, key: String, index: Int = 0) {
@@ -439,7 +441,6 @@ struct RewardExposureAnimator: View {
     self.key = key
     self.index = index
     _shown = State(initialValue: ExposureMemory.shared.startPose(for: key, exposure: exposure))
-    _faceID = State(initialValue: exposure.target)
   }
 
   var body: some View {
@@ -456,11 +457,12 @@ struct RewardExposureAnimator: View {
     }
     .onChange(of: exposure) { old, new in
       ExposureMemory.shared.remember(new, key: key)
-      let relit = (new.stage == .gate) != (old.stage == .gate)
-      if relit || (new.target != old.target && (new.pose.falls(from: old.pose) || new.light != old.light)) {
+      // A changed light always swaps; a changed target only where it would fall.
+      let relit = new.light != old.light || (new.stage == .gate) != (old.stage == .gate)
+      if relit || (new.target != old.target && new.pose.falls(from: old.pose)) {
         glideTask?.cancel()
         withAnimation(reduceMotion ? nil : Theme.Motion.standard) {
-          faceID = new.target
+          faceID += 1
           shown = new.pose
         }
       } else {
