@@ -1,12 +1,16 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { StatusPanel } from "../components/StatusPanel";
+import { parseMilliunits } from "../lib/money";
 import { ACCOUNT_KIND_GROUPS, newAccountRequest, storesLiability, type NewAccountKind } from "../lib/new-account";
 import { usePlan } from "../state/plan";
 
 export function NewAccountPage() {
-  const { accounts, createAccount } = usePlan();
+  const { accounts, createAccount, provisional } = usePlan();
   const navigate = useNavigate();
+  // Quick entry sends people here and expects them back with the account chosen.
+  const [params] = useSearchParams();
+  const returnToQuickEntry = params.get("then") === "add";
   const [name, setName] = useState("");
   const [kind, setKind] = useState<NewAccountKind>("checking");
   const [balance, setBalance] = useState("");
@@ -19,16 +23,19 @@ export function NewAccountPage() {
 
   const request = newAccountRequest({ name, kind, balance });
   const liability = storesLiability(kind);
-  const balanceInvalid = !request.ok && request.error === "balance";
+  // Judged on its own, so a bad amount shows before a name is typed.
+  const balanceInvalid = balance.trim() !== "" && parseMilliunits(balance) === null;
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!request.ok || saving) return;
+    if (!request.ok || saving || provisional) return;
     setSaving(true);
     setError(null);
     try {
       const created = await createAccount(request.body);
-      navigate(`/transactions?accounts=${encodeURIComponent(created.id)}&range=all`);
+      navigate(returnToQuickEntry
+        ? `/add?account=${encodeURIComponent(created.id)}`
+        : `/transactions?accounts=${encodeURIComponent(created.id)}&range=all`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setSaving(false);
@@ -94,7 +101,7 @@ export function NewAccountPage() {
                 : "Today’s balance. Use a minus sign if you’re overdrawn."}
           </span>
         </label>
-        <button type="submit" className="save-button" disabled={!request.ok || saving}>
+        <button type="submit" className="save-button" disabled={!request.ok || saving || provisional}>
           {saving ? "Creating…" : "Create account"}
         </button>
       </form>

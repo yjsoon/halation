@@ -1466,16 +1466,24 @@ export function TransactionsPage() {
   // A new ledger has nothing to filter, so it needs a way forward rather
   // than advice about date ranges and search terms.
   const noAccounts = accounts.length === 0;
+  const noOpenAccounts = !accounts.some((account) => !account.closed);
+  const emptyLedger = page.loaded && page.transactions.length === 0 && !filters.from && !filters.to;
   const emptyMessage = noAccounts
     ? "Add your first account"
-    : page.loaded && page.transactions.length === 0
+    : noOpenAccounts && emptyLedger
+      ? "All your accounts are closed"
+      : page.loaded && page.transactions.length === 0
       ? filters.from || filters.to ? "No transactions in this date range." : "No transactions yet."
       : deferredSearch.trim()
         ? "No transactions match this search."
         : "No transactions match these filters.";
   const emptyDetail = noAccounts
     ? <>Transactions belong to an account. <Link to="/accounts/new">Create one</Link> with its current balance, then add transactions to it.</>
-    : "Try widening the date range, clearing filters, or shortening the search term.";
+    : noOpenAccounts && emptyLedger
+      ? <>New transactions need an open account. <Link to="/accounts/new">Create one</Link> to keep recording.</>
+      : emptyLedger && !deferredSearch.trim()
+        ? "Choose + Add transaction to record the first one."
+        : "Try widening the date range, clearing filters, or shortening the search term.";
   const mutationBusy = writeLocked || Boolean(mutatingId);
   const deepLinkError = planSelectionError
     ?? (deepLink.kind === "invalid" ? deepLink.message : deepLinkedTransaction.error);
@@ -1567,7 +1575,10 @@ export function TransactionsPage() {
             onClick={openCompose}
             disabled={!canCompose || mutationBusy}
             title={!canCompose
-              ? selectedAccount?.closed ? "This account is closed" : noAccounts ? "Add an account first" : undefined
+              ? selectedAccount?.closed ? "This account is closed"
+                : noAccounts ? "Add an account first"
+                : noOpenAccounts ? "All accounts are closed. Add an open account first."
+                : undefined
               : undefined}
           >
             + Add transaction

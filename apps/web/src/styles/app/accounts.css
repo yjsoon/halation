@@ -594,6 +594,12 @@
   gap: 6px;
 }
 
+.account-list-actions a.account-organiser-entry {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .account-list-empty {
   padding: 6px 10px;
   color: var(--sidebar-ink-soft);

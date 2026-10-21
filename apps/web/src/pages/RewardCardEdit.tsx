@@ -270,8 +270,8 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
         >
           {accountChoices.length === 0 && !card && (
             <p className="field-note">
-              {accounts.length === 0
-                ? <>No accounts yet. <Link to="/accounts/new">Create an account</Link> first, then come back to add its card.</>
+              {rewardCardAccountChoices(accounts, []).length === 0
+                ? <>No open spending account yet. <Link to="/accounts/new">Create an account</Link> first, then come back to add its card.</>
                 : <>No eligible accounts left to add. Every open spending account already has rewards rules. <Link to="/accounts/new">Create an account</Link> to add another card.</>}
             </p>
           )}
