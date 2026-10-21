@@ -17,6 +17,11 @@ export type ApiConfig = {
   /** Interface the self-hosted Bun server binds to; loopback by default. */
   hostname?: string;
   apiToken?: string;
+  /**
+   * Refuse first-owner setup without a token from any host. The Worker sets
+   * this: there, no Host header proves the request came from this machine.
+   */
+  refuseTokenlessSetup?: boolean;
   defaultPlanId: string;
   transitionReadOnly: boolean;
   ynabToken?: string;

@@ -1189,10 +1189,15 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
     const user = principal && principal.kind !== "api-token"
       ? { id: principal.id, username: principal.username }
       : null;
+    const setupRequired = await store.setupRequired();
     return authJson({
       data: {
-        setup_required: await store.setupRequired(),
+        setup_required: setupRequired,
         bootstrap_required: !!config.apiToken,
+        // Setup would be refused from this host because no setup token is
+        // configured. Lets the web app show the missing-secret step instead
+        // of a form that can only fail.
+        setup_blocked: setupRequired && !config.apiToken && !tokenlessSetupAllowed(config, url),
         user,
         // Unix seconds. The web client stores this and refuses to paint cached
         // ledger data once it has passed, so an expired cookie cannot show the
@@ -1264,11 +1269,11 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
     if (!sameOrigin(request, url)) {
       return authError(403, "forbidden", "Origin validation failed");
     }
-    if (!config.apiToken && !isLoopbackHost(url.hostname)) {
+    if (!config.apiToken && !tokenlessSetupAllowed(config, url)) {
       return authError(
         403,
         "forbidden",
-        "Tokenless setup is only allowed from this machine; set HOWMUCH_API_TOKEN",
+        "This server has no setup token. Set HOWMUCH_API_TOKEN on this server, then reload this page.",
       );
     }
     const authorization = request.headers.get("authorization");
@@ -1277,7 +1282,11 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
       ? bootstrapToken !== null && safeTokenEqual(bootstrapToken, config.apiToken)
       : authorization === null;
     if (!validBootstrap) {
-      return authError(401, "not_authorized", "Invalid setup token");
+      return authError(
+        401,
+        "not_authorized",
+        "That setup token does not match. Use the HOWMUCH_API_TOKEN value you set when deploying this server.",
+      );
     }
 
     const body = await readJson(request);
@@ -1425,6 +1434,11 @@ async function pruneAuthRows(store: AuthStore): Promise<void> {
   } catch (error) {
     console.error("Could not prune expired auth rows", error);
   }
+}
+
+/** Setup without a token is only for a local server reached on loopback. */
+function tokenlessSetupAllowed(config: ApiConfig, url: URL): boolean {
+  return !config.refuseTokenlessSetup && isLoopbackHost(url.hostname);
 }
 
 async function authenticate(request: Request, store: AuthStore, apiToken?: string): Promise<Principal | null> {

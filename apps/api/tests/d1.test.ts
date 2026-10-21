@@ -245,6 +245,30 @@ describe("D1 foundation", () => {
     });
   });
 
+  // Failure mode: a Worker deployed without HOWMUCH_API_TOKEN. Its Host is never
+  // proof of "this machine" (wrangler dev and service bindings can send
+  // localhost), so it must refuse tokenless setup and say why in its status.
+  test("Worker without a setup token refuses setup on any host and reports it", async () => {
+    const db = await ledgerSqlite();
+    const env = {
+      ASSETS: { fetch: async () => new Response("asset") },
+      DB: fakeD1(db),
+      HOWMUCH_DEFAULT_PLAN_ID: "p",
+      HOWMUCH_TIME_ZONE: "Asia/Singapore",
+      HOWMUCH_TRANSITION_READ_ONLY: "false",
+    };
+    const status = await worker.fetch(new Request("http://localhost/api/auth/status"), env as any);
+    expect(status.status).toBe(200);
+    expect((await status.json() as { data: unknown }).data).toMatchObject({ setup_required: true, setup_blocked: true });
+    const setup = await worker.fetch(new Request("http://localhost/api/auth/setup", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "http://localhost" },
+      body: JSON.stringify({ username: "owner", password: "worker-setup-passphrase" }),
+    }), env as any);
+    expect(setup.status).toBe(403);
+    expect(db.query("SELECT COUNT(*) AS count FROM users").get()).toEqual({ count: 0 });
+  });
+
   test("Worker routes exact crons while allowing YNAB sync after financial writes are enabled", async () => {
     const db = await ledgerSqlite();
     const setup = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");

@@ -17,10 +17,24 @@ Halation is self-hosted only. There is no hosted service and no public sign-up: 
 
 You have two options:
 
-- **On your iPhone alone.** Choose **Start on this iPhone** when the app first opens and the ledger lives on the device.
-- **On your own Cloudflare account.** Run the web app and API as a Cloudflare Worker with a D1 database. One instance serves one person or household, and the iPhone app can connect to it. Use the button below, or follow the [self-hosting guide](docs/self-hosting.md) for the manual route and what to do after deploying.
+- **On your iPhone alone.** Install the app (see [Getting the iPhone app](#getting-the-iphone-app)), then choose **Start on this iPhone** when it first opens. The ledger lives on the device.
+- **On your own Cloudflare account.** Run the web app and API as a Cloudflare Worker with a D1 database. One instance serves one person or household, and the iPhone app can connect to it. It needs the Workers Paid plan (US$5 a month), because password hashing exceeds the free plan's CPU limit. Use the button below, or follow the [self-hosting guide](docs/self-hosting.md) for the manual route and what to do after deploying.
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yjsoon/howmuch)
+
+### Getting the iPhone app
+
+The iPhone app is not on the App Store or TestFlight. To install it today, build it from this repository and sign it with your own Apple developer account. You need a Mac with Xcode 26 and an iPhone on iOS 26 or later.
+
+1. Clone the repository and open `apps/ios/HowMuch.xcodeproj` in Xcode. You do not need Bun: the app's bundled engine is already in the repository.
+2. For the **HowMuch** and **HowMuchShare** targets, open **Signing & Capabilities**, choose your own team, and give each a bundle identifier of your own, such as `com.example.halation` and `com.example.halation.share`.
+3. Replace the app group `group.sg.soon.howmuch` with one of your own in both targets and in `apps/ios/HowMuch/Capture/InboxStore.swift`. The share sheet hands transactions to the app through it.
+4. In the **HowMuch** target, remove the associated domain `webcredentials:howmuch.soon.sg`. It is the owner's domain and only serves password autofill for that site.
+5. Turn on Developer Mode on the iPhone if iOS asks, choose the iPhone as the run destination, and run the **HowMuch** scheme.
+
+Keep these signing changes in your own copy. Xcode explains any capability your account cannot sign; remove it from your copy, and only the feature it serves stops working.
+
+With a free Apple account, the build stops opening after about seven days. Run it from Xcode again to renew it. Do not delete the app to fix this: in local mode the ledger lives inside the app, and deleting it erases the ledger. A paid Apple Developer Program membership lasts a year per build.
 
 Moving from YNAB? The [YNAB migration guide](docs/ynab-migration.md) covers both import routes: `bun run import:ynab` for the API and `bun run import:ynab-export` for a web export.
 

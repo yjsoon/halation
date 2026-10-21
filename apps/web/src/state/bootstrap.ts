@@ -12,7 +12,11 @@ interface BootstrapSessionStatus {
   user: { id: string } | null;
   setup_required: boolean;
   bootstrap_required: boolean;
+  setup_blocked?: boolean;
 }
+
+/** Which signed-out screen to show. */
+export type SignedOutMode = "setup" | "setup-blocked" | "login";
 
 interface PlanRef {
   id: string;
@@ -41,11 +45,11 @@ interface BootstrapRequestPlan {
 }
 
 type SessionDecision =
-  | { kind: "signed-out"; mode: "setup" | "login" }
+  | { kind: "signed-out"; mode: SignedOutMode }
   | { kind: "signed-in"; userId: string };
 
 type BootstrapDecision =
-  | { kind: "signed-out"; mode: "setup" | "login" }
+  | { kind: "signed-out"; mode: SignedOutMode }
   | { kind: "no-plans" }
   | { kind: "ready"; userId: string; planId: string; keepSpeculative: boolean; requestedPlanRejected: boolean };
 
@@ -97,7 +101,14 @@ function chooseRequestedPlanId(
 export function decideSession(status: BootstrapSessionStatus): SessionDecision {
   return status.user
     ? { kind: "signed-in", userId: status.user.id }
-    : { kind: "signed-out", mode: status.setup_required ? "setup" : "login" };
+    : { kind: "signed-out", mode: signedOutMode(status) };
+}
+
+function signedOutMode(status: BootstrapSessionStatus): SignedOutMode {
+  if (!status.setup_required) {
+    return "login";
+  }
+  return status.setup_blocked ? "setup-blocked" : "setup";
 }
 
 /**

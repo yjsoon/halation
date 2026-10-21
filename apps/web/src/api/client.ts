@@ -42,6 +42,15 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The message for a failed response that carried no Halation error detail,
+ * such as a platform error page. Over HTTP/2 `statusText` is empty, so the
+ * status alone would read as a bare number.
+ */
+function httpFailureMessage(response: Response): string {
+  return `The server could not complete the request (HTTP ${response.status}).`;
+}
+
 export const TRANSACTION_WRITE_BATCH = 100;
 
 export class BulkApprovalError extends Error {
@@ -252,7 +261,7 @@ async function request<T>(path: string, init?: RequestInit, options?: ApiRequest
         onUnauthorized?.();
       }
       const detail = (body && typeof body === "object" && "error" in body ? (body as { error?: Record<string, unknown> }).error : undefined) as (ReconciliationMismatchDetail & { detail?: string }) | undefined;
-      const message = detail?.detail ?? `${response.status} ${response.statusText}`;
+      const message = detail?.detail ?? httpFailureMessage(response);
       throw new ApiError(message, response.status, typeof detail?.name === "string" ? detail.name : undefined, detail);
     }
     if (!body || typeof body !== "object" || !("data" in body)) {
@@ -286,7 +295,7 @@ async function downloadFile(path: string, fallbackName: string): Promise<Downloa
     } catch {
       detail = undefined;
     }
-    throw new ApiError(detail ?? `${response.status} ${response.statusText}`, response.status);
+    throw new ApiError(detail ?? httpFailureMessage(response), response.status);
   }
   const named = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") ?? "")?.[1];
   return { blob: await response.blob(), filename: named ?? fallbackName };
@@ -333,6 +342,8 @@ interface AuthUser {
 interface AuthStatus {
   setup_required: boolean;
   bootstrap_required: boolean;
+  /** Setup would be refused because the server has no setup token. */
+  setup_blocked?: boolean;
   user: AuthUser | null;
   /** Unix seconds; null when nothing here holds a browser session. */
   session_expires_at?: number | null;
