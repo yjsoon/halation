@@ -79,12 +79,14 @@ final class IntakeSkillTests: XCTestCase {
 
   func testFlagRuleFiresAlongsideACategoryRule() {
     var read = line(payee: "PAYNOW TAN AH KOW", account: altitude)
+    var expected = read.draft
+    expected.categoryID = household
     let flag = rule(when: .init(payeeToken: "tan ah kow"), then: .flag)
     let categorise = rule(
       scope: .account(altitude), when: .init(payeeToken: "tan ah kow", accountID: altitude), then: .setCategory(household)
     )
     let outcomes = IntakeRuleEngine.apply([categorise, flag], to: &read, context: context)
-    XCTAssertEqual(read.draft.categoryID, household)
+    XCTAssertEqual(read.draft, expected, "the flag only asks for review; it writes nothing to the row")
     XCTAssertEqual(outcomes.filter(\.needsReview).count, 1, "a matching flag rule is always honoured")
     XCTAssertEqual(outcomes.count, 2)
   }
@@ -645,7 +647,12 @@ final class IntakeSkillTests: XCTestCase {
     let first = try XCTUnwrap(IntakeRuleSuggester.suggest(applied: [kopi], jobID: UUID(), skill: skill, now: now))
 
     skill.suppress(first.key, at: now)
-    XCTAssertNil(IntakeRuleSuggester.suggest(applied: [kopi], jobID: UUID(), skill: skill, now: now.addingTimeInterval(86_400)))
+    XCTAssertNil(IntakeRuleSuggester.suggest(applied: [kopi], jobID: UUID(), skill: skill, now: now.addingTimeInterval(29 * 86_400)))
+    let otherCategory = applied(payee: "KOPITIAM AMK", proposedCategory: nil, category: groceries)
+    XCTAssertNotNil(
+      IntakeRuleSuggester.suggest(applied: [otherCategory], jobID: UUID(), skill: skill, now: now),
+      "Just this once hides only that suggestion"
+    )
     XCTAssertNotNil(
       IntakeRuleSuggester.suggest(applied: [kopi], jobID: UUID(), skill: skill, now: now.addingTimeInterval(31 * 86_400))
     )
@@ -702,9 +709,10 @@ final class IntakeSkillTests: XCTestCase {
       IntakeRuleSuggester.suggest(applied: [renamedAway], jobID: UUID(), skill: IntakeSkill(), now: now)
     )
     XCTAssertEqual(rename.rule(scope: .payee).when.payeeToken, "starbucks")
+    XCTAssertEqual(rename.rule(scope: .payee).then, .renamePayee("Coffee corner"))
   }
 
-  // The single-account default is proven by the share-intake Remember run; these are the cases it does not reach.
+  // The single-account default is proven by the share-intake Remember runs (f9f98de); these are the cases it does not reach.
   func testAllAccountsChoiceIsNotBoundToTheAccountAndAMixedBatchDefaultsToThePayee() throws {
     let one = applied(payee: "KOPITIAM AMK", proposedCategory: nil, category: eatingOut, account: altitude)
     let single = try XCTUnwrap(IntakeRuleSuggester.suggest(applied: [one], jobID: UUID(), skill: IntakeSkill(), now: now))
