@@ -792,7 +792,7 @@ struct NetWorthDetailView: View {
       ColumnChart(
         values: report.periods.map { Double($0.netWorth) },
         labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
-        voice: .money("Net worth chart", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+        voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
         height: 120
       )
     }
@@ -962,7 +962,7 @@ struct IncomeVsSpendingDetailView: View {
       PairedColumnChart(
         pairs: report.periods.map { (Double($0.income), Double(abs($0.spending))) },
         labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
-        voice: .money("Income and spending chart", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+        voice: .money("Income and spending", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
         height: 120
       )
       HStack(spacing: 16) {
@@ -1153,7 +1153,7 @@ struct AgeOfMoneyDetailView: View {
             if measured.count > 1 {
               Sparkline(
                 values: measured.compactMap(\.ageOfMoneyDays),
-                voice: .days("Age of money chart", periods: measured.map(\.period)),
+                voice: .days("Age of money", periods: measured.map(\.period)),
                 colour: Theme.inflow,
                 height: 80
               )

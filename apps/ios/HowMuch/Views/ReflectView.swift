@@ -216,7 +216,7 @@ struct ReflectView: View {
         ColumnChart(
           values: report.periods.map { Double($0.netWorth) },
           labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
-          voice: .money("Net worth chart", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat)
+          voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat)
         )
       }
     }
@@ -247,7 +247,7 @@ struct ReflectView: View {
             pairs: report.periods.map { (Double($0.income), Double(abs($0.spending))) },
             labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
             voice: .money(
-              "Income and spending chart",
+              "Income and spending",
               periods: report.periods.map(\.period),
               currencyFormat: model.currencyFormat
             ),
@@ -334,7 +334,7 @@ struct ReflectView: View {
         if ages.count > 1 {
           Sparkline(
             values: ages,
-            voice: .days("Age of money chart", periods: measured.map(\.period)),
+            voice: .days("Age of money", periods: measured.map(\.period)),
             colour: Theme.inflow
           )
         }
@@ -429,15 +429,15 @@ struct SpendingGroupSection: Identifiable {
 
 extension ChartVoice {
   /// A chart of amounts in milliunits, one per report period key.
-  static func money(_ title: String, periods: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
-    ChartVoice(title: title, periodNames: periods.map(LedgerDate.periodLabel)) {
+  static func money(_ name: String, periods: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
+    ChartVoice(name: name, unit: "Amount", periodNames: periods.map(LedgerDate.spokenPeriodLabel)) {
       MoneyCodec.displayString(for: Int($0.rounded()), currencyFormat: currencyFormat)
     }
   }
 
   /// A chart of age of money in days, one per report period key.
-  static func days(_ title: String, periods: [String]) -> ChartVoice {
-    ChartVoice(title: title, periodNames: periods.map(LedgerDate.periodLabel)) {
+  static func days(_ name: String, periods: [String]) -> ChartVoice {
+    ChartVoice(name: name, unit: "Days", periodNames: periods.map(LedgerDate.spokenPeriodLabel)) {
       ReflectMaths.daysLabel(Int($0.rounded()))
     }
   }

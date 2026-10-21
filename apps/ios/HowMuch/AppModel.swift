@@ -4480,21 +4480,21 @@ final class AppModel {
     return repaired
   }
 
-  /// Successes fade after three seconds; failures stay until dismissed or
-  /// replaced. VoiceOver reads each one, even when a sheet hides the toast.
+  /// Successes fade after three seconds; failures stay ten, or until tapped.
+  /// Many failures describe a moment ("still sending"), so they must not
+  /// linger once it has passed. VoiceOver reads each one, even when a sheet
+  /// hides the toast.
   func showSaveMessage(_ text: String, kind: SaveMessage.Kind = .success) {
     saveMessageToken += 1
     lastSaveMessage = SaveMessage(id: saveMessageToken, text: text, kind: kind)
-    // High priority so focus moving as a sheet closes does not cut it off.
+    // A failure interrupts whatever VoiceOver is saying; a success, which
+    // may come from a background sync, waits its turn.
     var announcement = AttributedString(text)
-    announcement.accessibilitySpeechAnnouncementPriority = .high
+    announcement.accessibilitySpeechAnnouncementPriority = kind == .failure ? .high : .default
     AccessibilityNotification.Announcement(announcement).post()
-    guard kind == .success else {
-      return
-    }
     let token = saveMessageToken
     Task {
-      try? await Task.sleep(for: .seconds(3))
+      try? await Task.sleep(for: .seconds(kind == .failure ? 10 : 3))
       if token == saveMessageToken {
         lastSaveMessage = nil
       }

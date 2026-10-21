@@ -4,7 +4,8 @@ import XCTest
 /// What VoiceOver says for a Reflect chart. Failure modes the E2E pass would
 /// not pin down: a weekly chart read bar by bar (fifty-odd values), a
 /// sparkline with no period names, a tie naming the stale period, a negative
-/// net worth losing its sign, and names that do not line up with the values.
+/// value not counted as the lowest, and names that do not line up with the
+/// values.
 final class ChartSpeechTests: XCTestCase {
   private let describe: (Double) -> String = { String(Int($0)) }
 
@@ -51,10 +52,11 @@ final class ChartSpeechTests: XCTestCase {
   func testWeeklySeriesStaysShort() {
     let names = (1 ... 52).map { "Week \($0), 2026" }
     let summary = ChartSpeech.summary(names: names, values: (1 ... 52).map(Double.init), describe: describe)
-    XCTAssertEqual(
-      summary,
-      "52 periods, Week 1, 2026 to Week 52, 2026. Latest: 52 in Week 52, 2026. Highest: 52 in Week 52, 2026. Lowest: 1 in Week 1, 2026."
-    )
+    // Only the ends and extremes are named; no bar in between is read out.
+    for week in 2 ... 51 {
+      XCTAssertFalse(summary.contains("Week \(week),"), "read out week \(week): \(summary)")
+    }
+    XCTAssertLessThan(summary.count, 160)
   }
 
   func testPairedEmptySeriesSaysSo() {

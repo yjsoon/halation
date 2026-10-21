@@ -594,8 +594,43 @@ struct RootSaveToastOverlay: View {
   var body: some View {
     Group {
       if let message = model.lastSaveMessage {
-        toast(message)
-          .padding(.bottom, bottomPadding)
+        // A failure stays up longer, so a tap dismisses it early. One view
+        // for both kinds keeps the icon's replace transition.
+        let isFailure = message.kind == .failure
+        HStack(spacing: 8) {
+          Image(systemName: isFailure ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+            .foregroundStyle(isFailure ? Theme.outflow : Theme.inflow)
+            .contentTransition(.symbolEffect(.replace))
+            .accessibilityHidden(true)
+          Text(message.text)
+            .foregroundStyle(isFailure ? Theme.outflow : Theme.textPrimary)
+            // VoiceOver hears the whole message as an announcement.
+            .lineLimit(3)
+          if isFailure {
+            Image(systemName: "xmark")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(.secondary)
+              .accessibilityHidden(true)
+          }
+        }
+        .font(.footnote.weight(.medium))
+        .accessibilityElement(children: .combine)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .glassEffect(.regular, in: .capsule)
+        // Clear margin lifts the tap target to the 44-point minimum.
+        .padding(.vertical, 4)
+        .contentShape(.rect)
+        .onTapGesture {
+          model.dismissSaveMessage()
+        }
+        .allowsHitTesting(isFailure)
+        .accessibilityAddTraits(isFailure ? .isButton : [])
+        .accessibilityHint(isFailure ? "Dismisses the message." : "")
+        .accessibilityAction(.escape) {
+          model.dismissSaveMessage()
+        }
+        .padding(.bottom, bottomPadding)
         .transition(
           .move(edge: .bottom)
             .combined(with: .opacity)
@@ -604,47 +639,6 @@ struct RootSaveToastOverlay: View {
       }
     }
     .animation(Theme.Motion.arrive, value: model.lastSaveMessage?.id)
-  }
-
-  /// A failure stays up until tapped, so it carries a close mark.
-  @ViewBuilder
-  private func toast(_ message: SaveMessage) -> some View {
-    let capsule = HStack(spacing: 8) {
-      Image(systemName: message.kind == .failure ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-        .foregroundStyle(message.kind == .failure ? Theme.outflow : Theme.inflow)
-        .contentTransition(.symbolEffect(.replace))
-        .accessibilityHidden(true)
-      Text(message.text)
-        .foregroundStyle(message.kind == .failure ? Theme.outflow : Theme.textPrimary)
-      if message.kind == .failure {
-        Image(systemName: "xmark")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
-          .accessibilityHidden(true)
-      }
-    }
-    .font(.footnote.weight(.medium))
-    .padding(.horizontal, 16)
-    .padding(.vertical, 10)
-    .glassEffect(.regular, in: .capsule)
-
-    if message.kind == .failure {
-      Button {
-        model.dismissSaveMessage()
-      } label: {
-        capsule
-      }
-      .buttonStyle(.plain)
-      .accessibilityElement(children: .combine)
-      .accessibilityAddTraits(.isButton)
-      .accessibilityHint("Dismisses the message.")
-      .accessibilityAction(.escape) {
-        model.dismissSaveMessage()
-      }
-    } else {
-      capsule
-        .accessibilityElement(children: .combine)
-    }
   }
 }
 
@@ -1574,7 +1568,7 @@ struct ColumnChart: View {
     .chartVoice(
       voice,
       summary: ChartSpeech.summary(names: voice.periodNames, values: values, describe: voice.describe),
-      series: [(name: voice.title, values: values)]
+      series: [(name: voice.name, values: values)]
     )
   }
 }
@@ -1682,7 +1676,7 @@ struct Sparkline: View {
     .chartVoice(
       voice,
       summary: ChartSpeech.summary(names: voice.periodNames, values: values, describe: voice.describe),
-      series: [(name: voice.title, values: values)],
+      series: [(name: voice.name, values: values)],
       isContinuous: true
     )
   }
@@ -1690,11 +1684,18 @@ struct Sparkline: View {
 
 /// What VoiceOver says for a chart: what it shows, a spoken name for each
 /// period, and how to read a value aloud. Axis labels are too terse to speak
-/// ("W23", "Aug 26"), so call sites pass `LedgerDate.periodLabel` names.
+/// ("W23", "Aug 26"), so call sites pass `LedgerDate.spokenPeriodLabel` names.
 struct ChartVoice {
-  let title: String
+  /// What the chart measures, such as "Net worth".
+  let name: String
+  /// The value axis, such as "Amount" or "Days".
+  let unit: String
   var periodNames: [String] = []
   let describe: (Double) -> String
+
+  var title: String {
+    "\(name) chart"
+  }
 }
 
 /// A short spoken summary of a chart. Weekly ranges carry fifty-odd values,
@@ -1788,7 +1789,7 @@ private struct ChartDescriptor: AXChartDescriptorRepresentable {
       summary: summary,
       xAxis: AXCategoricalDataAxisDescriptor(title: "Period", categoryOrder: categories),
       yAxis: AXNumericDataAxisDescriptor(
-        title: voice.title,
+        title: voice.unit,
         range: lowest ... highest,
         gridlinePositions: [],
         valueDescriptionProvider: { describe($0) }
@@ -1802,6 +1803,17 @@ private struct ChartDescriptor: AXChartDescriptorRepresentable {
         )
       }
     )
+  }
+
+  /// A detail screen refetches in place when its range changes, so the
+  /// graph must follow the new data rather than keep the first.
+  func updateChartDescriptor(_ descriptor: AXChartDescriptor) {
+    let fresh = makeChartDescriptor()
+    descriptor.title = fresh.title
+    descriptor.summary = fresh.summary
+    descriptor.xAxis = fresh.xAxis
+    descriptor.yAxis = fresh.yAxis
+    descriptor.series = fresh.series
   }
 }
 

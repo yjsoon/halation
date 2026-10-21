@@ -307,7 +307,8 @@ struct TransactionFormView: View {
               case .save:
                 save()
               }
-            }
+            },
+            onKey: announceKeypadAmount
           )
           .transition(.move(edge: .bottom))
         }
@@ -399,10 +400,6 @@ struct TransactionFormView: View {
       }
       .onChange(of: keypad) {
         commitHook?.keypad = keypad
-        if isKeypadVisible {
-          // VoiceOver hears the key, not the header, so read the amount back.
-          AccessibilityNotification.Announcement(amountDisplay).post()
-        }
         if keypad.hasPendingArithmetic {
           return
         }
@@ -511,7 +508,9 @@ struct TransactionFormView: View {
       .buttonStyle(.plain)
       .accessibilityLabel("Amount")
       .accessibilityValue(amountDisplay)
-      .accessibilityHint(draft.isSplit ? "The total of the split lines." : "Opens the keypad.")
+      // A split's total is not typed here, so it reads as text, not a button.
+      .accessibilityRemoveTraits(draft.isSplit ? .isButton : [])
+      .accessibilityHint(draft.isSplit ? "The total of the split lines." : isKeypadVisible ? "" : "Opens the keypad.")
     }
     .frame(maxWidth: .infinity)
     .padding(.vertical, 16)
@@ -535,6 +534,14 @@ struct TransactionFormView: View {
     }
     let magnitude = isKeypadVisible ? keypad.display : draft.amountMagnitudeMilli
     return draft.direction == .outflow ? -magnitude : magnitude
+  }
+
+  /// VoiceOver hears the key, not the header, so each key reads the amount
+  /// back. Unsigned: an outflow's minus sign would make the Plus key sound
+  /// like Minus, and the direction toggle already says which way it goes.
+  private func announceKeypadAmount() {
+    let text = MoneyCodec.displayString(for: keypad.display, currencyFormat: model.currencyFormat)
+    AccessibilityNotification.Announcement(text).post()
   }
 
   private var amountDisplay: String {
@@ -1331,6 +1338,8 @@ struct CalculatorKeypad: View {
   @Binding var engine: AmountKeypadEngine
   let primaryAction: KeypadPrimaryAction
   let onPrimary: () -> Void
+  /// Runs after every key but the primary one.
+  var onKey: () -> Void = {}
 
   @State private var digitHapticTrigger = 0
   @State private var symbolHapticTrigger = 0
@@ -1426,7 +1435,10 @@ struct CalculatorKeypad: View {
   }
 
   private func key(action: @escaping () -> Void, @ViewBuilder label: () -> some View) -> some View {
-    Button(action: action) {
+    Button {
+      action()
+      onKey()
+    } label: {
       label()
         .frame(maxWidth: .infinity)
         .frame(height: 52)
