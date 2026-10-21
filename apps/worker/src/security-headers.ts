@@ -1,4 +1,10 @@
+// One year, and every subdomain of the host serving Halation. Browsers ignore
+// it over plain HTTP, so local `http://localhost` development is unaffected.
+// Keep in step with `apps/web/public/_headers`.
+const STRICT_TRANSPORT_SECURITY = "max-age=31536000; includeSubDomains";
+
 const DOCUMENT_SECURITY_HEADERS: Record<string, string> = {
+  "strict-transport-security": STRICT_TRANSPORT_SECURITY,
   "content-security-policy": [
     "default-src 'self'",
     "script-src 'self'",
@@ -26,6 +32,17 @@ export function withDocumentSecurityHeaders(response: Response): Response {
   if ((headers.get("content-type") ?? "").includes("text/html")) {
     headers.set("cache-control", "no-cache");
   }
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+/** API and health responses: HTTPS pinning only, no document policy. */
+export function withTransportSecurity(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("strict-transport-security", STRICT_TRANSPORT_SECURITY);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,

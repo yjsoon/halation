@@ -1,6 +1,8 @@
-# Applied by Cloudflare Workers static assets. SPA routes never hit the
-# Worker script (`run_worker_first` is API-only), so document policy lives here.
+# Applied by Cloudflare Workers static assets when they serve a document.
+# `apps/worker/src/security-headers.ts` sets the same policy on responses the
+# Worker script wraps; keep the two in step.
 /*
+  Strict-Transport-Security: max-age=31536000; includeSubDomains
   Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   X-Frame-Options: DENY
