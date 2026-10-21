@@ -50,6 +50,11 @@ describe("decideSession", () => {
     expect(decideSession({ user: null, setup_required: true, bootstrap_required: true }))
       .toEqual({ kind: "signed-out", mode: "setup" });
   });
+
+  test("shows the missing-token step instead of a setup form that can only fail", () => {
+    expect(decideSession({ user: null, setup_required: true, bootstrap_required: false, setup_blocked: true }))
+      .toEqual({ kind: "signed-out", mode: "setup-blocked" });
+  });
 });
 
 describe("decideBootstrap", () => {
