@@ -175,7 +175,7 @@ Stable iOS handles:
 | Detail rows | `Payee` (`Choose Payee`), `Category` (`Choose Category`), `Account` (`Choose Account`), `Date` |
 | Duplicate | register row long-press / context menu `Duplicate for Today` |
 | Ambiguous | footnote `Which account?` / `Which category?` in uncategorised ochre |
-| Reading (planned) | title `Reading…`, caption `Stays on this device` |
+| Reading (planned) | title `Reading…`, caption `Read on this device` |
 | Shortcuts (planned) | `Add Transaction` / phrase `Add a transaction in Halation` |
 
 HTTP second view (Bearer token from state, not a substitute for the UI path):

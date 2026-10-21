@@ -8,7 +8,8 @@ enum ServerSignIn {
   enum Outcome {
     /// The server has no account yet: its first owner is set up on the web.
     case setupRequired
-    case signedIn(APISettings)
+    /// `categoriserEnabled`: the server sends new transactions to TypeSafe.
+    case signedIn(APISettings, categoriserEnabled: Bool)
   }
 
   static func signIn(_ draft: APISettings, password: String) async throws -> Outcome {
@@ -25,7 +26,22 @@ enum ServerSignIn {
     signedIn.sessionToken = session.token
     signedIn.authenticatedUserID = session.user.id
     signedIn.username = session.user.username ?? draft.username
-    return .signedIn(signedIn)
+    return .signedIn(signedIn, categoriserEnabled: status.categoriserEnabled == true)
+  }
+}
+
+/// Says that a server sends new transactions to TypeSafe for a category.
+/// Shown only when the server reports it; older servers never do.
+struct CategoriserNoticeSection: View {
+  var body: some View {
+    Section {
+      Text("This server sends each new transaction that has a payee but no category to TypeSafe, an outside AI service, to pick one. It sends the payee, memo, amount, date and account name, your category and group names, and similar past transactions with their payees, memos, amounts, dates and categories. Confident picks are saved without review.")
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+        .accessibilityIdentifier("server-categoriser-notice")
+    } header: {
+      Text("Automatic categories")
+    }
   }
 }
 
@@ -145,6 +161,8 @@ final class ServerConnectFlow {
   private(set) var isSigningIn = false
   private(set) var signInError: String?
   private(set) var setupRequired = false
+  /// The signed-in server sends new transactions to TypeSafe.
+  private(set) var categoriserEnabled = false
   /// The signed-in server connection. Held only in memory until the user
   /// finishes, so leaving the flow saves nothing.
   private(set) var server: APISettings?
@@ -209,8 +227,9 @@ final class ServerConnectFlow {
       case .setupRequired:
         setupRequired = true
         signInError = "Finish setup in the website before signing in."
-      case .signedIn(var signedIn):
+      case .signedIn(var signedIn, let categoriser):
         opened = signedIn
+        categoriserEnabled = categoriser
         password = ""
         let plans = try await APIClient(settings: signedIn).fetchPlans()
         guard !isAbandoned else {
@@ -431,6 +450,9 @@ struct ServerConnectView: View {
         } footer: {
           Text("The records also stay on this \(device). After the upload, Halation uses the server.")
         }
+        if flow.categoriserEnabled {
+          CategoriserNoticeSection()
+        }
         Section {
           Button("Upload") {
             Task { await finish(with: flow.upload()) }
@@ -443,6 +465,9 @@ struct ServerConnectView: View {
         Section {
           Text("\(flow.host) already has records. They may include an earlier upload from this \(device). Halation doesn’t combine two sets of records.")
             .foregroundStyle(Theme.textPrimary)
+        }
+        if flow.categoriserEnabled {
+          CategoriserNoticeSection()
         }
         Section {
           Button("Use the data on the server") {

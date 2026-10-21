@@ -349,6 +349,8 @@ interface AuthStatus {
   session_expires_at?: number | null;
   /** Plan id to this user's role there. Present only for a signed-in session. */
   roles?: Record<string, "owner" | "editor" | "viewer">;
+  /** True when the server sends new transactions to TypeSafe for a category. Absent on older servers. */
+  categoriser_enabled?: boolean;
 }
 
 /** What the setup and login endpoints return for a cookie session. */

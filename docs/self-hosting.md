@@ -124,6 +124,20 @@ Open **Settings** and use **Change password**. Enter the current password and th
 
 The iOS app is not on the App Store. Build it from source with Xcode, as described in [Getting the iPhone app](../README.md#getting-the-iphone-app). Then open **More, then Settings** on the Accounts, Rewards, Reflect or Assistant screen, and set the server URL to your Worker's `https://` address. Then sign in with the username and password you chose. The app never asks for the setup token, which is why first-owner setup happens in the browser.
 
+## Optional: automatic categories
+
+Halation can ask [TypeSafe](https://docs.typesafe.ai)'s Jev model to pick categories. It is off unless you add a key:
+
+```sh
+bunx wrangler secret put TYPESAFE_API_KEY --config wrangler.self-host.jsonc
+```
+
+With a key, the server sends every new transaction that has a payee but no category to TypeSafe, an outside service. It sends the payee, memo, amount, date and account name, your category and group names, and similar past transactions with their payees, memos, amounts, dates and categories. A confident pick is saved without review. The **Suggest categories** button on the Transactions page sends the same details for the rows you select. Imports, CSV uploads and scheduled transactions are not categorised automatically, but they can be among the similar past transactions sent. The web Settings page says whether this is on, and the iOS app says so when you connect and in its server settings. To turn it off, delete the secret with `bunx wrangler secret delete TYPESAFE_API_KEY --config wrangler.self-host.jsonc`. If you used the Deploy to Cloudflare button, run these commands from the root of your clone with `--config wrangler.jsonc`, or manage the secret in the Cloudflare dashboard.
+
+## HTTPS
+
+The Worker sends `Strict-Transport-Security: max-age=31536000; includeSubDomains`, so browsers use HTTPS for a year on the host serving Halation and every subdomain under it. Serve Halation from its own hostname (for example `halation.example.com`), not your apex domain, unless every subdomain of that domain already serves HTTPS.
+
 ## Updating
 
 From the root of your clone, move to the latest release tag rather than the default branch, which may hold unreleased work:

@@ -30,7 +30,7 @@ struct InboxReadingView: View {
         VStack(spacing: 18) {
           Spacer()
           sourcePreview
-          Text("Stays on this device")
+          Text("Read on this device")
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Theme.textPrimary.opacity(0.72))
           Spacer()

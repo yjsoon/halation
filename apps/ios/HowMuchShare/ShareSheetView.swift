@@ -388,7 +388,7 @@ struct ShareSheetView: View {
         action: { Task { await model.send() } }
       )
       .accessibilityLabel(model.sendAccessibilityLabel)
-      footnote(readerLine, "Nothing is saved without your review")
+      footnote(readerLine, "Nothing it finds is saved without your review")
     } else {
       panel {
         VStack(alignment: .leading, spacing: 6) {
@@ -407,7 +407,7 @@ struct ShareSheetView: View {
         enabled: model.canSaveForLater,
         action: { Task { await model.saveForLater() } }
       )
-      footnote("Read after you sign in", "Nothing is saved without your review")
+      footnote("Read after you sign in", "Nothing it finds is saved without your review")
     }
   }
 

@@ -33,6 +33,9 @@ struct AuthStatusPayload: Decodable {
   let setupRequired: Bool
   let bootstrapRequired: Bool
   let user: APIUser?
+  /// True when the server sends new transactions to TypeSafe for a category.
+  /// Optional: older servers do not send it.
+  let categoriserEnabled: Bool?
 }
 
 struct PlansPayload: Decodable {

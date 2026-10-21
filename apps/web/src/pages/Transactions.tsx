@@ -1679,7 +1679,7 @@ export function TransactionsPage() {
             className="register-bulk-action"
             onClick={() => void suggestCategories(selectedRows)}
             disabled={mutationBusy || suggesting || suggestionTargets(selectedRows).length === 0}
-            title="Ask Jev to suggest a category for each selected transaction. You review before anything changes."
+            title="Send the selected transactions to TypeSafe's Jev model for a suggested category each. You review before anything changes."
           >
             {suggesting ? "Suggesting…" : "Suggest categories"}
           </button>
