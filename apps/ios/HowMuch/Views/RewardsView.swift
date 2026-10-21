@@ -470,8 +470,11 @@ struct RewardsView: View {
       .listRowSeparator(.hidden)
   }
 
+  /// False only once accounts have loaded and none can carry a card: a
+  /// rewards snapshot can paint before the accounts it belongs to.
   private var hasRewardAccountChoice: Bool {
-    !RewardCardAccounts.choices(accounts: model.accounts, takenIDs: [], keepingID: nil).isEmpty
+    model.referencePhase != .loaded
+      || !RewardCardAccounts.choices(accounts: model.accounts, takenIDs: [], keepingID: nil).isEmpty
   }
 
   private func emptyState<Actions: View>(

@@ -385,6 +385,7 @@ struct CaptureIntakeHost: View {
   @State private var isReadingInbox = false
   @State private var admissionError: String?
   @State private var needsAccount = false
+  @State private var isCreatingAccount = false
   @State private var didAdmit = false
 
   init(request: CaptureRequest, workspace: CaptureWorkspace = .shared) {
@@ -396,11 +397,17 @@ struct CaptureIntakeHost: View {
     Group {
       if !didAdmit, needsAccount {
         // Admitting would open a form whose account picker is empty.
-        AddAccountFirstView(onCreated: { _ in
-          // The new account is the only open one, so admission selects it.
-          needsAccount = false
-          Task { await admitWhenReady() }
-        }) {
+        AddAccountFirstView(
+          description: request.kind == .inbox
+            ? "Every transaction belongs to an account. Add one and your shared items will be ready to record."
+            : "Every transaction belongs to an account. Add one to start recording.",
+          onCreated: { _ in
+            // The new account is the only open one, so admission selects it.
+            needsAccount = false
+            Task { await admitWhenReady() }
+          },
+          onAddingChanged: { isCreatingAccount = $0 }
+        ) {
           Button("Cancel") { dismiss() }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -433,6 +440,14 @@ struct CaptureIntakeHost: View {
       }
     }
     .presentationDetents([.large])
+    // An account added elsewhere (the web, another device) arrives with a
+    // refresh; the prompt must not outlive it. Its own sheet hands over through
+    // onCreated instead, so it is left alone while open.
+    .onChange(of: CaptureAdmissionGate.hasUsableAccount(model.accounts)) { _, usable in
+      guard usable, needsAccount, !isCreatingAccount else { return }
+      needsAccount = false
+      Task { await admitWhenReady() }
+    }
     .task(id: request.id) {
       claimedInboxIDs = []
       didAdmit = false

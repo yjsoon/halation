@@ -215,19 +215,30 @@ struct AccountPickerView: View {
   var disabledAccountIDs: Set<String> = []
   let onSelect: (Account) -> Void
   @State private var searchText = ""
+  // Latched on first appearance: creating an account fills `model.accounts`
+  // before the sheet hands it back, and switching on the live list would tear
+  // that sheet away before the new account could be selected.
+  @State private var needsFirstAccount: Bool?
 
   var body: some View {
-    if CaptureAdmissionGate.hasUsableAccount(model.accounts) {
-      picker
-    } else {
-      // An empty list here left Save disabled with no way forward.
-      AddAccountFirstView(onCreated: { account in
-        onSelect(account)
-        dismiss()
-      })
-      .background(Theme.canvas)
-      .navigationTitle("Account")
-      .navigationBarTitleDisplayMode(.inline)
+    Group {
+      if needsFirstAccount ?? !CaptureAdmissionGate.hasUsableAccount(model.accounts) {
+        // An empty list here left Save disabled with no way forward.
+        AddAccountFirstView(onCreated: { account in
+          onSelect(account)
+          dismiss()
+        })
+        .background(Theme.canvas)
+        .navigationTitle("Account")
+        .navigationBarTitleDisplayMode(.inline)
+      } else {
+        picker
+      }
+    }
+    .onAppear {
+      if needsFirstAccount == nil {
+        needsFirstAccount = !CaptureAdmissionGate.hasUsableAccount(model.accounts)
+      }
     }
   }
 
