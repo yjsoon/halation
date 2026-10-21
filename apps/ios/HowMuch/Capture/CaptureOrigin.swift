@@ -93,6 +93,18 @@ enum CaptureAdmissionGate {
     return message
   }
 
+  /// True when a new transaction has an account to file against.
+  static func hasUsableAccount(_ accounts: [Account]) -> Bool {
+    accounts.contains { !$0.closed && !$0.deleted }
+  }
+
+  /// True when capture should ask for a first account instead of opening a
+  /// form whose account picker is empty. Only a loaded reference counts: a
+  /// failed or unfinished load says nothing about what the plan holds.
+  static func needsAccount(referencePhase: LoadPhase, accounts: [Account]) -> Bool {
+    referencePhase == .loaded && !hasUsableAccount(accounts)
+  }
+
   static func shouldRefreshReference(phase: LoadPhase, explicitRetry: Bool) -> Bool {
     if explicitRetry {
       return true

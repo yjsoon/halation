@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct NewAccountSheet: View {
+  /// Called with the saved account, before the sheet dismisses itself.
+  var onCreated: ((Account) -> Void)? = nil
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -149,16 +151,58 @@ struct NewAccountSheet: View {
     isSaving = true
     error = nil
     do {
-      _ = try await model.createAccount(
+      let created = try await model.createAccount(
         name: trimmedName,
         kind: kind,
         enteredBalance: enteredBalance,
         icon: icon.resolved(default: kind.defaultIcon)
       )
+      onCreated?(created)
       dismiss()
     } catch {
       self.error = error.localizedDescription
       isSaving = false
     }
+  }
+}
+
+/// Stands in for a transaction form when the plan has no open account: the
+/// form's account picker would be empty and Save could never enable.
+struct AddAccountFirstView<Actions: View>: View {
+  var description = "Every transaction belongs to an account. Add one to start recording."
+  let onCreated: (Account) -> Void
+  @ViewBuilder var actions: Actions
+  @State private var isAddingAccount = false
+  @State private var created: Account?
+
+  var body: some View {
+    ContentUnavailableView {
+      Label("Add an Account First", systemImage: "building.columns")
+    } description: {
+      Text(description)
+    } actions: {
+      Button("New Account") { isAddingAccount = true }
+        .buttonStyle(.borderedProminent)
+        .tint(Theme.accent)
+      actions
+    }
+    // Hand the account over once the sheet has gone: the caller usually
+    // replaces this view, which would otherwise tear the sheet away mid-save.
+    .sheet(isPresented: $isAddingAccount, onDismiss: {
+      if let account = created {
+        created = nil
+        onCreated(account)
+      }
+    }) {
+      NewAccountSheet(onCreated: { created = $0 })
+        .blocksCapturePresentation()
+    }
+  }
+}
+
+extension AddAccountFirstView where Actions == EmptyView {
+  init(onCreated: @escaping (Account) -> Void) {
+    self.onCreated = onCreated
+    self.actions = EmptyView()
   }
 }

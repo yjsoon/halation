@@ -376,6 +376,7 @@ private struct RootView: View {
 
 struct CaptureIntakeHost: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dismiss) private var dismiss
   let request: CaptureRequest
   private let workspace: CaptureWorkspace
   @State private var session: CaptureSession?
@@ -383,6 +384,7 @@ struct CaptureIntakeHost: View {
   @State private var claimedInboxIDs: [UUID] = []
   @State private var isReadingInbox = false
   @State private var admissionError: String?
+  @State private var needsAccount = false
   @State private var didAdmit = false
 
   init(request: CaptureRequest, workspace: CaptureWorkspace = .shared) {
@@ -392,7 +394,18 @@ struct CaptureIntakeHost: View {
 
   var body: some View {
     Group {
-      if !didAdmit {
+      if !didAdmit, needsAccount {
+        // Admitting would open a form whose account picker is empty.
+        AddAccountFirstView(onCreated: { _ in
+          // The new account is the only open one, so admission selects it.
+          needsAccount = false
+          Task { await admitWhenReady() }
+        }) {
+          Button("Cancel") { dismiss() }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.canvas)
+      } else if !didAdmit {
         admissionPlaceholder
       } else if let manualDraft {
         TransactionFormView(draft: manualDraft, isEditing: false, allowsDeletion: false)
@@ -423,6 +436,7 @@ struct CaptureIntakeHost: View {
     .task(id: request.id) {
       claimedInboxIDs = []
       didAdmit = false
+      needsAccount = false
       await admitWhenReady()
     }
     .onDisappear {
@@ -501,6 +515,10 @@ struct CaptureIntakeHost: View {
       hasAccounts: !model.accounts.isEmpty
     ) {
       admissionError = message
+      return
+    }
+    if CaptureAdmissionGate.needsAccount(referencePhase: model.referencePhase, accounts: model.accounts) {
+      needsAccount = true
       return
     }
     guard CaptureRouter.shared.presented?.id == request.id else {

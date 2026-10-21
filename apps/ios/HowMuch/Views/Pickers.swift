@@ -217,6 +217,22 @@ struct AccountPickerView: View {
   @State private var searchText = ""
 
   var body: some View {
+    if CaptureAdmissionGate.hasUsableAccount(model.accounts) {
+      picker
+    } else {
+      // An empty list here left Save disabled with no way forward.
+      AddAccountFirstView(onCreated: { account in
+        onSelect(account)
+        dismiss()
+      })
+      .background(Theme.canvas)
+      .navigationTitle("Account")
+      .navigationBarTitleDisplayMode(.inline)
+    }
+  }
+
+  @ViewBuilder
+  private var picker: some View {
     let groups = model.accountListGroups(includeClosed: false, includeEmptyCustomGroups: false)
     let visibleGroups = groups.compactMap { $0.matching(searchText) }
     // Inspect all groups, not just search matches: usage sorting still needs
