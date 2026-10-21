@@ -461,7 +461,7 @@ The foot inks resolve by appearance: dark in light mode, on the light ground; li
 - **The slip.** Below the hero, in the same clear section, on the grouped background:
   - a caps line (issuer · type, plus "Featured" when the card is featured), in IBM Plex Sans SemiBold 11pt tracked 0.14em, `Theme.rowSecondary`;
   - then today's headline line, the basis line and the exceptions.
-- The name is a wrapping heading above the hero, in Instrument Serif Italic, and the navigation bar carries no title (21 Oct 2026): an inline title between Done and Edit Rewards truncated every longer name, and at accessibility sizes even short ones. The heading carries the header trait, so it is the first entry on VoiceOver's headings rotor. The bar shows no title, though the title stays set on the navigation item.
+- The name is a wrapping heading above the hero, in Instrument Serif Italic, and the navigation bar carries no title (21 Oct 2026): an inline title between Done and Edit Rewards truncated every longer name, and at accessibility sizes even short ones. The heading carries the header trait, so it is the first entry on VoiceOver's headings rotor.
 - The in-frame label and tick are fixed-size art annotations that repeat the slip. They are hidden from VoiceOver, and hidden altogether at accessibility text sizes.
 
 ### What collapses when
@@ -1002,7 +1002,7 @@ Also fix the list-wide `.animation(Theme.Motion.arrive, value: model.rewardsPhas
 - **Contrast on the faces.** See the contrast tables, one per appearance. Text sits only on the sky above the target horizon or on the spend ridge, and never across a crest stroke or over rings 1 and 2. In dark mode the dusk veil is capped so dark ink keeps 6.6:1 on it, and the night print's pour stops short of the name. In light mode the cool dim is 15%: dark ink keeps at least 5.8:1 on every sky, gold or blue, and the foot inks at least 4.7:1 on the ground, lit or not.
 - **Increase Contrast.** Today's 1pt outline at `Color.primary` 30% stays, on the strip and on the print. The High Contrast colour sets darken the dark-mode ridges and lighten its foot inks, and in light mode lighten the ground and darken its foot inks. The crest strokes and the marker draw at their Increase Contrast opacities.
 - **Differentiate Without Colour.** Each state differs in shape and luminance, not just colour: the marker's position, the lit edge (a luminance step, and in light mode a hue step as well), the ridge gap, the sun's place (on the horizon, resting, halfway, gone), the ring size, a sun or none, plus the headline words.
-- **Smart Invert.** Faces ignore invert, like photographs. A strip's words ignore it with their face (its outline inverts with the board), and on the sheet the print's label and tick ignore it with the print; the border around the print inverts with the sheet.
+- **Smart Invert.** Faces ignore invert, like photographs. A strip's words ignore it with their face (its Increase Contrast outline inverts with the board), and on the sheet the print's label and tick ignore it with the print; the border around the print inverts with the sheet.
 - **Reduce Transparency.** Nothing to change: there is no material, and figures stay on opaque surfaces.
 
 ## Web parity
@@ -1110,7 +1110,7 @@ iOS checks run on the Mac runner through `scripts/ios-xcodebuild.sh` and the Sim
 | # | Failure mode | Caught by |
 | --- | --- | --- |
 | 1 | Picture and figure disagree: `h` from anything but the projection's `fill`, `fill` from server progress fields, a capped card drawn below the top, or a figure bent to match the picture | iOS: the existing projection tests, where fill and basis share one source. Web: the port's tests, written first. E2E: measure each fixture card's marker x (`h × W`) and sun centre against its expected pose. |
-| 2 | Web precedence wrong: intermediate cap set as complete, failure shown before its month closes, rewards implied unlocked | The port's tests, written first (they alone cover the locked slip); E2E cards E, J and K |
+| 2 | Web precedence wrong: intermediate cap set as complete, failure shown before its month closes, rewards implied unlocked | The port's tests, written first (the only checks of the tier-cap, withheld and locked slips); E2E cards J and K |
 | 3 | The journeys mixed or the climb mis-measured: a tier drawn in the minimum journey, the cap climb read from 0 (a jump at the minimum), the reached tier ignored (a jump at the tier), a further tier sinking the sun, any value falling as spend grows | **The isolated mapping walk, written first** (below). E2E cards O and P show one point each. |
 | 4 | Picture data missing or out of step with the report: no minimum amount or reached tier, a next tier at or below the minimum, a cap at or below the foot of the climb, counted spend lagging raw spend, refunds below zero, amounts that are not finite | **The isolated edge cases, written first** (below). No fixture reaches them. |
 | 5 | Time leaks back into the art: equal `h` drawn at different places in rows with different dates | E2E: cards A and B share $315.50 / $500.00 with different periods and deadlines. Their marker x and sun centre must match within 1pt. |

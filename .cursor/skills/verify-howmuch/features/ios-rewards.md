@@ -9,7 +9,7 @@ Rewards is a tab. It shows imported Rewards Tracker cards against the HowMuch le
 - `ios-rewards-import-then-view` after importing `fixtures/rewards-tracker-export.json` shows Travel Card.
 - `ios-rewards-flags` lists Dining and Online in the Categories section of Travel Card's detail sheet.
 - `ios-rewards-group` opens Range Report from the board's menu, switches Group to Payee and lists Candlenut.
-- `ios-rewards-exposure-states`, `ios-rewards-exposure-sheet`, `ios-rewards-exposure-motion`, `ios-rewards-exposure-register` and `ios-rewards-exposure-accessibility`: the Sun Arc card in every state. See [Exposure card](#exposure-card).
+- `ios-rewards-exposure-states`, `ios-rewards-exposure-sheet`, `ios-rewards-exposure-motion`, `ios-rewards-exposure-register` and `ios-rewards-exposure-accessibility`: the Sun Arc card in each state the fixture reaches. See [Exposure card](#exposure-card).
 
 ## How to get to it (user POV)
 
@@ -44,14 +44,14 @@ Preconditions:
 
 ## Exposure card
 
-The Sun Arc card (spec `docs/frontend/rewards-exposure-card.md`). Import `fixtures/rewards-exposure-states.json` (16 cards, every state but the locked slip, which the projection tests cover; it replaces the stored card set and keeps Travel Card), then Rewards → Featured menu → **All Cards**, and Today menu → **Choose Date…** → 24 May 2026. The expected headline, basis and picture for each card are the spec's States fixture table; the local API agreed with every card on 21 Oct 2026 (L reads calm with no "Rewards unlock" slip; see the note under the spec's table). `fixtures/rewards-exposure-states-30.json` holds each card twice, for the scroll check.
+The Sun Arc card (spec `docs/frontend/rewards-exposure-card.md`). Import `fixtures/rewards-exposure-states.json` (16 cards; every state except the locked, withheld and tier-cap slips and the rare states 8 and 14, which only the projection tests cover; it replaces the stored card set and keeps Travel Card), then Rewards → Featured menu → **All Cards**, and Today menu → **Choose Date…** → 24 May 2026. The expected headline, basis and picture for each card are the spec's States fixture table; the local API agreed with every card on 21 Oct 2026 (L reads calm with no "Rewards unlock" slip; see the note under the spec's table). `fixtures/rewards-exposure-states-30.json` holds each card twice, for the scroll check.
 
 - **States.** Screenshot every row in light and dark at the default size, and at AX3 (`xcrun simctl ui "$UDID" content_size accessibility-extra-extra-extra-large`), where rows become paper rows with a scene band. No name, title or banner word truncates or splits: card N wraps to two lines on the strip and fully at AX3, and the `Showing 24 May` banner stacks above **Back to Today** at AX sizes and sits beside it at the default size.
 - **Sheet.** Open A: the card name is a wrapping heading above a 3:2 print in a 6pt border, with the hairline marker at 0.631 of the width, the half-disc sun on it, `$500.00 minimum` at the top left and a tick where the sun will rest. Then D, F, J, K and P. At AX3 the in-frame label and the tick are gone and the slip text scales. No title truncates.
 - **Register.** Accounts → Travel Card: a paper row with a 90 × 60pt print on the trailing side; at AX3 a paper row with a band.
 - **Fonts.** Names are Instrument Serif Italic, words IBM Plex Sans and figures IBM Plex Mono. A debug launch asserts every face is bundled.
 - **iPad.** On an iPad simulator the board's rows are at most 640pt wide and centred.
-- **Floating button.** Scroll to the end of the board: the floating capture and Assistant buttons cover no text.
+- **Floating button.** Scroll to the end of the board: the floating capture and Assistant buttons cover no text. On iPad, the floating Add covers no text either.
 - **Motion.** Record the first showing: gate cards sweep right with the sun riding the edge, cards past a minimum sweep and then rise, and no sun moves diagonally. Scroll away and back: no replay. Under Reduce Motion the faces appear in their final pose.
 - **Increase Contrast and VoiceOver.** Increase Contrast adds a row outline and a stronger marker. The accessibility dump shows one element per card, labelled with the card name and valued with the spoken string; the art is not focusable.
 

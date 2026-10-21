@@ -153,7 +153,7 @@ struct RewardsView: View {
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
   /// Room under the last card: clear of the sidebar's floating Add (as the save toast is), or on a
-  /// phone clear of the floating Assistant above Add (checked in the simulator, 21 Oct 2026).
+  /// phone clear of the floating Assistant above Add (the phone's 64 checked in the simulator, 21 Oct 2026).
   private var bottomRoom: CGFloat {
     let idiom = UIDevice.current.userInterfaceIdiom
     return RootChrome.usesSidebar(idiom: idiom, horizontalSizeClass: horizontalSizeClass)
