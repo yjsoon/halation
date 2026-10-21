@@ -357,6 +357,9 @@ struct RewardRowText {
   let basisLine: String?
   let exceptionLines: [String]
   let accessibilityValue: String
+  /// The hero's in-frame label, the basis target and its kind ("$500.00 minimum"): art that repeats
+  /// the slip, never spoken. Nil outside the minimum journey and the climb.
+  let targetLabel: String?
 
   static let visibleExceptionLimit = 2
 
@@ -429,6 +432,14 @@ struct RewardRowText {
       } else {
         basisLine = "\(money(projection.totalSpend)) spent · \(earned) earned"
       }
+    }
+
+    switch (projection.action, projection.basis) {
+    case (.minimum, let basis?): targetLabel = "\(money(basis.target)) minimum"
+    case (.monthlyMinimum, let basis?): targetLabel = "\(money(basis.target)) monthly minimum"
+    case (.nextTier, let basis?): targetLabel = "\(money(basis.target)) next tier"
+    case (.capHeadroom, let basis?): targetLabel = "\(money(basis.target)) bonus cap"
+    default: targetLabel = nil
     }
 
     let allExceptions = projection.exceptions.map { Self.exceptionText($0) }

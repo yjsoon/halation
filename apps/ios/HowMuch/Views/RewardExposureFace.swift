@@ -47,6 +47,11 @@ extension Theme {
     static let veilMiles = named("VeilMiles")
     static let bloom = named("Bloom")
 
+    static let markerCashback = named("MarkerCashback")
+    static let markerMiles = named("MarkerMiles")
+    static let markerRidge = named("MarkerRidge")
+    static let markerEdge = named("MarkerEdge")
+
   }
 }
 
@@ -65,6 +70,7 @@ struct RewardExposureFace: View, Animatable, Equatable {
   var appearance: FaceAppearance
 
   @Environment(\.colorSchemeContrast) private var contrast
+  @Environment(\.displayScale) private var displayScale
 
   var animatableData: AnimatablePair<Double, Double> {
     get { AnimatablePair(pose.h, pose.v) }
@@ -81,7 +87,7 @@ struct RewardExposureFace: View, Animatable, Equatable {
       let scene = ExposureScene(
         width: size.width, height: size.height, layout: layout, exposure: exposure, pose: pose,
         appearance: appearance)
-      ExposurePainter(scene: scene, increasedContrast: contrast == .increased)
+      ExposurePainter(scene: scene, increasedContrast: contrast == .increased, displayScale: displayScale)
         .paint(in: &context)
     }
     .accessibilityHidden(true)
@@ -97,6 +103,7 @@ struct RewardExposureFace: View, Animatable, Equatable {
 private struct ExposurePainter {
   let scene: ExposureScene
   let increasedContrast: Bool
+  let displayScale: Double
 
   private var exposure: RewardExposure { scene.exposure }
   private var pose: RewardExposure.Pose { scene.pose }
@@ -116,6 +123,7 @@ private struct ExposurePainter {
     drawGround(in: &context)
     drawVeil(in: &context)
     drawSun(in: &context)
+    drawMarker(in: &context)
   }
 
   // MARK: Paths
@@ -197,7 +205,7 @@ private struct ExposurePainter {
     // The wash falls to the same colour at a lower alpha, never to clear, so the falloff does not pass through grey.
     let lo = min(1, max(0, scene.litEdge - 0.04))
     let hi = min(1, max(0, scene.litEdge + 0.04))
-    let beyond = alpha * scene.lifted
+    let beyond = alpha * scene.beyondEdge
     // Smoothstep between lo and hi: quarter points sit at 15.6% and 84.4% of the way.
     let quarter = lo + 0.25 * (hi - lo), threeQuarter = lo + 0.75 * (hi - lo)
     let gradient = Gradient(stops: [
@@ -237,10 +245,11 @@ private struct ExposurePainter {
 
   /// Two short parallel hairlines high in the right of the sky, brightest over their middle.
   private func drawContrail(in context: inout GraphicsContext) {
-    let x0 = 0.50 * width, x1 = 0.76 * width
+    let phone = scene.layout.isPhone
+    let x0 = (phone ? 0.50 : 0.56) * width, x1 = (phone ? 0.76 : 0.80) * width
     let ceiling = scene.horizonY(at: 0.6) - 4
-    let y0 = min(0.30 * height, ceiling), y1 = min(0.20 * height, ceiling)
-    let gap = 0.007 * width
+    let y0 = min(0.30 * height, ceiling), y1 = min((phone ? 0.20 : 0.21) * height, ceiling)
+    let gap = (phone ? 0.007 : 0.004) * width
     let gradient = Gradient(stops: [
       .init(color: Theme.Face.contrail.opacity(0), location: 0), .init(color: Theme.Face.contrail, location: 0.35),
       .init(color: Theme.Face.contrail, location: 0.7), .init(color: Theme.Face.contrail.opacity(0), location: 1),
@@ -281,8 +290,21 @@ private struct ExposurePainter {
     var halo = context
     halo.opacity = scene.haloOpacity
     halo.blendMode = scene.glowScreens ? .screen : .normal
-    let radius = 0.92 * scene.ringRadius
     let centre = CGPoint(x: sun.x, y: sun.y)
+    guard scene.layout.isPhone else {
+      // The print has room for the full treatment: four stacked discs, largest first, so each step
+      // reads as posterised light rather than a drawn line.
+      for (share, colour) in zip([0.92, 0.68, 0.46, 0.27], Theme.Face.rings.reversed()) {
+        let r = share * scene.ringRadius
+        halo.fill(Path(ellipseIn: CGRect(x: sun.x - r, y: sun.y - r, width: 2 * r, height: 2 * r)), with: .color(colour))
+      }
+      let core = 0.15 * scene.ringRadius
+      halo.fill(
+        Path(ellipseIn: CGRect(x: sun.x - core, y: sun.y - core, width: 2 * core, height: 2 * core)),
+        with: .color(Theme.Face.sunCore))
+      return
+    }
+    let radius = 0.92 * scene.ringRadius
     let glow = Gradient(stops: [
       .init(color: Theme.Face.rings[0], location: 0), .init(color: Theme.Face.rings[1], location: 0.3),
       .init(color: Theme.Face.rings[2], location: 0.6), .init(color: Theme.Face.rings[3], location: 0.82),
@@ -383,6 +405,43 @@ private struct ExposurePainter {
       with: .linearGradient(
         Gradient(colors: colours), startPoint: CGPoint(x: sun.x, y: sun.y - r), endPoint: CGPoint(x: sun.x, y: sun.y + r)))
     sky.stroke(disc, with: .color(Theme.Face.sunRim.opacity(0.6)), lineWidth: max(0.75, 0.003 * width))
+  }
+}
+
+extension ExposurePainter {
+  /// Prints only, in the minimum journey: the hairline at `x = h × W`, two device pixels wide and
+  /// snapped to the pixel grid, in two tones split at the target horizon in dark mode and one warm
+  /// white over a faint dark edge in light mode; and the tick where the sun will rest.
+  fileprivate func drawMarker(in context: inout GraphicsContext) {
+    if let tick = scene.minimumTick {
+      var path = Path()
+      path.move(to: CGPoint(x: tick.x, y: tick.y))
+      path.addLine(to: CGPoint(x: tick.x, y: tick.y + 4))
+      context.stroke(path, with: .color(Theme.Face.crest.opacity(0.6)), lineWidth: 1)
+    }
+    guard let marker = scene.marker else { return }
+    let scale = max(1, displayScale)
+    let pixel = 1 / scale
+    let line = 2 * pixel
+    // Centre the two-pixel line on a pixel boundary so it never smears across three.
+    let x = (marker.x * scale).rounded() / scale
+    let split = scene.horizonY(at: marker.x / max(1, width))
+    for run in marker.runs {
+      let rect = CGRect(x: x - pixel, y: run.lowerBound, width: line, height: run.upperBound - run.lowerBound)
+      // The faint dark edge, one device pixel either side (clear in dark mode).
+      for edgeX in [rect.minX - pixel, rect.maxX] {
+        context.fill(Path(CGRect(x: edgeX, y: rect.minY, width: pixel, height: rect.height)), with: .color(Theme.Face.markerEdge))
+      }
+      // Sky above the horizon, ridges below it.
+      let sky = exposure.miles ? Theme.Face.markerMiles : Theme.Face.markerCashback
+      if rect.minY < split {
+        context.fill(Path(CGRect(x: rect.minX, y: rect.minY, width: line, height: min(rect.maxY, split) - rect.minY)), with: .color(sky))
+      }
+      if rect.maxY > split {
+        let top = max(rect.minY, split)
+        context.fill(Path(CGRect(x: rect.minX, y: top, width: line, height: rect.maxY - top)), with: .color(Theme.Face.markerRidge))
+      }
+    }
   }
 }
 

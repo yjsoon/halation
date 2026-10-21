@@ -30,5 +30,17 @@
 	<string>Halation uses the local network only to reach a development server on this LAN.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Halation uses the camera only when you choose to photograph a receipt or slip. The photo stays on this device.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>InstrumentSerif-Italic.ttf</string>
+		<string>IBMPlexSans-Regular.ttf</string>
+		<string>IBMPlexSans-Medium.ttf</string>
+		<string>IBMPlexSans-SemiBold.ttf</string>
+		<string>IBMPlexSans-Bold.ttf</string>
+		<string>IBMPlexMono-Regular.ttf</string>
+		<string>IBMPlexMono-Medium.ttf</string>
+		<string>IBMPlexMono-SemiBold.ttf</string>
+		<string>IBMPlexMono-Bold.ttf</string>
+	</array>
 </dict>
 </plist>
