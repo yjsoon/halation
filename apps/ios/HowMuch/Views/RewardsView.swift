@@ -149,6 +149,7 @@ struct RewardsView: View {
   @Environment(AppModel.self) private var model
   @Environment(RootChromeState.self) private var chrome: RootChromeState?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var filter: RewardsReportFilter
   @State private var sheet: RewardsSheet?
   @State private var route: RewardsRoute?
@@ -196,6 +197,8 @@ struct RewardsView: View {
     .animation(reduceMotion ? nil : Theme.Motion.arrive, value: model.rewardsPhase)
     .listStyle(.plain)
     .scrollContentBackground(.hidden)
+    // Room below the last card for the floating Assistant button, which sits above Add.
+    .contentMargins(.bottom, 64, for: .scrollContent)
     .background(Theme.canvas)
     .navigationTitle("Rewards")
     .navigationBarTitleDisplayMode(.large)
@@ -447,7 +450,8 @@ struct RewardsView: View {
     .accessibilityHint("Opens totals and the breakdown.")
   }
 
-  /// Side by side when they fit, and stacked when they do not (large text), so no word is split.
+  /// Side by side, and stacked at accessibility sizes so no word is split.
+  @ViewBuilder
   private func pastDateBanner(_ asOf: String) -> some View {
     let label = Label(
       "Showing \(RewardsCalendar.shortLabel(asOf, referenceISO: RewardsCalendar.today()))",
@@ -462,15 +466,18 @@ struct RewardsView: View {
     .font(.subheadline.weight(.semibold))
     .tint(Theme.accent)
     .frame(minHeight: 44)
-    return ViewThatFits(in: .horizontal) {
-      HStack(spacing: 8) {
-        label.fixedSize()
-        Spacer(minLength: 8)
-        back.fixedSize()
-      }
-      VStack(alignment: .leading, spacing: 4) {
-        label.fixedSize(horizontal: false, vertical: true)
-        back
+    Group {
+      if dynamicTypeSize.isAccessibilitySize {
+        VStack(alignment: .leading, spacing: 4) {
+          label
+          back
+        }
+      } else {
+        HStack(spacing: 8) {
+          label
+          Spacer(minLength: 8)
+          back
+        }
       }
     }
     .listRowBackground(Color.clear)
