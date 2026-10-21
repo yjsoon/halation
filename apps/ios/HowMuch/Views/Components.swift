@@ -1707,7 +1707,7 @@ enum ChartSpeech {
     }
     let named = names.count == values.count
     func at(_ index: Int) -> String {
-      named ? " in \(names[index])" : ""
+      named ? ", \(names[index])" : ""
     }
     if values.count == 1 {
       return named ? "\(names[0]): \(describe(values[0]))." : "\(describe(values[0]))."
@@ -1732,7 +1732,7 @@ enum ChartSpeech {
     }
     let named = names.count == pairs.count
     func at(_ index: Int) -> String {
-      named ? " in \(names[index])" : ""
+      named ? ", \(names[index])" : ""
     }
     func both(_ index: Int) -> String {
       "income \(describe(pairs[index].income)), spending \(describe(pairs[index].spending))"

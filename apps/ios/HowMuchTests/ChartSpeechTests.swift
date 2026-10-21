@@ -27,7 +27,7 @@ final class ChartSpeechTests: XCTestCase {
         values: [-40, 90, 10],
         describe: describe
       ),
-      "3 periods, June 2026 to August 2026. Latest: 10 in August 2026. Highest: 90 in July 2026. Lowest: -40 in June 2026."
+      "3 periods, June 2026 to August 2026. Latest: 10, August 2026. Highest: 90, July 2026. Lowest: -40, June 2026."
     )
   }
 
@@ -38,7 +38,7 @@ final class ChartSpeechTests: XCTestCase {
         values: [7, 7, 1, 1],
         describe: describe
       ),
-      "4 periods, June 2026 to September 2026. Latest: 1 in September 2026. Highest: 7 in July 2026. Lowest: 1 in September 2026."
+      "4 periods, June 2026 to September 2026. Latest: 1, September 2026. Highest: 7, July 2026. Lowest: 1, September 2026."
     )
   }
 
@@ -77,7 +77,7 @@ final class ChartSpeechTests: XCTestCase {
         pairs: [(income: 50, spending: 80), (income: 90, spending: 10), (income: 20, spending: 30)],
         describe: describe
       ),
-      "3 periods, June 2026 to August 2026. Latest, August 2026: income 20, spending 30. Most income: 90 in July 2026. Most spending: 80 in June 2026."
+      "3 periods, June 2026 to August 2026. Latest, August 2026: income 20, spending 30. Most income: 90, July 2026. Most spending: 80, June 2026."
     )
   }
 

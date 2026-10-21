@@ -301,7 +301,7 @@ enum LedgerDate {
   }
 
   /// `periodLabel` with a dated day in place of "Today" or "Yesterday", so it
-  /// reads in a sentence: "in Tue 21 Oct 2026", not "in Today".
+  /// reads in a sentence: "Highest: £90, Tue 21 Oct 2026", not "…, Today".
   static func spokenPeriodLabel(_ raw: String) -> String {
     if raw.split(separator: "-").count == 3, let date = parser.date(from: raw) {
       return display.string(from: date)
