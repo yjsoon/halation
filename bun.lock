@@ -15,6 +15,7 @@
       "name": "@howmuch/api",
       "dependencies": {
         "@howmuch/contract": "workspace:*",
+        "@howmuch/money": "workspace:*",
         "@howmuch/register-query": "workspace:*",
         "@typesafe-ai/sdk": "0.6.0",
       },
@@ -26,6 +27,7 @@
         "@fontsource/ibm-plex-sans": "^5.2.5",
         "@fontsource/instrument-serif": "^5.3.0",
         "@howmuch/contract": "workspace:*",
+        "@howmuch/money": "workspace:*",
         "@howmuch/register-query": "workspace:*",
         "react": "^19.1.0",
         "react-dom": "^19.1.0",
@@ -46,6 +48,9 @@
     },
     "packages/contract": {
       "name": "@howmuch/contract",
+    },
+    "packages/money": {
+      "name": "@howmuch/money",
     },
     "packages/register-query": {
       "name": "@howmuch/register-query",
@@ -171,6 +176,8 @@
     "@howmuch/api": ["@howmuch/api@workspace:apps/api"],
 
     "@howmuch/contract": ["@howmuch/contract@workspace:packages/contract"],
+
+    "@howmuch/money": ["@howmuch/money@workspace:packages/money"],
 
     "@howmuch/register-query": ["@howmuch/register-query@workspace:packages/register-query"],
 

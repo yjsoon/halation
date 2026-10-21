@@ -1,9 +1,10 @@
+import { type AmountFormat, amountFormatOf, parseAmount } from "@howmuch/money";
 import type { CurrencyFormat } from "../api/types";
 
 let formatter = new Intl.NumberFormat("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 let decimalSeparator = ".";
 let groupSeparator = ",";
-let decimalDigits = 2;
+let amountFormat: AmountFormat = amountFormatOf(undefined);
 let symbol = "";
 let symbolFirst = true;
 let currencyFormat: CurrencyFormat | undefined;
@@ -15,7 +16,7 @@ export function currentCurrencyFormat(): CurrencyFormat | undefined {
 export function configureMoney(format?: CurrencyFormat): void {
   currencyFormat = format;
   const digits = format?.decimal_digits ?? 2;
-  decimalDigits = digits;
+  amountFormat = amountFormatOf(format);
   formatter = new Intl.NumberFormat("en-GB", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
@@ -29,41 +30,30 @@ export function configureMoney(format?: CurrencyFormat): void {
 }
 
 /**
- * Exact decimal → milliunit conversion. Never use `Number(value) * 1000`:
- * values such as 1.135 cannot be represented in binary floating point.
+ * Reads a typed amount with the plan's marks and minor unit (see
+ * `parseAmount`, which the server's CSV import and quick entry share), or
+ * null. Never use `Number(value) * 1000`: values such as 1.135 cannot be
+ * represented in binary floating point.
  */
 export function parseMilliunits(value: string): number | null {
-  let text = value.trim();
-  // A comma-decimal plan shows "1.234,50" (formatMoney), so a typed comma is
-  // its decimal mark, whatever digits follow it. Text without a comma keeps
-  // the dot reading the fields are prefilled with (formatMilliunitsInput),
-  // except that a plan with no minor unit shows 1,234 units as "1.234": dots
-  // grouped in threes cannot be a decimal there. Judged on the text as typed,
-  // before any comma becomes a dot.
-  if (decimalSeparator === ",") {
-    if (text.includes(",")) {
-      if (groupSeparator && groupSeparator !== ",") {
-        text = text.split(groupSeparator).join("");
-      }
-      text = text.replace(/,/g, ".");
-    } else if (groupSeparator === "." && decimalDigits === 0 && /^[+-]?\d{1,3}(\.\d{3})+$/.test(text)) {
-      text = text.replace(/\./g, "");
-    }
+  return parseAmount(value, amountFormat);
+}
+
+/**
+ * `parseMilliunits`, except that a field still showing its stored amount
+ * (`formatMilliunitsField`) keeps it, even one saved with more decimals than
+ * the currency now allows: an untouched amount must not block a save.
+ */
+export function parseMilliunitsKeeping(value: string, stored: number | null | undefined): number | null {
+  if (stored != null && value.trim() === formatMilliunitsField(stored)) {
+    return stored;
   }
-  // A dot-decimal plan can group with a space or an apostrophe (1 234.50,
-  // 1’234.50): the page shows it, so a field must accept it back.
-  if (decimalSeparator === "." && groupSeparator && groupSeparator !== "," && groupSeparator !== ".") {
-    text = /^\s+$/.test(groupSeparator) ? text.replace(/[\s\u00a0\u202f]/g, "") : text.split(groupSeparator).join("");
-  }
-  const match = text.replace(/,/g, "").match(/^([+-]?)(?:(\d+)(?:\.(\d{0,3}))?|\.(\d{1,3}))$/);
-  if (!match) {
-    return null;
-  }
-  const whole = match[2] === undefined ? 0 : Number(match[2]);
-  const fractionDigits = match[2] === undefined ? (match[4] ?? "") : (match[3] ?? "");
-  const amount = whole * 1_000 + Number(fractionDigits.padEnd(3, "0"));
-  const signed = match[1] === "-" ? -amount : amount;
-  return Number.isSafeInteger(signed) ? signed : null;
+  return parseMilliunits(value);
+}
+
+/** Milliunits in the plan currency's smallest unit: 10 for cents, 1,000 for yen. */
+export function minorUnitMilliunits(): number {
+  return 10 ** (3 - Math.min(amountFormat.decimalDigits, 3));
 }
 
 export function formatMilliunitsInput(milliunits: number): string {

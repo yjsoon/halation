@@ -436,7 +436,7 @@ extension CaptureTurnPayload {
                 // Shared OCR mapping is permissive; remote amounts must be one complete decimal.
                 && ($0.amount.isEmpty || ($0.amount.range(
                   of: #"\A[+-]?(?:[0-9]+(?:\.[0-9]{1,3})?|\.[0-9]{1,3})\z"#, options: .regularExpression) != nil
-                  && MoneyCodec.milliunits(from: $0.amount) != nil))
+                  && (MoneyCodec.milliunits(from: $0.amount)?.magnitude ?? .max) <= MoneyCodec.storableAmountCap.magnitude))
                 && ($0.date.isEmpty || LedgerQueryPlanner.parseISO($0.date, calendar: .current) != nil)
             }) else { throw CaptureAIError.invalidResponse }
       return payload

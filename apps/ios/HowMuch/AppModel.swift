@@ -3172,8 +3172,9 @@ final class AppModel {
     guard !drafts.isEmpty else {
       return
     }
+    let drafts = drafts.map { $0.roundedToMinorUnit(decimalDigits: currencyFormat?.decimalDigits) }
     for draft in drafts {
-      try CommitRejection.check(draft)
+      try CommitRejection.check(draft, decimalDigits: currencyFormat?.decimalDigits)
     }
     var commands: [OutboxCommand] = []
     var creates: [TransactionDraft] = []

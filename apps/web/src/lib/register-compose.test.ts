@@ -55,7 +55,7 @@ describe("register compose", () => {
         client_id: "client-1",
         account_id: "acct-everyday",
         date: "2026-08-29",
-        amount: "-6.8",
+        amount_milli: -6_800,
         payee_id: null,
         payee_name: "Toast Box",
         category_id: "cat-dining",
@@ -70,7 +70,7 @@ describe("register compose", () => {
       { ...emptyComposeDraft("acct-everyday", "2026-08-29"), payeeName: "Payroll", inflow: "10" },
       [payee("p-pay", "Payroll")],
     );
-    expect(income.ok && income.input.amount).toBe("10");
+    expect(income.ok && income.input.amount_milli).toBe(10_000);
     expect(income.ok && income.input.account_id).toBe("acct-everyday");
 
     const transfer = composePayload(

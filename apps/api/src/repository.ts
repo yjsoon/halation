@@ -1,3 +1,4 @@
+import { isStorableMilliunits, sumMilliunits } from "@howmuch/money";
 import type { Database } from "bun:sqlite";
 import { createId } from "./ids";
 import { ownedRecordStatements } from "./ynab-owned-records";
@@ -615,7 +616,7 @@ export class LedgerRepository {
     options: AccountReconciliationOptions,
   ): Promise<AccountReconciliationResult> {
     const date = normaliseReconciliationDate(statementDate);
-    if (!Number.isSafeInteger(statementBalance)) throw new ValidationError("statement_balance must be integer milliunits");
+    if (!isStorableMilliunits(statementBalance)) throw new ValidationError("statement_balance must be integer milliunits within ±1e15");
     if (!accountId || typeof accountId !== "string") throw new ValidationError("account_id is required");
     if (!options?.operationId) throw new ValidationError("operationId is required");
     const requestHash = scheduleMutationFingerprint("account.reconcile", planId, accountId, { statement_date: date, statement_balance: statementBalance });
@@ -3593,24 +3594,26 @@ function validateTransactionInput(input: TransactionInput, strict: boolean): voi
     // always stored verbatim; API writes must be ISO.
     throw new ValidationError("date must be an ISO date (YYYY-MM-DD)");
   }
-  if (typeof input.amount !== "number" || !Number.isInteger(input.amount)) {
-    throw new ValidationError("amount must be integer milliunits");
+  if (!isStorableMilliunits(input.amount)) {
+    throw new ValidationError("amount must be integer milliunits within ±1e15");
   }
   if (input.cleared != null && !CLEARED_STATES.has(input.cleared)) {
     throw new ValidationError("cleared must be one of cleared, uncleared, reconciled");
   }
 
   const subtransactions = input.subtransactions ?? [];
+  // Importers (strict=false) keep their looser split shapes, but every line
+  // is stored, so every line must fit storage.
+  for (const sub of subtransactions) {
+    if (!isStorableMilliunits(sub.amount)) {
+      throw new ValidationError("subtransaction amounts must be integer milliunits within ±1e15");
+    }
+  }
   if (strict && subtransactions.length > 0) {
     if (subtransactions.length < 2) {
       throw new ValidationError("split transactions need at least two subtransactions");
     }
-    for (const sub of subtransactions) {
-      if (typeof sub.amount !== "number" || !Number.isInteger(sub.amount)) {
-        throw new ValidationError("subtransaction amounts must be integer milliunits");
-      }
-    }
-    const total = subtransactions.reduce((sum, sub) => sum + sub.amount, 0);
+    const total = sumMilliunits(subtransactions.map((sub) => sub.amount));
     if (total !== input.amount) {
       throw new ValidationError(
         `subtransactions must sum to the transaction amount (lines total ${total}, transaction is ${input.amount})`,

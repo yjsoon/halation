@@ -5,7 +5,7 @@ import type { Account, CardPaymentTerms, CardPaymentTermsInput } from "../api/ty
 import { BANK_PRESETS, isCardAccount, presetFor, type BankPresetId } from "../lib/card-payments";
 import { formatDayMonth, formatWeekdayDayMonth, todayIso } from "../lib/dates";
 import { stableHash } from "../lib/hash";
-import { formatMilliunitsField, parseMilliunits } from "../lib/money";
+import { formatMilliunitsField, parseMilliunitsKeeping } from "../lib/money";
 import { usePlan } from "../state/plan";
 
 type Draft = {
@@ -151,7 +151,7 @@ function TermsForm({ planId, initialAccountId, lockAccount, cards, accounts, ter
     event.preventDefault();
     const leadDays = wholeNumber(draft.leadDays, 0, 30);
     const deliveryHour = wholeNumber(draft.deliveryHour, 0, 23);
-    const fixed = draft.amountRule === "fixed" ? parseMilliunits(draft.fixedAmount) : null;
+    const fixed = draft.amountRule === "fixed" ? parseMilliunitsKeeping(draft.fixedAmount, termsByAccount.get(draft.accountId)?.default_amount_milli) : null;
     if (!draft.accountId) { setError("Choose the card these terms are for."); return; }
     if (statementDay === null) { setError("Enter a statement day from 1 to 31."); return; }
     if (gap === null) { setError("Enter the days from statement to due date, from 1 to 60."); return; }

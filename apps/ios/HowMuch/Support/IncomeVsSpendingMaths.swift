@@ -25,9 +25,7 @@ enum IncomeVsSpendingMaths {
   /// Never uses `cumulativeNet`.
   static func yearToDateNet(periods: [IncomeVsSpendingPeriod], year: Int) -> Int {
     let prefix = String(year)
-    return periods.reduce(0) { sum, period in
-      period.period.hasPrefix(prefix) ? sum + period.net : sum
-    }
+    return periods.filter { $0.period.hasPrefix(prefix) }.map(\.net).saturatingSum()
   }
 
   static func hasActivity(periods: [IncomeVsSpendingPeriod], matching prefix: String) -> Bool {
@@ -114,7 +112,7 @@ enum IncomeVsSpendingMaths {
     }
     return order.map { year in
       let yearRows = grouped[year] ?? []
-      return YearSection(year: year, net: yearRows.reduce(0) { $0 + $1.net }, rows: yearRows)
+      return YearSection(year: year, net: yearRows.map(\.net).saturatingSum(), rows: yearRows)
     }
   }
 

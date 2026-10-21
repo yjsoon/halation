@@ -1,3 +1,4 @@
+import { isStorableMilliunits } from "@howmuch/money";
 import { createId } from "./ids";
 import { createHash } from "node:crypto";
 import { parseAccountIcon } from "./account-icon";
@@ -112,7 +113,7 @@ export class D1LedgerRepository extends LedgerRepository {
     options: AccountReconciliationOptions,
   ): Promise<AccountReconciliationResult> {
     const date = normaliseReconciliationDate(statementDate);
-    if (!Number.isSafeInteger(statementBalance)) throw new ValidationError("statement_balance must be integer milliunits");
+    if (!isStorableMilliunits(statementBalance)) throw new ValidationError("statement_balance must be integer milliunits within ±1e15");
     if (!accountId || typeof accountId !== "string") throw new ValidationError("account_id is required");
     if (!options?.operationId) throw new ValidationError("operationId is required");
     const context = this.context("account.reconcile", planId, accountId, options.operationId);

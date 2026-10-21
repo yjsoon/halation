@@ -1,6 +1,15 @@
 import Foundation
 
 enum MoneyCodec {
+  /// The largest magnitude typed digit by digit on the amount keypad:
+  /// 999,999,999.99. Its + and − stop at `storableAmountCap`.
+  static let typedAmountCap = 999_999_999_990
+
+  /// The largest magnitude the server stores, in milliunits: one trillion
+  /// units, as `MAX_AMOUNT_MILLIUNITS` in packages/money. Typed fields stop
+  /// here, so a dong or rupiah balance past the keypad's cap still fits.
+  static let storableAmountCap = 1_000_000_000_000_000
+
   static func milliunits(from input: String) -> Int? {
     let raw = input.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "[$,\\s]", with: "", options: .regularExpression)
     guard !raw.isEmpty else {
@@ -16,6 +25,12 @@ enum MoneyCodec {
 
     let wholePart = String(parts.first ?? "0")
     let fractionalPart = parts.count == 2 ? String(parts[1]) : ""
+    // Only one leading sign. `Int` would accept a second one, reading "--5"
+    // as 5 and "1.-5" as 0.95.
+    let isDigits = { (part: String) in part.allSatisfy { $0.isASCII && $0.isNumber } }
+    guard isDigits(wholePart), isDigits(fractionalPart), !(wholePart + fractionalPart).isEmpty else {
+      return nil
+    }
     // Milliunits are the storage precision. Reject extra digits rather than
     // silently rounding or truncating a split allocation on save.
     guard fractionalPart.count <= 3 else {
@@ -50,17 +65,38 @@ enum MoneyCodec {
   /// twelve and a half, not 1,250. A comma is read as the decimal point only
   /// there, and only when the entry has one comma and no full stop; anything
   /// else reads exactly as `milliunits(from:)`.
+  ///
+  /// Typed amounts stop at `storableAmountCap`. With `decimalDigits` (the plan
+  /// currency's), digits past the currency's minor unit must be zeros, so a
+  /// yen amount cannot carry a fraction.
   static func milliunits(
     fromTyped input: String,
+    decimalDigits: Int? = nil,
     decimalSeparator: String? = Locale.current.decimalSeparator
   ) -> Int? {
-    guard decimalSeparator == ",",
-          !input.contains("."),
-          input.filter({ $0 == "," }).count == 1
+    let usesDecimalComma = decimalSeparator == ","
+      && !input.contains(".")
+      && input.filter({ $0 == "," }).count == 1
+    guard
+      let value = milliunits(from: usesDecimalComma ? input.replacingOccurrences(of: ",", with: ".") : input),
+      value.magnitude <= storableAmountCap.magnitude
     else {
-      return milliunits(from: input)
+      return nil
     }
-    return milliunits(from: input.replacingOccurrences(of: ",", with: "."))
+    if let decimalDigits, value % minorUnit(decimalDigits: decimalDigits) != 0 {
+      return nil
+    }
+    return value
+  }
+
+  /// Milliunits in the currency's smallest unit: 10 for cents, 1,000 for a
+  /// currency without a minor unit such as the yen.
+  static func minorUnit(decimalDigits: Int) -> Int {
+    var unit = 1
+    for _ in 0..<(3 - min(max(decimalDigits, 0), 3)) {
+      unit *= 10
+    }
+    return unit
   }
 
   static func editableString(for milliunits: Int) -> String {
@@ -87,10 +123,14 @@ enum MoneyCodec {
       options: .regularExpression
     )
     raw = raw.replacingOccurrences(of: ",", with: "")
-    guard let match = raw.range(of: #"-?(?:\d+(?:\.\d+)?|\.\d+)"#, options: .regularExpression) else {
+    guard let match = raw.range(of: #"-?(?:\d+(?:\.\d+)?|\.\d+)"#, options: .regularExpression),
+          let value = milliunits(from: String(raw[match])),
+          value.magnitude <= storableAmountCap.magnitude
+    else {
       return nil
     }
-    return milliunits(from: String(raw[match]))
+    // A card number read off a receipt is not an amount.
+    return value
   }
 
   static func milliunits(from value: Decimal) -> Int? {
@@ -154,6 +194,9 @@ enum MoneyCodec {
     }
     formatter.minimumFractionDigits = currencyFormat?.decimalDigits ?? 2
     formatter.maximumFractionDigits = currencyFormat?.decimalDigits ?? 2
+    // Ties round away from zero, as the web shows them and as a new capture
+    // is saved (`TransactionDraft.roundedToMinorUnit`): $12.345 reads $12.35.
+    formatter.roundingMode = .halfUp
     formatter.currencySymbol = showsSymbol
       ? (currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$")
       : ""
@@ -178,6 +221,34 @@ enum MoneyCodec {
   static func signedDisplayString(for milliunits: Int, currencyFormat: CurrencyFormat?) -> String {
     let base = displayString(for: milliunits, currencyFormat: currencyFormat)
     return milliunits > 0 ? "+\(base)" : base
+  }
+}
+
+/// Milliunit sums. The server stores amounts up to 1e15 milliunits each, so
+/// plain `+` over a few thousand of them passes Int64 and traps.
+extension Sequence where Element == Int {
+  /// The sum, or nil when it would overflow.
+  func checkedSum() -> Int? {
+    var total = 0
+    for value in self {
+      let next = total.addingReportingOverflow(value)
+      guard !next.overflow else {
+        return nil
+      }
+      total = next.partialValue
+    }
+    return total
+  }
+
+  /// The sum for display, clamped to the Int range instead of trapping.
+  func saturatingSum() -> Int {
+    reduce(0) { total, value in
+      let next = total.addingReportingOverflow(value)
+      guard next.overflow else {
+        return next.partialValue
+      }
+      return value < 0 ? Int.min : Int.max
+    }
   }
 }
 

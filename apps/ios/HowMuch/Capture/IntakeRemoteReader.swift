@@ -127,7 +127,8 @@ enum IntakeRemoteReader {
         amount.removeAll { $0 == "," }
       }
       guard amount.range(of: #"\A(?:[0-9]+(?:\.[0-9]{1,3})?|\.[0-9]{1,3})\z"#, options: .regularExpression) != nil,
-            let milli = MoneyCodec.milliunits(from: amount) else {
+            let milli = MoneyCodec.milliunits(from: amount),
+            milli <= MoneyCodec.storableAmountCap else {
         throw CaptureAIError.invalidResponse
       }
       guard milli > 0 else {

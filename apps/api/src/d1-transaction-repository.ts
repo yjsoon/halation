@@ -1,3 +1,4 @@
+import { isStorableMilliunits, sumMilliunits } from "@howmuch/money";
 import { createId } from "./ids";
 import type { TransactionInput } from "./types";
 import { NotFoundError, ValidationError } from "./repository";
@@ -377,14 +378,14 @@ export class D1TransactionRepository {
   private assertInput(input: Partial<TransactionInput>): void {
     if (!input.account_id || typeof input.account_id !== "string") throw new ValidationError("account_id is required");
     if (!input.date || !isCalendarDate(input.date)) throw new ValidationError("date must use YYYY-MM-DD");
-    if (!Number.isInteger(input.amount)) throw new ValidationError("amount must be an integer number of milliunits");
+    if (!isStorableMilliunits(input.amount)) throw new ValidationError("amount must be an integer number of milliunits within ±1e15");
     if (input.cleared && !["cleared", "uncleared", "reconciled"].includes(input.cleared)) {
       throw new ValidationError("cleared must be cleared, uncleared, or reconciled");
     }
     if (input.subtransactions?.length) {
       if (input.subtransactions.length < 2) throw new ValidationError("split transactions need at least two subtransactions");
-      if (input.subtransactions.some((sub) => !Number.isInteger(sub.amount))) throw new ValidationError("subtransaction amounts must be integer milliunits");
-      const sum = input.subtransactions.reduce((total, sub) => total + sub.amount, 0);
+      if (input.subtransactions.some((sub) => !isStorableMilliunits(sub.amount))) throw new ValidationError("subtransaction amounts must be integer milliunits within ±1e15");
+      const sum = sumMilliunits(input.subtransactions.map((sub) => sub.amount));
       if (sum !== input.amount) throw new ValidationError(`subtransactions must sum to the transaction amount (lines total ${sum}, transaction is ${input.amount})`);
     }
   }

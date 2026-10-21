@@ -1,3 +1,4 @@
+import { amountFormatOf } from "@howmuch/money";
 import { csvRowToMilliunits } from "../money";
 import type { LedgerStore } from "../storage";
 
@@ -25,6 +26,8 @@ export async function importCsvRows(
   accountId: string,
   rows: CsvImportRow[],
 ): Promise<{ import_session_id: string; imported: number; duplicate: number; failed: number }> {
+  // Bank exports write amounts the plan's way ("12,50" in a comma plan).
+  const format = amountFormatOf((await repo.getSettings(planId)).currency_format);
   const sessionId = await repo.createImportSession(planId, "csv");
   let imported = 0;
   let duplicate = 0;
@@ -36,7 +39,7 @@ export async function importCsvRows(
       if (!resolvedAccountId) {
         throw new Error("account_id is required for CSV import rows");
       }
-      const amount = csvRowToMilliunits(row);
+      const amount = csvRowToMilliunits(row, format);
       const input = {
         account_id: resolvedAccountId,
         date: row.date,

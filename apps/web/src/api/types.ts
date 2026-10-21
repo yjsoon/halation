@@ -291,8 +291,10 @@ export interface RewardsReport {
   }>;
 }
 
+// Amounts go as exact milliunits: a decimal string would be read in the
+// plan's currency format, where "12.345" can mean 12,345.
 export interface QuickEntrySplitLine {
-  amount: string;
+  amount_milli: number;
   category_id: string | null;
   memo?: string | null;
 }
@@ -301,7 +303,7 @@ export interface QuickEntryInput {
   client_id: string;
   account_id: string;
   date: string;
-  amount: string;
+  amount_milli: number;
   payee_id?: string | null;
   payee_name?: string | null;
   category_id: string | null;

@@ -11,8 +11,14 @@ struct AmountKeypadEngine: Equatable {
   private var pendingOp: Op?
   /// False right after an operator, before the second operand is typed.
   private var isTypingEntry = true
+  /// The stored amount the keypad opened with, returned unchanged by
+  /// `commitValue()` until a key is pressed: a memo edit must never rewrite
+  /// the amount, whatever its size or precision.
+  private var seed: Int?
+  /// The plan currency's smallest unit, from the last digit typed.
+  private var unit = 10
 
-  private static let cap = 999_999_999_990
+  private static let cap = MoneyCodec.typedAmountCap
 
   /// What the amount header shows; matches a desk calculator's display.
   var display: Int {
@@ -20,7 +26,11 @@ struct AmountKeypadEngine: Equatable {
   }
 
   mutating func setValue(_ milliunits: Int) {
-    entry = max(0, milliunits)
+    // A stored amount can pass the keypad's cap (a dong balance) and must
+    // round-trip untouched; only past what the server stores is it clamped,
+    // which keeps the next digit or operator from overflowing.
+    entry = min(max(0, milliunits), MoneyCodec.storableAmountCap)
+    seed = max(0, milliunits)
     accumulator = nil
     pendingOp = nil
     isTypingEntry = true
@@ -39,15 +49,19 @@ struct AmountKeypadEngine: Equatable {
 
   /// Digits shift in from the right in the plan currency's smallest unit.
   mutating func tapDigit(_ digit: Int, fractionDigits: Int = 2) {
+    seed = nil
     if !isTypingEntry {
       entry = 0
       isTypingEntry = true
     }
-    let next = entry * 10 + digit * Self.digitUnit(fractionDigits: fractionDigits)
-    entry = min(next, Self.cap)
+    unit = Self.digitUnit(fractionDigits: fractionDigits)
+    let next = entry * 10 + digit * unit
+    // A whole number of the currency's smallest unit: no fractional yen.
+    entry = min(next, Self.cap - Self.cap % unit)
   }
 
   mutating func tapBackspace(fractionDigits: Int = 2) {
+    seed = nil
     if !isTypingEntry {
       cancelPendingOperation()
     }
@@ -60,6 +74,7 @@ struct AmountKeypadEngine: Equatable {
   }
 
   mutating func tapOperator(_ op: Op) {
+    seed = nil
     if isTypingEntry, accumulator != nil {
       evaluate()
     }
@@ -78,6 +93,9 @@ struct AmountKeypadEngine: Equatable {
 
   /// Resolves any pending arithmetic and returns the final value.
   mutating func commitValue() -> Int {
+    if let seed {
+      return seed
+    }
     tapEquals()
     return entry
   }
@@ -97,8 +115,11 @@ struct AmountKeypadEngine: Equatable {
     guard let acc = accumulator, let op = pendingOp else {
       return
     }
+    // Operands may be a stored amount past the typing cap (a dong balance),
+    // so the result stops where the server does, in whole minor units.
     let result = op == .add ? acc + entry : acc - entry
-    entry = min(max(0, result), Self.cap)
+    let limit = MoneyCodec.storableAmountCap - MoneyCodec.storableAmountCap % unit
+    entry = min(max(0, result), limit)
     accumulator = nil
     pendingOp = nil
     isTypingEntry = true
@@ -316,6 +337,10 @@ struct TransactionFormView: View {
           }
           ToolbarItem(placement: .confirmationAction) {
             Button("Done") {
+              if let message = splitValidationMessage {
+                errorMessage = message
+                return
+              }
               draft.amountMagnitudeMilli = keypad.commitValue()
               onPersist?(draft)
               dismiss()
@@ -811,7 +836,7 @@ struct TransactionFormView: View {
         Text("Enter a signed amount on every line. Transfers pair with the selected account when saved.")
           .font(.footnote)
           .foregroundStyle(.secondary)
-        if let message = draft.splitValidationMessage {
+        if let message = splitValidationMessage {
           Text(message)
             .font(.footnote)
             .foregroundStyle(Theme.outflow)
@@ -836,8 +861,17 @@ struct TransactionFormView: View {
     return "Uncategorised"
   }
 
+  /// Split lines checked against the plan currency's decimal places.
+  private var splitValidationMessage: String? {
+    draft.splitValidationMessage(decimalDigits: model.currencyFormat?.decimalDigits)
+  }
+
+  private var canSave: Bool {
+    draft.canSave && splitValidationMessage == nil
+  }
+
   private func splitLineAmountLabel(_ line: TransactionSubtransactionDraft) -> String {
-    guard let amount = line.amount else { return "Enter amount" }
+    guard let amount = line.amount(decimalDigits: model.currencyFormat?.decimalDigits) else { return "Enter amount" }
     return MoneyCodec.displayString(for: amount, currencyFormat: model.currencyFormat)
   }
 
@@ -971,16 +1005,16 @@ struct TransactionFormView: View {
     }
     .buttonStyle(.glassProminent)
     .tint(Theme.accent)
-    .disabled(!draft.canSave || hasCommitted)
-    .opacity(draft.canSave ? 1 : 0.5)
+    .disabled(!canSave || hasCommitted)
+    .opacity(canSave ? 1 : 0.5)
   }
 
   private func save() {
     guard !hasCommitted else {
       return
     }
-    guard draft.splitValidationMessage == nil else {
-      errorMessage = draft.splitValidationMessage
+    guard splitValidationMessage == nil else {
+      errorMessage = splitValidationMessage
       return
     }
     draft.amountMagnitudeMilli = keypad.commitValue()
@@ -1050,7 +1084,7 @@ private struct TransactionSplitLineEditor: View {
         Text("Use − for spending and + for income. The parent amount is the sum of all lines.")
           .font(.footnote)
           .foregroundStyle(.secondary)
-        if line.amount == nil {
+        if line.amount(decimalDigits: model.currencyFormat?.decimalDigits) == nil {
           Text("Enter a valid signed amount.")
             .font(.footnote)
             .foregroundStyle(Theme.outflow)

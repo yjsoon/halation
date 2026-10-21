@@ -1,5 +1,6 @@
+import { isStorableMilliunits } from "@howmuch/money";
 import type { Payee, Subtransaction, Transaction, TransactionUpdateInput } from "../api/types";
-import { parseMilliunits, planDecimalIsComma } from "./money";
+import { minorUnitMilliunits, parseMilliunits, planDecimalIsComma } from "./money";
 import { canonicalPayeeName, findTransferPayee, formatMilliunitsPadded } from "./register-compose";
 
 export type RegisterRowDraft = {
@@ -641,6 +642,12 @@ function planAmountChange(
   if (outflow && inflow) {
     return { kind: "invalid", message: "Enter an outflow or an inflow, not both." };
   }
+  // The prefilled text, untouched, is the stored amount even when it holds
+  // more decimals than the currency allows (a row saved before that rule).
+  const prefilled = amountDraft(current);
+  if (outflow === prefilled.outflow && inflow === prefilled.inflow) {
+    return { kind: "same" };
+  }
   if (!outflow && !inflow) {
     if (current === 0) {
       return { kind: "same" };
@@ -729,7 +736,15 @@ export function parseAmountEntry(text: string): number | null {
   if (!parsed || parsed.next !== tokens.length) {
     return null;
   }
-  return parsed.value < 0 ? null : parsed.value;
+  // A quotient lands between cents (10/3); round it to the currency's
+  // smallest unit, as every typed number already is.
+  const unit = minorUnitMilliunits();
+  const steps = roundHalfAwayFromZero(parsed.value, unit);
+  const value = steps === null ? null : steps * unit;
+  if (value === null || !isStorableMilliunits(value)) {
+    return null;
+  }
+  return value < 0 ? null : value;
 }
 
 type AmountToken =

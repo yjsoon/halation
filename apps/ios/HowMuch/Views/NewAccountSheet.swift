@@ -106,7 +106,7 @@ struct NewAccountSheet: View {
     if trimmed.isEmpty {
       return 0
     }
-    return MoneyCodec.milliunits(fromTyped: trimmed)
+    return MoneyCodec.milliunits(fromTyped: trimmed, decimalDigits: model.currencyFormat?.decimalDigits)
   }
 
   private var canSave: Bool {
@@ -119,7 +119,7 @@ struct NewAccountSheet: View {
 
   private var balanceHint: String {
     if enteredBalance == nil {
-      return "Enter an amount with no more than three decimal places."
+      return "Enter a valid amount."
     }
     if kind.storesLiability {
       return "Enter what you currently owe."
