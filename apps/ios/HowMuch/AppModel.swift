@@ -1,3 +1,4 @@
+import Accessibility
 import Foundation
 import Observation
 import OSLog
@@ -4145,7 +4146,10 @@ final class AppModel {
         kind: .failure
       )
     } else if tally.sent > 0, trigger != .commit {
-      showSaveMessage(tally.sent == 1 ? "Synced 1 pending change" : "Synced \(tally.sent) pending changes")
+      showSaveMessage(
+        tally.sent == 1 ? "Synced 1 pending change" : "Synced \(tally.sent) pending changes",
+        isBackground: true
+      )
     } else if tally.sent == 0, trigger == .manual, !currentOutbox.isEmpty {
       showSaveMessage("Couldn’t sync — will retry on the next refresh", kind: .failure)
     }
@@ -4479,16 +4483,30 @@ final class AppModel {
     return repaired
   }
 
-  func showSaveMessage(_ text: String, kind: SaveMessage.Kind = .success) {
+  /// Successes fade after three seconds; failures stay ten, or until tapped.
+  /// Many failures describe a moment ("still sending"), so they must not
+  /// linger once it has passed. VoiceOver reads each one, even when a sheet
+  /// hides the toast. `isBackground` marks news the user did not just ask
+  /// for, such as a sync, which queues behind other speech.
+  func showSaveMessage(_ text: String, kind: SaveMessage.Kind = .success, isBackground: Bool = false) {
     saveMessageToken += 1
     lastSaveMessage = SaveMessage(id: saveMessageToken, text: text, kind: kind)
+    // High priority survives VoiceOver reading the newly focused element as
+    // a sheet closes straight after a save.
+    var announcement = AttributedString(text)
+    announcement.accessibilitySpeechAnnouncementPriority = isBackground && kind == .success ? .low : .high
+    AccessibilityNotification.Announcement(announcement).post()
     let token = saveMessageToken
     Task {
-      try? await Task.sleep(for: .seconds(3))
+      try? await Task.sleep(for: .seconds(kind == .failure ? 10 : 3))
       if token == saveMessageToken {
         lastSaveMessage = nil
       }
     }
+  }
+
+  func dismissSaveMessage() {
+    lastSaveMessage = nil
   }
 }
 
