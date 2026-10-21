@@ -59,6 +59,8 @@ export function SettingsPage() {
     const role = status.roles?.[planId];
     return { isOwner: role === "owner", canExport: role === "owner" || role === "editor", settings };
   });
+  // Fetched on its own so a failed plan read cannot hide the disclosure.
+  const categoriser = useApi("settings-categoriser", async () => (await api.authStatus()).categoriser_enabled);
 
   return (
     <>
@@ -84,6 +86,7 @@ export function SettingsPage() {
         <PlanFormatsSection settings={saved ?? account.data.settings} onSaved={setSaved} />
       )}
       {account.data?.canExport && <ExportSection />}
+      {typeof categoriser.data === "boolean" && <CategoriserSection enabled={categoriser.data} />}
 
       <section className="report-section" aria-labelledby="settings-appearance-heading">
         <div className="section-heading">
@@ -294,6 +297,27 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
       </form>
       {error && <StatusPanel error role="alert">{error}</StatusPanel>}
       {done && <StatusPanel className="status-panel-success" role="status">Formats saved. Amounts and dates here now use the new settings. The iOS app shows the new currency after its next refresh and always shows dates as 24 May 2026.</StatusPanel>}
+    </section>
+  );
+}
+
+/** Says whether this server sends transactions to TypeSafe, and what it sends. */
+function CategoriserSection({ enabled }: { enabled: boolean }) {
+  return (
+    <section className="report-section" aria-labelledby="settings-categoriser-heading" data-testid="settings-categoriser">
+      <div className="section-heading settings-heading">
+        <div>
+          <span className="section-title" id="settings-categoriser-heading">Automatic categories</span>
+          <span className="section-meta">
+            {enabled
+              ? "This server sends each new transaction that has a payee but no category to TypeSafe, an outside AI service, "
+                + "to pick one. It sends the payee, memo, amount, date and account name, your category and group names, and "
+                + "similar past transactions with their payees, memos, amounts, dates and categories. A confident pick is saved without review. Suggest categories "
+                + "on the Transactions page sends the same details for the rows you select."
+              : "This server does not send transactions to any outside service to pick categories."}
+          </span>
+        </div>
+      </div>
     </section>
   );
 }

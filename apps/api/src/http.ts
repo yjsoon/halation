@@ -1206,6 +1206,10 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
         // Plan id to role, for session principals only. Lets the web client show
         // owner-only controls; the server still enforces the role on every write.
         ...(principal?.kind === "session" ? { roles: principal.roles } : {}),
+        // With a TypeSafe key, new transactions are sent to TypeSafe for a
+        // category. Public, so the iOS connect flow can say so before it
+        // switches to this server.
+        categoriser_enabled: !!config.typesafeApiKey,
       },
     });
   }

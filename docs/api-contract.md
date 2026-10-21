@@ -27,6 +27,8 @@ Signed-in browser users manage long-lived personal credentials at `GET`/`POST /a
 
 `GET /api/auth/status` reports `setup_required` (no owner exists yet), `bootstrap_required` (setup needs the `HOWMUCH_API_TOKEN` bearer) and `setup_blocked` (setup is still needed but this server would refuse it because it has no `HOWMUCH_API_TOKEN`; the Worker always refuses setup without one). It also returns `roles` (plan id to `owner`, `editor` or `viewer`) when the caller holds a user session. Clients use it to show owner-only controls; the server enforces the role on every write regardless.
 
+It also returns `categoriser_enabled`: `true` when the server has a `TYPESAFE_API_KEY`, so new transactions are sent to TypeSafe for a category (see [Automatic categorisation on create](#category-suggestions-jev)). It needs no session; the iOS app reads it when signing in, before switching to the server. Servers older than this field omit it, so clients treat a missing value as unknown, not as `false`.
+
 ### Changing your password
 
 `POST /api/auth/password` with `{ "current_password": "...", "new_password": "..." }`.

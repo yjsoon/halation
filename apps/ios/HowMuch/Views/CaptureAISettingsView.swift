@@ -35,7 +35,7 @@ struct CaptureAISettingsView: View {
 
       if draft.isOnDevice {
         Section("On device") {
-          Text("Uses Apple Intelligence. Financial text stays on this device. Manual entry is always available.")
+          Text("Uses Apple Intelligence. Text is read on this device. Manual entry is always available.")
           if settings.catalog.providers.isEmpty {
             Text("The model catalog could not be loaded. Reinstall an updated Halation build to use an external provider.")
               .foregroundStyle(Theme.outflow)
@@ -65,7 +65,7 @@ struct CaptureAISettingsView: View {
         }
 
         Section {
-          Text("Your message, extracted receipt text, current drafts, recent conversation context, and account/category names are sent to this provider. For a shared document, its text as read on this device, your notes for reading documents, any note you add when sharing, and account/category names are sent. Images, PDFs and the full ledger are not uploaded. Nothing is saved without your review.")
+          Text("Your message, extracted receipt text, current drafts, recent conversation context, and account/category names are sent to this provider. For a shared document, its text as read on this device, your notes for reading documents, any note you add when sharing, and account/category names are sent. Images, PDFs and the full ledger are not uploaded. Nothing the provider suggests is saved without your review.")
             .font(.footnote)
             .foregroundStyle(.secondary)
           Text(provider?.notice ?? "Your endpoint's data retention and training policies apply. This is not Apple's Private Cloud Compute. Requires JSON output support for the selected API.")

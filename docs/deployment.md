@@ -70,6 +70,12 @@ environment `tk` in `wrangler.jsonc`:
   `HOWMUCH_API_TOKEN` as an encrypted secret on this Worker.
 - Optional: `TYPESAFE_API_KEY` (encrypted secret) turns on Jev category
   suggestions (`POST /api/tools/categorise`); without it the route returns 503.
+  It also turns on automatic categorisation: every new API or quick-entry
+  transaction with a payee but no category is sent to TypeSafe (payee, memo,
+  amount, date, account name, category and group names, and similar past
+  transactions with their payees, memos, amounts, dates and categories),
+  and a confident pick is saved without review. `/api/auth/status` reports
+  `categoriser_enabled`, and both clients tell users.
   Set it from `apps/worker` with
   `bunx wrangler secret put TYPESAFE_API_KEY --env tk --profile tinkertanker`.
   `TYPESAFE_MODEL` (plain var) overrides the SDK default, `jev-latest`.

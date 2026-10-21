@@ -2783,6 +2783,7 @@ describe("password authentication", () => {
       user: null,
       // No session, so nothing for a client to gate a cached paint on.
       session_expires_at: null,
+      categoriser_enabled: false,
     });
 
     const setup = await authRequest(
