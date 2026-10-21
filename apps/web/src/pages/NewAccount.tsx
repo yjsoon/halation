@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { StatusPanel } from "../components/StatusPanel";
-import { parseMilliunits } from "../lib/money";
+import { formatMilliunitsField, parseMilliunits } from "../lib/money";
 import { ACCOUNT_KIND_GROUPS, newAccountRequest, storesLiability, type NewAccountKind } from "../lib/new-account";
 import { usePlan } from "../state/plan";
 
@@ -97,7 +97,7 @@ export function NewAccountPage() {
           />
           <span id="new-account-balance-note" className={balanceInvalid ? "field-note field-note-error" : "field-note"}>
             {balanceInvalid
-              ? "Enter an amount with no more than three decimal places."
+              ? `Enter an amount such as ${formatMilliunitsField(1_234_500)}.`
               : liability
                 ? "Enter what you owe today."
                 : "Today’s balance. Use a minus sign if you’re overdrawn."}
