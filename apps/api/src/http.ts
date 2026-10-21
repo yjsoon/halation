@@ -1273,7 +1273,7 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
       return authError(
         403,
         "forbidden",
-        "This server has no setup token. Add the HOWMUCH_API_TOKEN secret to the Worker, then reload this page.",
+        "This server has no setup token. Set HOWMUCH_API_TOKEN on this server, then reload this page.",
       );
     }
     const authorization = request.headers.get("authorization");
