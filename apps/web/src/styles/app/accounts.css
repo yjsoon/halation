@@ -575,3 +575,33 @@
 .card-terms-field-warning {
   color: var(--red);
 }
+
+.new-account-intro {
+  margin-top: 4px;
+  color: var(--ink-soft);
+}
+
+.new-account-form {
+  max-width: 420px;
+}
+
+.field-note-error {
+  color: var(--red);
+}
+
+.account-list-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.account-list-empty {
+  padding: 6px 10px;
+  color: var(--sidebar-ink-soft);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.account-list-empty a {
+  color: var(--sidebar-ink-strong);
+  text-decoration: underline;
+}

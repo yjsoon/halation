@@ -318,7 +318,14 @@ function RewardsBoard({ planId }: { planId: string }) {
         <StatusPanel title="Loading rewards…" />
       )}
 
-      {emptyImported && (
+      {emptyImported && accounts.length === 0 && (
+        <StatusPanel title="Add an account first">
+          Reward cards score spending on your Halation accounts. <Link to="/accounts/new">Create an account</Link>,
+            or import a Rewards Tracker export from <Link to="/import/rewards">Settings → Rewards import</Link>.
+        </StatusPanel>
+      )}
+
+      {emptyImported && accounts.length > 0 && (
         <StatusPanel title="No reward cards in this range.">
           Import a Rewards Tracker export from <Link to="/import/rewards">Settings → Rewards import</Link>,
             or choose <Link to={addCardHref}>Add card</Link> to score one of your Halation cards.

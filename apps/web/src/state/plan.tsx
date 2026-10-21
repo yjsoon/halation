@@ -28,6 +28,7 @@ import {
 } from "../lib/locale-plan-seed";
 import { configureDateFormat } from "../lib/dates";
 import { configureMoney } from "../lib/money";
+import type { NewAccountBody } from "../lib/new-account";
 import { parseTransactionDeepLink } from "../lib/transaction-deep-link";
 import { HalationMark } from "../components/Brand";
 import {
@@ -93,6 +94,8 @@ interface PlanContextValue {
   accountPreferencesSync: AccountPreferencesState;
   updateAccountPreferences: (updater: (preferences: AccountPreferences) => AccountPreferences) => void;
   updateAccountIcon: (accountId: string, icon: string) => Promise<void>;
+  /** Creates an account and adds it to the sidebar before resolving. */
+  createAccount: (account: NewAccountBody) => Promise<Account>;
   retryAccountPreferences: () => void;
   categoryGroups: CategoryGroup[];
   categories: Category[];
@@ -178,6 +181,7 @@ function provisionalPlanValue(
     },
     updateAccountPreferences: () => {},
     updateAccountIcon: async () => {},
+    createAccount: () => Promise.reject(new Error("Still loading. Try again in a moment.")),
     retryAccountPreferences: () => {},
     categoryGroups,
     categories,
@@ -478,6 +482,13 @@ export function PlanProvider({ children }: { children: ReactNode }) {
               setGeneration((n) => n + 1);
               throw cause;
             }
+          },
+          createAccount: async (account) => {
+            const created = await api.createAccount(planId, account);
+            setValue((current) => current?.planId === planId
+              ? { ...current, accounts: [...current.accounts.filter((existing) => existing.id !== created.id), created] }
+              : current);
+            return created;
           },
           retryAccountPreferences: () => accountPreferencesController?.retry(),
           categoryGroups,
