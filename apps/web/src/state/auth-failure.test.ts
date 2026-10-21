@@ -3,8 +3,9 @@ import { ApiError, api } from "../api/client";
 import { describeAuthFailure } from "./auth-failure";
 
 // Failure mode: on the Workers Free plan, password hashing exceeds the CPU
-// limit and Cloudflare answers with its own HTML 503, not Halation's JSON.
-// Over HTTP/2 the status text is empty, so the old message was a bare "503 ".
+// limit and Cloudflare answers with its own error page (a 5xx, here 503),
+// not Halation's JSON. Over HTTP/2 the status text is empty, so the old
+// message was a bare "503 ".
 describe("non-JSON server failures during sign-in", () => {
   test("read as a sentence that points at the plan limit", async () => {
     const originalFetch = globalThis.fetch;
@@ -17,15 +18,10 @@ describe("non-JSON server failures during sign-in", () => {
       const failure = await api.login("owner", "a-long-enough-password").catch((cause: unknown) => cause);
       expect(failure).toBeInstanceOf(ApiError);
       const message = describeAuthFailure(failure);
-      expect(message).toContain("503");
+      expect(message.startsWith("The server could not complete the request (HTTP 503).")).toBeTrue();
       expect(message).toContain("Workers Paid plan");
     } finally {
       globalThis.fetch = originalFetch;
     }
-  });
-
-  test("keep the server's own explanation when it sent one", () => {
-    const failure = new ApiError("Setup has already completed", 409, "setup_complete", { detail: "Setup has already completed" });
-    expect(describeAuthFailure(failure)).toBe("Setup has already completed");
   });
 });

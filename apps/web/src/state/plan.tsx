@@ -577,12 +577,13 @@ function SetupBlocked() {
           password manager.
         </li>
         <li>
-          Add it to this Worker as the secret <code>HOWMUCH_API_TOKEN</code>: in the Cloudflare dashboard under
-          the Worker's <strong>Settings</strong>, <strong>Variables and Secrets</strong>, or with{" "}
-          <code>bunx wrangler secret put HOWMUCH_API_TOKEN</code> and your Wrangler config.
+          Set it on this server as <code>HOWMUCH_API_TOKEN</code>. On Cloudflare, add it as a secret under the
+          Worker's <strong>Settings</strong>, <strong>Variables and Secrets</strong>, or run{" "}
+          <code>bunx wrangler secret put HOWMUCH_API_TOKEN</code> with your Wrangler config.
         </li>
         <li>Reload this page and enter the value as the setup token.</li>
       </ol>
+      <button type="button" onClick={() => window.location.reload()}>Reload</button>
       <p className="boot-hint">
         <a href={SETUP_TOKEN_DOCS_URL}>Setup token in the self-hosting guide</a>
       </p>
