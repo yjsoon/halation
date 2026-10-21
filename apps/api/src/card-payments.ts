@@ -1,3 +1,4 @@
+import { isStorableMilliunits } from "@howmuch/money";
 /**
  * Pure card payment maths: terms validation, cycle dates, statement balance,
  * minimum due and coverage. No database calls, so the Worker, the Bun server
@@ -94,7 +95,7 @@ export function parseCardPaymentTermsInput(value: unknown, accountId: string): C
   const rawAmount = input.default_amount_milli;
   let amount: number | null = null;
   if (rawAmount !== undefined && rawAmount !== null) {
-    if (typeof rawAmount !== "number" || !Number.isSafeInteger(rawAmount) || rawAmount <= 0) {
+    if (!isStorableMilliunits(rawAmount) || rawAmount <= 0) {
       throw new CardPaymentTermsValidationError("card_payment_terms.default_amount_milli must be positive integer milliunits or null");
     }
     amount = rawAmount;

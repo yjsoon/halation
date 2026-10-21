@@ -2201,6 +2201,80 @@ describe("native reports and imports", () => {
     expect(spending.data.groups[0].category_name).toBe("Uncategorised");
   });
 
+  // A bank CSV is written the plan's way; a misread mark silently stores the
+  // wrong money, so each row must be read exactly or fail on its own.
+  test("reads CSV amounts with a comma-decimal plan's marks and fails junk rows", async () => {
+    db.run(
+      "UPDATE plans SET currency_format_json = ? WHERE id = 'plan-test'",
+      [JSON.stringify({ iso_code: "EUR", example_format: "123.456,78", decimal_digits: 2, decimal_separator: ",", symbol_first: false, group_separator: ".", currency_symbol: "€", display_symbol: true })],
+    );
+    const response = await request("/api/import/csv?plan_id=plan-test", {
+      method: "POST",
+      body: {
+        account_id: "acct-1",
+        rows: [
+          { date: "2026-06-01", payee: "Bäckerei", outflow: "12,50", inflow: "" },
+          { date: "2026-06-02", payee: "Gehalt", outflow: "", inflow: "1.234,56" },
+          { date: "2026-06-03", payee: "Hex", outflow: "0x10", inflow: "" },
+          { date: "2026-06-04", payee: "Too many digits", outflow: "1,9999", inflow: "" },
+          { date: "2026-06-05", payee: "Huge", amount: "9007199254740993" },
+        ],
+      },
+    });
+    expect(response.status).toBe(201);
+    expect((await response.json()).data).toMatchObject({ imported: 2, failed: 3 });
+    const amounts = db.query("SELECT amount_milli FROM transactions WHERE date >= '2026-06-01' AND date <= '2026-06-05' ORDER BY date").all() as Array<{ amount_milli: number }>;
+    expect(amounts.map((row) => row.amount_milli)).toEqual([-12_500, 1_234_560]);
+  });
+
+  // A JSON number is never locale text: 1.234 in a comma plan is not 1,234.
+  test("reads a numeric quick-entry amount with a plain dot in a comma plan", async () => {
+    db.run(
+      "UPDATE plans SET currency_format_json = ? WHERE id = 'plan-test'",
+      [JSON.stringify({ iso_code: "EUR", example_format: "123.456,78", decimal_digits: 2, decimal_separator: ",", symbol_first: false, group_separator: ".", currency_symbol: "€", display_symbol: true })],
+    );
+    const checking = await createAccountViaApi({ name: "Girokonto", type: "checking" });
+    const post = (client_id: string, amount: unknown) => request("/api/mobile/quick-entry?plan_id=plan-test", {
+      method: "POST",
+      body: { client_id, account_id: checking.id, date: "2026-06-10", payee_name: "Café", amount },
+    });
+    expect((await post("qe-num-1", 1.234)).status).toBe(400);
+    const accepted = await post("qe-num-2", -12.5);
+    expect(accepted.status).toBe(201);
+    expect((await accepted.json()).data.transaction.amount).toBe(-12_500);
+    const text = await post("qe-num-3", "-1.234,5");
+    expect((await text.json()).data.transaction.amount).toBe(-1_234_500);
+  });
+
+  // Importers skip the strict split rules; a line past the cap must still
+  // be refused, as the D1 store already does.
+  test("refuses an oversized split line on the non-strict import path", async () => {
+    const repo = new LedgerRepository(db, "plan-test");
+    await expect(repo.createTransaction("plan-test", {
+      account_id: "acct-1",
+      date: "2026-06-01",
+      amount: 0,
+      subtransactions: [{ amount: 9_007_199_254_740_993 }, { amount: -9_007_199_254_740_993 }],
+    } as any, { autoLink: false })).rejects.toThrow("within ±1e15");
+  });
+
+  test("refuses quick-entry amounts past the storage cap", async () => {
+    const checking = await createAccountViaApi({ name: "Checking", type: "checking" });
+    for (const amount of [{ amount: "9007199254740993" }, { amount_milli: 9_007_199_254_740_993 }, { amount_milli: 1_000_000_000_000_001 }, { amount: "0x10" }]) {
+      const response = await request("/api/mobile/quick-entry?plan_id=plan-test", {
+        method: "POST",
+        body: { client_id: `qe-cap-${JSON.stringify(amount)}`, account_id: checking.id, date: "2026-06-10", payee_name: "Big", ...amount },
+      });
+      expect(response.status).toBe(400);
+    }
+    const accepted = await request("/api/mobile/quick-entry?plan_id=plan-test", {
+      method: "POST",
+      body: { client_id: "qe-cap-max", account_id: checking.id, date: "2026-06-10", payee_name: "Big", amount: "-1,000,000,000,000" },
+    });
+    expect(accepted.status).toBe(201);
+    expect((await accepted.json()).data.transaction.amount).toBe(-1_000_000_000_000_000);
+  });
+
   test("imports a Rewards Tracker export twice without duplicating cards or cached transactions", async () => {
     const payload = {
       ynab: { selectedBudgetId: "plan-test", selectedBudgetName: "Cutover", trackedAccountIds: ["acct-rewards"] },

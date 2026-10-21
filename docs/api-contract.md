@@ -838,6 +838,15 @@ Body:
 `subtransactions` (optional, decimal amounts) records a split; both follow the
 `/v1` transfer and split semantics above.
 
+Each `amount` may instead be sent as `amount_milli` (integer milliunits), which
+the web app does. A JSON number `amount` is read with a plain dot and no
+grouping (`1.234` is 1.234, then held to the currency's decimal places). A
+string `amount` is read with the plan's `currency_format`:
+in a comma-decimal plan `"12,50"` is 12.50 and `"1.234"` is 1,234. Anything the
+server cannot read exactly is a 400: hex or exponent spellings, malformed
+grouping, digits beyond the currency's `decimal_digits`, and any amount beyond
+±1,000,000,000,000 units (±10^15 milliunits), the cap on every amount write.
+
 Returns a normal YNAB-compatible transaction envelope.
 
 ### Imports
@@ -921,6 +930,10 @@ Accepts rows shaped like:
   ]
 }
 ```
+
+Amounts are read with the plan's `currency_format`, by the same rules as quick
+entry. A row whose amount cannot be read exactly is recorded as failed rather
+than stored as a guess.
 
 ### Category suggestions (Jev)
 

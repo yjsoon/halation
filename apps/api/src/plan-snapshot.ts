@@ -1,3 +1,4 @@
+import { isStorableMilliunits } from "@howmuch/money";
 /**
  * Pure core for whole-plan snapshots (`howmuch-plan-snapshot`, version 1).
  *
@@ -896,7 +897,7 @@ function flag(value: unknown, path: string): number {
 }
 
 function milliunits(value: unknown, path: string): number {
-  if (typeof value !== "number" || !Number.isSafeInteger(value)) throw new SnapshotValidationError(`${path} must be integer milliunits`);
+  if (!isStorableMilliunits(value)) throw new SnapshotValidationError(`${path} must be integer milliunits within ±1e15`);
   return value;
 }
 

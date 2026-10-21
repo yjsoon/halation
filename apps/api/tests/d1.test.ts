@@ -418,6 +418,17 @@ describe("D1 foundation", () => {
     expect(JSON.stringify(event)).not.toContain("cron-good");
   });
 
+  // The D1 store validates amounts in its own code, apart from SQLite's.
+  test("D1 writes refuse amounts past the ±1e15 milliunit cap", async () => {
+    const db = await ledgerSqlite();
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    const row = { account_id: "a", date: "2026-07-01" };
+    await expect(repo.createTransaction("p", { ...row, id: "too-big", amount: 1_000_000_000_000_001 })).rejects.toThrow("within ±1e15");
+    await expect(repo.createTransaction("p", { ...row, id: "too-big-split", amount: 0, subtransactions: [{ amount: 9_007_199_254_740_993 }, { amount: -9_007_199_254_740_993 }] } as any)).rejects.toThrow("within ±1e15");
+    expect((await repo.createTransaction("p", { ...row, id: "at-cap", amount: -1_000_000_000_000_000 })).amount).toBe(-1_000_000_000_000_000);
+    await expect(repo.updateTransaction("p", "at-cap", { amount: -1_000_000_000_000_001 })).rejects.toThrow("within ±1e15");
+  });
+
   test("LedgerStore facade supports HTTP, CSV, metadata, imports, and lease fencing", async () => {
     const db = await ledgerSqlite();
     const d1 = new D1Database(fakeD1(db));

@@ -5,6 +5,7 @@ import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
 import { assertTransactionFieldTypes, collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
 import { ReportService } from "./reports";
+import { type AmountFormat, amountFormatOf, isStorableMilliunits } from "@howmuch/money";
 import { decimalToMilliunits } from "./money";
 import { importCsvRows } from "./importers/csv";
 import { importRewardsTrackerExport } from "./importers/rewards-tracker";
@@ -284,8 +285,8 @@ async function handleV1(
       // Balances feed integer milliunit arithmetic; a decimal string or an
       // object would be stored verbatim and corrupt every later balance.
       for (const field of ["balance", "opening_balance", "cleared_balance", "uncleared_balance"]) {
-        if (payload[field] != null && !Number.isSafeInteger(payload[field])) {
-          throw new ValidationError(`account.${field} must be integer milliunits`);
+        if (payload[field] != null && !isStorableMilliunits(payload[field])) {
+          throw new ValidationError(`account.${field} must be integer milliunits within ±1e15`);
         }
       }
       // The documented create body names a type and no on_budget; a tracking
@@ -315,8 +316,8 @@ async function handleV1(
       if (!body || typeof body !== "object" || Array.isArray(body) || typeof body.statement_date !== "string") {
         throw new ValidationError("statement_date is required");
       }
-      if (!Number.isSafeInteger(body.statement_balance)) {
-        throw new ValidationError("statement_balance must be integer milliunits");
+      if (!isStorableMilliunits(body.statement_balance)) {
+        throw new ValidationError("statement_balance must be integer milliunits within ±1e15");
       }
       return json({ data: await repo.reconcileAccount(planId, accountId, body.statement_date, body.statement_balance, { operationId }) });
     }
@@ -863,13 +864,14 @@ async function handleNative(
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
     if (denied) return denied;
     await repo.ensurePlan(targetPlanId);
-    const amount = quickEntryMilliunits(body.amount_milli, body.amount, "amount");
+    const format = amountFormatOf((await repo.getSettings(targetPlanId)).currency_format);
+    const amount = quickEntryMilliunits(body.amount_milli, body.amount, "amount", format);
     if (Array.isArray(body.subtransactions) && body.subtransactions.some((sub: unknown) => !sub || typeof sub !== "object" || Array.isArray(sub))) {
       throw new ValidationError("subtransactions must be objects");
     }
     const subtransactions = Array.isArray(body.subtransactions)
       ? body.subtransactions.map((sub: any) => ({
-          amount: quickEntryMilliunits(sub.amount_milli, sub.amount, "subtransaction amount"),
+          amount: quickEntryMilliunits(sub.amount_milli, sub.amount, "subtransaction amount", format),
           payee_id: sub.payee_id ?? null,
           payee_name: sub.payee_name ?? null,
           category_id: sub.category_id ?? null,
@@ -981,17 +983,18 @@ async function handleNative(
 }
 
 /**
- * Quick entry takes integer milliunits or a decimal string. A missing or
- * unparseable decimal is the caller's mistake, not a server failure; integer
- * checks on `amount_milli` stay with the transaction writer.
+ * Quick entry takes integer milliunits or a decimal string in the plan's
+ * currency format. A missing or unparseable decimal is the caller's mistake,
+ * not a server failure; checks on `amount_milli` stay with the transaction
+ * writer.
  */
-function quickEntryMilliunits(milli: unknown, decimal: unknown, label: string): number {
+function quickEntryMilliunits(milli: unknown, decimal: unknown, label: string, format: AmountFormat): number {
   if (milli !== undefined && milli !== null) return milli as number;
   if (typeof decimal !== "string" && typeof decimal !== "number") throw new ValidationError(`${label} is required`);
   try {
-    return decimalToMilliunits(decimal);
+    return decimalToMilliunits(decimal, format);
   } catch {
-    throw new ValidationError(`${label} must be a decimal amount`);
+    throw new ValidationError(`${label} must be a decimal amount in the plan's currency format, within ±1,000,000,000,000`);
   }
 }
 

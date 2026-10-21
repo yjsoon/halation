@@ -1,3 +1,4 @@
+import { isStorableMilliunits } from "@howmuch/money";
 import { ValidationError } from "./repository";
 import {
   MAX_TRANSACTION_WRITE_BATCH,
@@ -275,7 +276,7 @@ function booleanValue(value: unknown, label: string): boolean {
 }
 
 function integer(value: unknown, label: string): number {
-  if (!Number.isSafeInteger(value)) throw new ValidationError(`${label} must be integer milliunits`);
+  if (!isStorableMilliunits(value)) throw new ValidationError(`${label} must be integer milliunits within ±1e15`);
   return value as number;
 }
 
