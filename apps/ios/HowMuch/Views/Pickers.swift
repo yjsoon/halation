@@ -215,8 +215,54 @@ struct AccountPickerView: View {
   var disabledAccountIDs: Set<String> = []
   let onSelect: (Account) -> Void
   @State private var searchText = ""
+  // Latched on first appearance: creating an account fills `model.accounts`
+  // before the sheet hands it back, and switching on the live list would tear
+  // that sheet away before the new account could be selected.
+  @State private var needsFirstAccount: Bool?
+  @State private var isCreatingAccount = false
+
+  /// Only a loaded reference may say the plan has no account; after a failed
+  /// load the list is empty for another reason.
+  private var lacksAccount: Bool {
+    CaptureAdmissionGate.needsAccount(referencePhase: model.referencePhase, accounts: model.accounts)
+  }
 
   var body: some View {
+    Group {
+      if needsFirstAccount ?? lacksAccount {
+        // An empty list here left Save disabled with no way forward.
+        AddAccountFirstView(
+          onCreated: { account in
+            onSelect(account)
+            dismiss()
+          },
+          onAddingChanged: { isCreatingAccount = $0 }
+        ) {
+          EmptyView()
+        }
+        .background(Theme.canvas)
+        .navigationTitle("Account")
+        .navigationBarTitleDisplayMode(.inline)
+      } else {
+        picker
+      }
+    }
+    .onAppear {
+      if needsFirstAccount == nil {
+        needsFirstAccount = lacksAccount
+      }
+    }
+    // Accounts that arrive from a refresh release the prompt; the prompt's own
+    // sheet hands its account over through onCreated instead.
+    .onChange(of: CaptureAdmissionGate.hasUsableAccount(model.accounts)) { _, usable in
+      if usable, !isCreatingAccount {
+        needsFirstAccount = false
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var picker: some View {
     let groups = model.accountListGroups(includeClosed: false, includeEmptyCustomGroups: false)
     let visibleGroups = groups.compactMap { $0.matching(searchText) }
     // Inspect all groups, not just search matches: usage sorting still needs

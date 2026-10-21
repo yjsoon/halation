@@ -93,6 +93,7 @@ enum RewardsSheet: Identifiable {
   case importExport
   case accounts
   case asOfDate
+  case newAccount
 
   var id: String {
     switch self {
@@ -108,6 +109,7 @@ enum RewardsSheet: Identifiable {
     case .importExport: return "import-export"
     case .accounts: return "accounts"
     case .asOfDate: return "as-of-date"
+    case .newAccount: return "new-account"
     }
   }
 }
@@ -247,7 +249,18 @@ struct RewardsView: View {
   @ViewBuilder
   private func boardRows(_ report: RewardsReport, board: RewardsBoard) -> some View {
     if report.cards.isEmpty {
-      if filter.scope.accountIDs.isEmpty {
+      if filter.scope.accountIDs.isEmpty, !hasRewardAccountChoice {
+        // Set Up Rewards would open an editor with no account to pick.
+        emptyState(
+          "Add an Account First",
+          systemImage: "building.columns",
+          description: "Rewards follow spending on a card or bank account. Add one, then set up its rewards."
+        ) {
+          Button("New Account") { sheet = .newAccount }
+            .buttonStyle(.borderedProminent)
+            .tint(Theme.accent)
+        }
+      } else if filter.scope.accountIDs.isEmpty {
         emptyState(
           "No Reward Cards",
           systemImage: "creditcard",
@@ -457,6 +470,13 @@ struct RewardsView: View {
       .listRowSeparator(.hidden)
   }
 
+  /// False only once accounts have loaded and none can carry a card: a
+  /// rewards snapshot can paint before the accounts it belongs to.
+  private var hasRewardAccountChoice: Bool {
+    model.referencePhase != .loaded
+      || !RewardCardAccounts.choices(accounts: model.accounts, takenIDs: [], keepingID: nil).isEmpty
+  }
+
   private func emptyState<Actions: View>(
     _ title: String,
     systemImage: String,
@@ -612,6 +632,8 @@ struct RewardsView: View {
       )
     case .asOfDate:
       RewardsAsOfDateSheet(filter: $filter)
+    case .newAccount:
+      NewAccountSheet()
     }
   }
 

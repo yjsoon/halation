@@ -187,7 +187,7 @@ export function QuickEntryPage() {
 
       {!openAccounts.length ? (
         <StatusPanel error title="No open accounts available.">
-          Add an account before using quick entry.
+          <Link to="/accounts/new?then=add">Add an account</Link> before using quick entry.
         </StatusPanel>
       ) : (
         <form onSubmit={submit} className="quick-entry-form">

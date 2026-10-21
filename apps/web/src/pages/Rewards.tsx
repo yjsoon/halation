@@ -9,6 +9,7 @@ import { FilterRail } from "../components/FilterRail";
 import { MultiSelect } from "../components/MultiSelect";
 import { formatDate, formatDateRange } from "../lib/dates";
 import { formatAmount } from "../lib/money";
+import { rewardCardAccountChoices } from "../lib/reward-card-accounts";
 import { exposure, stillExposure } from "../lib/reward-exposure";
 import { boardSummary, projectRow, rowText, type RewardRowProjection, type RowText, type Tone } from "../lib/reward-row-projection";
 import { useDismiss } from "../lib/use-dismiss";
@@ -134,6 +135,8 @@ function RewardsBoard({ planId }: { planId: string }) {
   ] : [{ name: "Cards", rows: visibleCards }];
   const emptyImported = shown && storedCards.length === 0 && filters.accountIds.length === 0;
   const emptyForAccounts = shown && storedCards.length === 0 && filters.accountIds.length > 0;
+  // Add card offers only open spending accounts; with none, it is a dead end.
+  const hasCardAccount = rewardCardAccountChoices(accounts, []).length > 0;
   const addCardHref = { pathname: "/rewards/new", search: location.search };
   const milesValue = milesText ?? (shown ? String(shown.miles_valuation) : "");
   const hiddenCount = storedCards.filter((row) => isHidden(row.card.id)).length;
@@ -318,7 +321,14 @@ function RewardsBoard({ planId }: { planId: string }) {
         <StatusPanel title="Loading rewards…" />
       )}
 
-      {emptyImported && (
+      {emptyImported && !hasCardAccount && (
+        <StatusPanel title="Add an account first">
+          Reward cards score spending on an open spending account. <Link to="/accounts/new">Create an account</Link>,
+            or import a Rewards Tracker export from <Link to="/import/rewards">Settings → Rewards import</Link>.
+        </StatusPanel>
+      )}
+
+      {emptyImported && hasCardAccount && (
         <StatusPanel title="No reward cards in this range.">
           Import a Rewards Tracker export from <Link to="/import/rewards">Settings → Rewards import</Link>,
             or choose <Link to={addCardHref}>Add card</Link> to score one of your Halation cards.

@@ -1,5 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ApiError, api, BulkApprovalError, useApi } from "../api/client";
 import type {
   AccountReconciliationPreview,
@@ -1463,12 +1463,6 @@ export function TransactionsPage() {
     ? `${footerMeta} · Load older entries to extend this multi-account result.`
     : footerMeta;
 
-  const emptyMessage =
-    page.loaded && page.transactions.length === 0
-      ? filters.from || filters.to ? "No transactions in this date range." : "No transactions yet."
-      : deferredSearch.trim()
-        ? "No transactions match this search."
-        : "No transactions match these filters.";
   const mutationBusy = writeLocked || Boolean(mutatingId);
   const deepLinkError = planSelectionError
     ?? (deepLink.kind === "invalid" ? deepLink.message : deepLinkedTransaction.error);
@@ -1506,6 +1500,27 @@ export function TransactionsPage() {
     [visibleAccounts],
   );
   const canCompose = Boolean(lockedComposeAccount || composeAccounts.length);
+  // A new ledger has nothing to filter, so it needs a way forward rather
+  // than advice about date ranges and search terms.
+  const noAccounts = accounts.length === 0;
+  const noOpenAccounts = !accounts.some((account) => !account.closed);
+  const emptyLedger = page.loaded && page.transactions.length === 0 && !filters.from && !filters.to;
+  const emptyMessage = noAccounts
+    ? "Add your first account"
+    : noOpenAccounts && emptyLedger
+      ? "All your accounts are closed"
+      : page.loaded && page.transactions.length === 0
+      ? filters.from || filters.to ? "No transactions in this date range." : "No transactions yet."
+      : deferredSearch.trim()
+        ? "No transactions match this search."
+        : "No transactions match these filters.";
+  const emptyDetail = noAccounts
+    ? <>Transactions belong to an account. <Link to="/accounts/new">Create one</Link> with its current balance, then add transactions to it.</>
+    : noOpenAccounts && emptyLedger
+      ? <>New transactions need an open account. <Link to="/accounts/new">Create one</Link> to keep recording.</>
+      : emptyLedger && !deferredSearch.trim() && canCompose
+        ? "Choose + Add transaction to record the first one."
+        : "Try widening the date range, clearing filters, or shortening the search term.";
   const reconciliationBusy = mutationBusy;
   const reviewedStatementBalance = reconcileDraft ? parseMilliunits(reconcileDraft.statementBalance) : null;
   const reconciliationPreviewData = reconciliationPreview.data
@@ -1559,7 +1574,12 @@ export function TransactionsPage() {
             className="register-add-link"
             onClick={openCompose}
             disabled={!canCompose || mutationBusy}
-            title={!canCompose && selectedAccount?.closed ? "This account is closed" : undefined}
+            title={!canCompose
+              ? selectedAccount?.closed ? "This account is closed"
+                : noAccounts ? "Add an account first"
+                : noOpenAccounts ? "All accounts are closed. Add an open account first."
+                : undefined
+              : undefined}
           >
             + Add transaction
           </button>
@@ -2093,14 +2113,12 @@ export function TransactionsPage() {
               {rows.length === 0 && !page.filling && compose.status !== "open" && !showScheduledDisclosure && (
                 <div className="register-empty-state">
                   <p className="status-title">{emptyMessage}</p>
-                  <p className="status-detail">Try widening the date range, clearing filters, or shortening the search term.</p>
+                  <p className="status-detail">{emptyDetail}</p>
                 </div>
               )}
             </div>
           ) : page.filling ? null : (
-            <StatusPanel title={emptyMessage}>
-              Try widening the date range, clearing filters, or shortening the search term.
-            </StatusPanel>
+            <StatusPanel title={emptyMessage}>{emptyDetail}</StatusPanel>
           )}
           <div className="register-footer">
             <span className="register-footer-meta">{footerMetaWithMore}</span>
