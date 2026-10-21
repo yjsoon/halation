@@ -29,9 +29,12 @@ The iPhone app is not on the App Store or TestFlight. To install it today, build
 1. Clone the repository and open `apps/ios/HowMuch.xcodeproj` in Xcode. You do not need Bun: the app's bundled engine is already in the repository.
 2. For the **HowMuch** and **HowMuchShare** targets, open **Signing & Capabilities**, choose your own team, and give each a bundle identifier of your own, such as `com.example.halation` and `com.example.halation.share`.
 3. Replace the app group `group.sg.soon.howmuch` with one of your own in both targets and in `apps/ios/HowMuch/Capture/InboxStore.swift`. The share sheet hands transactions to the app through it.
-4. Choose your iPhone as the run destination and run the **HowMuch** scheme.
+4. In the **HowMuch** target, remove the associated domain `webcredentials:howmuch.soon.sg`, or replace it with your own server's host. It lets iOS offer saved passwords for that site, and the domain is the owner's.
+5. Turn on Developer Mode on the iPhone if iOS asks, choose the iPhone as the run destination, and run the **HowMuch** scheme.
 
-Keep these signing changes in your own copy. Xcode explains any capability your account cannot sign, such as associated domains on a free account; remove it from your copy, and only the feature it serves stops working.
+Keep these signing changes in your own copy. Xcode explains any capability your account cannot sign; remove it from your copy, and only the feature it serves stops working.
+
+With a free Apple account, the build stops opening after about seven days. Run it from Xcode again to renew it. Do not delete the app to fix this: in local mode the ledger lives inside the app, and deleting it erases the ledger. A paid Apple Developer Program membership lasts a year per build.
 
 Moving from YNAB? The [YNAB migration guide](docs/ynab-migration.md) covers both import routes: `bun run import:ynab` for the API and `bun run import:ynab-export` for a web export.
 

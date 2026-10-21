@@ -32,10 +32,11 @@ Preconditions:
 
 - **Open setup.** Go to `{web_url}`. The heading is `Set up Halation` and the submit button is `Create account`.
 - **Short password.** Fill Username `verifier` and Password `short`. `Create account` stays disabled. The page does not navigate.
+- **Token note.** Under Setup token the note reads `The HOWMUCH_API_TOKEN secret you set when deploying this server. How to set it`, and **How to set it** links to `self-hosting.md#4-create-the-setup-token`.
+- **Wrong token.** Fill Username `verifier`, Password `howmuch-verify-15`, Setup token `wrong-token`. Choose `Create account`. The alert reads `That setup token does not match. Use the HOWMUCH_API_TOKEN value you set when deploying this server.` The form stays up.
 - **Create owner.** Fill Username `verifier`, Password `howmuch-verify-15`, Setup token `howmuch-verify-bootstrap`. Choose `Create account`. The button reads `Please wait…`, then the shell appears with brand `Halation` and heading `Ledger`. Title is `Ledger · Halation`.
 - **Home IA.** `Primary navigation` has no link named `Plan`, `API tokens`, or `Rewards import`. `Settings` is in the sidebar footer. Open `{web_url}/plan`. Lands on Ledger. Open `{web_url}/no-such-route`. Lands on Ledger. Page text has no `Ready to assign`.
 - **Confirm session.** `control-howmuch http GET /api/auth/status` still reports `setup_required: false` (token is not a browser session). Proof that a user exists: `control-howmuch http GET /v1/plans` returns plan id `local-plan` and name `HowMuch Demo`.
-- **Wrong token.** Before creating the owner, fill Setup token `wrong-token` and choose `Create account`. The alert reads `That setup token does not match. Use the HOWMUCH_API_TOKEN value you set when deploying this server.`
 - **Sign out.** Choose `Sign out`. Heading becomes `Sign in to Halation`. There is no Setup token field. The page says `This is a private Halation instance. To run your own, see github.com/yjsoon/howmuch.`
 - **Sign in.** Fill Username `verifier` and Password `howmuch-verify-15`. Choose `Sign in`. Ledger loads again.
 - **Proof.** Screenshot the Ledger shell after create (`artifacts/first-owner-setup/all-accounts-after-setup.png`), the same shell after `/plan` (`artifacts/first-owner-setup/plan-redirects-home.png`), and the sign-in form after sign out (`artifacts/first-owner-setup/sign-in.png`). All show Halation identity. Primary navigation in the Ledger shots has no `Plan` link.
@@ -47,5 +48,5 @@ Preconditions:
 - scrypt is slow. Wait for Ledger, not a fixed 200ms sleep.
 - Opening any app route without a session still renders the setup/sign-in form. That is not a routing bug.
 - Do not POST `/api/auth/setup` from `control-howmuch http` and call the feature verified.
-- This stack always sets the token, so it cannot reach `setup-blocked`. For that, from the repo root with no `.dev.vars`, run `bunx wrangler d1 migrations apply DB --local --persist-to <tmp> --config wrangler.jsonc`, then `bunx wrangler dev --local --persist-to <tmp> --config wrangler.jsonc`. Never deploy.
+- This stack always sets the token, so it cannot reach `setup-blocked`. For that, from the repo root with no `.dev.vars`, run `bun run --cwd apps/web build`, then `bunx wrangler d1 migrations apply DB --local --persist-to <tmp> --config wrangler.jsonc`, then `bunx wrangler dev --local --persist-to <tmp> --config wrangler.jsonc`. Never deploy.
 - iOS Connection cannot create the owner. Finish this recipe on `{web_url}` before any `ios-*` recipe.

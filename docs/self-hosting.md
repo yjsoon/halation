@@ -106,7 +106,7 @@ Open your Worker's address in a browser. The app shows the setup form. Enter a u
 
 The form also asks for a currency and a date format, prefilled from your browser's language. That guess is only a guess: browsers often report US English whatever the person's country, so check both before you continue. You can change them later in Settings.
 
-The setup token is the `HOWMUCH_API_TOKEN` value from step 4, or the one you entered on the Deploy to Cloudflare setup page. If the form says the token does not match, check for a missing character or a stray space, or set a new value with `wrangler secret put` and try again. If it reports that the server could not complete the request (HTTP 503), the Worker is probably on the Workers Free plan; see [Costs](#costs).
+The setup token is the `HOWMUCH_API_TOKEN` value from step 4, or the one you entered on the Deploy to Cloudflare setup page. If the form says the token does not match, check for a missing character or a stray space, or set a new value with `wrangler secret put` and try again. If it reports that the server could not complete the request (a server error such as HTTP 500 or 503), the Worker is probably on the Workers Free plan; see [Costs](#costs).
 
 Setup works once. A second attempt returns "Setup has already completed".
 

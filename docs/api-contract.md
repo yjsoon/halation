@@ -25,7 +25,7 @@ The first owner is created once with `POST /api/auth/setup`, authorized by `HOWM
 
 Signed-in browser users manage long-lived personal credentials at `GET`/`POST /api/auth/personal-tokens` and `DELETE /api/auth/personal-tokens/{id}`. Creation returns the `hm_pat_…` bearer value once; Halation stores only its SHA-256 fingerprint. Personal tokens inherit the user's current plan memberships, remain valid until revoked, and cannot create or manage other tokens. Management requires the secure browser session and same-origin checks; the global integration token and native bearer sessions are not accepted.
 
-`GET /api/auth/status` also returns `roles` (plan id to `owner`, `editor` or `viewer`) when the caller holds a user session. Clients use it to show owner-only controls; the server enforces the role on every write regardless.
+`GET /api/auth/status` reports `setup_required` (no owner exists yet), `bootstrap_required` (setup needs the `HOWMUCH_API_TOKEN` bearer) and `setup_blocked` (setup is still needed but this server would refuse it because it has no `HOWMUCH_API_TOKEN`; the Worker always refuses setup without one). It also returns `roles` (plan id to `owner`, `editor` or `viewer`) when the caller holds a user session. Clients use it to show owner-only controls; the server enforces the role on every write regardless.
 
 ### Changing your password
 
