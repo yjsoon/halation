@@ -1011,6 +1011,8 @@ struct RewardFilledRow: View {
           }
         }
         .clipShape(.rect(cornerRadius: 10, style: .continuous))
+        // The print and its annotations are a picture, so Smart Invert leaves them together.
+        .accessibilityIgnoresInvertColors(true)
         .padding(6)
         .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.card, style: .continuous))
         .overlay {

@@ -631,7 +631,9 @@ final class RewardsSnapshotTests: XCTestCase {
       if name == "overflow" || !fits {
         XCTAssertFalse(fits, "\(name) should scroll")
         if name == "overflow" { XCTAssertGreaterThan(scroll.contentSize.height, visible + 100) }
-        attach(surface.captureVisible(), "reward-adaptive-\(name)")
+        let top = await surface.captureUntilOCR(contains: ["Done", "Edit"], timeoutNanoseconds: 3_000_000_000)
+        attach(top.image, "reward-adaptive-\(name)")
+        for text in ["Done", "Edit"] { XCTAssertTrue(top.text.contains(text.lowercased()), "\(name) missing \(text): \(top.text)") }
         // A lazy List estimates the height of rows it has not built, so the content grows as it
         // scrolls: keep going to the bottom until it stops growing.
         var lastHeight: CGFloat = -1
@@ -655,7 +657,7 @@ final class RewardsSnapshotTests: XCTestCase {
       }
     }
     // A short card still gets a short sheet: the detent follows the content, not the screen.
-    XCTAssertLessThan(try XCTUnwrap(heights["short"]), 840)
+    XCTAssertLessThan(try XCTUnwrap(heights["short"]), try XCTUnwrap(heights["overflow"]) - 60)
     XCTAssertGreaterThan(try XCTUnwrap(heights["seven"]), try XCTUnwrap(heights["short"]))
   }
 

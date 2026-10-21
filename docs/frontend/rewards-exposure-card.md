@@ -461,7 +461,7 @@ The foot inks resolve by appearance: dark in light mode, on the light ground; li
 - **The slip.** Below the hero, in the same clear section, on the grouped background:
   - a caps line (issuer · type, plus "Featured" when the card is featured), in IBM Plex Sans SemiBold 11pt tracked 0.14em, `Theme.rowSecondary`;
   - then today's headline line, the basis line and the exceptions.
-- The name is a wrapping heading above the hero, in Instrument Serif Italic, and the navigation bar carries no title (21 Oct 2026): an inline title between Done and Edit Rewards truncated every longer name, and at accessibility sizes even short ones. The bar title stays set for the system, so VoiceOver still names the screen.
+- The name is a wrapping heading above the hero, in Instrument Serif Italic, and the navigation bar carries no title (21 Oct 2026): an inline title between Done and Edit Rewards truncated every longer name, and at accessibility sizes even short ones. The heading carries the header trait, so VoiceOver names the sheet from it.
 - The in-frame label and tick are fixed-size art annotations that repeat the slip. They are hidden from VoiceOver, and hidden altogether at accessibility text sizes.
 
 ### What collapses when
@@ -1191,7 +1191,7 @@ Expected values are worked out by hand from those numbers. Before taking screens
 | I Exposure Open | Cashback, no minimum or cap | No cap · Resets in 8 days | $315.50 spent · … | Calm: even, softer light; the sun resting; 1 ring |
 | J Exposure Failed | Miles, 3-month period from 1 Mar, monthly minimum 100 | March minimum missed · Resets in 8 days | $830.80 spent · … | Monochrome and overcast, no sun, no marker, ridges apart, veiled throughout |
 | K Exposure Monthly | Cashback, 3-month period from 1 Apr, monthly minimum 400 | $84.50 to monthly minimum · 8 days left | $315.50 / $400.00 | Gate, `h` 0.789, spend line 79% of the way up |
-| L Exposure Locked | Cashback, 3-month period from 1 Apr, monthly minimum 300 | No cap · Resets in 38 days, slip "Rewards unlock after 30 Jun" | $315.50 spent · … | Calm. Confirm the month list and status. |
+| L Exposure Locked | Cashback, 3-month period from 1 Apr, monthly minimum 300 | No cap · Resets in 38 days, no slip (see the note below) | $315.50 spent · … | Calm. The server reads `met`: April and May are both met. |
 | M Exposure Category | Miles, minimum 200, Online capped at 200 | Minimum met · Resets in 8 days, slip "Online over cap" | $315.50 / $200.00 · … | Rest, `v` 0 |
 | N A long name, such as "Exposure Long Name Preferred Platinum Rewards" | As A | As A, name on two lines | As A | As A, ridges lower; the marker crosses the name |
 | O Exposure Step | Cashback, minimum 200, one tier at 400 | $84.50 to next tier · 8 days left | $315.50 / $400.00 | Climb from the minimum: `v` 0.289 (half of 115.50 / 200), rings at 21%; merged and fully lit, because a met minimum keeps the light |
