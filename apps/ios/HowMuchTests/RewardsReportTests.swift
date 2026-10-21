@@ -579,7 +579,7 @@ final class RewardsSnapshotTests: XCTestCase {
           .environment(harness.model).environment(\.dynamicTypeSize, size).preferredColorScheme(scheme),
         size: CGSize(width: 430, height: size.isAccessibilitySize ? 1500 : 932)
       ))
-      let expected = ["Groceries", "$700.00", "140%", "Food", "92%", "Rides", "Excluded", "$21.00"]
+      let expected = ["Groceries", "$700.00", "140%", "Food", "92%", "Rides", "Excluded", "21.00"]
       let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 5_000_000_000)
       attach(rendered.image, "reward-categories-\(name)")
       for text in expected { XCTAssertTrue(rendered.text.contains(text.lowercased()), "Missing \(text): \(rendered.text)") }
@@ -628,7 +628,7 @@ final class RewardsSnapshotTests: XCTestCase {
       if !fits {
         XCTAssertGreaterThan(frame.height, surface.windowBounds.height * 0.85, "\(name) scrolls before reaching full height")
       }
-      if name == "overflow" || !fits {
+      if name != "short", name == "overflow" || !fits {
         XCTAssertFalse(fits, "\(name) should scroll")
         if name == "overflow" { XCTAssertGreaterThan(scroll.contentSize.height, visible + 100) }
         let top = await surface.captureUntilOCR(contains: ["Done", "Edit"], timeoutNanoseconds: 3_000_000_000)
@@ -643,6 +643,7 @@ final class RewardsSnapshotTests: XCTestCase {
           scroll.layoutIfNeeded()
           try await Task.sleep(nanoseconds: 150_000_000)
         }
+        XCTAssertEqual(scroll.contentSize.height, lastHeight, "\(name) content still growing")
         // OCR sometimes reads the dollar sign as a 5, so match the figure without it.
         let bottom = await surface.captureUntilOCR(contains: ["Excluded", "21.00"], timeoutNanoseconds: 3_000_000_000)
         attach(bottom.image, "reward-adaptive-\(name)-scrolled")
@@ -650,7 +651,7 @@ final class RewardsSnapshotTests: XCTestCase {
         XCTAssertTrue(bottom.text.contains("21.00"), bottom.text)
       } else {
         var expected = ["Done", "Edit", "Groceries", "$700.00", "140%"]
-        if name != "short" { expected += ["Food", "Transport", "Rides", "Gas", "Telcos", "Excluded", "$21.00"] }
+        if name != "short" { expected += ["Food", "Transport", "Rides", "Gas", "Telcos", "Excluded", "21.00"] }
         if name == "targets" { expected += ["Targets", "Minimum met"] }
         let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 3_000_000_000)
         attach(rendered.image, "reward-adaptive-\(name)")
