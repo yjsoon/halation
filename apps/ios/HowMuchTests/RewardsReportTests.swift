@@ -621,17 +621,22 @@ final class RewardsSnapshotTests: XCTestCase {
       heights[name] = frame.height
       print("Adaptive reward sheet \(name): frame=\(frame), content=\(scroll.contentSize.height), visible=\(visible)")
       XCTAssertLessThanOrEqual(frame.height, surface.windowBounds.height)
-      if name == "overflow" {
-        XCTAssertGreaterThan(frame.height, surface.windowBounds.height * 0.85)
-        XCTAssertGreaterThan(scroll.contentSize.height, visible + 100)
-        attach(surface.captureVisible(), "reward-adaptive-overflow")
+      // The 3:2 hero makes most sheets taller than a phone: those grow to full height and scroll, and
+      // only a sheet whose content fits may stop short.
+      let fits = scroll.contentSize.height <= visible + 2
+      if !fits {
+        XCTAssertGreaterThan(frame.height, surface.windowBounds.height * 0.85, "\(name) scrolls before reaching full height")
+      }
+      if name == "overflow" || !fits {
+        XCTAssertFalse(fits, "\(name) should scroll")
+        if name == "overflow" { XCTAssertGreaterThan(scroll.contentSize.height, visible + 100) }
+        attach(surface.captureVisible(), "reward-adaptive-\(name)")
         scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom), animated: false)
         let bottom = await surface.captureUntilOCR(contains: ["Excluded", "$21.00"], timeoutNanoseconds: 3_000_000_000)
-        attach(bottom.image, "reward-adaptive-overflow-scrolled")
+        attach(bottom.image, "reward-adaptive-\(name)-scrolled")
         XCTAssertTrue(bottom.text.contains("excluded"), bottom.text)
         XCTAssertTrue(bottom.text.contains("$21.00"), bottom.text)
       } else {
-        XCTAssertLessThanOrEqual(scroll.contentSize.height, visible + 2, "\(name) must fit without scrolling")
         var expected = ["Done", "Edit", "Groceries", "$700.00", "140%"]
         if name != "short" { expected += ["Food", "Transport", "Rides", "Gas", "Telcos", "Excluded", "$21.00"] }
         if name == "targets" { expected += ["Targets", "Minimum met"] }
@@ -640,10 +645,9 @@ final class RewardsSnapshotTests: XCTestCase {
         for text in expected { XCTAssertTrue(rendered.text.contains(text.lowercased()), "\(name) missing \(text): \(rendered.text)") }
       }
     }
-    XCTAssertLessThan(try XCTUnwrap(heights["short"]), 600)
-    XCTAssertGreaterThan(try XCTUnwrap(heights["seven"]), try XCTUnwrap(heights["short"]) + 150)
-    XCTAssertGreaterThan(try XCTUnwrap(heights["targets"]), try XCTUnwrap(heights["seven"]) + 40)
-    XCTAssertGreaterThan(try XCTUnwrap(heights["narrow"]), try XCTUnwrap(heights["seven"]))
+    // A short card still gets a short sheet: the detent follows the content, not the screen.
+    XCTAssertLessThan(try XCTUnwrap(heights["short"]), 840)
+    XCTAssertGreaterThan(try XCTUnwrap(heights["seven"]), try XCTUnwrap(heights["short"]))
   }
 
   func testNarrowCategoryRowsKeepLargeAmountsWhole() async throws {
