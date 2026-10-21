@@ -712,7 +712,7 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(rename.rule(scope: .payee).then, .renamePayee("Coffee corner"))
   }
 
-  // The single-account default is proven by the share-intake Remember runs (f9f98de); these are the cases it does not reach.
+  // The single-account default is proven by the Remember run in .amp/in/artifacts/share-intake/f9f98de/; these are the cases it does not reach.
   func testAllAccountsChoiceIsNotBoundToTheAccountAndAMixedBatchDefaultsToThePayee() throws {
     let one = applied(payee: "KOPITIAM AMK", proposedCategory: nil, category: eatingOut, account: altitude)
     let single = try XCTUnwrap(IntakeRuleSuggester.suggest(applied: [one], jobID: UUID(), skill: IntakeSkill(), now: now))
