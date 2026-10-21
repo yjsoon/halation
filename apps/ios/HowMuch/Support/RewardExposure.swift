@@ -367,12 +367,4 @@ struct ExposureScene {
     let below = min(height, sun.y + sunRadius + pad)
     return (x, [top...above, below...height].filter { $0.upperBound - $0.lowerBound > 0.5 })
   }
-
-  /// The tick on the target horizon at the sun's column, prints only, in the minimum journey: where
-  /// the sun will rest.
-  var minimumTick: (x: Double, y: Double)? {
-    guard !layout.isPhone, exposure.stage == .gate else { return nil }
-    let u = RewardExposure.column
-    return (u * width, horizonY(at: u))
-  }
 }

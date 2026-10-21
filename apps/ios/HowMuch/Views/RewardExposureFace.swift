@@ -411,14 +411,8 @@ private struct ExposurePainter {
 extension ExposurePainter {
   /// Prints only, in the minimum journey: the hairline at `x = h × W`, two device pixels wide and
   /// snapped to the pixel grid, in two tones split at the target horizon in dark mode and one warm
-  /// white over a faint dark edge in light mode; and the tick where the sun will rest.
+  /// white over a faint dark edge in light mode.
   fileprivate func drawMarker(in context: inout GraphicsContext) {
-    if let tick = scene.minimumTick {
-      var path = Path()
-      path.move(to: CGPoint(x: tick.x, y: tick.y))
-      path.addLine(to: CGPoint(x: tick.x, y: tick.y + 4))
-      context.stroke(path, with: .color(Theme.Face.crest.opacity(0.6)), lineWidth: 1)
-    }
     guard let marker = scene.marker else { return }
     let scale = max(1, displayScale)
     let pixel = 1 / scale

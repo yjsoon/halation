@@ -856,6 +856,8 @@ struct RewardFilledRow: View {
   /// The icon's two rising slopes: the target horizon 14pt to 2pt under the name, the spend ridge
   /// lifting towards it, and a 10pt half-sun on the horizon at the right.
   @ScaledMetric(relativeTo: .body) private var skyBand = 34.0
+  /// The caps line's 0.14em tracking, scaling with its text.
+  @ScaledMetric(relativeTo: .caption2) private var capsTracking = 1.54
   /// The ridges follow the measured bottom of the name and top of the headline.
   @State private var nameBottom: CGFloat?
   @State private var footTop: CGFloat?
@@ -981,6 +983,11 @@ struct RewardFilledRow: View {
         .aspectRatio(3 / 2, contentMode: .fit)
         .overlay(alignment: .topLeading) {
           // Fixed-size art that repeats the slip: hidden from VoiceOver, and at accessibility sizes.
+          if !dynamicTypeSize.isAccessibilitySize {
+            minimumTick(exposure)
+          }
+        }
+        .overlay(alignment: .topLeading) {
           if let label = text.targetLabel, !dynamicTypeSize.isAccessibilitySize {
             Text(label)
               .font(CardType.fixedMono(11))
@@ -997,13 +1004,11 @@ struct RewardFilledRow: View {
           RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
             .strokeBorder(Color.primary.opacity(contrast == .increased ? 0.3 : 0.12), lineWidth: contrast == .increased ? 1 : 0.5)
         }
-        .frame(maxWidth: Self.heroMaxWidth)
-        .frame(maxWidth: .infinity)
       VStack(alignment: .leading, spacing: 3) {
         if let capsLine, !capsLine.isEmpty {
           Text(capsLine)
             .font(CardType.sans(.semibold, 11, relativeTo: .caption2, bold: bold))
-            .tracking(1.54)
+            .tracking(capsTracking)
             .textCase(.uppercase)
             .foregroundStyle(Theme.rowSecondary)
             .fixedSize(horizontal: false, vertical: true)
@@ -1012,6 +1017,27 @@ struct RewardFilledRow: View {
         exceptions(text, surface: .paper)
       }
       .padding(.horizontal, 4)
+    }
+    // On a wide sheet the print and its slip stay one column, centred.
+    .frame(maxWidth: Self.heroMaxWidth)
+    .frame(maxWidth: .infinity)
+  }
+
+  /// In the minimum journey, a 4pt tick on the target horizon at the sun's column: where the sun will
+  /// rest. Fixed-size art, hidden with the label at accessibility sizes.
+  @ViewBuilder
+  private func minimumTick(_ exposure: RewardExposure) -> some View {
+    if exposure.stage == .gate {
+      GeometryReader { proxy in
+        let x = RewardExposure.column * proxy.size.width
+        let y = proxy.size.height * BrandRise.at(BrandRise.backCrest, RewardExposure.column)
+        Path { path in
+          path.move(to: CGPoint(x: x, y: y))
+          path.addLine(to: CGPoint(x: x, y: y + 4))
+        }
+        .stroke(Theme.Face.crest.opacity(0.6), lineWidth: 1)
+      }
+      .accessibilityHidden(true)
     }
   }
 
