@@ -1,3 +1,4 @@
+import Accessibility
 import SwiftUI
 import UIKit
 
@@ -593,20 +594,8 @@ struct RootSaveToastOverlay: View {
   var body: some View {
     Group {
       if let message = model.lastSaveMessage {
-        HStack(spacing: 8) {
-          Image(systemName: message.kind == .failure ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-            .foregroundStyle(message.kind == .failure ? Theme.outflow : Theme.inflow)
-            .contentTransition(.symbolEffect(.replace))
-            .accessibilityHidden(true)
-          Text(message.text)
-            .foregroundStyle(message.kind == .failure ? Theme.outflow : Theme.textPrimary)
-        }
-        .font(.footnote.weight(.medium))
-        .accessibilityElement(children: .combine)
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .glassEffect(.regular, in: .capsule)
-        .padding(.bottom, bottomPadding)
+        toast(message)
+          .padding(.bottom, bottomPadding)
         .transition(
           .move(edge: .bottom)
             .combined(with: .opacity)
@@ -615,6 +604,47 @@ struct RootSaveToastOverlay: View {
       }
     }
     .animation(Theme.Motion.arrive, value: model.lastSaveMessage?.id)
+  }
+
+  /// A failure stays up until tapped, so it carries a close mark.
+  @ViewBuilder
+  private func toast(_ message: SaveMessage) -> some View {
+    let capsule = HStack(spacing: 8) {
+      Image(systemName: message.kind == .failure ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+        .foregroundStyle(message.kind == .failure ? Theme.outflow : Theme.inflow)
+        .contentTransition(.symbolEffect(.replace))
+        .accessibilityHidden(true)
+      Text(message.text)
+        .foregroundStyle(message.kind == .failure ? Theme.outflow : Theme.textPrimary)
+      if message.kind == .failure {
+        Image(systemName: "xmark")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .accessibilityHidden(true)
+      }
+    }
+    .font(.footnote.weight(.medium))
+    .padding(.horizontal, 16)
+    .padding(.vertical, 10)
+    .glassEffect(.regular, in: .capsule)
+
+    if message.kind == .failure {
+      Button {
+        model.dismissSaveMessage()
+      } label: {
+        capsule
+      }
+      .buttonStyle(.plain)
+      .accessibilityElement(children: .combine)
+      .accessibilityAddTraits(.isButton)
+      .accessibilityHint("Dismisses the message.")
+      .accessibilityAction(.escape) {
+        model.dismissSaveMessage()
+      }
+    } else {
+      capsule
+        .accessibilityElement(children: .combine)
+    }
   }
 }
 
@@ -1499,6 +1529,7 @@ private struct ChartAxisLabels: View {
 struct ColumnChart: View {
   let values: [Double]
   var labels: [String] = []
+  let voice: ChartVoice
   var positiveColour: Color = Theme.accent
   var negativeColour: Color = Theme.outflow
   var height: CGFloat = 90
@@ -1540,6 +1571,11 @@ struct ColumnChart: View {
         ChartAxisLabels(labels: labels, spacing: monthSpacing)
       }
     }
+    .chartVoice(
+      voice,
+      summary: ChartSpeech.summary(names: voice.periodNames, values: values, describe: voice.describe),
+      series: [(name: voice.title, values: values)]
+    )
   }
 }
 
@@ -1547,6 +1583,7 @@ struct ColumnChart: View {
 struct PairedColumnChart: View {
   let pairs: [(income: Double, spending: Double)]
   var labels: [String] = []
+  let voice: ChartVoice
   var height: CGFloat = 90
 
   @State private var progress: CGFloat = 0
@@ -1592,12 +1629,18 @@ struct PairedColumnChart: View {
         ChartAxisLabels(labels: labels, spacing: monthSpacing)
       }
     }
+    .chartVoice(
+      voice,
+      summary: ChartSpeech.pairedSummary(names: voice.periodNames, pairs: pairs, describe: voice.describe),
+      series: [(name: "Income", values: pairs.map(\.income)), (name: "Spending", values: pairs.map(\.spending))]
+    )
   }
 }
 
 /// Simple line sparkline for a small trend.
 struct Sparkline: View {
   let values: [Double]
+  let voice: ChartVoice
   var colour: Color = Theme.accent
   var height: CGFloat = 56
   @State private var progress: CGFloat = 0
@@ -1636,5 +1679,146 @@ struct Sparkline: View {
     }
     .frame(height: height)
     .chartReveal($progress)
+    .chartVoice(
+      voice,
+      summary: ChartSpeech.summary(names: voice.periodNames, values: values, describe: voice.describe),
+      series: [(name: voice.title, values: values)],
+      isContinuous: true
+    )
+  }
+}
+
+/// What VoiceOver says for a chart: what it shows, a spoken name for each
+/// period, and how to read a value aloud. Axis labels are too terse to speak
+/// ("W23", "Aug 26"), so call sites pass `LedgerDate.periodLabel` names.
+struct ChartVoice {
+  let title: String
+  var periodNames: [String] = []
+  let describe: (Double) -> String
+}
+
+/// A short spoken summary of a chart. Weekly ranges carry fifty-odd values,
+/// so it gives the range, the latest value and the extremes, not every bar.
+enum ChartSpeech {
+  static func summary(names: [String], values: [Double], describe: (Double) -> String) -> String {
+    guard let last = values.indices.last else {
+      return "No data yet."
+    }
+    let named = names.count == values.count
+    func at(_ index: Int) -> String {
+      named ? " in \(names[index])" : ""
+    }
+    if values.count == 1 {
+      return named ? "\(names[0]): \(describe(values[0]))." : "\(describe(values[0]))."
+    }
+    let highest = latestPeak(values, by: >)
+    let lowest = latestPeak(values, by: <)
+    return [
+      range(names: named ? names : [], count: values.count),
+      "Latest: \(describe(values[last]))\(at(last)).",
+      "Highest: \(describe(values[highest]))\(at(highest)).",
+      "Lowest: \(describe(values[lowest]))\(at(lowest)).",
+    ].joined(separator: " ")
+  }
+
+  static func pairedSummary(
+    names: [String],
+    pairs: [(income: Double, spending: Double)],
+    describe: (Double) -> String
+  ) -> String {
+    guard let last = pairs.indices.last else {
+      return "No data yet."
+    }
+    let named = names.count == pairs.count
+    func at(_ index: Int) -> String {
+      named ? " in \(names[index])" : ""
+    }
+    func both(_ index: Int) -> String {
+      "income \(describe(pairs[index].income)), spending \(describe(pairs[index].spending))"
+    }
+    if pairs.count == 1 {
+      return named ? "\(names[0]): \(both(0))." : "Latest: \(both(0))."
+    }
+    let income = latestPeak(pairs.map(\.income), by: >)
+    let spending = latestPeak(pairs.map(\.spending), by: >)
+    return [
+      range(names: named ? names : [], count: pairs.count),
+      named ? "Latest, \(names[last]): \(both(last))." : "Latest: \(both(last)).",
+      "Most income: \(describe(pairs[income].income))\(at(income)).",
+      "Most spending: \(describe(pairs[spending].spending))\(at(spending)).",
+    ].joined(separator: " ")
+  }
+
+  private static func range(names: [String], count: Int) -> String {
+    guard let first = names.first, let last = names.last else {
+      return "\(count) periods."
+    }
+    return "\(count) periods, \(first) to \(last)."
+  }
+
+  /// The index of the extreme value; a tie names the most recent period.
+  private static func latestPeak(_ values: [Double], by beats: (Double, Double) -> Bool) -> Int {
+    var best = 0
+    for index in values.indices where !beats(values[best], values[index]) {
+      best = index
+    }
+    return best
+  }
+}
+
+/// The Audio Graph behind a chart, so VoiceOver can play or explore it.
+private struct ChartDescriptor: AXChartDescriptorRepresentable {
+  let voice: ChartVoice
+  let summary: String
+  let series: [(name: String, values: [Double])]
+  let isContinuous: Bool
+
+  func makeChartDescriptor() -> AXChartDescriptor {
+    let count = series.map(\.values.count).max() ?? 0
+    // Categories must be distinct, or the graph merges periods.
+    let categories = voice.periodNames.count == count && Set(voice.periodNames).count == count
+      ? voice.periodNames
+      : (0 ..< count).map { "Period \($0 + 1)" }
+    let values = series.flatMap(\.values)
+    let lowest = min(values.min() ?? 0, 0)
+    let highest = max(values.max() ?? 0, lowest + 1)
+    let describe = voice.describe
+    return AXChartDescriptor(
+      title: voice.title,
+      summary: summary,
+      xAxis: AXCategoricalDataAxisDescriptor(title: "Period", categoryOrder: categories),
+      yAxis: AXNumericDataAxisDescriptor(
+        title: voice.title,
+        range: lowest ... highest,
+        gridlinePositions: [],
+        valueDescriptionProvider: { describe($0) }
+      ),
+      additionalAxes: [],
+      series: series.map { item in
+        AXDataSeriesDescriptor(
+          name: item.name,
+          isContinuous: isContinuous,
+          dataPoints: zip(categories, item.values).map { AXDataPoint(x: $0, y: $1) }
+        )
+      }
+    )
+  }
+}
+
+private extension View {
+  /// One VoiceOver element for the whole chart, read as its title and a
+  /// summary, with an Audio Graph for the detail.
+  func chartVoice(
+    _ voice: ChartVoice,
+    summary: String,
+    series: [(name: String, values: [Double])],
+    isContinuous: Bool = false
+  ) -> some View {
+    accessibilityElement(children: .ignore)
+      .accessibilityLabel(voice.title)
+      .accessibilityValue(summary)
+      .accessibilityChartDescriptor(
+        ChartDescriptor(voice: voice, summary: summary, series: series, isContinuous: isContinuous)
+      )
   }
 }

@@ -1,3 +1,4 @@
+import Accessibility
 import Foundation
 import Observation
 import OSLog
@@ -4479,9 +4480,18 @@ final class AppModel {
     return repaired
   }
 
+  /// Successes fade after three seconds; failures stay until dismissed or
+  /// replaced. VoiceOver reads each one, even when a sheet hides the toast.
   func showSaveMessage(_ text: String, kind: SaveMessage.Kind = .success) {
     saveMessageToken += 1
     lastSaveMessage = SaveMessage(id: saveMessageToken, text: text, kind: kind)
+    // High priority so focus moving as a sheet closes does not cut it off.
+    var announcement = AttributedString(text)
+    announcement.accessibilitySpeechAnnouncementPriority = .high
+    AccessibilityNotification.Announcement(announcement).post()
+    guard kind == .success else {
+      return
+    }
     let token = saveMessageToken
     Task {
       try? await Task.sleep(for: .seconds(3))
@@ -4489,6 +4499,10 @@ final class AppModel {
         lastSaveMessage = nil
       }
     }
+  }
+
+  func dismissSaveMessage() {
+    lastSaveMessage = nil
   }
 }
 

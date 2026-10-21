@@ -689,10 +689,10 @@ final class CaptureSnapshotTests: XCTestCase {
     attachImage(surface.captureVisible(), name: "transaction-memo-keyboard")
 
     let amount = try XCTUnwrap(
-      surface.firstControl(labelContains: "0.00")
-        ?? surface.firstControl(labelContains: "$0"),
+      surface.firstControl(label: "Amount"),
       "amount header missing: \(surface.accessibilityLabels())"
     )
+    XCTAssertTrue(amount.object.accessibilityValue?.contains("0.00") == true)
     XCTAssertTrue(surface.activate(amount))
     let restored = await surface.waitUntil {
       surface.calculatorKeypadDigitOne() != nil && !memo.isFirstResponder
@@ -1474,7 +1474,8 @@ final class CaptureSnapshotTests: XCTestCase {
       }
       XCTAssertTrue(surface.activate(edit))
       _ = await surface.captureUntilOCR(contains: ["Edit draft"])
-      guard let amount = surface.firstControl(labelContains: "12.00") else {
+      guard let amount = surface.firstControl(label: "Amount"),
+            amount.object.accessibilityValue?.contains("12.00") == true else {
         return XCTFail("draft editor must expose its amount")
       }
       XCTAssertTrue(surface.activate(amount))

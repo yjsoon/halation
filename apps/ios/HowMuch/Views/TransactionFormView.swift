@@ -1,3 +1,4 @@
+import Accessibility
 import SwiftUI
 
 struct AmountKeypadEngine: Equatable {
@@ -398,6 +399,10 @@ struct TransactionFormView: View {
       }
       .onChange(of: keypad) {
         commitHook?.keypad = keypad
+        if isKeypadVisible {
+          // VoiceOver hears the key, not the header, so read the amount back.
+          AccessibilityNotification.Announcement(amountDisplay).post()
+        }
         if keypad.hasPendingArithmetic {
           return
         }
@@ -504,6 +509,9 @@ struct TransactionFormView: View {
           // every keypad tap, so typed input must update instantly.
       }
       .buttonStyle(.plain)
+      .accessibilityLabel("Amount")
+      .accessibilityValue(amountDisplay)
+      .accessibilityHint(draft.isSplit ? "The total of the split lines." : "Opens the keypad.")
     }
     .frame(maxWidth: .infinity)
     .padding(.vertical, 16)

@@ -215,7 +215,8 @@ struct ReflectView: View {
 
         ColumnChart(
           values: report.periods.map { Double($0.netWorth) },
-          labels: LedgerDate.periodAxisLabels(report.periods.map(\.period))
+          labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+          voice: .money("Net worth chart", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat)
         )
       }
     }
@@ -245,6 +246,11 @@ struct ReflectView: View {
           PairedColumnChart(
             pairs: report.periods.map { (Double($0.income), Double(abs($0.spending))) },
             labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+            voice: .money(
+              "Income and spending chart",
+              periods: report.periods.map(\.period),
+              currencyFormat: model.currencyFormat
+            ),
             height: 90
           )
         }
@@ -311,7 +317,8 @@ struct ReflectView: View {
   @ViewBuilder
   private var ageContent: some View {
     if let report = model.ageOfMoney {
-      let ages = report.periods.compactMap(\.ageOfMoneyDays)
+      let measured = report.periods.filter { $0.ageOfMoneyDays != nil }
+      let ages = measured.compactMap(\.ageOfMoneyDays)
       VStack(alignment: .leading, spacing: 12) {
         if let latest = ages.last {
           Text(ReflectMaths.daysLabel(Int(latest.rounded()), capitalised: true))
@@ -325,7 +332,11 @@ struct ReflectView: View {
             .foregroundStyle(.secondary)
         }
         if ages.count > 1 {
-          Sparkline(values: ages, colour: Theme.inflow)
+          Sparkline(
+            values: ages,
+            voice: .days("Age of money chart", periods: measured.map(\.period)),
+            colour: Theme.inflow
+          )
         }
       }
     }
@@ -414,6 +425,22 @@ struct SpendingGroupSection: Identifiable {
   let name: String
   var amount: Int
   var rows: [SpendingBreakdownGroup]
+}
+
+extension ChartVoice {
+  /// A chart of amounts in milliunits, one per report period key.
+  static func money(_ title: String, periods: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
+    ChartVoice(title: title, periodNames: periods.map(LedgerDate.periodLabel)) {
+      MoneyCodec.displayString(for: Int($0.rounded()), currencyFormat: currencyFormat)
+    }
+  }
+
+  /// A chart of age of money in days, one per report period key.
+  static func days(_ title: String, periods: [String]) -> ChartVoice {
+    ChartVoice(title: title, periodNames: periods.map(LedgerDate.periodLabel)) {
+      ReflectMaths.daysLabel(Int($0.rounded()))
+    }
+  }
 }
 
 enum ReflectMaths {

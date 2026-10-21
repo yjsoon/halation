@@ -35,6 +35,7 @@
 		A10000000000000000000024 /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* Formatting.swift */; };
 		C10000000000000000000011 /* IncomeVsSpendingMaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000010 /* IncomeVsSpendingMaths.swift */; };
 		C10000000000000000000013 /* IncomeVsSpendingPeriodDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000012 /* IncomeVsSpendingPeriodDetailView.swift */; };
+		C1000000000000000000F0A1 /* ChartSpeechTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000000000000000F0A0 /* ChartSpeechTests.swift */; };
 		C10000000000000000000021 /* IncomeVsSpendingMathsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000020 /* IncomeVsSpendingMathsTests.swift */; };
 		A10000000000000000000027 /* RegisterHorizon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* RegisterHorizon.swift */; };
 		A1000000000000000000002C /* RegisterCurrent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001C /* RegisterCurrent.swift */; };
@@ -271,6 +272,7 @@
 		A10000000000000000000014 /* Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatting.swift; sourceTree = "<group>"; };
 		C10000000000000000000010 /* IncomeVsSpendingMaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomeVsSpendingMaths.swift; sourceTree = "<group>"; };
 		C10000000000000000000012 /* IncomeVsSpendingPeriodDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomeVsSpendingPeriodDetailView.swift; sourceTree = "<group>"; };
+		C1000000000000000000F0A0 /* ChartSpeechTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartSpeechTests.swift; sourceTree = "<group>"; };
 		C10000000000000000000020 /* IncomeVsSpendingMathsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomeVsSpendingMathsTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000017 /* RegisterHorizon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterHorizon.swift; sourceTree = "<group>"; };
 		A1000000000000000000001C /* RegisterCurrent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterCurrent.swift; sourceTree = "<group>"; };
@@ -612,6 +614,7 @@
 				A200000000000000000000A2 /* ScreenshotOfferTests.swift */,
 				A200000000000000000000B0 /* RegisterSnapshotTests.swift */,
 				A200000000000000000000B2 /* RegisterQueryTests.swift */,
+				C1000000000000000000F0A0 /* ChartSpeechTests.swift */,
 				C10000000000000000000020 /* IncomeVsSpendingMathsTests.swift */,
 				A200000000000000000000C2 /* RegisterApprovalTests.swift */,
 				A200000000000000000000C4 /* APISettingsTests.swift */,
@@ -949,6 +952,7 @@
 				A200000000000000000000A3 /* ScreenshotOfferTests.swift in Sources */,
 				A200000000000000000000B1 /* RegisterSnapshotTests.swift in Sources */,
 				A200000000000000000000B3 /* RegisterQueryTests.swift in Sources */,
+				C1000000000000000000F0A1 /* ChartSpeechTests.swift in Sources */,
 				C10000000000000000000021 /* IncomeVsSpendingMathsTests.swift in Sources */,
 				A200000000000000000000C3 /* RegisterApprovalTests.swift in Sources */,
 				A200000000000000000000C5 /* APISettingsTests.swift in Sources */,

@@ -792,6 +792,7 @@ struct NetWorthDetailView: View {
       ColumnChart(
         values: report.periods.map { Double($0.netWorth) },
         labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+        voice: .money("Net worth chart", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
         height: 120
       )
     }
@@ -961,6 +962,7 @@ struct IncomeVsSpendingDetailView: View {
       PairedColumnChart(
         pairs: report.periods.map { (Double($0.income), Double(abs($0.spending))) },
         labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+        voice: .money("Income and spending chart", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
         height: 120
       )
       HStack(spacing: 16) {
@@ -1149,7 +1151,12 @@ struct AgeOfMoneyDetailView: View {
                 .foregroundStyle(.secondary)
             }
             if measured.count > 1 {
-              Sparkline(values: measured.compactMap(\.ageOfMoneyDays), colour: Theme.inflow, height: 80)
+              Sparkline(
+                values: measured.compactMap(\.ageOfMoneyDays),
+                voice: .days("Age of money chart", periods: measured.map(\.period)),
+                colour: Theme.inflow,
+                height: 80
+              )
             }
             if matchedTotal > 0 {
               Text("\(MoneyCodec.displayString(for: matchedTotal, currencyFormat: model.currencyFormat)) of spending matched to income")
