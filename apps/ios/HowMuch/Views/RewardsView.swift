@@ -199,7 +199,7 @@ struct RewardsView: View {
     .listStyle(.plain)
     .scrollContentBackground(.hidden)
     // Room below the last card for the floating Assistant button, which sits above Add. The
-    // sidebar layout has no floating button, so it needs none.
+    // sidebar layout has no floating Assistant, so it needs none.
     .contentMargins(
       .bottom,
       RootChrome.usesSidebar(idiom: UIDevice.current.userInterfaceIdiom, horizontalSizeClass: horizontalSizeClass) ? 0 : 64,

@@ -643,10 +643,11 @@ final class RewardsSnapshotTests: XCTestCase {
           scroll.layoutIfNeeded()
           try await Task.sleep(nanoseconds: 150_000_000)
         }
-        let bottom = await surface.captureUntilOCR(contains: ["Excluded", "$21.00"], timeoutNanoseconds: 3_000_000_000)
+        // OCR sometimes reads the dollar sign as a 5, so match the figure without it.
+        let bottom = await surface.captureUntilOCR(contains: ["Excluded", "21.00"], timeoutNanoseconds: 3_000_000_000)
         attach(bottom.image, "reward-adaptive-\(name)-scrolled")
         XCTAssertTrue(bottom.text.contains("excluded"), bottom.text)
-        XCTAssertTrue(bottom.text.contains("$21.00"), bottom.text)
+        XCTAssertTrue(bottom.text.contains("21.00"), bottom.text)
       } else {
         var expected = ["Done", "Edit", "Groceries", "$700.00", "140%"]
         if name != "short" { expected += ["Food", "Transport", "Rides", "Gas", "Telcos", "Excluded", "$21.00"] }
