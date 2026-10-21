@@ -181,7 +181,7 @@ export function composePayload(
       client_id: draft.clientId,
       account_id: draft.accountId,
       date: draft.date,
-      amount: formatMilliunitsInput(signedAmount),
+      amount_milli: signedAmount,
       payee_id: transfer?.id ?? null,
       payee_name: transfer ? null : payeeName,
       category_id: transfer ? null : draft.categoryId || null,

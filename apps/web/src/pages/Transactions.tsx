@@ -961,7 +961,7 @@ export function TransactionsPage() {
       return;
     }
     if (statementBalance === null) {
-      setMutationError("Enter the exact statement balance with no more than three decimal places.");
+      setMutationError("Enter the exact statement balance, with no more decimal places than the currency uses.");
       return;
     }
     setMutationError(null);
@@ -974,7 +974,7 @@ export function TransactionsPage() {
     if (!reconcileDraft) return;
     const statementBalance = parseMilliunits(reconcileDraft.statementBalance);
     if (statementBalance === null) {
-      setMutationError("Enter the exact statement balance with no more than three decimal places.");
+      setMutationError("Enter the exact statement balance, with no more decimal places than the currency uses.");
       return;
     }
     const preview = reconciliationPreviewData;
@@ -1788,7 +1788,7 @@ export function TransactionsPage() {
                   disabled={reconciliationBusy}
                   required
                 />
-                <span className="field-note">Enter the exact balance shown on the statement, using up to three decimal places.</span>
+                <span className="field-note">Enter the exact balance shown on the statement.</span>
               </label>
             </div>
 

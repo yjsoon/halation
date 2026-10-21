@@ -9,7 +9,7 @@ import { cardPaymentKey, cardPaymentMemo, isCardAccount, needsScheduling, payDat
 import { splitCategoryGroups } from "../lib/categories";
 import { formatDate, formatDayMonth, todayIso } from "../lib/dates";
 import { stableHash } from "../lib/hash";
-import { formatMilliunitsField, formatMoney, parseMilliunits } from "../lib/money";
+import { formatMilliunitsField, formatMoney, parseMilliunitsKeeping } from "../lib/money";
 import { scheduleRecurrence } from "../lib/schedules";
 import { useConfirmationFocus } from "../lib/use-confirmation-focus";
 import { colourNamesByAccount, ledgerFlagNames } from "../lib/reward-flag-names";
@@ -380,7 +380,11 @@ function ScheduleEditorForm({ schedule, prefill, accounts, categoryGroups, payee
   const [operationSeed] = useState(() => crypto.randomUUID());
   const groups = useMemo(() => splitCategoryGroups(categoryGroups), [categoryGroups]);
   const isSplit = splitLines.length >= 2;
-  const splitTotal = splitLines.reduce((sum, line) => sum + (parseMilliunits(line.amount) ?? 0), 0);
+  // Untouched amounts keep their stored value (see parseMilliunitsKeeping).
+  const storedAmount = schedule ? amountFor(schedule) : prefill?.amount;
+  const storedLineAmounts = useMemo(() => new Map((schedule?.subtransactions ?? []).map((line) => [line.id, line.amount])), [schedule]);
+  const lineAmount = (line: SplitDraft) => parseMilliunitsKeeping(line.amount, line.sourceId ? storedLineAmounts.get(line.sourceId) : undefined);
+  const splitTotal = splitLines.reduce((sum, line) => sum + (lineAmount(line) ?? 0), 0);
 
   const setSplit = (key: string, patch: Partial<SplitDraft>) => setSplitLines((lines) => lines.map((line) => line.key === key ? { ...line, ...patch } : line));
   const setTransfer = (value: string) => { setTransferAccountId(value); if (value) { setPayeeId(""); setCategoryId(""); } };
@@ -393,13 +397,13 @@ function ScheduleEditorForm({ schedule, prefill, accounts, categoryGroups, payee
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
-    const parsedAmount = isSplit ? splitTotal : parseMilliunits(amount);
+    const parsedAmount = isSplit ? splitTotal : parseMilliunitsKeeping(amount, storedAmount);
     if (!accountId) { setValidationError("Choose the account this schedule uses."); return; }
     if (nextDate < firstDate) { setValidationError("Next date cannot be earlier than the first date."); return; }
     if (prefill && !schedule && [firstDate, nextDate].some((date) => (prefill.dateMin && date < prefill.dateMin) || (prefill.dateMax && date > prefill.dateMax))) { setValidationError(`Choose a date from ${formatDate(prefill.dateMin ?? firstDate)} to ${formatDate(prefill.dateMax ?? firstDate)} so the payment counts for this statement.`); return; }
-    if (parsedAmount === null) { setValidationError("Enter an amount with no more than three decimal places."); return; }
-    if (isSplit && splitLines.some((line) => parseMilliunits(line.amount) === null)) { setValidationError("Every split line needs a valid signed amount."); return; }
-    const input: ScheduledTransactionInput = { account_id: accountId, date_first: firstDate, date_next: nextDate || null, frequency, amount: parsedAmount, memo: memo.trim() || null, flag_color: flagColor || null, subtransactions: isSplit ? splitLines.map((line) => ({ ...(line.sourceId ? { id: line.sourceId } : {}), amount: parseMilliunits(line.amount)!, payee_id: line.payeeId || null, category_id: line.transferAccountId ? null : line.categoryId || null, transfer_account_id: line.transferAccountId || null, memo: line.memo.trim() || null })) : [] };
+    if (parsedAmount === null) { setValidationError("Enter an amount with no more decimal places than the currency uses."); return; }
+    if (isSplit && splitLines.some((line) => lineAmount(line) === null)) { setValidationError("Every split line needs a valid signed amount."); return; }
+    const input: ScheduledTransactionInput = { account_id: accountId, date_first: firstDate, date_next: nextDate || null, frequency, amount: parsedAmount, memo: memo.trim() || null, flag_color: flagColor || null, subtransactions: isSplit ? splitLines.map((line) => ({ ...(line.sourceId ? { id: line.sourceId } : {}), amount: lineAmount(line)!, payee_id: line.payeeId || null, category_id: line.transferAccountId ? null : line.categoryId || null, transfer_account_id: line.transferAccountId || null, memo: line.memo.trim() || null })) : [] };
     if (isSplit) {
       input.category_id = null;
     } else if (transferAccountId) {
@@ -414,7 +418,7 @@ function ScheduleEditorForm({ schedule, prefill, accounts, categoryGroups, payee
   return <section className="transaction-editor schedule-editor" aria-labelledby="schedule-editor-heading">
     <div className="section-heading"><div><span className="section-title" id="schedule-editor-heading">{schedule ? "Edit scheduled transaction" : prefill?.heading ?? "Add scheduled transaction"}</span><span className="section-meta">{schedule ? "Changes apply to future repeats." : prefill?.note ?? "Add a repeating transaction."}</span></div><button type="button" className="text-button" onClick={onCancel} disabled={saving}>Cancel</button></div>
     <form className="transaction-editor-form" onSubmit={(event) => void submit(event)}>
-      <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">Account</span><select ref={firstFieldRef} value={accountId} onChange={(event) => setAccountId(event.target.value)} required><option value="">Choose account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.closed ? " (closed)" : ""}</option>)}</select></label><label className="field"><span className="field-label">Amount</span><input type="text" inputMode="decimal" value={isSplit ? formatMilliunitsField(splitTotal) : amount} onChange={(event) => setAmount(event.target.value)} disabled={isSplit} required /><span className="field-note">Use a minus sign for outflow. Amounts use up to three decimal places.</span></label></div>
+      <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">Account</span><select ref={firstFieldRef} value={accountId} onChange={(event) => setAccountId(event.target.value)} required><option value="">Choose account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.closed ? " (closed)" : ""}</option>)}</select></label><label className="field"><span className="field-label">Amount</span><input type="text" inputMode="decimal" value={isSplit ? formatMilliunitsField(splitTotal) : amount} onChange={(event) => setAmount(event.target.value)} disabled={isSplit} required /><span className="field-note">Use a minus sign for outflow.</span></label></div>
       <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">First date</span><input type="date" value={firstDate} min={schedule ? undefined : prefill?.dateMin} max={schedule ? undefined : prefill?.dateMax} onChange={(event) => { const value = event.target.value; if (prefill && !schedule && nextDate === firstDate) setNextDate(value); setFirstDate(value); }} required /></label><label className="field"><span className="field-label">Next date</span><input type="date" value={nextDate} min={schedule ? undefined : prefill?.dateMin} max={schedule ? undefined : prefill?.dateMax} onChange={(event) => setNextDate(event.target.value)} required /></label><label className="field"><span className="field-label">Repeat</span><select value={frequency} onChange={(event) => setFrequency(event.target.value)}>{FREQUENCIES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
       {!isSplit && <><label className="field"><span className="field-label">Transfer</span><select value={transferAccountId} onChange={(event) => setTransfer(event.target.value)}><option value="">Not a transfer</option>{accounts.filter((account) => account.id !== accountId).map((account) => <option key={account.id} value={account.id}>Transfer to {account.name}</option>)}</select></label>{!transferAccountId && <><label className="field"><span className="field-label">Payee</span><select value={payeeId} onChange={(event) => setPayeeId(event.target.value)}><option value="">No payee</option>{payees.filter((payee) => !payee.deleted && !payee.transfer_account_id).map((payee) => <option key={payee.id} value={payee.id}>{payee.name}</option>)}</select></label><label className="field"><span className="field-label">Category</span><CategorySelect value={categoryId} onChange={setCategoryId} groups={groups} /></label></>}</>}
       <label className="transaction-editor-checkbox"><input type="checkbox" checked={isSplit} onChange={toggleSplit} /> Split this schedule</label>
