@@ -8,11 +8,15 @@ Accounts can create a new bank account or card on device. The trailing plus open
 - `ios-add-account-card` creates a Credit Card with an amount owed and lists it under Credit.
 - `ios-add-account-transfer` provisions a `Transfer : …` payee so capture can move money to the new account.
 - `ios-add-account-empty` on a ledger with no accounts shows **No Accounts** with the same **New Account** button.
+- `ios-add-account-capture-first` on a ledger with no open account, the tab-row plus shows **Add an Account First**; **New Account** saves one and Add Transaction opens with it chosen.
+- `ios-add-account-rewards-first` on a ledger with no open spending account, Rewards shows **Add an Account First** with **New Account** instead of Set Up Rewards.
 
 ## How to get to it (user POV)
 
 - On **Accounts**, choose trailing **New Account** (plus).
 - On an empty Accounts list, choose **New Account** in the empty state.
+- With no open account, choose the tab-row plus (`Add Transaction`), then **New Account**.
+- With no open spending account, choose **New Account** on the Rewards empty state.
 
 ## Driving it with control-howmuch
 
@@ -36,4 +40,4 @@ Preconditions:
 - Amount owed for cards and loans is typed positive; Accounts lists it negative. The sheet shows `Listed as` once the amount is non-zero.
 - Checking, Savings, Cash, and Other Asset keep the entered current balance, including a minus for overdraft.
 - An empty ledger hides New / Scheduled / All and shows **No Accounts** with **New Account**.
-- iOS Simulator is required. Do not treat web as a substitute; web has no create-account sheet.
+- iOS Simulator is required. Do not treat the web New account page as a substitute.
