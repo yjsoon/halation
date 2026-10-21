@@ -624,6 +624,7 @@ final class RewardsSnapshotTests: XCTestCase {
       // The 3:2 hero makes most sheets taller than a phone: those grow to full height and scroll, and
       // only a sheet whose content fits may stop short.
       let fits = scroll.contentSize.height <= visible + 2
+      if name == "short" { XCTAssertTrue(fits, "short should fit without scrolling") }
       if !fits {
         XCTAssertGreaterThan(frame.height, surface.windowBounds.height * 0.85, "\(name) scrolls before reaching full height")
       }
@@ -631,7 +632,15 @@ final class RewardsSnapshotTests: XCTestCase {
         XCTAssertFalse(fits, "\(name) should scroll")
         if name == "overflow" { XCTAssertGreaterThan(scroll.contentSize.height, visible + 100) }
         attach(surface.captureVisible(), "reward-adaptive-\(name)")
-        scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom), animated: false)
+        // A lazy List estimates the height of rows it has not built, so the content grows as it
+        // scrolls: keep going to the bottom until it stops growing.
+        var lastHeight: CGFloat = -1
+        for _ in 0..<8 where scroll.contentSize.height != lastHeight {
+          lastHeight = scroll.contentSize.height
+          scroll.setContentOffset(CGPoint(x: 0, y: max(0, scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)), animated: false)
+          scroll.layoutIfNeeded()
+          try await Task.sleep(nanoseconds: 150_000_000)
+        }
         let bottom = await surface.captureUntilOCR(contains: ["Excluded", "$21.00"], timeoutNanoseconds: 3_000_000_000)
         attach(bottom.image, "reward-adaptive-\(name)-scrolled")
         XCTAssertTrue(bottom.text.contains("excluded"), bottom.text)

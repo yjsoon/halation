@@ -150,6 +150,7 @@ struct RewardsView: View {
   @Environment(RootChromeState.self) private var chrome: RootChromeState?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   @State private var filter: RewardsReportFilter
   @State private var sheet: RewardsSheet?
   @State private var route: RewardsRoute?
@@ -197,8 +198,13 @@ struct RewardsView: View {
     .animation(reduceMotion ? nil : Theme.Motion.arrive, value: model.rewardsPhase)
     .listStyle(.plain)
     .scrollContentBackground(.hidden)
-    // Room below the last card for the floating Assistant button, which sits above Add.
-    .contentMargins(.bottom, 64, for: .scrollContent)
+    // Room below the last card for the floating Assistant button, which sits above Add. The
+    // sidebar layout has no floating button, so it needs none.
+    .contentMargins(
+      .bottom,
+      RootChrome.usesSidebar(idiom: UIDevice.current.userInterfaceIdiom, horizontalSizeClass: horizontalSizeClass) ? 0 : 64,
+      for: .scrollContent
+    )
     .background(Theme.canvas)
     .navigationTitle("Rewards")
     .navigationBarTitleDisplayMode(.large)
