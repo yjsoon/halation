@@ -110,6 +110,8 @@ The setup token is the `HOWMUCH_API_TOKEN` value from step 4, or the one you ent
 
 Setup works once. A second attempt returns "Setup has already completed".
 
+The ledger starts empty. Choose **Add your first account** (or **+ New** beside Accounts in the sidebar), give the account a name, type and today's balance, and you can start adding transactions.
+
 ### Changing the currency or date format afterwards
 
 Sign in as the plan owner, open **Settings**, and use **Currency and date format**. Choose the new values and save; amounts and dates in the web app update straight away. Only owners see this section.
