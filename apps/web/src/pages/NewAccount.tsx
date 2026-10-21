@@ -35,7 +35,9 @@ export function NewAccountPage() {
       const created = await createAccount(request.body);
       navigate(returnToQuickEntry
         ? `/add?account=${encodeURIComponent(created.id)}`
-        : `/transactions?accounts=${encodeURIComponent(created.id)}&range=all`);
+        : `/transactions?accounts=${encodeURIComponent(created.id)}&range=all`,
+      // Back must not reopen a blank form that invites a duplicate account.
+      { replace: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setSaving(false);

@@ -219,15 +219,27 @@ struct AccountPickerView: View {
   // before the sheet hands it back, and switching on the live list would tear
   // that sheet away before the new account could be selected.
   @State private var needsFirstAccount: Bool?
+  @State private var isCreatingAccount = false
+
+  /// Only a loaded reference may say the plan has no account; after a failed
+  /// load the list is empty for another reason.
+  private var lacksAccount: Bool {
+    CaptureAdmissionGate.needsAccount(referencePhase: model.referencePhase, accounts: model.accounts)
+  }
 
   var body: some View {
     Group {
-      if needsFirstAccount ?? !CaptureAdmissionGate.hasUsableAccount(model.accounts) {
+      if needsFirstAccount ?? lacksAccount {
         // An empty list here left Save disabled with no way forward.
-        AddAccountFirstView(onCreated: { account in
-          onSelect(account)
-          dismiss()
-        })
+        AddAccountFirstView(
+          onCreated: { account in
+            onSelect(account)
+            dismiss()
+          },
+          onAddingChanged: { isCreatingAccount = $0 }
+        ) {
+          EmptyView()
+        }
         .background(Theme.canvas)
         .navigationTitle("Account")
         .navigationBarTitleDisplayMode(.inline)
@@ -237,7 +249,14 @@ struct AccountPickerView: View {
     }
     .onAppear {
       if needsFirstAccount == nil {
-        needsFirstAccount = !CaptureAdmissionGate.hasUsableAccount(model.accounts)
+        needsFirstAccount = lacksAccount
+      }
+    }
+    // Accounts that arrive from a refresh release the prompt; the prompt's own
+    // sheet hands its account over through onCreated instead.
+    .onChange(of: CaptureAdmissionGate.hasUsableAccount(model.accounts)) { _, usable in
+      if usable, !isCreatingAccount {
+        needsFirstAccount = false
       }
     }
   }
