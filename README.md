@@ -29,7 +29,7 @@ The iPhone app is not on the App Store or TestFlight. To install it today, build
 1. Clone the repository and open `apps/ios/HowMuch.xcodeproj` in Xcode. You do not need Bun: the app's bundled engine is already in the repository.
 2. For the **HowMuch** and **HowMuchShare** targets, open **Signing & Capabilities**, choose your own team, and give each a bundle identifier of your own, such as `com.example.halation` and `com.example.halation.share`.
 3. Replace the app group `group.sg.soon.howmuch` with one of your own in both targets and in `apps/ios/HowMuch/Capture/InboxStore.swift`. The share sheet hands transactions to the app through it.
-4. In the **HowMuch** target, remove the associated domain `webcredentials:howmuch.soon.sg`, or replace it with your own server's host. It lets iOS offer saved passwords for that site, and the domain is the owner's.
+4. In the **HowMuch** target, remove the associated domain `webcredentials:howmuch.soon.sg`. It is the owner's domain and only serves password autofill for that site.
 5. Turn on Developer Mode on the iPhone if iOS asks, choose the iPhone as the run destination, and run the **HowMuch** scheme.
 
 Keep these signing changes in your own copy. Xcode explains any capability your account cannot sign; remove it from your copy, and only the feature it serves stops working.
