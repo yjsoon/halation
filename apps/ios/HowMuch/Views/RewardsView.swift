@@ -944,6 +944,8 @@ struct RewardFilledRow: View {
       }
       .coordinateSpace(.named(Self.space))
       .clipShape(.rect(cornerRadius: Theme.Radius.card, style: .continuous))
+      // The words are inked for the face behind them, so Smart Invert leaves them together.
+      .accessibilityIgnoresInvertColors(true)
       .overlay { outline }
     }
   }

@@ -461,7 +461,7 @@ The foot inks resolve by appearance: dark in light mode, on the light ground; li
 - **The slip.** Below the hero, in the same clear section, on the grouped background:
   - a caps line (issuer · type, plus "Featured" when the card is featured), in IBM Plex Sans SemiBold 11pt tracked 0.14em, `Theme.rowSecondary`;
   - then today's headline line, the basis line and the exceptions.
-- The name is a wrapping heading above the hero, in Instrument Serif Italic, and the navigation bar carries no title (21 Oct 2026): an inline title between Done and Edit Rewards truncated every longer name, and at accessibility sizes even short ones. The heading carries the header trait, so VoiceOver names the sheet from it.
+- The name is a wrapping heading above the hero, in Instrument Serif Italic, and the navigation bar carries no title (21 Oct 2026): an inline title between Done and Edit Rewards truncated every longer name, and at accessibility sizes even short ones. The heading carries the header trait, so it is the first entry on VoiceOver's headings rotor. With no bar title, the sheet itself is not announced by name.
 - The in-frame label and tick are fixed-size art annotations that repeat the slip. They are hidden from VoiceOver, and hidden altogether at accessibility text sizes.
 
 ### What collapses when
@@ -1002,7 +1002,7 @@ Also fix the list-wide `.animation(Theme.Motion.arrive, value: model.rewardsPhas
 - **Contrast on the faces.** See the contrast tables, one per appearance. Text sits only on the sky above the target horizon or on the spend ridge, and never across a crest stroke or over rings 1 and 2. In dark mode the dusk veil is capped so dark ink keeps 6.6:1 on it, and the night print's pour stops short of the name. In light mode the cool dim is 15%: dark ink keeps at least 5.8:1 on every sky, gold or blue, and the foot inks at least 4.7:1 on the ground, lit or not.
 - **Increase Contrast.** Today's 1pt outline at `Color.primary` 30% stays, on the strip and on the print. The High Contrast colour sets darken the dark-mode ridges and lighten its foot inks, and in light mode lighten the ground and darken its foot inks. The crest strokes and the marker draw at their Increase Contrast opacities.
 - **Differentiate Without Colour.** Each state differs in shape and luminance, not just colour: the marker's position, the lit edge (a luminance step, and in light mode a hue step as well), the ridge gap, the sun's place (on the horizon, resting, halfway, gone), the ring size, a sun or none, plus the headline words.
-- **Smart Invert.** Faces ignore invert, like photographs. On the sheet the print's label and tick ignore it with the print; the border around it inverts with the sheet.
+- **Smart Invert.** Faces ignore invert, like photographs. A strip's words ignore it with their face, and on the sheet the print's label and tick ignore it with the print; the border around the print inverts with the sheet.
 - **Reduce Transparency.** Nothing to change: there is no material, and figures stay on opaque surfaces.
 
 ## Web parity
@@ -1199,7 +1199,7 @@ Expected values are worked out by hand from those numbers. Before taking screens
 
 The performance variant (`fixtures/rewards-exposure-states-30.json`) holds each card twice.
 
-Checked against the local API on 21 Oct 2026: every card matches the table except L. The server counts only months that have started, so as of 24 May card L reads `met` (April and May both met), and the row is calm "No cap · Resets in 38 days" with no slip. The projection only shows "Rewards unlock after …" while the status is pending, which no three-month configuration reaches on 24 May without also showing a monthly minimum. L stays as configured, as a calm card; the locked slip is covered by the projection tests in `RewardsReportTests.swift` (`.rewardsLocked`).
+Checked against the local API on 21 Oct 2026: every card matches the table. Row L records the server's reading rather than the configuration's intent: the server counts only months that have started, so as of 24 May card L reads `met` (April and May both met), and the row is calm "No cap · Resets in 38 days" with no slip. The projection only shows "Rewards unlock after …" while the status is pending, which no three-month configuration reaches on 24 May without also showing a monthly minimum. L stays as configured, as a calm card; the locked slip is covered by the projection tests in `RewardsReportTests.swift` (`.rewardsLocked`).
 
 ### iOS recipe: `.cursor/skills/verify-howmuch/features/ios-rewards.md`
 
