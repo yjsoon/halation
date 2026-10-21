@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode, type RefObject } from "react";
 import { cssEase, cssTime, tweenPose } from "../lib/exposure-tween";
-import { falls, type Exposure, type Pose } from "../lib/reward-exposure";
+import { falls, type Exposure, type Light, type Pose } from "../lib/reward-exposure";
 import { exposureScene, type Scene, type SceneLayout } from "../lib/reward-exposure-scene";
 
 /*
@@ -22,7 +22,7 @@ const FIRST_SIZE: Record<FaceVariant, FaceSize> = {
 };
 
 /** The last pose each card showed this session, so a row scrolled back into view or remounted does not replay its rise. */
-const SHOWN = new Map<string, { target: string; pose: Pose }>();
+const SHOWN = new Map<string, { target: string; light: Light; pose: Pose }>();
 
 const useIsoLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
@@ -123,13 +123,13 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
       && (exposure.light !== lastLight.current || gate !== lastGate.current
         || (exposure.target !== lastTarget.current && falls(target, poseRef.current)));
     let start: Pose;
-    if (first) start = remembered ? (remembered.target === exposure.target ? remembered.pose : target) : exposure.journeyStart;
+    if (first) start = remembered ? (remembered.target === exposure.target && remembered.light === exposure.light ? remembered.pose : target) : exposure.journeyStart;
     else start = crossfade ? target : poseRef.current;
     seen.current = true;
     lastTarget.current = exposure.target;
     lastLight.current = exposure.light;
     lastGate.current = gate;
-    if (memoryKey) SHOWN.set(memoryKey, { target: exposure.target, pose: target });
+    if (memoryKey) SHOWN.set(memoryKey, { target: exposure.target, light: exposure.light, pose: target });
     cancel.current();
     if (crossfade) {
       draw(exposure, target);
