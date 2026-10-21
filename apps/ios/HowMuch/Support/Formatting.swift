@@ -300,6 +300,15 @@ enum LedgerDate {
     return raw
   }
 
+  /// `periodLabel` with a dated day in place of "Today" or "Yesterday", so it
+  /// reads in a sentence: "Highest: £90, Tue 21 Oct 2026", not "…, Today".
+  static func spokenPeriodLabel(_ raw: String) -> String {
+    if raw.split(separator: "-").count == 3, let date = parser.date(from: raw) {
+      return display.string(from: date)
+    }
+    return periodLabel(raw)
+  }
+
   /// Compact label for a report chart's horizontal axis.
   static func periodAxisLabel(_ raw: String) -> String {
     let parts = raw.split(separator: "-")
