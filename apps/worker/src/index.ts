@@ -13,7 +13,7 @@ const DEFAULT_YNAB_SYNC_CRON = "10 16 * * *";
 interface Env {
   ASSETS: Fetcher;
   DB: D1Binding;
-  HOWMUCH_API_TOKEN: string;
+  HOWMUCH_API_TOKEN?: string;
   HOWMUCH_DEFAULT_PLAN_ID: string;
   HOWMUCH_TIME_ZONE: string;
   HOWMUCH_YNAB_TOKEN?: string;
@@ -107,7 +107,10 @@ function workerConfig(env: Env): ApiConfig & { timeZone: string } {
   return {
     dbPath: "",
     port: 0,
-    apiToken: required(env.HOWMUCH_API_TOKEN, "HOWMUCH_API_TOKEN"),
+    // Optional so a Worker deployed without the secret can still say so on
+    // its setup page. Setup without it is always refused here.
+    apiToken: optional(env.HOWMUCH_API_TOKEN),
+    refuseTokenlessSetup: true,
     defaultPlanId: required(env.HOWMUCH_DEFAULT_PLAN_ID, "HOWMUCH_DEFAULT_PLAN_ID"),
     transitionReadOnly: env.HOWMUCH_TRANSITION_READ_ONLY === "true",
     ynabToken: optional(env.HOWMUCH_YNAB_TOKEN),

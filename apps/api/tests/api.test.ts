@@ -2779,6 +2779,7 @@ describe("password authentication", () => {
     expect((await before.json()).data).toEqual({
       setup_required: true,
       bootstrap_required: true,
+      setup_blocked: false,
       user: null,
       // No session, so nothing for a client to gate a cached paint on.
       session_expires_at: null,
@@ -2820,7 +2821,9 @@ describe("password authentication", () => {
       },
     });
     const status = await localHandler(new Request("http://localhost:8787/api/auth/status"));
-    expect((await status.json()).data.bootstrap_required).toBeFalse();
+    const statusData = (await status.json()).data;
+    expect(statusData.bootstrap_required).toBeFalse();
+    expect(statusData.setup_blocked).toBeFalse();
     const setup = await localHandler(new Request("http://localhost:8787/api/auth/setup", {
       method: "POST",
       headers: { "content-type": "application/json", origin: "http://localhost:8787" },
@@ -2851,7 +2854,36 @@ describe("password authentication", () => {
         body: JSON.stringify({ username: "owner", password }),
       }));
       expect(setup.status).toBe(403);
+      // The status check says so up front, so the web app can show the
+      // missing-secret step instead of a form that can only fail.
+      const status = await localHandler(new Request(`${origin}/api/auth/status`));
+      expect((await status.json()).data.setup_blocked).toBeTrue();
     }
+    expect(db.query("SELECT COUNT(*) AS count FROM users").get()).toEqual({ count: 0 });
+  });
+
+  // Failure mode: a Worker deployed without the HOWMUCH_API_TOKEN secret. It
+  // must still refuse setup (its Host is never trusted as "this machine"),
+  // and its status must say why, rather than every request failing.
+  test("a server that never allows tokenless setup reports it and refuses", async () => {
+    const workerHandler = createHandler({
+      db,
+      config: {
+        dbPath: ":memory:",
+        port: 0,
+        defaultPlanId: "plan-test",
+        transitionReadOnly: false,
+        refuseTokenlessSetup: true,
+      },
+    });
+    const status = await workerHandler(new Request("http://localhost:8787/api/auth/status"));
+    expect((await status.json()).data).toMatchObject({ setup_required: true, bootstrap_required: false, setup_blocked: true });
+    const setup = await workerHandler(new Request("http://localhost:8787/api/auth/setup", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "http://localhost:8787" },
+      body: JSON.stringify({ username: "owner", password }),
+    }));
+    expect(setup.status).toBe(403);
     expect(db.query("SELECT COUNT(*) AS count FROM users").get()).toEqual({ count: 0 });
   });
 
