@@ -201,7 +201,12 @@ struct CardPaymentTermsSheet: View {
   }
 
   private var fixedAmount: Int? {
-    guard let value = MoneyCodec.milliunits(fromTyped: fixedText), value > 0 else { return nil }
+    // A stored amount left untouched keeps its value, even one saved with
+    // more decimals than the currency now allows.
+    if let stored = terms.defaultAmountMilli, stored > 0, fixedText == MoneyCodec.editableString(for: stored) {
+      return stored
+    }
+    guard let value = MoneyCodec.milliunits(fromTyped: fixedText, decimalDigits: model.currencyFormat?.decimalDigits), value > 0 else { return nil }
     return value
   }
 

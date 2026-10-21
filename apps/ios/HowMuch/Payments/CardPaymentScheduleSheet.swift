@@ -281,7 +281,11 @@ struct CardPaymentScheduleSheet: View {
     case .minimum:
       return cycle.minimumOutstanding > 0 ? cycle.minimumOutstanding : nil
     case .fixed:
-      guard let value = MoneyCodec.milliunits(fromTyped: otherText), value > 0 else { return nil }
+      // The card's stored fixed amount, left untouched, keeps its value.
+      if let stored = terms?.defaultAmountMilli, stored > 0, otherText == MoneyCodec.editableString(for: stored) {
+        return stored
+      }
+      guard let value = MoneyCodec.milliunits(fromTyped: otherText, decimalDigits: model.currencyFormat?.decimalDigits), value > 0 else { return nil }
       return value
     }
   }

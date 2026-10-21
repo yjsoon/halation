@@ -1819,16 +1819,21 @@ private struct AccountReconciliationSheet: View {
     model.accounts.first { $0.id == accountID }
   }
 
+  private var typedStatementBalance: Int? {
+    MoneyCodec.milliunits(fromTyped: statementBalanceText, decimalDigits: model.currencyFormat?.decimalDigits)
+  }
+
   private var reviewBalanceText: String {
-    let amount = MoneyCodec.milliunits(fromTyped: statementBalanceText) ?? 0
+    let amount = typedStatementBalance ?? 0
     return MoneyCodec.signedDisplayString(for: amount, currencyFormat: model.currencyFormat)
   }
 
   private var reviewDifference: Int? {
-    guard let preview, let statementBalance = MoneyCodec.milliunits(fromTyped: statementBalanceText) else {
+    guard let preview, let statementBalance = typedStatementBalance else {
       return nil
     }
-    return statementBalance - preview.projectedReconciledBalance
+    let difference = statementBalance.subtractingReportingOverflow(preview.projectedReconciledBalance)
+    return difference.overflow ? nil : difference.partialValue
   }
 
   private var reviewDifferenceText: String {
@@ -1841,8 +1846,8 @@ private struct AccountReconciliationSheet: View {
   }
 
   private var reviewRequirement: String {
-    if MoneyCodec.milliunits(fromTyped: statementBalanceText) == nil {
-      return "Enter a statement balance with no more than three decimal places."
+    if typedStatementBalance == nil {
+      return "Enter a valid statement balance."
     }
     return "The statement balance must exactly match the projected balance before confirmation."
   }
@@ -1929,8 +1934,8 @@ private struct AccountReconciliationSheet: View {
       errorMessage = "Wait for an exact server review, then confirm the reconciliation."
       return
     }
-    guard let statementBalance = MoneyCodec.milliunits(fromTyped: statementBalanceText) else {
-      errorMessage = "Enter the exact statement balance with no more than three decimal places."
+    guard let statementBalance = typedStatementBalance else {
+      errorMessage = "Enter a valid statement balance."
       return
     }
 

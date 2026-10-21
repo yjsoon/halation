@@ -281,11 +281,11 @@ enum LedgerQueryPlanner {
     if !explicitCategoryIDs.isEmpty {
       return report.groups
         .filter { explicitCategoryIDs.contains($0.categoryID) }
-        .reduce(0) { $0 + abs($1.amount) }
+        .map { abs($0.amount) }.saturatingSum()
     }
     let split = ReflectMaths.split(report.groups)
     let rows = includeQuiet ? split.primary + split.quiet : split.primary
-    return rows.reduce(0) { $0 + abs($1.amount) }
+    return rows.map { abs($0.amount) }.saturatingSum()
   }
 
   static func sourceRows(

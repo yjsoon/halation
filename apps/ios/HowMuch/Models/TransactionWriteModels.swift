@@ -181,8 +181,9 @@ enum CommitRejection: LocalizedError, Equatable {
   case invalidSplit(String)
   case persistFailed
 
-  static func check(_ draft: TransactionDraft) throws {
-    if let message = draft.splitValidationMessage {
+  /// `decimalDigits` is the plan currency's, when the caller knows it.
+  static func check(_ draft: TransactionDraft, decimalDigits: Int? = nil) throws {
+    if let message = draft.splitValidationMessage(decimalDigits: decimalDigits) {
       throw CommitRejection.invalidSplit(message)
     }
     guard draft.canSave else {
@@ -311,6 +312,8 @@ struct TransactionSubtransactionDraft: Equatable, Codable {
   /// mirror ID against a different account.
   private var mirroredTransferAccountID: String?
   var memo: String
+  /// The stored amount of a loaded line, kept while its text is untouched.
+  private var loadedAmount: Int?
 
   init(
     id: String? = nil,
@@ -336,6 +339,7 @@ struct TransactionSubtransactionDraft: Equatable, Codable {
 
   init(subtransaction: Subtransaction, preserveID: Bool = true) {
     id = preserveID ? subtransaction.id : nil
+    loadedAmount = subtransaction.amount
     amountText = MoneyCodec.editableString(for: subtransaction.amount)
     payeeID = subtransaction.payeeID
     payeeName = subtransaction.payeeName ?? ""
@@ -346,7 +350,17 @@ struct TransactionSubtransactionDraft: Equatable, Codable {
     memo = subtransaction.memo ?? ""
   }
 
-  var amount: Int? { MoneyCodec.milliunits(fromTyped: amountText) }
+  var amount: Int? { amount(decimalDigits: nil) }
+
+  /// The typed amount, checked against the plan currency's decimal places.
+  /// A loaded line left untouched keeps its stored amount, even one saved
+  /// with more decimals than the currency now allows.
+  func amount(decimalDigits: Int?) -> Int? {
+    if let loadedAmount, amountText == MoneyCodec.editableString(for: loadedAmount) {
+      return loadedAmount
+    }
+    return MoneyCodec.milliunits(fromTyped: amountText, decimalDigits: decimalDigits)
+  }
 
   func writeRequest() -> TransactionSubtransactionWriteRequest? {
     guard let amount else { return nil }
@@ -467,18 +481,29 @@ struct TransactionDraft: Equatable, Codable {
 
   var signedMilliunits: Int {
     if isSplit {
-      return subtransactions.reduce(0) { $0 + ($1.amount ?? 0) }
+      // Each line is capped, but the sum must still never trap; an overflow
+      // is reported by `splitValidationMessage`.
+      return subtransactions.map { $0.amount ?? 0 }.saturatingSum()
     }
     return direction == .outflow ? -amountMagnitudeMilli : amountMagnitudeMilli
   }
 
   var splitValidationMessage: String? {
+    splitValidationMessage(decimalDigits: nil)
+  }
+
+  /// `decimalDigits` is the plan currency's, when the caller knows it.
+  func splitValidationMessage(decimalDigits: Int?) -> String? {
     guard isSplit else { return nil }
     guard subtransactions.count >= 2 else {
       return "A split transaction needs at least two lines."
     }
-    guard subtransactions.allSatisfy({ $0.amount != nil }) else {
-      return "Enter a signed amount for every split line."
+    let amounts = subtransactions.compactMap { $0.amount(decimalDigits: decimalDigits) }
+    guard amounts.count == subtransactions.count else {
+      return "Enter a valid signed amount for every split line."
+    }
+    guard let total = amounts.checkedSum(), total.magnitude <= MoneyCodec.storableAmountCap.magnitude else {
+      return "The split total is too large."
     }
     return nil
   }
@@ -500,6 +525,23 @@ struct TransactionDraft: Equatable, Codable {
     }
     amountMagnitudeMilli = abs(total)
     subtransactions = []
+  }
+
+  /// A new row from Shortcuts or capture rounded half away from zero to the
+  /// currency's smallest unit, the amount its review already shows (12.345
+  /// reads as $12.35; 1.5 yen as ¥2). Edits keep the amount they were saved
+  /// with, and split lines are checked line by line instead.
+  func roundedToMinorUnit(decimalDigits: Int?) -> TransactionDraft {
+    guard id == nil, !isSplit, let decimalDigits else {
+      return self
+    }
+    let unit = MoneyCodec.minorUnit(decimalDigits: decimalDigits)
+    let rounded = (amountMagnitudeMilli + unit / 2) / unit * unit
+    var draft = self
+    // A misread sliver (0.4 yen) becomes one smallest unit rather than an
+    // empty row that blocks its batch.
+    draft.amountMagnitudeMilli = amountMagnitudeMilli > 0 ? max(rounded, unit) : 0
+    return draft
   }
 
   var canSave: Bool {

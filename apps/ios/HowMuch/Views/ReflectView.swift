@@ -117,7 +117,7 @@ struct ReflectView: View {
     if let report = model.spendingBreakdown {
       let split = ReflectMaths.split(report.groups)
       let rows = model.includeQuietSpending ? split.primary + split.quiet : split.primary
-      let total = rows.reduce(0) { $0 + abs($1.amount) }
+      let total = rows.map { abs($0.amount) }.saturatingSum()
       VStack(alignment: .leading, spacing: 12) {
         Text(Date.now.monthYearLabel)
           .font(.subheadline)
@@ -157,7 +157,7 @@ struct ReflectView: View {
               }
             }
             if rows.count > 5 {
-              let remainder = rows.dropFirst(5).reduce(0) { $0 + abs($1.amount) }
+              let remainder = rows.dropFirst(5).map { abs($0.amount) }.saturatingSum()
               HStack(spacing: 8) {
                 Circle()
                   .fill(Color.secondary.opacity(0.4))
@@ -185,8 +185,8 @@ struct ReflectView: View {
   @ViewBuilder
   private var netWorthContent: some View {
     if let report = model.netWorth, let latest = report.periods.last {
-      let assets = latest.accounts.map(\.balance).filter { $0 > 0 }.reduce(0, +)
-      let debts = latest.accounts.map(\.balance).filter { $0 < 0 }.reduce(0, +)
+      let assets = latest.accounts.map(\.balance).filter { $0 > 0 }.saturatingSum()
+      let debts = latest.accounts.map(\.balance).filter { $0 < 0 }.saturatingSum()
       VStack(alignment: .leading, spacing: 12) {
         Text(MoneyCodec.displayString(for: latest.netWorth, currencyFormat: model.currencyFormat))
           .font(.title.weight(.medium))
@@ -511,7 +511,7 @@ struct MonthToDate: Equatable {
   }
 
   var today: Int { daily.last ?? 0 }
-  var total: Int { daily.reduce(0, +) }
+  var total: Int { daily.saturatingSum() }
 
   /// Running total at the end of each day so far.
   var cumulative: [Int] {

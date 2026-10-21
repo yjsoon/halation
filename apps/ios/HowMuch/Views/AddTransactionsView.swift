@@ -934,7 +934,7 @@ struct AddTransactionsView: View {
         includeQuiet: model.includeQuietSpending || resolution.categoryWasExplicit,
         merchant: resolution.spec.merchant
       )
-      let total = sourceAll.filter { $0.amount < 0 }.reduce(0) { $0 + abs($1.amount) }
+      let total = sourceAll.filter { $0.amount < 0 }.map { abs($0.amount) }.saturatingSum()
       return LedgerQueryResult(
         title: "Payments to \(resolution.spec.merchant)",
         detail: "\(sourceAll.count) recorded payments from \(resolution.from) to \(resolution.to) · \(resolution.accountLabel)",

@@ -483,7 +483,7 @@ struct SpendingBreakdownDetailView: View {
           let hideQuiet = !model.includeQuietSpending && scope.categoryIDs.isEmpty
           let split = ReflectMaths.split(report.groups)
           let rows = hideQuiet ? split.primary : split.primary + split.quiet
-          let total = rows.reduce(0) { $0 + abs($1.amount) }
+          let total = rows.map { abs($0.amount) }.saturatingSum()
           let excluded = abs(report.total) - total
           let transactionCount = rows.reduce(0) { $0 + $1.transactionCount }
 
@@ -742,9 +742,12 @@ struct NetWorthDetailView: View {
   }
 
   private func headlineCard(report: NetWorthReport, latest: NetWorthPeriod) -> some View {
-    let assets = latest.accounts.map(\.balance).filter { $0 > 0 }.reduce(0, +)
-    let debts = latest.accounts.map(\.balance).filter { $0 < 0 }.reduce(0, +)
-    let change = report.periods.dropLast().last.map { latest.netWorth - $0.netWorth }
+    let assets = latest.accounts.map(\.balance).filter { $0 > 0 }.saturatingSum()
+    let debts = latest.accounts.map(\.balance).filter { $0 < 0 }.saturatingSum()
+    let change = report.periods.dropLast().last.flatMap { previous -> Int? in
+      let difference = latest.netWorth.subtractingReportingOverflow(previous.netWorth)
+      return difference.overflow ? nil : difference.partialValue
+    }
 
     return VStack(spacing: 10) {
       Text("Net Worth · as at \(LedgerDate.friendlyString(fromISO: latest.endDate))")
@@ -939,8 +942,8 @@ struct IncomeVsSpendingDetailView: View {
   }
 
   private func totalsCard(report: IncomeVsSpendingReport) -> some View {
-    let income = report.periods.reduce(0) { $0 + $1.income }
-    let spending = report.periods.reduce(0) { $0 + abs($1.spending) }
+    let income = report.periods.map(\.income).saturatingSum()
+    let spending = report.periods.map { abs($0.spending) }.saturatingSum()
     let net = income - spending
     let saved = IncomeVsSpendingMaths.savingsRateLabel(net: net, income: income)
 
@@ -1116,8 +1119,8 @@ struct AgeOfMoneyDetailView: View {
           let measured = report.periods.filter { $0.ageOfMoneyDays != nil }
           let latest = measured.last?.ageOfMoneyDays
           let previous = measured.dropLast().last?.ageOfMoneyDays
-          let matchedTotal = report.periods.reduce(0) { $0 + $1.spent }
-          let unmatchedTotal = report.periods.reduce(0) { $0 + $1.unmatchedSpending }
+          let matchedTotal = report.periods.map(\.spent).saturatingSum()
+          let unmatchedTotal = report.periods.map(\.unmatchedSpending).saturatingSum()
 
           VStack(spacing: 10) {
             Text("Age of Money")
