@@ -150,6 +150,16 @@ struct RewardsView: View {
   @Environment(RootChromeState.self) private var chrome: RootChromeState?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  /// Room under the last card: clear of the sidebar's floating Add (as the save toast is), or on a
+  /// phone clear of the floating Assistant above Add (checked in the simulator, 21 Oct 2026).
+  private var bottomRoom: CGFloat {
+    let idiom = UIDevice.current.userInterfaceIdiom
+    return RootChrome.usesSidebar(idiom: idiom, horizontalSizeClass: horizontalSizeClass)
+      ? RootChrome.toastBottomPadding(idiom: idiom, horizontalSizeClass: horizontalSizeClass)
+      : 64
+  }
   @State private var filter: RewardsReportFilter
   @State private var sheet: RewardsSheet?
   @State private var route: RewardsRoute?
@@ -198,8 +208,8 @@ struct RewardsView: View {
     .listStyle(.plain)
     .scrollContentBackground(.hidden)
     // Room below the last card for the floating buttons: the Assistant above Add on a phone, and
-    // the floating Add in the sidebar layout, which can reach a capped row on a narrow iPad.
-    .contentMargins(.bottom, 64, for: .scrollContent)
+    // the floating Add in the sidebar layout, which reaches a capped row on a narrow iPad.
+    .contentMargins(.bottom, bottomRoom, for: .scrollContent)
     .background(Theme.canvas)
     .navigationTitle("Rewards")
     .navigationBarTitleDisplayMode(.large)

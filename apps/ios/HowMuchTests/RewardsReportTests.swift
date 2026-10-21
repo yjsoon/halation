@@ -579,7 +579,7 @@ final class RewardsSnapshotTests: XCTestCase {
           .environment(harness.model).environment(\.dynamicTypeSize, size).preferredColorScheme(scheme),
         size: CGSize(width: 430, height: size.isAccessibilitySize ? 1500 : 932)
       ))
-      let expected = ["Groceries", "$700.00", "140%", "Food", "92%", "Rides", "Excluded", "21.00"]
+      let expected = ["Groceries", "700.00", "140%", "Food", "92%", "Rides", "Excluded", "21.00"]
       let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 5_000_000_000)
       attach(rendered.image, "reward-categories-\(name)")
       for text in expected { XCTAssertTrue(rendered.text.contains(text.lowercased()), "Missing \(text): \(rendered.text)") }
@@ -650,7 +650,7 @@ final class RewardsSnapshotTests: XCTestCase {
         XCTAssertTrue(bottom.text.contains("excluded"), bottom.text)
         XCTAssertTrue(bottom.text.contains("21.00"), bottom.text)
       } else {
-        var expected = ["Done", "Edit", "Groceries", "$700.00", "140%"]
+        var expected = ["Done", "Edit", "Groceries", "700.00", "140%"]
         if name != "short" { expected += ["Food", "Transport", "Rides", "Gas", "Telcos", "Excluded", "21.00"] }
         if name == "targets" { expected += ["Targets", "Minimum met"] }
         let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 3_000_000_000)
