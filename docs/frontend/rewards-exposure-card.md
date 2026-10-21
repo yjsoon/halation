@@ -461,7 +461,7 @@ The foot inks resolve by appearance: dark in light mode, on the light ground; li
 - **The slip.** Below the hero, in the same clear section, on the grouped background:
   - a caps line (issuer · type, plus "Featured" when the card is featured), in IBM Plex Sans SemiBold 11pt tracked 0.14em, `Theme.rowSecondary`;
   - then today's headline line, the basis line and the exceptions.
-- The name stays in the navigation title.
+- The name is a wrapping heading above the hero, in Instrument Serif Italic, and the navigation bar carries no title (21 Oct 2026): an inline title between Done and Edit Rewards truncated every longer name, and at accessibility sizes even short ones. The bar title stays set for the system, so VoiceOver still names the screen.
 - The in-frame label and tick are fixed-size art annotations that repeat the slip. They are hidden from VoiceOver, and hidden altogether at accessibility text sizes.
 
 ### What collapses when
@@ -1198,6 +1198,8 @@ Expected values are worked out by hand from those numbers. Before taking screens
 | P Exposure Journey | Cashback, minimum 100, one tier at 200, maximum 500 at both levels | $184.50 left before bonus cap · 8 days left | $315.50 / $500.00 | Climb past halfway: `v` 0.693 (0.5 + 0.5 × 115.50 / 300; the tier at 200 is reached), rings at 31% |
 
 The performance variant (`fixtures/rewards-exposure-states-30.json`) holds each card twice.
+
+Checked against the local API on 21 Oct 2026: every card matches the table except L. The server counts only months that have started, so as of 24 May card L reads `met` (April and May both met), and the row is calm "No cap · Resets in 38 days" with no slip. The projection only shows "Rewards unlock after …" while the status is pending, which no three-month configuration reaches on 24 May without also showing a monthly minimum. L stays as configured, as a calm card; the locked slip is covered by the projection tests in `RewardsReportTests.swift` (`.rewardsLocked`).
 
 ### iOS recipe: `.cursor/skills/verify-howmuch/features/ios-rewards.md`
 

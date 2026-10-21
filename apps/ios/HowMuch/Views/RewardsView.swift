@@ -1257,6 +1257,9 @@ struct RewardCardDetailSheet: View {
               memoryScope: "sheet", capsLine: capsLine
             )
           }
+          // On a wide sheet the heading, print and slip share one centred column.
+          .frame(maxWidth: 520)
+          .frame(maxWidth: .infinity)
           .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
           .listRowBackground(Color.clear)
         }

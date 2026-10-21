@@ -11,13 +11,13 @@ struct HowMuchApp: App {
     _model = State(initialValue: model)
     // A background refresh can launch the app without ever building a view.
     IntakeBackgroundRefresh.shared.model = model
-    CardType.assertBundled()
   }
 
   var body: some Scene {
     WindowGroup {
       RootView()
         .environment(model)
+        .task { CardType.assertBundled() }
         .tint(Theme.accent)
     }
   }

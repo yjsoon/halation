@@ -240,7 +240,7 @@ struct ExposureScene {
     guard layout == .photo else { return horizonY(at: u) + floorGap }
     // The print's floor is level, with a faint swell; a card with no journey keeps the brand pair apart.
     if exposure.ridgesApart { return height * BrandRise.at(BrandRise.frontCrest, u) }
-    return height * (0.8 + 0.01 * sin(u * 8.2 + 0.4))
+    return height * ((isThumbnail ? 0.82 : 0.8) + 0.01 * sin(u * 8.2 + 0.4))
   }
 
   /// How far the spend horizon's far end has lifted: the fill of the minimum journey. Failed and untargeted
@@ -313,7 +313,15 @@ struct ExposureScene {
   /// The light is still spreading towards the marker: the whole of the gate, however close the fill
   /// (a card $2 short of $2,000 keeps its dusk), and a met card's first showing while its sweep runs,
   /// so the lit edge sweeps to the right edge instead of the whole band lighting at once.
-  var inMinimumJourney: Bool { exposure.stage == .gate || (exposure.light == .journey && pose.h < 0.999) }
+  var inMinimumJourney: Bool {
+    if exposure.stage == .gate { return true }
+    // The print has no lift to light the last of the band, so a met card's sweep would end in a pop: it
+    // shows the whole band lit, as the web's face does.
+    return layout.isPhone && exposure.light == .journey && pose.h < 0.999
+  }
+
+  /// The register's 90 × 60pt print, as against the sheet's hero: a little lower floor and a smaller pour.
+  private var isThumbnail: Bool { layout == .photo && width < 200 }
 
   /// The veil's soft edge, in points: full light to the left of `from`, full veil right of `to`.
   /// A failed card is veiled everywhere. Nil once there is no minimum journey to show.
@@ -348,7 +356,7 @@ struct ExposureScene {
     let peak = appearance == .print && !exposure.miles ? 0.45 : 0.65
     let alpha = peak * min(1, max(0, (pose.v - 0.4) / 0.6))
     guard alpha > 0 else { return nil }
-    return (alpha, (night ? 0.35 : layout.isPhone ? 0.62 : 0.78) * width)
+    return (alpha, (night ? 0.35 : layout.isPhone || isThumbnail ? 0.62 : 0.78) * width)
   }
 
   /// Rings and glow add light by screen blend, except on the dusk print.
