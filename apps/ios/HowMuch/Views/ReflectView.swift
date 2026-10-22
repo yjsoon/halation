@@ -600,11 +600,11 @@ struct MonthToDateSummary: View {
   private var stacksValues: Bool { dynamicTypeSize >= .xxLarge }
 
   /// Keeps the icon column even as text grows.
-  @ScaledMetric(relativeTo: .body) private var iconWidth: CGFloat = 24
+  @ScaledMetric(relativeTo: .subheadline) private var iconWidth: CGFloat = 24
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      line("calendar.day.timeline.left", "Day \(pace.day) of \(pace.daysInMonth)", nil)
+      line("calendar.day.timeline.leading", "Day \(pace.day) of \(pace.daysInMonth)", nil)
       line("sun.max", "Spent today", money(pace.today))
       line("banknote", "Spent this month", money(pace.total), rolling: pace.total)
       line("chart.bar", "Daily average", "\(money(pace.average))/day")
