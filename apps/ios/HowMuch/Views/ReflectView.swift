@@ -21,13 +21,7 @@ struct ReflectView: View {
               .foregroundStyle(Theme.rowSecondary)
           }
           // Full width above the grid so it leads on iPad too.
-          if let pace = monthToDate {
-            ReflectCard(icon: "calendar", title: "Month to Date") {
-              SpendingBreakdownDetailView()
-            } content: {
-              MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
-            }
-          }
+          monthCard
 
           // Two columns on a regular-width iPad, in a Grid so each row's
           // cards share the taller one's height instead of floating at
@@ -35,17 +29,16 @@ struct ReflectView: View {
           if horizontalSizeClass == .regular {
             Grid(horizontalSpacing: 12, verticalSpacing: 12) {
               GridRow {
-                spendingCard
                 incomeCard
+                netWorthCard
               }
               GridRow {
-                netWorthCard
                 ageCard
+                  .gridCellColumns(2)
               }
             }
           } else {
             VStack(spacing: 12) {
-              spendingCard
               incomeCard
               netWorthCard
               ageCard
@@ -76,11 +69,13 @@ struct ReflectView: View {
     }
   }
 
-  private var spendingCard: some View {
-    ReflectCard(icon: "chart.pie.fill", title: "Spending Breakdown") {
+  /// Month to date and the spending breakdown in one card: both are this
+  /// month's spending and open the same detail screen, so the total shows once.
+  private var monthCard: some View {
+    ReflectCard(icon: "calendar", title: "Month to Date") {
       SpendingBreakdownDetailView()
     } content: {
-      spendingContent
+      monthContent
     }
   }
 
@@ -113,72 +108,98 @@ struct ReflectView: View {
   }
 
   @ViewBuilder
-  private var spendingContent: some View {
+  private var monthContent: some View {
     if let report = model.spendingBreakdown {
       let split = ReflectMaths.split(report.groups)
       let rows = model.includeQuietSpending ? split.primary + split.quiet : split.primary
-      let total = rows.map { abs($0.amount) }.saturatingSum()
-      VStack(alignment: .leading, spacing: 12) {
-        Text(Date.now.monthYearLabel)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-        Text(MoneyCodec.displayString(for: total, currencyFormat: model.currencyFormat))
-          .font(.title.weight(.medium))
-          .monospacedDigit()
-          .foregroundStyle(Theme.textPrimary)
-          .rollingNumber(total)
-
-        if !rows.isEmpty {
-          StackedShareBar(segments: ReflectMaths.shareSegments(rows, limit: 5))
-
-          HStack {
-            Text("Top Categories")
-            Spacer()
-            Text("Spent")
-          }
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
-
-          VStack(spacing: 8) {
-            ForEach(rows.prefix(5).enumerated(), id: \.element.id) { index, group in
-              HStack(spacing: 8) {
-                Circle()
-                  .fill(Theme.chartColour(index))
-                  .frame(width: 8, height: 8)
-                Text(group.categoryName)
-                  .font(.subheadline)
-                  .foregroundStyle(Theme.textPrimary)
-                  .lineLimit(1)
-                Spacer()
-                Text(MoneyCodec.displayString(for: abs(group.amount), currencyFormat: model.currencyFormat))
-                  .font(.subheadline)
-                  .monospacedDigit()
-                  .foregroundStyle(Theme.textPrimary)
-              }
-            }
-            if rows.count > 5 {
-              let remainder = rows.dropFirst(5).map { abs($0.amount) }.saturatingSum()
-              HStack(spacing: 8) {
-                Circle()
-                  .fill(Color.secondary.opacity(0.4))
-                  .frame(width: 8, height: 8)
-                Text("All Others")
-                  .font(.subheadline)
-                  .foregroundStyle(.secondary)
-                Spacer()
-                Text(MoneyCodec.displayString(for: remainder, currencyFormat: model.currencyFormat))
-                  .font(.subheadline)
-                  .monospacedDigit()
-                  .foregroundStyle(.secondary)
-              }
-            }
+      if let pace = monthToDate {
+        // Side by side when an iPad gives the card the room.
+        if horizontalSizeClass == .regular, !dynamicTypeSize.isAccessibilitySize {
+          HStack(alignment: .top, spacing: 24) {
+            MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
+            Divider()
+            categories(rows)
           }
         } else {
-          Text("No spending recorded this month.")
+          VStack(alignment: .leading, spacing: 16) {
+            MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
+            Divider()
+            categories(rows)
+          }
+        }
+      } else {
+        // No daily figures for this month yet (a cached report from before
+        // the month turned, say): show the breakdown with its own total.
+        let total = rows.map { abs($0.amount) }.saturatingSum()
+        VStack(alignment: .leading, spacing: 12) {
+          Text(Date.now.monthYearLabel)
             .font(.subheadline)
             .foregroundStyle(.secondary)
+          Text(MoneyCodec.displayString(for: total, currencyFormat: model.currencyFormat))
+            .font(.title.weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(Theme.textPrimary)
+            .rollingNumber(total)
+          categories(rows)
         }
       }
+    }
+  }
+
+  @ViewBuilder
+  private func categories(_ rows: [SpendingBreakdownGroup]) -> some View {
+    if !rows.isEmpty {
+      VStack(alignment: .leading, spacing: 12) {
+        StackedShareBar(segments: ReflectMaths.shareSegments(rows, limit: 5))
+
+        HStack {
+          Text("Top Categories")
+          Spacer()
+          Text("Spent")
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+
+        VStack(spacing: 8) {
+          ForEach(rows.prefix(5).enumerated(), id: \.element.id) { index, group in
+            HStack(spacing: 8) {
+              Circle()
+                .fill(Theme.chartColour(index))
+                .frame(width: 8, height: 8)
+              Text(group.categoryName)
+                .font(.subheadline)
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(1)
+              Spacer()
+              Text(MoneyCodec.displayString(for: abs(group.amount), currencyFormat: model.currencyFormat))
+                .font(.subheadline)
+                .monospacedDigit()
+                .foregroundStyle(Theme.textPrimary)
+            }
+          }
+          if rows.count > 5 {
+            let remainder = rows.dropFirst(5).map { abs($0.amount) }.saturatingSum()
+            HStack(spacing: 8) {
+              Circle()
+                .fill(Color.secondary.opacity(0.4))
+                .frame(width: 8, height: 8)
+              Text("All Others")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+              Spacer()
+              Text(MoneyCodec.displayString(for: remainder, currencyFormat: model.currencyFormat))
+                .font(.subheadline)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    } else {
+      Text("No spending recorded this month.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
     }
   }
 
