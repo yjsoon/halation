@@ -604,7 +604,7 @@ struct MonthToDateSummary: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      line("calendar", "Day \(pace.day) of \(pace.daysInMonth)", nil)
+      line("calendar.day.timeline.left", "Day \(pace.day) of \(pace.daysInMonth)", nil)
       line("sun.max", "Spent today", money(pace.today))
       line("banknote", "Spent this month", money(pace.total), rolling: pace.total)
       line("chart.bar", "Daily average", "\(money(pace.average))/day")
@@ -635,6 +635,8 @@ struct MonthToDateSummary: View {
   private func line(_ symbol: String, _ label: String, _ value: String?, rolling: Int? = nil) -> some View {
     let labelText = HStack(alignment: .firstTextBaseline, spacing: 8) {
       Image(systemName: symbol)
+        // One icon size down the column, even beside the larger total.
+        .font(.subheadline)
         .foregroundStyle(Theme.accent)
         .frame(width: iconWidth)
         .accessibilityHidden(true)
