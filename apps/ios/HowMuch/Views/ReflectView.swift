@@ -614,12 +614,9 @@ struct MonthToDateSummary: View {
       line("🎯", "Month projection", money(pace.projection))
 
       // The month so far as a running total, dashed on to the projection.
-      // Left out at accessibility sizes, where its labels cannot fit.
-      if !dynamicTypeSize.isAccessibilitySize {
-        MonthToDateChart(pace: pace)
-          .frame(height: stacksValues ? 72 : 60)
-          .padding(.top, 4)
-      }
+      MonthToDateChart(pace: pace)
+        .frame(height: stacksValues ? 72 : 60)
+        .padding(.top, 4)
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(accessibilitySummary)
