@@ -28,25 +28,22 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
     XCTAssertEqual(pace?.today, 10_000)
   }
 
-  func testYearToDateNetSumsOnlyCurrentYearKeysAndIgnoresCumulative() {
+  func testActivityIsMatchedByPeriodPrefix() {
     let periods = [
       period("2025-11", income: 100, spending: 40, net: 60, cumulative: 60),
       period("2025-12", income: 80, spending: 90, net: -10, cumulative: 50),
       period("2026-01", income: 50, spending: 10, net: 40, cumulative: 90),
       period("2026-02", income: 20, spending: 5, net: 15, cumulative: 105),
     ]
-    XCTAssertEqual(IncomeVsSpendingMaths.yearToDateNet(periods: periods, year: 2026), 55)
-    XCTAssertEqual(IncomeVsSpendingMaths.yearToDateNet(periods: periods, year: 2027), 0)
     XCTAssertFalse(IncomeVsSpendingMaths.hasActivity(periods: periods, matching: "2027"))
     XCTAssertTrue(IncomeVsSpendingMaths.hasActivity(periods: periods, matching: "2026"))
   }
 
-  func testFirstJanuaryYearSumIsZeroWhenCachedPeriodsAreLastYear() {
+  func testFirstJanuaryHasNoActivityWhenCachedPeriodsAreLastYear() {
     let trailing = [
       period("2025-02", income: 10, spending: 0, net: 10, cumulative: 10),
       period("2025-12", income: 10, spending: 0, net: 10, cumulative: 20),
     ]
-    XCTAssertEqual(IncomeVsSpendingMaths.yearToDateNet(periods: trailing, year: 2026), 0)
     XCTAssertFalse(IncomeVsSpendingMaths.hasActivity(periods: trailing, matching: "2026"))
   }
 

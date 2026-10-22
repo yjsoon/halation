@@ -278,20 +278,14 @@ struct ReflectView: View {
   private var incomeContent: some View {
     if let report = model.incomeVsSpending {
       let now = Date.now
-      let year = Calendar.current.component(.year, from: now)
       let monthKey = IncomeVsSpendingMaths.currentMonthKey(from: now)
-      let monthNet = report.periods.first { $0.period == monthKey }?.net ?? 0
+      let month = report.periods.first { $0.period == monthKey }
       let monthActive = IncomeVsSpendingMaths.hasActivity(periods: report.periods, matching: monthKey)
-      let yearNet = IncomeVsSpendingMaths.yearToDateNet(periods: report.periods, year: year)
-      let yearActive = IncomeVsSpendingMaths.hasActivity(periods: report.periods, matching: String(year))
       VStack(alignment: .leading, spacing: 12) {
-        headlinePair(
+        monthNetHeadline(
           monthName: IncomeVsSpendingMaths.monthName(from: now),
-          monthNet: monthNet,
-          monthActive: monthActive,
-          year: year,
-          yearNet: yearNet,
-          yearActive: yearActive
+          month: month,
+          hasActivity: monthActive
         )
 
         if !report.periods.isEmpty {
@@ -315,41 +309,11 @@ struct ReflectView: View {
     }
   }
 
-  @ViewBuilder
-  private func headlinePair(
-    monthName: String,
-    monthNet: Int,
-    monthActive: Bool,
-    year: Int,
-    yearNet: Int,
-    yearActive: Bool
-  ) -> some View {
-    let stacked = dynamicTypeSize.isAccessibilitySize
-    let pair = (monthName, monthNet, monthActive, year, yearNet, yearActive)
-    Group {
-      if stacked {
-        VStack(alignment: .leading, spacing: 12) {
-          headlineStat(label: "Net in \(pair.0)", net: pair.1, hasActivity: pair.2)
-          headlineStat(label: "Net in \(pair.3) so far", net: pair.4, hasActivity: pair.5)
-        }
-      } else {
-        ViewThatFits(in: .horizontal) {
-          HStack(alignment: .top, spacing: 12) {
-            headlineStat(label: "Net in \(pair.0)", net: pair.1, hasActivity: pair.2)
-            headlineStat(label: "Net in \(pair.3) so far", net: pair.4, hasActivity: pair.5)
-          }
-          VStack(alignment: .leading, spacing: 12) {
-            headlineStat(label: "Net in \(pair.0)", net: pair.1, hasActivity: pair.2)
-            headlineStat(label: "Net in \(pair.3) so far", net: pair.4, hasActivity: pair.5)
-          }
-        }
-      }
-    }
-  }
-
-  private func headlineStat(label: String, net: Int, hasActivity: Bool) -> some View {
-    VStack(alignment: .leading, spacing: 2) {
-      Text(label)
+  /// This month's net, with the income and spending behind it.
+  private func monthNetHeadline(monthName: String, month: IncomeVsSpendingPeriod?, hasActivity: Bool) -> some View {
+    let net = month?.net ?? 0
+    return VStack(alignment: .leading, spacing: 2) {
+      Text("Net in \(monthName)")
         .font(.caption)
         .foregroundStyle(.secondary)
       Text(MoneyCodec.signedDisplayString(for: net, currencyFormat: model.currencyFormat))
@@ -357,7 +321,15 @@ struct ReflectView: View {
         .monospacedDigit()
         .foregroundStyle(Theme.signedReportColour(net))
         .rollingNumber(net)
-      if !hasActivity {
+      if hasActivity, let month {
+        Text(
+          "\(MoneyCodec.displayString(for: month.income, currencyFormat: model.currencyFormat)) in · "
+            + "\(MoneyCodec.displayString(for: abs(month.spending), currencyFormat: model.currencyFormat)) out"
+        )
+        .font(.caption)
+        .monospacedDigit()
+        .foregroundStyle(.secondary)
+      } else {
         Text("No activity yet")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -593,6 +565,11 @@ struct MonthToDate: Equatable {
   var today: Int { daily.last ?? 0 }
   var total: Int { daily.saturatingSum() }
 
+  /// Running total at the end of each day so far.
+  var cumulative: [Int] {
+    daily.reduce(into: [Int]()) { totals, amount in totals.append((totals.last ?? 0) + amount) }
+  }
+
   var average: Int { Self.rounded(Double(total) / Double(day)) }
 
   /// The average as it stood at the end of yesterday; `nil` on the 1st.
@@ -643,6 +620,12 @@ struct MonthToDateSummary: View {
         line(trendEmoji(yesterday), "Yesterday's average", "\(money(yesterday))/day")
       }
       line("🎯", "Month projection", money(pace.projection))
+
+      // The month so far as a running total, dashed on to the projection.
+      MonthToDateChart(pace: pace)
+        .frame(height: stacksValues ? 72 : 60)
+        .padding(.top, 4)
+        .accessibilityHidden(true)
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(accessibilitySummary)
@@ -717,5 +700,127 @@ struct MonthToDateSummary: View {
     }
     parts.append("Month projection \(money(pace.projection))")
     return parts.joined(separator: ". ")
+  }
+}
+
+/// Cumulative spend to today, then a dashed line to month end at the
+/// current daily average. Three x ticks (the 1st, today, month end) carry
+/// the scale; the summary lines above give the amounts.
+private struct MonthToDateChart: View {
+  let pace: MonthToDate
+
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var progress: CGFloat = 0
+
+  var body: some View {
+    GeometryReader { proxy in
+      let size = proxy.size
+      let labelHeight: CGFloat = 16
+      let plot = CGRect(x: 0, y: 4, width: size.width, height: max(size.height - labelHeight - 4, 1))
+      let totals = pace.cumulative
+      let top = Double(max(pace.projection, pace.total, 1))
+      // Day d sits at the end of its own column: day 0 is the month's start.
+      let point = { (day: Int, amount: Int) -> CGPoint in
+        CGPoint(
+          x: plot.minX + plot.width * CGFloat(day) / CGFloat(pace.daysInMonth),
+          y: plot.maxY - plot.height * CGFloat(Double(amount) / top)
+        )
+      }
+      let actual = [point(0, 0)] + totals.enumerated().map { point($0.offset + 1, $0.element) }
+      let todayPoint = actual.last ?? point(0, 0)
+      let endPoint = point(pace.daysInMonth, pace.projection)
+
+      ZStack(alignment: .topLeading) {
+        // Baseline.
+        Path { path in
+          path.move(to: CGPoint(x: plot.minX, y: plot.maxY))
+          path.addLine(to: CGPoint(x: plot.maxX, y: plot.maxY))
+        }
+        .stroke(Theme.surfaceMuted, lineWidth: 1)
+
+        // Today's hairline.
+        Path { path in
+          path.move(to: CGPoint(x: todayPoint.x, y: plot.minY))
+          path.addLine(to: CGPoint(x: todayPoint.x, y: plot.maxY))
+        }
+        .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+
+        Group {
+          Path { path in
+            path.move(to: CGPoint(x: plot.minX, y: plot.maxY))
+            for p in actual { path.addLine(to: p) }
+            path.addLine(to: CGPoint(x: todayPoint.x, y: plot.maxY))
+            path.closeSubpath()
+          }
+          .fill(
+            LinearGradient(
+              colors: [Theme.accent.opacity(0.28), Theme.accent.opacity(0.04)],
+              startPoint: .top,
+              endPoint: .bottom
+            )
+          )
+
+          Path { path in
+            path.move(to: actual[0])
+            for p in actual.dropFirst() { path.addLine(to: p) }
+          }
+          .stroke(Theme.accent, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+        }
+        .mask(alignment: .leading) {
+          Rectangle().frame(width: max(size.width * progress, 0.1))
+        }
+
+        if pace.day < pace.daysInMonth {
+          Path { path in
+            path.move(to: todayPoint)
+            path.addLine(to: endPoint)
+          }
+          .stroke(Color.secondary.opacity(0.7), style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [3, 4]))
+          .opacity(Double(progress))
+
+          Circle()
+            .strokeBorder(Color.secondary.opacity(0.7), lineWidth: 1.5)
+            .background(Circle().fill(Theme.card))
+            .frame(width: 7, height: 7)
+            .position(endPoint)
+            .opacity(Double(progress))
+        }
+
+        Circle()
+          .fill(Theme.accent)
+          .overlay(Circle().stroke(Theme.card, lineWidth: 2))
+          .frame(width: 9, height: 9)
+          .position(todayPoint)
+          .opacity(Double(progress))
+
+        HStack {
+          axisLabel("1")
+          Spacer()
+          axisLabel("\(pace.daysInMonth)")
+        }
+        .frame(width: size.width, height: labelHeight)
+        .offset(y: size.height - labelHeight)
+        if pace.day > 3, pace.day < pace.daysInMonth - 3 {
+          axisLabel("Today")
+            .position(x: todayPoint.x, y: size.height - labelHeight / 2)
+        }
+      }
+    }
+    .onAppear {
+      guard progress < 1 else { return }
+      if reduceMotion {
+        progress = 1
+      } else {
+        withAnimation(Theme.Motion.chart) { progress = 1 }
+      }
+    }
+  }
+
+  private func axisLabel(_ text: String) -> some View {
+    Text(text)
+      .font(.caption2)
+      .foregroundStyle(.secondary)
+      .monospacedDigit()
+      .fixedSize()
   }
 }
