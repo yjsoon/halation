@@ -155,8 +155,8 @@ final class RefreshPlanTests: XCTestCase {
     )
   }
 
-  /// Leaving Reflect cancels its fetch, which returns the phase to `.idle`
-  /// rather than to `.failed` or a stuck `.loading`. Coming back must fetch.
+  /// A cancelled fetch returns the phase to `.idle` rather than to `.failed`
+  /// or a stuck `.loading`. The next appearance must fetch.
   func testACancelledFetchIsRetriedOnTheNextAppearance() {
     XCTAssertTrue(
       ReportsRefreshPolicy.shouldFetch(

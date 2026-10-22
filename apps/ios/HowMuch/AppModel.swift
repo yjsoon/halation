@@ -2209,6 +2209,11 @@ final class AppModel {
       if !succeeded, running.generation == reportsRefreshGeneration {
         return
       }
+      // A caller whose view has gone (Reflect left while it waited) must not
+      // start a fetch nobody will see.
+      guard !Task.isCancelled else {
+        return
+      }
       await refreshReportsIfNeeded()
       return
     }
