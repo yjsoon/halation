@@ -105,6 +105,32 @@ final class RefreshPlanTests: XCTestCase {
     )
   }
 
+  func testReportsFromAnEarlierDayOrMinutesAgoAreStale() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "Asia/Singapore")!
+    let justPastMidnight = calendar.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 0, minute: 2))!
+    let noon = calendar.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 12))!
+    func shouldFetch(fetchedSecondsAgo: TimeInterval, now: Date = justPastMidnight) -> Bool {
+      ReportsRefreshPolicy.shouldFetch(
+        phase: .loaded,
+        force: false,
+        lastKnowledge: 7,
+        currentKnowledge: 7,
+        lastMutationGeneration: 3,
+        currentMutationGeneration: 3,
+        lastFetchedAt: now.addingTimeInterval(-fetchedSecondsAgo),
+        now: now,
+        calendar: calendar
+      )
+    }
+    XCTAssertFalse(shouldFetch(fetchedSecondsAgo: 60), "a fetch a minute ago, today, is current")
+    XCTAssertTrue(shouldFetch(fetchedSecondsAgo: 180), "three minutes ago was yesterday, so today's figures are missing")
+    XCTAssertTrue(
+      shouldFetch(fetchedSecondsAgo: ReportsRefreshPolicy.maxAge + 60, now: noon),
+      "spending entered on another device only shows once the cache ages out"
+    )
+  }
+
   func testPullToRefreshForcesAFetchAndAnInFlightOneIsNotDuplicated() {
     XCTAssertTrue(
       ReportsRefreshPolicy.shouldFetch(

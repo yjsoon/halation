@@ -62,25 +62,26 @@ struct ReflectView: View {
     }
     // Reports are not fetched on launch (#180). This runs when Reflect
     // appears and whenever a local write marks them stale; the model skips the
-    // fetch when neither the plan cursor nor this device's writes have moved.
+    // fetch when neither the plan cursor nor this device's writes have moved,
+    // unless the reports are from an earlier day or a few minutes old.
     .task(id: model.reportsRefreshGeneration) {
       await model.refreshReportsIfNeeded()
     }
     .refreshable {
       await model.refresh(slices: TabRefresh.reflect, quiet: false, force: true)
     }
-    // The month-to-date summary should stay current through the day, and
-    // spending entered elsewhere does not move this device's write counter.
-    // So refetch when the app comes back to Reflect, and when the day turns.
+    // Keep the daily summary current: the policy treats reports from an
+    // earlier day, or more than a few minutes old, as stale, so check again
+    // when the app comes back to Reflect and when the day turns.
     .onAppear { isOnScreen = true }
     .onDisappear { isOnScreen = false }
     .onChange(of: scenePhase) { _, phase in
       guard phase == .active, isOnScreen else { return }
-      Task { await model.refreshReportsIfNeeded(force: true) }
+      Task { await model.refreshReportsIfNeeded() }
     }
     .task {
       for await _ in NotificationCenter.default.notifications(named: .NSCalendarDayChanged) {
-        await model.refreshReportsIfNeeded(force: true)
+        await model.refreshReportsIfNeeded()
       }
     }
   }

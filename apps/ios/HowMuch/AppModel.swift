@@ -268,6 +268,9 @@ final class AppModel {
   /// loaded. Matching values mean a refetch would return what is on screen.
   private var reportsKnowledge: Int?
   private var reportsGenerationAtLastFetch: Int?
+  /// When the reports in force were requested, and whether a fetch is running.
+  private var reportsFetchedAt: Date?
+  private var reportsFetchInFlight = false
   /// Refresh debouncing: one run at a time, with later requests merged into a
   /// single queued request that runs once the in-flight one finishes.
   @ObservationIgnored private var inFlightRefresh: Task<Void, Never>?
@@ -2186,13 +2189,19 @@ final class AppModel {
   /// refetch when neither the plan cursor nor this device's own writes have
   /// moved since the last successful fetch.
   func refreshReportsIfNeeded(force: Bool = false) async {
+    // A quiet refetch leaves the phase at `.loaded`, so the policy's own
+    // `.loading` check cannot see it: skip unforced calls while one runs.
+    guard force || !reportsFetchInFlight else {
+      return
+    }
     guard ReportsRefreshPolicy.shouldFetch(
       phase: reportsPhase,
       force: force,
       lastKnowledge: reportsKnowledge,
       currentKnowledge: serverKnowledge,
       lastMutationGeneration: reportsGenerationAtLastFetch,
-      currentMutationGeneration: reportsRefreshGeneration
+      currentMutationGeneration: reportsRefreshGeneration,
+      lastFetchedAt: reportsFetchedAt
     ) else {
       return
     }
@@ -2200,9 +2209,13 @@ final class AppModel {
     // is in flight must leave the cached reports looking stale.
     let knowledgeAtStart = serverKnowledge
     let generationAtStart = reportsRefreshGeneration
+    let startedAt = Date.now
+    reportsFetchInFlight = true
+    defer { reportsFetchInFlight = false }
     if await refreshReflectOverview(quiet: reportsPhase == .loaded) {
       reportsKnowledge = knowledgeAtStart
       reportsGenerationAtLastFetch = generationAtStart
+      reportsFetchedAt = startedAt
     }
   }
 
@@ -2617,6 +2630,7 @@ final class AppModel {
     serverKnowledge = nil
     reportsKnowledge = nil
     reportsGenerationAtLastFetch = nil
+    reportsFetchedAt = nil
     queuedRefresh = .none
     // ReflectView's only trigger is `.task(id: reportsRefreshGeneration)`, so
     // without this a plan switch made while Reflect is visible leaves it

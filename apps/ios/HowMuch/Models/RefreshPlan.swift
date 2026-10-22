@@ -191,13 +191,19 @@ struct RefreshRequest: Equatable, Sendable {
 /// (`AppModel.reportsRefreshGeneration`) catches this device's own writes,
 /// which are applied locally and never re-read the ledger.
 enum ReportsRefreshPolicy {
+  /// How long a quiet refetch waits after the last one.
+  static let maxAge: TimeInterval = 5 * 60
+
   static func shouldFetch(
     phase: LoadPhase,
     force: Bool,
     lastKnowledge: Int?,
     currentKnowledge: Int?,
     lastMutationGeneration: Int?,
-    currentMutationGeneration: Int
+    currentMutationGeneration: Int,
+    lastFetchedAt: Date? = nil,
+    now: Date = .now,
+    calendar: Calendar = .current
   ) -> Bool {
     if phase == .loading {
       return false
@@ -215,6 +221,13 @@ enum ReportsRefreshPolicy {
       return true
     }
     if lastMutationGeneration != currentMutationGeneration {
+      return true
+    }
+    // Month to date is about today: a fetch from an earlier day is stale,
+    // and spending entered on another device only moves the cursor after a
+    // ledger read, so let a fetch older than `maxAge` go stale too.
+    if let lastFetchedAt,
+       !calendar.isDate(lastFetchedAt, inSameDayAs: now) || now.timeIntervalSince(lastFetchedAt) > maxAge {
       return true
     }
     return currentKnowledge != lastKnowledge
