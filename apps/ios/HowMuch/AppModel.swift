@@ -268,10 +268,10 @@ final class AppModel {
   /// loaded. Matching values mean a refetch would return what is on screen.
   private var reportsKnowledge: Int?
   private var reportsGenerationAtLastFetch: Int?
-  /// When the reports in force were requested, and whether a fetch is running.
+  /// When the reports in force were requested.
   private var reportsFetchedAt: Date?
-  /// The running fetch, if any, and the write generation it started under.
-  @ObservationIgnored private var reportsFetchInFlight: (token: Int, generation: Int, task: Task<Void, Never>)?
+  /// The running report fetch, if any.
+  @ObservationIgnored private var reportsFetchInFlight: (token: Int, task: Task<Void, Never>)?
   private var reportsFetchToken = 0
   /// Refresh debouncing: one run at a time, with later requests merged into a
   /// single queued request that runs once the in-flight one finishes.
@@ -2191,12 +2191,14 @@ final class AppModel {
   /// refetch when neither the plan cursor nor this device's own writes have
   /// moved since the last successful fetch.
   func refreshReportsIfNeeded(force: Bool = false) async {
-    // A quiet refetch leaves the phase at `.loaded`, so the policy's own
-    // `.loading` check cannot see it: an unforced call made under the same
-    // write generation waits for the running fetch instead of starting
-    // another. A local write since that fetch began still gets its own.
-    if !force, let running = reportsFetchInFlight, running.generation == reportsRefreshGeneration {
+    // A quiet refetch leaves the phase at `.loaded`, and a loud one blocks
+    // the policy with `.loading`, so neither shows a later call whether the
+    // running fetch still answers it. Wait for it, then ask the policy
+    // again: it was stamped when it started, so a write, a day change or
+    // its age since then still earns a fresh fetch.
+    if !force, let running = reportsFetchInFlight {
       await running.task.value
+      await refreshReportsIfNeeded()
       return
     }
     guard ReportsRefreshPolicy.shouldFetch(
@@ -2218,8 +2220,11 @@ final class AppModel {
     // Quiet whenever reports are on screen, so a failed refetch (offline,
     // say) keeps them up with the stale note instead of flashing a spinner.
     let quiet = reportsPhase == .loaded || spendingBreakdown != nil
+    reportsFetchToken &+= 1
+    let token = reportsFetchToken
     // The model owns the fetch, so a caller that goes away (Reflect leaving
-    // the screen) does not cancel it under a later caller waiting on it.
+    // the screen) does not cancel it under a later caller waiting on it. It
+    // clears its own record before finishing, so a waiter never finds it.
     let task = Task { @MainActor [weak self] in
       guard let self else { return }
       if await self.refreshReflectOverview(quiet: quiet) {
@@ -2227,14 +2232,12 @@ final class AppModel {
         self.reportsGenerationAtLastFetch = generationAtStart
         self.reportsFetchedAt = startedAt
       }
+      if self.reportsFetchInFlight?.token == token {
+        self.reportsFetchInFlight = nil
+      }
     }
-    reportsFetchToken &+= 1
-    let token = reportsFetchToken
-    reportsFetchInFlight = (token, generationAtStart, task)
+    reportsFetchInFlight = (token, task)
     await task.value
-    if reportsFetchInFlight?.token == token {
-      reportsFetchInFlight = nil
-    }
   }
 
   /// Validates the saved plan against the authenticated plan list before any

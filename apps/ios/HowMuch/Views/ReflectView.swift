@@ -689,7 +689,9 @@ struct MonthToDateSummary: View {
       if stacksValues {
         VStack(alignment: .leading, spacing: 2) {
           labelText
+          // Under the label text, not the emoji.
           valueView
+            .padding(.leading, emojiWidth + 8)
         }
       } else {
         HStack(alignment: .firstTextBaseline) {
