@@ -626,6 +626,10 @@ struct MonthToDateSummary: View {
 
   private var monthName: String { now.formatted(.dateTime.month(.wide)) }
 
+  /// Values move under their labels from xxLarge text, where a label and
+  /// its value no longer fit side by side on a phone.
+  private var stacksValues: Bool { dynamicTypeSize >= .xxLarge }
+
   /// Keeps the emoji column even as text grows.
   @ScaledMetric(relativeTo: .body) private var emojiWidth: CGFloat = 24
 
@@ -661,10 +665,10 @@ struct MonthToDateSummary: View {
       Text(label)
         .foregroundStyle(value == nil ? Theme.textPrimary : .secondary)
         // One line where the value sits beside it; free to wrap once
-        // accessibility sizes stack the value underneath.
-        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+        // large text stacks the value underneath.
+        .lineLimit(stacksValues ? nil : 1)
         .minimumScaleFactor(0.8)
-        .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
+        .fixedSize(horizontal: false, vertical: stacksValues)
     }
     let valueText = value.map {
       Text($0)
@@ -673,19 +677,25 @@ struct MonthToDateSummary: View {
         .foregroundStyle(Theme.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(0.7)
-        .rollingNumber(rolling ?? 0)
+    }
+    let valueView = Group {
+      if let rolling {
+        valueText.rollingNumber(rolling)
+      } else {
+        valueText
+      }
     }
     Group {
-      if dynamicTypeSize.isAccessibilitySize {
+      if stacksValues {
         VStack(alignment: .leading, spacing: 2) {
           labelText
-          valueText
+          valueView
         }
       } else {
         HStack(alignment: .firstTextBaseline) {
           labelText
           Spacer(minLength: 8)
-          valueText
+          valueView
         }
       }
     }
@@ -700,7 +710,7 @@ struct MonthToDateSummary: View {
       "Averaging \(money(pace.average)) a day",
     ]
     if let yesterday = pace.yesterdayAverage {
-      let direction = pace.average > yesterday ? "up from" : pace.average < yesterday ? "down from" : "the same as"
+      let direction = pace.average > yesterday ? "Up from" : pace.average < yesterday ? "Down from" : "The same as"
       parts.append("\(direction) \(money(yesterday)) a day yesterday")
     }
     parts.append("Month projection \(money(pace.projection))")

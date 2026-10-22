@@ -270,7 +270,9 @@ final class AppModel {
   private var reportsGenerationAtLastFetch: Int?
   /// When the reports in force were requested, and whether a fetch is running.
   private var reportsFetchedAt: Date?
-  private var reportsFetchInFlight = false
+  /// The running fetch, if any, and the write generation it started under.
+  private var reportsFetchInFlight: (token: Int, generation: Int)?
+  private var reportsFetchToken = 0
   /// Refresh debouncing: one run at a time, with later requests merged into a
   /// single queued request that runs once the in-flight one finishes.
   @ObservationIgnored private var inFlightRefresh: Task<Void, Never>?
@@ -2191,7 +2193,8 @@ final class AppModel {
   func refreshReportsIfNeeded(force: Bool = false) async {
     // A quiet refetch leaves the phase at `.loaded`, so the policy's own
     // `.loading` check cannot see it: skip unforced calls while one runs.
-    guard force || !reportsFetchInFlight else {
+    // A local write since that fetch began still gets its own.
+    guard force || reportsFetchInFlight?.generation != reportsRefreshGeneration else {
       return
     }
     guard ReportsRefreshPolicy.shouldFetch(
@@ -2210,9 +2213,17 @@ final class AppModel {
     let knowledgeAtStart = serverKnowledge
     let generationAtStart = reportsRefreshGeneration
     let startedAt = Date.now
-    reportsFetchInFlight = true
-    defer { reportsFetchInFlight = false }
-    if await refreshReflectOverview(quiet: reportsPhase == .loaded) {
+    reportsFetchToken &+= 1
+    let token = reportsFetchToken
+    reportsFetchInFlight = (token, generationAtStart)
+    defer {
+      if reportsFetchInFlight?.token == token {
+        reportsFetchInFlight = nil
+      }
+    }
+    // Quiet whenever reports are on screen, so a failed refetch (offline,
+    // say) keeps them up with the stale note instead of flashing a spinner.
+    if await refreshReflectOverview(quiet: reportsPhase == .loaded || spendingBreakdown != nil) {
       reportsKnowledge = knowledgeAtStart
       reportsGenerationAtLastFetch = generationAtStart
       reportsFetchedAt = startedAt
