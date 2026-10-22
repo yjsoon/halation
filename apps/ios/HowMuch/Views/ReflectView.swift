@@ -111,7 +111,9 @@ struct ReflectView: View {
   private var monthContent: some View {
     if let report = model.spendingBreakdown {
       let split = ReflectMaths.split(report.groups)
-      let rows = model.includeQuietSpending ? split.primary + split.quiet : split.primary
+      let rows = model.includeQuietSpending
+        ? (split.primary + split.quiet).sorted { abs($0.amount) > abs($1.amount) }
+        : split.primary
       if let pace = monthToDate {
         // Side by side when an iPad gives the card the room.
         if horizontalSizeClass == .regular, !dynamicTypeSize.isAccessibilitySize {
@@ -120,6 +122,8 @@ struct ReflectView: View {
             Divider()
             categories(rows)
           }
+          // Size to the taller column so the divider runs its full height.
+          .fixedSize(horizontal: false, vertical: true)
         } else {
           VStack(alignment: .leading, spacing: 16) {
             MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
@@ -534,7 +538,8 @@ struct MonthToDate: Equatable {
 
   init?(_ spending: DailySpending, includeQuiet: Bool, now: Date, calendar: Calendar = .current) {
     // The app can stay open into a new month without a refetch; last
-    // month's days would read as nothing spent, so show no card until then.
+    // month's days would read as nothing spent, so the card drops the
+    // summary and shows only the fetched month's breakdown until then.
     guard spending.monthStart == now.startOfMonth(calendar: calendar).isoDateString,
           let days = calendar.range(of: .day, in: .month, for: now)?.count
     else { return nil }
