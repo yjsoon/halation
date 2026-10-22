@@ -271,7 +271,7 @@ final class AppModel {
   /// When the reports in force were requested.
   private var reportsFetchedAt: Date?
   /// The running report fetch, if any.
-  @ObservationIgnored private var reportsFetchInFlight: (token: Int, task: Task<Void, Never>)?
+  @ObservationIgnored private var reportsFetchInFlight: (token: Int, generation: Int, task: Task<Bool, Never>)?
   private var reportsFetchToken = 0
   /// Refresh debouncing: one run at a time, with later requests merged into a
   /// single queued request that runs once the in-flight one finishes.
@@ -651,6 +651,12 @@ final class AppModel {
     ledgerPhase = .idle
     scheduledTransactionsPhase = .idle
     reportsPhase = .idle
+    // A report fetch still running must not land on the signed-out screen.
+    reportsGeneration &+= 1
+    reportsFetchInFlight = nil
+    reportsKnowledge = nil
+    reportsGenerationAtLastFetch = nil
+    reportsFetchedAt = nil
     ledgerPageGeneration += 1
     ledgerReadGeneration &+= 1
     inFlightLedgerReads.removeAll()
@@ -2197,7 +2203,12 @@ final class AppModel {
     // again: it was stamped when it started, so a write, a day change or
     // its age since then still earns a fresh fetch.
     if !force, let running = reportsFetchInFlight {
-      await running.task.value
+      let succeeded = await running.task.value
+      // A failure with nothing changed since would only fail again: leave
+      // the retry to the next appearance, pull or Retry.
+      if !succeeded, running.generation == reportsRefreshGeneration {
+        return
+      }
       await refreshReportsIfNeeded()
       return
     }
@@ -2225,9 +2236,10 @@ final class AppModel {
     // The model owns the fetch, so a caller that goes away (Reflect leaving
     // the screen) does not cancel it under a later caller waiting on it. It
     // clears its own record before finishing, so a waiter never finds it.
-    let task = Task { @MainActor [weak self] in
-      guard let self else { return }
-      if await self.refreshReflectOverview(quiet: quiet) {
+    let task = Task { @MainActor [weak self] () -> Bool in
+      guard let self else { return false }
+      let succeeded = await self.refreshReflectOverview(quiet: quiet)
+      if succeeded {
         self.reportsKnowledge = knowledgeAtStart
         self.reportsGenerationAtLastFetch = generationAtStart
         self.reportsFetchedAt = startedAt
@@ -2235,9 +2247,10 @@ final class AppModel {
       if self.reportsFetchInFlight?.token == token {
         self.reportsFetchInFlight = nil
       }
+      return succeeded
     }
-    reportsFetchInFlight = (token, task)
-    await task.value
+    reportsFetchInFlight = (token, generationAtStart, task)
+    _ = await task.value
   }
 
   /// Validates the saved plan against the authenticated plan list before any
@@ -3186,10 +3199,11 @@ final class AppModel {
       else {
         return false
       }
-      // The first fetch now runs from ReflectView's own task, so leaving the
-      // tab cancels it. That is not a failure the reader should be shown, and
+      // A cancelled fetch is not a failure the reader should be shown, and
       // leaving the phase at `.loading` would lock the gate against ever
       // retrying: return it to `.idle` so the next appearance fetches again.
+      // (`refreshReportsIfNeeded` runs it in a task of its own, which nothing
+      // cancels today; this keeps any other caller safe.)
       if Task.isCancelled {
         if reportsPhase == .loading {
           reportsPhase = .idle
