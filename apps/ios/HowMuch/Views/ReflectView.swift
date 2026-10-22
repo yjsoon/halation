@@ -131,21 +131,28 @@ struct ReflectView: View {
         ? (split.primary + split.quiet).sorted { abs($0.amount) > abs($1.amount) }
         : split.primary
       if let pace = monthToDate {
-        // Side by side when an iPad gives the card the room.
+        let stacked = VStack(alignment: .leading, spacing: 16) {
+          MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
+          Divider()
+          categories(rows)
+        }
         if horizontalSizeClass == .regular, !dynamicTypeSize.isAccessibilitySize {
-          HStack(alignment: .top, spacing: 24) {
-            MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
-            Divider()
-            categories(rows)
+          // Side by side only when the card itself is wide enough: a regular
+          // window can still be narrow beside the iPad sidebar.
+          ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 24) {
+              MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
+                .frame(minWidth: 300)
+              Divider()
+              categories(rows)
+                .frame(minWidth: 300)
+            }
+            // Size to the taller column so the divider runs its full height.
+            .fixedSize(horizontal: false, vertical: true)
+            stacked
           }
-          // Size to the taller column so the divider runs its full height.
-          .fixedSize(horizontal: false, vertical: true)
         } else {
-          VStack(alignment: .leading, spacing: 16) {
-            MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
-            Divider()
-            categories(rows)
-          }
+          stacked
         }
       } else {
         // No daily figures for this month: the app stayed open past month
@@ -652,8 +659,11 @@ struct MonthToDateSummary: View {
         .frame(width: emojiWidth, alignment: .leading)
       Text(label)
         .foregroundStyle(value == nil ? Theme.textPrimary : .secondary)
-        .lineLimit(1)
+        // One line where the value sits beside it; free to wrap once
+        // accessibility sizes stack the value underneath.
+        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
         .minimumScaleFactor(0.8)
+        .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
     }
     let valueText = value.map {
       Text($0)
