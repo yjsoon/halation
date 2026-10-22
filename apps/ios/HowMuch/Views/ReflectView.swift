@@ -309,7 +309,7 @@ struct ReflectView: View {
     }
   }
 
-  /// This month's net, with the income and spending behind it.
+  /// This month's net. Its income and spending are in the columns below.
   private func monthNetHeadline(monthName: String, month: IncomeVsSpendingPeriod?, hasActivity: Bool) -> some View {
     let net = month?.net ?? 0
     return VStack(alignment: .leading, spacing: 2) {
@@ -321,15 +321,7 @@ struct ReflectView: View {
         .monospacedDigit()
         .foregroundStyle(Theme.signedReportColour(net))
         .rollingNumber(net)
-      if hasActivity, let month {
-        Text(
-          "\(MoneyCodec.displayString(for: month.income, currencyFormat: model.currencyFormat)) in · "
-            + "\(MoneyCodec.displayString(for: abs(month.spending), currencyFormat: model.currencyFormat)) out"
-        )
-        .font(.caption)
-        .monospacedDigit()
-        .foregroundStyle(.secondary)
-      } else {
+      if !hasActivity {
         Text("No activity yet")
           .font(.caption)
           .foregroundStyle(.secondary)
@@ -622,10 +614,12 @@ struct MonthToDateSummary: View {
       line("🎯", "Month projection", money(pace.projection))
 
       // The month so far as a running total, dashed on to the projection.
-      MonthToDateChart(pace: pace)
-        .frame(height: stacksValues ? 72 : 60)
-        .padding(.top, 4)
-        .accessibilityHidden(true)
+      // Left out at accessibility sizes, where its labels cannot fit.
+      if !dynamicTypeSize.isAccessibilitySize {
+        MonthToDateChart(pace: pace)
+          .frame(height: stacksValues ? 72 : 60)
+          .padding(.top, 4)
+      }
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(accessibilitySummary)
@@ -819,6 +813,8 @@ private struct MonthToDateChart: View {
   private func axisLabel(_ text: String) -> some View {
     Text(text)
       .font(.caption2)
+      // The label band is a fixed height.
+      .dynamicTypeSize(...DynamicTypeSize.xLarge)
       .foregroundStyle(.secondary)
       .monospacedDigit()
       .fixedSize()
