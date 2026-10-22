@@ -4,6 +4,8 @@ struct ReflectView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.scenePhase) private var scenePhase
+  @State private var isOnScreen = false
 
   var body: some View {
     ScrollView {
@@ -66,6 +68,20 @@ struct ReflectView: View {
     }
     .refreshable {
       await model.refresh(slices: TabRefresh.reflect, quiet: false, force: true)
+    }
+    // The month-to-date summary should stay current through the day, and
+    // spending entered elsewhere does not move this device's write counter.
+    // So refetch when the app comes back to Reflect, and when the day turns.
+    .onAppear { isOnScreen = true }
+    .onDisappear { isOnScreen = false }
+    .onChange(of: scenePhase) { _, phase in
+      guard phase == .active, isOnScreen else { return }
+      Task { await model.refreshReportsIfNeeded(force: true) }
+    }
+    .task {
+      for await _ in NotificationCenter.default.notifications(named: .NSCalendarDayChanged) {
+        await model.refreshReportsIfNeeded(force: true)
+      }
     }
   }
 
@@ -137,7 +153,7 @@ struct ReflectView: View {
         // month it was fetched for rather than the new one.
         let total = rows.map { abs($0.amount) }.saturatingSum()
         VStack(alignment: .leading, spacing: 12) {
-          Text(model.dailySpending.map { LedgerDate.periodLabel(String($0.monthStart.prefix(7))) } ?? Date.now.monthYearLabel)
+          Text(model.dailySpending.flatMap { Date(isoDateString: $0.monthStart)?.monthYearLabel } ?? Date.now.monthYearLabel)
             .font(.subheadline)
             .foregroundStyle(.secondary)
           Text(MoneyCodec.displayString(for: total, currencyFormat: model.currencyFormat))
@@ -602,14 +618,17 @@ struct MonthToDateSummary: View {
 
   private var monthName: String { now.formatted(.dateTime.month(.wide)) }
 
+  /// Keeps the emoji column even as text grows.
+  @ScaledMetric(relativeTo: .body) private var emojiWidth: CGFloat = 24
+
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
       line("📅", "Day \(pace.day) of \(pace.daysInMonth)", nil)
       line("💸", "Spent today", money(pace.today))
-      line("💰", "Spent this month", money(pace.total), emphasised: true)
+      line("💰", "Spent this month", money(pace.total), rolling: pace.total)
       line("📊", "Daily average", "\(money(pace.average))/day")
       if let yesterday = pace.yesterdayAverage {
-        line(pace.average > yesterday ? "📈" : "📉", "Yesterday's average", "\(money(yesterday))/day")
+        line(trendEmoji(yesterday), "Yesterday's average", "\(money(yesterday))/day")
       }
       line("🎯", "Month projection", money(pace.projection))
     }
@@ -617,21 +636,33 @@ struct MonthToDateSummary: View {
     .accessibilityLabel(accessibilitySummary)
   }
 
+  /// Which way the average moved since yesterday.
+  private func trendEmoji(_ yesterday: Int) -> String {
+    if pace.average > yesterday { return "📈" }
+    if pace.average < yesterday { return "📉" }
+    return "➖"
+  }
+
+  /// One summary line; `rolling` marks the month total, which is emphasised
+  /// and rolls when it changes.
   @ViewBuilder
-  private func line(_ emoji: String, _ label: String, _ value: String?, emphasised: Bool = false) -> some View {
+  private func line(_ emoji: String, _ label: String, _ value: String?, rolling: Int? = nil) -> some View {
     let labelText = HStack(alignment: .firstTextBaseline, spacing: 8) {
       Text(emoji)
-        .frame(minWidth: 22, alignment: .leading)
+        .frame(width: emojiWidth, alignment: .leading)
       Text(label)
         .foregroundStyle(value == nil ? Theme.textPrimary : .secondary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
     }
     let valueText = value.map {
       Text($0)
-        .fontWeight(emphasised ? .semibold : .regular)
+        .fontWeight(rolling == nil ? .regular : .semibold)
         .monospacedDigit()
         .foregroundStyle(Theme.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(0.7)
+        .rollingNumber(rolling ?? 0)
     }
     Group {
       if dynamicTypeSize.isAccessibilitySize {
@@ -647,7 +678,7 @@ struct MonthToDateSummary: View {
         }
       }
     }
-    .font(emphasised ? .body : .subheadline)
+    .font(rolling == nil ? .subheadline : .body)
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
@@ -658,7 +689,8 @@ struct MonthToDateSummary: View {
       "Averaging \(money(pace.average)) a day",
     ]
     if let yesterday = pace.yesterdayAverage {
-      parts.append("\(money(yesterday)) a day yesterday")
+      let direction = pace.average > yesterday ? "up from" : pace.average < yesterday ? "down from" : "the same as"
+      parts.append("\(direction) \(money(yesterday)) a day yesterday")
     }
     parts.append("Month projection \(money(pace.projection))")
     return parts.joined(separator: ". ")
