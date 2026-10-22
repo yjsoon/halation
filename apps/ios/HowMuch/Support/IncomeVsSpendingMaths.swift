@@ -21,13 +21,6 @@ enum IncomeVsSpendingMaths {
     var rows: [PeriodRow]
   }
 
-  /// Calendar YTD: sum nets whose period key starts with the current year.
-  /// Never uses `cumulativeNet`.
-  static func yearToDateNet(periods: [IncomeVsSpendingPeriod], year: Int) -> Int {
-    let prefix = String(year)
-    return periods.filter { $0.period.hasPrefix(prefix) }.map(\.net).saturatingSum()
-  }
-
   static func hasActivity(periods: [IncomeVsSpendingPeriod], matching prefix: String) -> Bool {
     periods.contains { $0.period.hasPrefix(prefix) && ($0.income != 0 || $0.spending != 0) }
   }
