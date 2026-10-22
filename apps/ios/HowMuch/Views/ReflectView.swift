@@ -599,19 +599,19 @@ struct MonthToDateSummary: View {
   /// its value no longer fit side by side on a phone.
   private var stacksValues: Bool { dynamicTypeSize >= .xxLarge }
 
-  /// Keeps the emoji column even as text grows.
-  @ScaledMetric(relativeTo: .body) private var emojiWidth: CGFloat = 24
+  /// Keeps the icon column even as text grows.
+  @ScaledMetric(relativeTo: .subheadline) private var iconWidth: CGFloat = 24
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      line("📅", "Day \(pace.day) of \(pace.daysInMonth)", nil)
-      line("💸", "Spent today", money(pace.today))
-      line("💰", "Spent this month", money(pace.total), rolling: pace.total)
-      line("📊", "Daily average", "\(money(pace.average))/day")
+      line("calendar.day.timeline.leading", "Day \(pace.day) of \(pace.daysInMonth)", nil)
+      line("sun.max", "Spent today", money(pace.today))
+      line("banknote", "Spent this month", money(pace.total), rolling: pace.total)
+      line("chart.bar", "Daily average", "\(money(pace.average))/day")
       if let yesterday = pace.yesterdayAverage {
-        line(trendEmoji(yesterday), "Yesterday's average", "\(money(yesterday))/day")
+        line(trendSymbol(yesterday), "Yesterday's average", "\(money(yesterday))/day")
       }
-      line("🎯", "Month projection", money(pace.projection))
+      line("target", "Month projection", money(pace.projection))
 
       // The month so far as a running total, dashed on to the projection.
       MonthToDateChart(pace: pace)
@@ -623,19 +623,23 @@ struct MonthToDateSummary: View {
   }
 
   /// Which way the average moved since yesterday.
-  private func trendEmoji(_ yesterday: Int) -> String {
-    if pace.average > yesterday { return "📈" }
-    if pace.average < yesterday { return "📉" }
-    return "➖"
+  private func trendSymbol(_ yesterday: Int) -> String {
+    if pace.average > yesterday { return "chart.line.uptrend.xyaxis" }
+    if pace.average < yesterday { return "chart.line.downtrend.xyaxis" }
+    return "chart.line.flattrend.xyaxis"
   }
 
   /// One summary line; `rolling` marks the month total, which is emphasised
   /// and rolls when it changes.
   @ViewBuilder
-  private func line(_ emoji: String, _ label: String, _ value: String?, rolling: Int? = nil) -> some View {
+  private func line(_ symbol: String, _ label: String, _ value: String?, rolling: Int? = nil) -> some View {
     let labelText = HStack(alignment: .firstTextBaseline, spacing: 8) {
-      Text(emoji)
-        .frame(width: emojiWidth, alignment: .leading)
+      Image(systemName: symbol)
+        // One icon size down the column, even beside the larger total.
+        .font(.subheadline)
+        .foregroundStyle(Theme.accent)
+        .frame(width: iconWidth)
+        .accessibilityHidden(true)
       Text(label)
         .foregroundStyle(value == nil ? Theme.textPrimary : .secondary)
         // One line where the value sits beside it; free to wrap once
@@ -663,9 +667,9 @@ struct MonthToDateSummary: View {
       if stacksValues {
         VStack(alignment: .leading, spacing: 2) {
           labelText
-          // Under the label text, not the emoji.
+          // Under the label text, not the icon.
           valueView
-            .padding(.leading, emojiWidth + 8)
+            .padding(.leading, iconWidth + 8)
         }
       } else {
         HStack(alignment: .firstTextBaseline) {
