@@ -286,11 +286,8 @@ struct ReflectView: View {
           values: report.periods.map { Double($0.netWorth) },
           labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
           voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
-          axisLabel: { value, step in
-            MoneyCodec.compactDisplayString(
-              for: Int(value.rounded()), resolution: Int(step.rounded()), currencyFormat: model.currencyFormat
-            )
-          }
+          axisLabel: { NetWorthMaths.axisLabel($0, step: $1, currencyFormat: model.currencyFormat) },
+          minimumSpan: 1000
         )
       }
     }

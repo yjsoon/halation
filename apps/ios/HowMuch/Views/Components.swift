@@ -1482,11 +1482,12 @@ private struct ChartAxisLabels: View {
     HStack(alignment: .top, spacing: spacing) {
       ForEach(labels.indices, id: \.self) { index in
         let isVisible = visible.contains(index)
-        // The label overlays its cell rather than filling it: a weekly run
-        // gives each of fifty-odd cells a few points, which would cut "W42"
-        // to "W", and the shown labels are several cells apart anyway.
-        Color.clear
-          .frame(maxWidth: .infinity, minHeight: 1)
+        // The label overlays a text-height cell rather than filling it: a
+        // weekly run gives each of fifty-odd cells a few points, which would
+        // cut "W42" to "W", and the shown labels are several cells apart.
+        Text(" ")
+          .font(.caption2)
+          .frame(maxWidth: .infinity)
           .overlay {
             Text(isVisible ? labels[index] : " ")
               .font(.caption2)
@@ -1499,20 +1500,25 @@ private struct ChartAxisLabels: View {
     }
   }
 
-  /// About twelve ticks. If a window contains a year-bearing label
-  /// (`Jan 26`), show that rather than the window start, so All Time
-  /// does not drop the year boundary.
+  /// About twelve ticks for short labels ("Oct", "W42"), fewer when any
+  /// label is long ("Jan 26", "23 Oct"), so neighbours never overlap. If a
+  /// window contains a year-bearing label (`Jan 26`), show that rather
+  /// than the window start, so All Time does not drop the year boundary.
+  /// The last label is always shown, and a window start too close to it
+  /// gives way.
   private var visibleIndices: Set<Int> {
     let count = labels.count
     guard count > 0 else { return [] }
-    let stride = max(1, Int(ceil(Double(count) / 12)))
+    let longest = labels.map(\.count).max() ?? 0
+    let budget = longest <= 4 ? 12 : max(4, 36 / longest)
+    let stride = max(1, Int(ceil(Double(count) / Double(budget))))
     var visible: Set<Int> = [count - 1]
     var start = 0
     while start < count {
       let end = min(start + stride, count)
       if let yearTick = (start ..< end).first(where: carriesYear) {
         visible.insert(yearTick)
-      } else {
+      } else if count - 1 - start >= stride {
         visible.insert(start)
       }
       start += stride
@@ -1659,6 +1665,9 @@ struct TrendChart: View {
   let axisLabel: (_ value: Double, _ step: Double) -> String
   var colour: Color = Theme.accent
   var height: CGFloat = 90
+  /// The narrowest value axis, in the series' units: one whole currency
+  /// unit for money in milliunits, so a flat series still has two ticks.
+  var minimumSpan: Double = 1
 
   @State private var progress: CGFloat = 0
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -1668,12 +1677,12 @@ struct TrendChart: View {
   /// wobble on a six-figure net worth does not fill the plot. It takes in
   /// zero when the series is within one span of it, and its ends sit on
   /// round numbers for the ticks.
-  static func axis(for values: [Double]) -> Axis {
+  static func axis(for values: [Double], minimumSpan: Double = 1) -> Axis {
     guard let lowest = values.min(), let highest = values.max() else {
-      return Axis(low: 0, high: 1, step: 1)
+      return Axis(low: 0, high: minimumSpan, step: minimumSpan)
     }
     let largest = max(abs(lowest), abs(highest))
-    let span = max(highest - lowest, largest * 0.05, 1)
+    let span = max(highest - lowest, largest * 0.05, minimumSpan, 1)
     let pad = span * 0.1
     var low = lowest - pad
     var high = highest + pad
@@ -1683,7 +1692,7 @@ struct TrendChart: View {
     if highest <= 0 {
       high = highest > -span ? 0 : min(high, 0)
     }
-    let step = niceStep((high - low) / 5)
+    let step = niceStep((high - low) / 8)
     low = (low / step).rounded(.down) * step
     high = (high / step).rounded(.up) * step
     if high <= low {
@@ -1704,7 +1713,7 @@ struct TrendChart: View {
   }
 
   var body: some View {
-    let axis = Self.axis(for: values)
+    let axis = Self.axis(for: values, minimumSpan: minimumSpan)
     let crossesZero = axis.low < 0 && axis.high > 0
     let ticks = [axisLabel(axis.high, axis.step), axisLabel(axis.low, axis.step)]
     let widestTick = ticks.max { $0.count < $1.count } ?? ""
@@ -1714,16 +1723,19 @@ struct TrendChart: View {
         plot(axis: axis, crossesZero: crossesZero)
           .frame(height: height)
         // The ticks sit on the plot's top and bottom gridlines; the hidden
-        // widest tick keeps the column one width whichever end is longer.
-        VStack(alignment: .trailing, spacing: 0) {
-          tickText(ticks[0])
-            .foregroundStyle(.secondary)
-          Spacer(minLength: 0)
-          tickText(ticks[1])
-            .foregroundStyle(.secondary)
+        // widest tick sizes the column, whichever end is longer.
+        ZStack(alignment: .trailing) {
+          tickText(widestTick)
+            .hidden()
+          VStack(alignment: .trailing, spacing: 0) {
+            tickText(ticks[0])
+              .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            tickText(ticks[1])
+              .foregroundStyle(.secondary)
+          }
         }
         .frame(height: height)
-        .overlay(tickText(widestTick).hidden())
         .accessibilityHidden(true)
       }
 
@@ -1822,15 +1834,13 @@ struct TrendChart: View {
     .chartReveal($progress)
   }
 
-  /// Capped so a long tick at an accessibility text size shrinks rather than
-  /// taking the plot's width.
+  /// Its natural width, so the column is as wide as its ticks and no more.
   private func tickText(_ label: String) -> some View {
     Text(label)
       .font(.caption2)
       .monospacedDigit()
       .lineLimit(1)
-      .minimumScaleFactor(0.7)
-      .frame(maxWidth: 72, alignment: .trailing)
+      .fixedSize(horizontal: true, vertical: false)
   }
 
   private func gridline(at y: CGFloat, width: CGFloat) -> some View {

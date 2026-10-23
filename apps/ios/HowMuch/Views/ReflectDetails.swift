@@ -744,6 +744,18 @@ enum NetWorthMaths {
     accounts.filter { $0.closed != true || $0.balance != 0 }
   }
 
+  /// A chart value back to milliunits, clamped instead of trapping.
+  static func milliunits(_ value: Double) -> Int {
+    Int(exactly: value.rounded()) ?? (value < 0 ? Int.min : Int.max)
+  }
+
+  /// A tick label for a net worth axis drawn in milliunits.
+  static func axisLabel(_ value: Double, step: Double, currencyFormat: CurrencyFormat?) -> String {
+    MoneyCodec.compactDisplayString(
+      for: milliunits(value), resolution: milliunits(step), currencyFormat: currencyFormat
+    )
+  }
+
   /// `latest - earlier`, or nil when the difference would overflow.
   static func change(from earlier: Int, to latest: Int) -> Int? {
     let difference = latest.subtractingReportingOverflow(earlier)
@@ -824,7 +836,7 @@ struct NetWorthDetailView: View {
             .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 4)
           historyCard(report: report)
-        } else if let report, !report.periods.isEmpty {
+        } else if let report, !report.periods.isEmpty, scope.accountIDs.isEmpty {
           // Every period carries the same accounts, so none in the latest
           // means none at all: an empty ledger, not an empty window.
           ContentUnavailableView(
@@ -907,12 +919,9 @@ struct NetWorthDetailView: View {
         values: report.periods.map { Double($0.netWorth) },
         labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
         voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
-        axisLabel: { value, step in
-          MoneyCodec.compactDisplayString(
-            for: Int(value.rounded()), resolution: Int(step.rounded()), currencyFormat: model.currencyFormat
-          )
-        },
-        height: 120
+        axisLabel: { NetWorthMaths.axisLabel($0, step: $1, currencyFormat: model.currencyFormat) },
+        height: 120,
+        minimumSpan: 1000
       )
       if let first, let windowChange {
         let percent = windowPercent.map { " (\(NetWorthMaths.percentLabel($0)))" } ?? ""
