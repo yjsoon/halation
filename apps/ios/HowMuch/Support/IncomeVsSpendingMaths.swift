@@ -25,11 +25,11 @@ enum IncomeVsSpendingMaths {
     periods.contains { $0.period.hasPrefix(prefix) && ($0.income != 0 || $0.spending != 0) }
   }
 
-  static func currentMonthKey(from date: Date = .now, calendar: Calendar = .current) -> String {
+  static func currentMonthKey(from date: Date = .now, calendar: Calendar = LedgerDate.gregorian) -> String {
     String(date.startOfMonth(calendar: calendar).isoDateString.prefix(7))
   }
 
-  static func monthName(from date: Date = .now, calendar: Calendar = .current) -> String {
+  static func monthName(from date: Date = .now, calendar: Calendar = LedgerDate.gregorian) -> String {
     calendar.monthSymbols[calendar.component(.month, from: date) - 1]
   }
 

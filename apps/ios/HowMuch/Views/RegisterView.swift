@@ -1299,6 +1299,13 @@ struct RegisterView: View {
          !schedule.activeSubtransactions.contains(where: { $0.categoryID == categoryID }) {
         return false
       }
+      if let categoryIDs, !categoryIDs.isEmpty,
+         !categoryIDs.contains(where: { wanted in
+           schedule.categoryID == wanted
+             || schedule.activeSubtransactions.contains(where: { $0.categoryID == wanted })
+         }) {
+        return false
+      }
       if let dateRange, !dateRange.contains(schedule.dateNext) {
         return false
       }
@@ -1567,6 +1574,12 @@ struct RegisterView: View {
       if let accountIDs, !accountIDs.isEmpty, !accountIDs.contains(hit.accountID) { continue }
       if let categoryID, hit.categoryID != categoryID,
          !hit.subtransactions.contains(where: { $0.categoryID == categoryID }) {
+        continue
+      }
+      if let categoryIDs, !categoryIDs.isEmpty,
+         !categoryIDs.contains(where: { wanted in
+           hit.categoryID == wanted || hit.subtransactions.contains(where: { $0.categoryID == wanted })
+         }) {
         continue
       }
       if let dateRange, !dateRange.contains(hit.date) { continue }

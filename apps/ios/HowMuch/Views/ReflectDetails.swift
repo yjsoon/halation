@@ -963,7 +963,7 @@ struct IncomeVsSpendingDetailView: View {
               Section {
                 dimmed(periodList(section.rows, allRows: filled, interval: shownInterval, scope: loaded.scope, barScale: barScale), stale)
               } header: {
-                yearHeader(section)
+                yearHeader(section, stale: stale)
               }
             }
           } else {
@@ -1038,10 +1038,17 @@ struct IncomeVsSpendingDetailView: View {
 
       // The chart reads the zero-filled rows so an empty month keeps its
       // place on the axis instead of the neighbours closing over it.
+      // Weeks are named by their dates, as the rows are, not by week number.
+      let labels = loaded.interval == .week
+        ? chronological.map { LedgerDate.periodAxisLabel($0.from) }
+        : LedgerDate.periodAxisLabels(chronological.map(\.period))
+      let names = loaded.interval == .week
+        ? chronological.map { IncomeVsSpendingMaths.spanLabel(from: $0.from, to: $0.to) }
+        : chronological.map { LedgerDate.spokenPeriodLabel($0.period) }
       PairedColumnChart(
         pairs: chronological.map { (Double($0.income), Double(abs($0.spending))) },
-        labels: LedgerDate.periodAxisLabels(chronological.map(\.period)),
-        voice: .money("Income and spending", periods: chronological.map(\.period), currencyFormat: model.currencyFormat),
+        labels: labels,
+        voice: .money("Income and spending", periodNames: names, currencyFormat: model.currencyFormat),
         height: 120
       )
       HStack(spacing: 16) {
@@ -1053,7 +1060,7 @@ struct IncomeVsSpendingDetailView: View {
     .ynabCard()
   }
 
-  private func yearHeader(_ section: IncomeVsSpendingMaths.YearSection) -> some View {
+  private func yearHeader(_ section: IncomeVsSpendingMaths.YearSection, stale: Bool) -> some View {
     HStack {
       Text(section.year)
       Spacer()
@@ -1063,6 +1070,10 @@ struct IncomeVsSpendingDetailView: View {
     }
     .font(.footnote.weight(.semibold))
     .foregroundStyle(Theme.textPrimary)
+    // The text dims with the rows it heads; the canvas stays opaque so the
+    // pinned header still covers what scrolls under it.
+    .opacity(stale ? 0.55 : 1)
+    .animation(Theme.Motion.standard, value: stale)
     .padding(.horizontal, 4)
     .padding(.vertical, 6)
     .background(Theme.canvas)

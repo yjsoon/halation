@@ -456,7 +456,12 @@ struct SpendingGroupSection: Identifiable {
 extension ChartVoice {
   /// A chart of amounts in milliunits, one per report period key.
   static func money(_ name: String, periods: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
-    ChartVoice(name: name, unit: "Amount", periodNames: periods.map(LedgerDate.spokenPeriodLabel)) {
+    money(name, periodNames: periods.map(LedgerDate.spokenPeriodLabel), currencyFormat: currencyFormat)
+  }
+
+  /// The same, with the spoken period names already chosen.
+  static func money(_ name: String, periodNames: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
+    ChartVoice(name: name, unit: "Amount", periodNames: periodNames) {
       MoneyCodec.displayString(for: Int($0.rounded()), currencyFormat: currencyFormat)
     }
   }

@@ -369,7 +369,7 @@ enum LedgerDate {
 
   /// Period keys are Gregorian, so month names come from a Gregorian calendar
   /// in the device's language, whatever calendar the device otherwise uses.
-  private static let gregorian: Calendar = {
+  static let gregorian: Calendar = {
     var calendar = Calendar(identifier: .gregorian)
     calendar.locale = .current
     return calendar
@@ -421,12 +421,14 @@ extension Date {
 
   private static let monthYearFormatter: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = LedgerDate.gregorian
     formatter.dateFormat = "MMMM yyyy"
     return formatter
   }()
 
   private static let compactDateFormatter: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = LedgerDate.gregorian
     formatter.dateFormat = "d MMM yyyy"
     return formatter
   }()

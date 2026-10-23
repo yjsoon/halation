@@ -23,14 +23,14 @@ struct ReportStatRow: View {
   var body: some View {
     if dynamicTypeSize.isAccessibilitySize {
       // Two by two, then one under another once a single amount fills a column.
-      let columns = dynamicTypeSize >= .accessibility3 ? 1 : 2
+      let columns = dynamicTypeSize >= .accessibility2 ? 1 : 2
       LazyVGrid(
         columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: columns),
         alignment: .leading,
         spacing: 12
       ) {
         ForEach(stats) { stat in
-          column(stat, alignment: .leading, singleLine: false)
+          column(stat, alignment: .leading, singleLine: columns == 2)
         }
       }
     } else {
@@ -185,7 +185,6 @@ struct IncomeVsSpendingPeriodRow: View {
             }
             Spacer(minLength: 8)
             netColumn(netText, savings: savings, alignment: .trailing)
-              .layoutPriority(1)
             Image(systemName: "chevron.forward")
               .font(.footnote.weight(.semibold))
               .foregroundStyle(.tertiary)
@@ -225,6 +224,8 @@ struct IncomeVsSpendingPeriodRow: View {
         .font(.subheadline.weight(.semibold))
         .monospacedDigit()
         .foregroundStyle(Theme.signedReportColour(row.net))
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
       if let savings {
         Text(savings)
           .font(.caption)
@@ -237,7 +238,10 @@ struct IncomeVsSpendingPeriodRow: View {
   /// says which side; the totals card's legend names them once.
   private func bar(_ amount: Int, text: String, colour: Color, fullWidth: Bool) -> some View {
     HStack(spacing: 8) {
-      ShareMeter(fraction: Double(abs(amount)) / Double(max(barScale, 1)), colour: colour)
+      // The meter keeps one width on every row so bars compare down the list;
+      // a zero draws no stub. The amount never truncates: the net column
+      // scales down before a figure loses digits.
+      ShareMeter(fraction: Double(abs(amount)) / Double(max(barScale, 1)), colour: amount == 0 ? .clear : colour)
         .frame(width: fullWidth ? nil : meterWidth, height: 5)
         .frame(maxWidth: fullWidth ? .infinity : nil)
       Text(text)
@@ -245,6 +249,7 @@ struct IncomeVsSpendingPeriodRow: View {
         .monospacedDigit()
         .foregroundStyle(amount == 0 ? Color.secondary : colour)
         .lineLimit(1)
+        .fixedSize(horizontal: !fullWidth, vertical: false)
     }
   }
 
@@ -679,8 +684,12 @@ struct IncomeVsSpendingPeriodDetailView: View {
     } catch {
       guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
-        groups = nil
-        loadedWindow = nil
+        // A refetch of the breakdown already on screen (the view reappeared)
+        // that fails keeps it; only a different period loses its figures.
+        if loadedWindow != window {
+          groups = nil
+          loadedWindow = nil
+        }
         phase = .failed(error.localizedDescription)
       }
     }
