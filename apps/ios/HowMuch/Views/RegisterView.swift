@@ -1301,7 +1301,10 @@ struct RegisterView: View {
       }
       if let categoryIDs, !categoryIDs.isEmpty,
          !categoryIDs.contains(where: { wanted in
-           schedule.categoryID == wanted
+           if wanted == CategoryGroup.uncategorisedCategoryID {
+             return schedule.categoryID == nil
+           }
+           return schedule.categoryID == wanted
              || schedule.activeSubtransactions.contains(where: { $0.categoryID == wanted })
          }) {
         return false
@@ -1570,19 +1573,9 @@ struct RegisterView: View {
       if merged[hit.id] != nil { continue }
       if unclearedOnly, hit.cleared != .uncleared { continue }
       if uncategorisedOnly, !hit.isUncategorised { continue }
-      if let accountID = scope.accountID, hit.accountID != accountID { continue }
-      if let accountIDs, !accountIDs.isEmpty, !accountIDs.contains(hit.accountID) { continue }
-      if let categoryID, hit.categoryID != categoryID,
-         !hit.subtransactions.contains(where: { $0.categoryID == categoryID }) {
-        continue
-      }
-      if let categoryIDs, !categoryIDs.isEmpty,
-         !categoryIDs.contains(where: { wanted in
-           hit.categoryID == wanted || hit.subtransactions.contains(where: { $0.categoryID == wanted })
-         }) {
-        continue
-      }
-      if let dateRange, !dateRange.contains(hit.date) { continue }
+      // A hit joins the list only if it would have been in it unsearched:
+      // the same account, category, payee, amount, date and transfer rules.
+      if scoped([hit]).isEmpty { continue }
       if query.matches(hit.registerSearchFields) {
         merged[hit.id] = hit
       }

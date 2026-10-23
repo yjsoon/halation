@@ -1024,7 +1024,7 @@ struct IncomeVsSpendingDetailView: View {
       ),
     ]
     // Under a category filter "income" is only that category's refunds, so
-    // the ratio says nothing; the filter line below explains the figures.
+    // the ratio says nothing; the filter chips say what the figures cover.
     if loaded.scope.categoryIDs.isEmpty {
       stats.append(ReportStatRow.Stat(
         label: "Savings rate",

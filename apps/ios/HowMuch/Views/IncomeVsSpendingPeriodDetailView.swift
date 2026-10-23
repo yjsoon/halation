@@ -72,9 +72,9 @@ struct IncomeSpendingBars: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: spacing) {
-      ShareMeter(fraction: Double(income) / Double(max(scale, 1)), colour: Theme.inflow)
+      ShareMeter(fraction: Double(income) / Double(max(scale, 1)), colour: income == 0 ? .clear : Theme.inflow)
         .frame(height: height)
-      ShareMeter(fraction: Double(abs(spending)) / Double(max(scale, 1)), colour: Theme.outflow)
+      ShareMeter(fraction: Double(abs(spending)) / Double(max(scale, 1)), colour: spending == 0 ? .clear : Theme.outflow)
         .frame(height: height)
     }
     .accessibilityHidden(true)
@@ -159,7 +159,7 @@ struct IncomeVsSpendingPeriodRow: View {
     let spendingText = MoneyCodec.displayString(for: abs(row.spending), currencyFormat: currencyFormat)
     let netText = MoneyCodec.signedDisplayString(for: row.net, currencyFormat: currencyFormat)
     // Under a category filter "income" is only that category's refunds, so
-    // the ratio says nothing; the totals card explains the filter instead.
+    // the ratio says nothing.
     let savings = scope.categoryIDs.isEmpty
       ? IncomeVsSpendingMaths.savingsPhrase(net: row.net, income: row.income)
       : nil
@@ -168,7 +168,9 @@ struct IncomeVsSpendingPeriodRow: View {
         .onAppear { haptic += 1 }
     } label: {
       Group {
-        if dynamicTypeSize.isAccessibilitySize {
+        // From xxLarge the fixed meter plus an amount no longer leaves the
+        // net column room beside them, so the row stacks instead.
+        if dynamicTypeSize >= .xxLarge {
           VStack(alignment: .leading, spacing: 8) {
             titleText(title)
             netColumn(netText, savings: savings, alignment: .leading)
@@ -236,20 +238,29 @@ struct IncomeVsSpendingPeriodRow: View {
 
   /// A bar on the list's shared scale with its amount at the end. Colour
   /// says which side; the totals card's legend names them once.
+  @ViewBuilder
   private func bar(_ amount: Int, text: String, colour: Color, fullWidth: Bool) -> some View {
-    HStack(spacing: 8) {
-      // The meter keeps one width on every row so bars compare down the list;
-      // a zero draws no stub. The amount never truncates: the net column
-      // scales down before a figure loses digits.
-      ShareMeter(fraction: Double(abs(amount)) / Double(max(barScale, 1)), colour: amount == 0 ? .clear : colour)
-        .frame(width: fullWidth ? nil : meterWidth, height: 5)
-        .frame(maxWidth: fullWidth ? .infinity : nil)
-      Text(text)
-        .font(.caption)
-        .monospacedDigit()
-        .foregroundStyle(amount == 0 ? Color.secondary : colour)
-        .lineLimit(1)
-        .fixedSize(horizontal: !fullWidth, vertical: false)
+    // The meter keeps one width on every row so bars compare down the list;
+    // a zero draws no stub. The amount never truncates: beside the meter it
+    // takes its full width and the net column gives way; in the stacked
+    // layout it sits above a meter that spans the row.
+    let meter = ShareMeter(fraction: Double(abs(amount)) / Double(max(barScale, 1)), colour: amount == 0 ? .clear : colour)
+    let label = Text(text)
+      .font(.caption)
+      .monospacedDigit()
+      .foregroundStyle(amount == 0 ? Color.secondary : colour)
+    if fullWidth {
+      VStack(alignment: .leading, spacing: 4) {
+        label
+        meter.frame(height: 5)
+      }
+    } else {
+      HStack(spacing: 8) {
+        meter.frame(width: meterWidth, height: 5)
+        label
+          .lineLimit(1)
+          .fixedSize(horizontal: true, vertical: false)
+      }
     }
   }
 
@@ -305,8 +316,7 @@ struct IncomeVsSpendingPeriodDetailView: View {
     self.scope = scope
   }
 
-  /// `rows` are newest first; the fallback is the oldest row, which is also
-  /// where the running net starts.
+  /// `rows` are newest first; the fallback is the oldest row.
   private var selectedRow: IncomeVsSpendingMaths.PeriodRow? {
     rows.first { $0.period == selectedPeriod } ?? rows.last
   }
@@ -424,9 +434,11 @@ struct IncomeVsSpendingPeriodDetailView: View {
         height: 8
       )
       if let filter {
+        // Sighted users read the funnel; VoiceOver needs the word.
         Label(filter, systemImage: "line.3.horizontal.decrease")
           .font(.caption)
           .foregroundStyle(.secondary)
+          .accessibilityLabel("Filtered to \(filter)")
       }
     }
     .padding(16)
