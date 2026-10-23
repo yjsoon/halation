@@ -705,7 +705,7 @@ final class RewardsSnapshotTests: XCTestCase {
     defer { surface.detach() }
     // Filter labels appear before the report loads; require the populated root.
     // The date menu shows only its calendar icon in the toolbar.
-    let expected = ["Accounts", "Rewards", "Reflect", "Featured", "$99.70 earned", "2 below minimum",
+    let expected = ["Accounts", "Rewards", "Insights", "Featured", "$99.70 earned", "2 below minimum",
       "Travel Fixture", "$169.20", "8 days left"]
     let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 5_000_000_000)
     attach(rendered.image, "rewards-compact-root")
@@ -878,7 +878,7 @@ final class RewardsSnapshotTests: XCTestCase {
       "merged Add control must not sit on Edit Rewards: \(bottom.text)"
     )
     XCTAssertFalse(
-      bottom.text.contains("reflect"),
+      bottom.text.contains("insights"),
       "merged destination pill must not sit on Edit Rewards: \(bottom.text)"
     )
     let hidden = await surface.waitUntil {
