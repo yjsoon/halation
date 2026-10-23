@@ -328,7 +328,7 @@ struct MonthStepper: View {
 
   private func stepButton(systemName: String, monthDelta: Int) -> some View {
     Button {
-      if let next = Calendar.current.date(byAdding: .month, value: monthDelta, to: monthAnchor) {
+      if let next = LedgerDate.gregorian.date(byAdding: .month, value: monthDelta, to: monthAnchor) {
         steppedBack = monthDelta < 0
         steps += 1
         monthAnchor = next
@@ -1545,7 +1545,8 @@ private struct ChartAxisLabels: View {
   /// size, up to about twelve, never two within a stride of each other.
   /// Year-bearing labels ("Jan 26") always win over plain ones so a long
   /// window keeps its year boundaries; the last label is always drawn, and
-  /// takes the year itself when January sits right beside it.
+  /// takes the year itself when January sits right beside it, unless a
+  /// month name just before it on a daily or weekly axis stands in for it.
   private var plan: (labels: [String?], shown: [Int]) {
     let count = labels.count
     guard count > 0 else { return ([], []) }
@@ -1571,6 +1572,16 @@ private struct ChartAxisLabels: View {
       }
     }
     shown.formUnion(years)
+    // A daily or weekly axis mixes day numbers with month names; there a
+    // name within the stride takes the tick, so the months stay readable.
+    // That includes the end: a month that starts just before the last
+    // column is drawn in its place, or the latest weeks read as the month
+    // before.
+    let mixesNumbers = labels.contains { Int($0) != nil }
+    if mixesNumbers, years.isEmpty, Int(labels[last]) != nil,
+       let named = (max(0, last - stride + 1) ..< last).last(where: { Int(labels[$0]) == nil }) {
+      shown = [named]
+    }
     // Fill the gaps between the fixed ticks a stride at a time, from the
     // left edge and from each year tick, so a long window keeps an even
     // rhythm rather than a sparse grid dodging the Januaries.
@@ -1578,8 +1589,15 @@ private struct ChartAxisLabels: View {
     for next in shown.sorted() {
       var candidate = previous + stride
       while next - candidate >= stride {
-        shown.insert(candidate)
-        candidate += stride
+        var tick = candidate
+        if mixesNumbers {
+          let window = candidate ..< min(candidate + stride, next - stride + 1)
+          if let named = window.last(where: { Int(labels[$0]) == nil }) {
+            tick = named
+          }
+        }
+        shown.insert(tick)
+        candidate = tick + stride
       }
       previous = next
     }

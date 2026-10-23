@@ -360,7 +360,7 @@ enum LedgerDate {
       return "Week \(parts[1].dropFirst()), \(parts[0])"
     }
     if parts.count == 2, let month = Int(parts[1]), (1 ... 12).contains(month) {
-      return "\(Calendar.current.monthSymbols[month - 1]) \(parts[0])"
+      return "\(gregorian.monthSymbols[month - 1]) \(parts[0])"
     }
     return raw
   }
@@ -384,7 +384,7 @@ enum LedgerDate {
       return String(parts[1])
     }
     if parts.count == 2, let month = Int(parts[1]), (1 ... 12).contains(month) {
-      return Calendar.current.shortMonthSymbols[month - 1]
+      return gregorian.shortMonthSymbols[month - 1]
     }
     return raw
   }
@@ -399,7 +399,7 @@ enum LedgerDate {
       return raws.map(periodAxisLabel)
     }
     return months.enumerated().map { index, item in
-      let short = Calendar.current.shortMonthSymbols[item.month - 1]
+      let short = gregorian.shortMonthSymbols[item.month - 1]
       if index == 0 || item.month == 1 {
         return "\(short) \(String(item.year).suffix(2))"
       }
@@ -427,24 +427,36 @@ enum LedgerDate {
 
   private static let display: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = gregorian
     formatter.dateFormat = "EEE d MMM yyyy"
     return formatter
   }()
 
+  /// Period keys are Gregorian, so month names come from a Gregorian calendar
+  /// in the device's language, whatever calendar the device otherwise uses.
+  static let gregorian: Calendar = {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = .current
+    return calendar
+  }()
+
   private static let shortDisplay: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = gregorian
     formatter.dateFormat = "d MMM yyyy"
     return formatter
   }()
 
   private static let dayMonthDisplay: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = gregorian
     formatter.dateFormat = "d MMM"
     return formatter
   }()
 
   private static let axisDayDisplay: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = gregorian
     formatter.dateFormat = "d MMM"
     return formatter
   }()
@@ -462,11 +474,13 @@ extension Date {
     self = parsed
   }
 
-  func startOfMonth(calendar: Calendar = .current) -> Date {
+  /// Months default to the Gregorian calendar: period keys, labels and the
+  /// server's windows are all Gregorian, whatever calendar the device uses.
+  func startOfMonth(calendar: Calendar = LedgerDate.gregorian) -> Date {
     calendar.date(from: calendar.dateComponents([.year, .month], from: self)) ?? self
   }
 
-  func endOfMonth(calendar: Calendar = .current) -> Date {
+  func endOfMonth(calendar: Calendar = LedgerDate.gregorian) -> Date {
     guard
       let nextMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth(calendar: calendar)),
       let lastDay = calendar.date(byAdding: .day, value: -1, to: nextMonth)
@@ -488,12 +502,14 @@ extension Date {
 
   private static let monthYearFormatter: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = LedgerDate.gregorian
     formatter.dateFormat = "MMMM yyyy"
     return formatter
   }()
 
   private static let compactDateFormatter: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = LedgerDate.gregorian
     formatter.dateFormat = "d MMM yyyy"
     return formatter
   }()

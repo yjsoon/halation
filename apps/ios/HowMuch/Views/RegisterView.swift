@@ -131,6 +131,7 @@ enum RegisterReportFilter {
   static func include(
     _ transaction: Transaction,
     categoryID: String? = nil,
+    categoryIDs: Set<String>? = nil,
     payeeID: String? = nil,
     payeeName: String? = nil,
     missingPayee: Bool = false,
@@ -160,6 +161,11 @@ enum RegisterReportFilter {
       if !matchesCategory(transaction, categoryID: categoryID) {
         return false
       }
+    }
+    // A report's category scope: any of the chosen categories.
+    if let categoryIDs, !categoryIDs.isEmpty,
+       !categoryIDs.contains(where: { matchesCategory(transaction, categoryID: $0) }) {
+      return false
     }
     // `missingPayee` is the only signal for the report's missing-payee bucket.
     // "No payee" is that bucket's label, not a reserved name, so a real payee
@@ -241,6 +247,8 @@ struct RegisterView: View {
   @Environment(AppModel.self) private var model
   let scope: RegisterScope
   var categoryID: String?
+  /// A report's category scope, narrowing on top of `categoryID`.
+  var categoryIDs: Set<String>?
   var payeeID: String?
   var payeeName: String?
   var missingPayee = false
@@ -248,6 +256,9 @@ struct RegisterView: View {
   var accountIDs: Set<String>?
   var amountFilter: RegisterAmountFilter?
   var excludePlainTransfers = false
+  /// A caller's own screen title, for a drill-down the filters cannot name
+  /// (a single day from a report).
+  var titleOverride: String?
 
   @State private var searchText = ""
   /// The search drawer exists only once the magnifier asks for it; see
@@ -275,16 +286,19 @@ struct RegisterView: View {
   init(
     scope: RegisterScope,
     categoryID: String? = nil,
+    categoryIDs: Set<String>? = nil,
     payeeID: String? = nil,
     payeeName: String? = nil,
     missingPayee: Bool = false,
     dateRange: ClosedRange<String>? = nil,
     accountIDs: Set<String>? = nil,
     amountFilter: RegisterAmountFilter? = nil,
-    excludePlainTransfers: Bool = false
+    excludePlainTransfers: Bool = false,
+    title: String? = nil
   ) {
     self.scope = scope
     self.categoryID = categoryID
+    self.categoryIDs = categoryIDs
     self.payeeID = payeeID
     self.payeeName = payeeName
     self.missingPayee = missingPayee
@@ -292,6 +306,7 @@ struct RegisterView: View {
     self.accountIDs = accountIDs
     self.amountFilter = amountFilter
     self.excludePlainTransfers = excludePlainTransfers
+    titleOverride = title
   }
 
   var body: some View {
@@ -1049,6 +1064,9 @@ struct RegisterView: View {
   }
 
   private var title: String {
+    if let titleOverride {
+      return titleOverride
+    }
     if missingPayee {
       return "No payee"
     }
@@ -1276,9 +1294,11 @@ struct RegisterView: View {
     }
     let query = searchQuery
     return accountSchedules.filter { schedule in
-      if let categoryID,
-         schedule.categoryID != categoryID,
-         !schedule.activeSubtransactions.contains(where: { $0.categoryID == categoryID }) {
+      if let categoryID, !Self.scheduleMatchesCategory(schedule, categoryID: categoryID) {
+        return false
+      }
+      if let categoryIDs, !categoryIDs.isEmpty,
+         !categoryIDs.contains(where: { Self.scheduleMatchesCategory(schedule, categoryID: $0) }) {
         return false
       }
       if let dateRange, !dateRange.contains(schedule.dateNext) {
@@ -1286,6 +1306,21 @@ struct RegisterView: View {
       }
       return scheduleMatchesSearch(schedule, query: query)
     }
+  }
+
+  /// A schedule's category, read as the report reads a transaction's: the
+  /// parent or any live line. "Uncategorised" means a line with neither a
+  /// category nor a transfer; a plain transfer is a transfer, not a gap.
+  private static func scheduleMatchesCategory(_ schedule: ScheduledTransaction, categoryID: String) -> Bool {
+    let lines = schedule.activeSubtransactions
+    if categoryID == CategoryGroup.uncategorisedCategoryID {
+      guard schedule.categoryID == nil else { return false }
+      if lines.isEmpty {
+        return schedule.transferAccountID == nil
+      }
+      return lines.contains { $0.categoryID == nil && $0.transferAccountID == nil }
+    }
+    return schedule.categoryID == categoryID || lines.contains { $0.categoryID == categoryID }
   }
 
   private func scheduleMatchesSearch(_ schedule: ScheduledTransaction, query: RegisterQuery?) -> Bool {
@@ -1324,6 +1359,7 @@ struct RegisterView: View {
       return RegisterReportFilter.include(
         transaction,
         categoryID: categoryID,
+        categoryIDs: categoryIDs,
         payeeID: payeeID,
         payeeName: payeeName,
         missingPayee: missingPayee,
@@ -1341,6 +1377,7 @@ struct RegisterView: View {
       || uncategorisedOnly
       || showingUnapprovedQueue
       || categoryID != nil
+      || categoryIDs?.isEmpty == false
       || payeeID != nil
       || missingPayee
       || payeeName != nil
@@ -1543,13 +1580,9 @@ struct RegisterView: View {
       if merged[hit.id] != nil { continue }
       if unclearedOnly, hit.cleared != .uncleared { continue }
       if uncategorisedOnly, !hit.isUncategorised { continue }
-      if let accountID = scope.accountID, hit.accountID != accountID { continue }
-      if let accountIDs, !accountIDs.isEmpty, !accountIDs.contains(hit.accountID) { continue }
-      if let categoryID, hit.categoryID != categoryID,
-         !hit.subtransactions.contains(where: { $0.categoryID == categoryID }) {
-        continue
-      }
-      if let dateRange, !dateRange.contains(hit.date) { continue }
+      // A hit joins the list only if it would have been in it unsearched:
+      // the same account, category, payee, amount, date and transfer rules.
+      if scoped([hit]).isEmpty { continue }
       if query.matches(hit.registerSearchFields) {
         merged[hit.id] = hit
       }
@@ -1566,6 +1599,9 @@ struct RegisterView: View {
         return false
       }
       if let categoryID, !row.matches(categoryID: categoryID) {
+        return false
+      }
+      if let categoryIDs, !categoryIDs.isEmpty, !categoryIDs.contains(where: { row.matches(categoryID: $0) }) {
         return false
       }
       if let dateRange, !dateRange.contains(row.isoDate) {

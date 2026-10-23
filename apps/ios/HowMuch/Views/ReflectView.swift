@@ -309,13 +309,23 @@ struct ReflectView: View {
           hasActivity: monthActive
         )
 
-        if !report.periods.isEmpty {
+        // Zero-filled over the twelve months the model asked for, so a month
+        // with no lines keeps its place on the axis.
+        let monthStart = now.startOfMonth()
+        let windowStart = LedgerDate.gregorian.date(byAdding: .month, value: -11, to: monthStart) ?? monthStart
+        let rows = IncomeVsSpendingMaths.zeroFill(
+          periods: report.periods,
+          interval: .month,
+          from: windowStart.isoDateString,
+          to: now.isoDateString
+        )
+        if !rows.isEmpty {
           PairedColumnChart(
-            pairs: report.periods.map { (Double($0.income), Double(abs($0.spending))) },
-            labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+            pairs: rows.map { (Double($0.income), Double(abs($0.spending))) },
+            labels: LedgerDate.periodAxisLabels(rows.map(\.period)),
             voice: .money(
               "Income and spending",
-              periods: report.periods.map(\.period),
+              periods: rows.map(\.period),
               currencyFormat: model.currencyFormat
             ),
             height: 90
@@ -467,7 +477,12 @@ struct SpendingGroupSection: Identifiable {
 extension ChartVoice {
   /// A chart of amounts in milliunits, one per report period key.
   static func money(_ name: String, periods: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
-    ChartVoice(name: name, unit: "Amount", periodNames: periods.map(LedgerDate.spokenPeriodLabel)) {
+    money(name, periodNames: periods.map(LedgerDate.spokenPeriodLabel), currencyFormat: currencyFormat)
+  }
+
+  /// The same, with the spoken period names already chosen.
+  static func money(_ name: String, periodNames: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
+    ChartVoice(name: name, unit: "Amount", periodNames: periodNames) {
       MoneyCodec.displayString(for: NetWorthMaths.milliunits($0), currencyFormat: currencyFormat)
     }
   }
@@ -545,7 +560,7 @@ struct MonthToDate: Equatable {
   /// Spending on each day from the 1st to today, in milliunits.
   let daily: [Int]
 
-  init?(_ spending: DailySpending, includeQuiet: Bool, now: Date, calendar: Calendar = .current) {
+  init?(_ spending: DailySpending, includeQuiet: Bool, now: Date, calendar: Calendar = LedgerDate.gregorian) {
     // The app can stay open into a new month without a refetch; last
     // month's days would read as nothing spent, so the card drops the
     // summary and shows only the fetched month's breakdown until then.
@@ -555,8 +570,8 @@ struct MonthToDate: Equatable {
     let all = Self.byDate(spending.all)
     let quiet = includeQuiet ? [:] : spending.quiet.map(Self.byDate) ?? [:]
     // Walk the same dates the overview requested, from this calendar's month
-    // start, and key them as the server does (ISO dates). The device calendar
-    // need not be Gregorian, so its day numbers are not ISO day numbers.
+    // start, and key them as the server does (ISO dates). The month is the
+    // Gregorian one the overview fetched, whatever calendar the device uses.
     var amounts: [Int] = []
     var date = now.startOfMonth(calendar: calendar)
     while date <= now, amounts.count < days {
@@ -614,7 +629,7 @@ struct MonthToDateSummary: View {
     MoneyCodec.displayString(for: milliunits, currencyFormat: currencyFormat)
   }
 
-  private var monthName: String { now.formatted(.dateTime.month(.wide)) }
+  private var monthName: String { IncomeVsSpendingMaths.monthName(from: now) }
 
   /// Values move under their labels from xxLarge text, where a label and
   /// its value no longer fit side by side on a phone.

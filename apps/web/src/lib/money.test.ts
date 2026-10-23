@@ -98,13 +98,13 @@ describe("formatMilliunitsInput", () => {
 });
 
 describe("formatSavingsRate", () => {
-  test("dashes zero income and rates below -100 percent, keeps ordinary negatives", () => {
+  test("dashes zero income only; overspending stays a negative rate", () => {
     expect(formatSavingsRate(1_750_000, 8_200_000)).toBe("21.3%");
     expect(formatSavingsRate(-450_000, 3_630_000)).toBe("−12.4%");
     expect(formatSavingsRate(-100, 0)).toBe("—");
     expect(formatSavingsRate(-100, 100)).toBe("−100.0%");
-    expect(formatSavingsRate(-101, 100)).toBe("—");
-    expect(formatSavingsRate(26_400 - 525_310, 26_400)).toBe("—");
+    expect(formatSavingsRate(-101, 100)).toBe("−101.0%");
+    expect(formatSavingsRate(26_400 - 525_310, 26_400)).toBe("−1889.8%");
   });
 });
 

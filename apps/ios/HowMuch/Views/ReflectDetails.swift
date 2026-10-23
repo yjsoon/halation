@@ -1202,42 +1202,88 @@ struct NetWorthDetailView: View {
 }
 
 struct IncomeVsSpendingDetailView: View {
+  /// A report with the window it was fetched for. The rows are zero-filled
+  /// against these, never against the filter bar's current values, so a
+  /// change of interval or range does not re-slice the old report with the
+  /// new keys while the refetch runs.
+  private struct Loaded {
+    var report: IncomeVsSpendingReport
+    var interval: ReportInterval
+    var from: String?
+    var to: String?
+    var scope: ReportScope
+    /// The `fetchKey` this was fetched under.
+    var key: String
+
+    /// Chronological, zero-filled rows.
+    var rows: [IncomeVsSpendingMaths.PeriodRow] {
+      IncomeVsSpendingMaths.zeroFill(periods: report.periods, interval: interval, from: from, to: to)
+    }
+  }
+
   @Environment(AppModel.self) private var model
   @State private var range = ReportRange(mode: .preset, preset: .yearToDate)
   @State private var scope = ReportScope()
   @State private var interval: ReportInterval = .month
-  @State private var report: IncomeVsSpendingReport?
+  @State private var loaded: Loaded?
   @State private var phase: LoadPhase = .idle
   @State private var fetchGate = ReportFetchGate()
 
+  /// Day and week groupings are only offered for windows short enough to
+  /// read; a longer window falls back to the finest grouping it allows.
+  private var intervalChoices: [ReportInterval] {
+    IncomeVsSpendingMaths.allowedIntervals(from: range.fromISO, to: range.toISO)
+  }
+
+  /// `interval` is committed to the fallback in `onChange(of: intervalChoices)`;
+  /// this covers the render in between so the fetch never asks for a grouping
+  /// the window does not offer.
+  private var effectiveInterval: ReportInterval {
+    IncomeVsSpendingMaths.effectiveInterval(interval, allowed: intervalChoices)
+  }
+
+  private var fetchKey: String {
+    range.key + "|" + scope.key + "|" + effectiveInterval.rawValue
+  }
+
   var body: some View {
-    let filled = report.map { displayRows(report: $0) } ?? []
+    let chronological = loaded?.rows ?? []
+    let filled = Array(chronological.reversed())
+    let barScale = IncomeVsSpendingMaths.barScale(rows: chronological)
+    let shownInterval = loaded?.interval ?? effectiveInterval
     let sections = IncomeVsSpendingMaths.yearSections(rows: filled)
-    let showYears = Set(sections.map(\.year)).count > 1
+    // Year rows already name their year; a header above each would repeat it.
+    let showYears = shownInterval != .year && Set(sections.map(\.year)).count > 1
+    // Dim only while a different window loads. The silent refetch on
+    // reappearing (same key) keeps the screen as it is.
+    let stale = phase == .loading && loaded != nil && loaded?.key != fetchKey
+    let settled = phase != .loading || loaded?.key == fetchKey
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 16, pinnedViews: showYears ? [.sectionHeaders] : []) {
         ReportFilterBar(
           range: $range,
           interval: $interval,
-          intervalChoices: [.day, .week, .month, .year],
+          intervalChoices: intervalChoices,
           scope: $scope,
           showsCategories: true
         )
 
-        if let report, !report.periods.isEmpty {
-          totalsCard(report: report)
+        if let loaded, !loaded.report.periods.isEmpty {
+          // While a new window loads, the last one stays readable but dimmed;
+          // its rows still describe the window they were fetched for.
+          dimmed(totalsCard(loaded, chronological: chronological), stale)
           if showYears {
             ForEach(sections) { section in
               Section {
-                periodList(section.rows, allRows: filled)
+                dimmed(periodList(section.rows, allRows: filled, interval: shownInterval, scope: loaded.scope, barScale: barScale), stale)
               } header: {
-                yearHeader(section)
+                yearHeader(section, stale: stale)
               }
             }
           } else {
-            periodList(filled, allRows: filled)
+            dimmed(periodList(filled, allRows: filled, interval: shownInterval, scope: loaded.scope, barScale: barScale), stale)
           }
-        } else if report != nil, phase != .loading {
+        } else if loaded != nil, settled {
           ReflectMaths.emptyRange(title: "No Income or Spending", systemImage: "chart.bar")
         } else {
           PhasePlaceholder(phase: phase) {
@@ -1251,32 +1297,73 @@ struct IncomeVsSpendingDetailView: View {
     .background(Theme.canvas)
     .navigationTitle("Income vs Spending")
     .navigationBarTitleDisplayMode(.inline)
-    .task(id: range.key + "|" + scope.key + "|" + interval.rawValue) {
+    .toolbar {
+      ToolbarItem(placement: .topBarTrailing) {
+        IncomeVsSpendingInfoButton()
+      }
+    }
+    .task(id: fetchKey) {
       await fetch()
+    }
+    // A grouping the new window cannot show falls back for good, so the chip
+    // and the stored choice agree and the old choice does not come back by
+    // surprise when the window shrinks again.
+    .onChange(of: intervalChoices) { _, choices in
+      if !choices.contains(interval) {
+        interval = IncomeVsSpendingMaths.effectiveInterval(interval, allowed: choices)
+      }
     }
   }
 
-  private func totalsCard(report: IncomeVsSpendingReport) -> some View {
-    let income = report.periods.map(\.income).saturatingSum()
-    let spending = report.periods.map { abs($0.spending) }.saturatingSum()
+  private func totalsCard(_ loaded: Loaded, chronological: [IncomeVsSpendingMaths.PeriodRow]) -> some View {
+    let income = loaded.report.periods.map(\.income).saturatingSum()
+    let spending = loaded.report.periods.map { abs($0.spending) }.saturatingSum()
     let net = income - spending
     let saved = IncomeVsSpendingMaths.savingsRateLabel(net: net, income: income)
+    var stats = [
+      ReportStatRow.Stat(
+        label: "Income",
+        value: MoneyCodec.displayString(for: income, currencyFormat: model.currencyFormat),
+        colour: income == 0 ? .secondary : Theme.inflow
+      ),
+      ReportStatRow.Stat(
+        label: "Spending",
+        value: MoneyCodec.displayString(for: spending, currencyFormat: model.currencyFormat),
+        colour: spending == 0 ? .secondary : Theme.outflow
+      ),
+      ReportStatRow.Stat(
+        label: "Net",
+        value: MoneyCodec.signedDisplayString(for: net, currencyFormat: model.currencyFormat),
+        colour: Theme.signedReportColour(net)
+      ),
+    ]
+    // Under a category filter "income" is only that category's refunds, so
+    // the ratio says nothing; the filter chips say what the figures cover.
+    if loaded.scope.categoryIDs.isEmpty {
+      stats.append(ReportStatRow.Stat(
+        label: "Savings rate",
+        value: saved,
+        colour: saved == "—" ? .secondary : Theme.signedReportColour(net)
+      ))
+    }
 
-    return VStack(spacing: 12) {
-      HStack {
-        statColumn("Income", MoneyCodec.displayString(for: income, currencyFormat: model.currencyFormat), colour: Theme.inflow)
-        Spacer()
-        statColumn("Spending", MoneyCodec.displayString(for: spending, currencyFormat: model.currencyFormat), colour: Theme.outflow)
-        Spacer()
-        statColumn("Net", MoneyCodec.signedDisplayString(for: net, currencyFormat: model.currencyFormat), colour: Theme.signedReportColour(net))
-        Spacer()
-        statColumn("Savings Rate", saved, colour: saved == "—" ? .secondary : Theme.amountColour(net))
-      }
+    return VStack(alignment: .leading, spacing: 12) {
+      ReportStatRow(stats: stats)
 
+      // The chart reads the zero-filled rows so an empty month keeps its
+      // place on the axis instead of the neighbours closing over it.
+      // Days and weeks are labelled by their dates, as the rows are, not
+      // by week number or a date that no column is wide enough for.
+      let labels = loaded.interval == .week || loaded.interval == .day
+        ? IncomeVsSpendingMaths.startDayAxisLabels(rows: chronological)
+        : LedgerDate.periodAxisLabels(chronological.map(\.period))
+      let names = loaded.interval == .week
+        ? chronological.map { IncomeVsSpendingMaths.spanLabel(from: $0.from, to: $0.to) }
+        : chronological.map { LedgerDate.spokenPeriodLabel($0.period) }
       PairedColumnChart(
-        pairs: report.periods.map { (Double($0.income), Double(abs($0.spending))) },
-        labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
-        voice: .money("Income and spending", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+        pairs: chronological.map { (Double($0.income), Double(abs($0.spending))) },
+        labels: labels,
+        voice: .money("Income and spending", periodNames: names, currencyFormat: model.currencyFormat),
         height: 120
       )
       HStack(spacing: 16) {
@@ -1288,18 +1375,7 @@ struct IncomeVsSpendingDetailView: View {
     .ynabCard()
   }
 
-  private func displayRows(report: IncomeVsSpendingReport) -> [IncomeVsSpendingMaths.PeriodRow] {
-    Array(
-      IncomeVsSpendingMaths.zeroFill(
-        periods: report.periods,
-        interval: interval,
-        from: range.fromISO,
-        to: range.toISO
-      ).reversed()
-    )
-  }
-
-  private func yearHeader(_ section: IncomeVsSpendingMaths.YearSection) -> some View {
+  private func yearHeader(_ section: IncomeVsSpendingMaths.YearSection, stale: Bool) -> some View {
     HStack {
       Text(section.year)
       Spacer()
@@ -1309,15 +1385,25 @@ struct IncomeVsSpendingDetailView: View {
     }
     .font(.footnote.weight(.semibold))
     .foregroundStyle(Theme.textPrimary)
+    // The text dims with the rows it heads; the canvas stays opaque so the
+    // pinned header still covers what scrolls under it.
+    .opacity(stale ? 0.55 : 1)
+    .animation(Theme.Motion.standard, value: stale)
     .padding(.horizontal, 4)
     .padding(.vertical, 6)
     .background(Theme.canvas)
   }
 
-  private func periodList(_ rows: [IncomeVsSpendingMaths.PeriodRow], allRows: [IncomeVsSpendingMaths.PeriodRow]) -> some View {
+  private func periodList(
+    _ rows: [IncomeVsSpendingMaths.PeriodRow],
+    allRows: [IncomeVsSpendingMaths.PeriodRow],
+    interval: ReportInterval,
+    scope: ReportScope,
+    barScale: Int
+  ) -> some View {
     VStack(spacing: 0) {
       ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-        periodRow(row, allRows: allRows)
+        periodRow(row, allRows: allRows, interval: interval, scope: scope, barScale: barScale)
         if index < rows.count - 1 {
           Divider()
         }
@@ -1327,25 +1413,31 @@ struct IncomeVsSpendingDetailView: View {
   }
 
   @ViewBuilder
-  private func periodRow(_ row: IncomeVsSpendingMaths.PeriodRow, allRows: [IncomeVsSpendingMaths.PeriodRow]) -> some View {
+  private func periodRow(
+    _ row: IncomeVsSpendingMaths.PeriodRow,
+    allRows: [IncomeVsSpendingMaths.PeriodRow],
+    interval: ReportInterval,
+    scope: ReportScope,
+    barScale: Int
+  ) -> some View {
     if row.isEmpty {
-      emptyPeriodRow(row)
+      emptyPeriodRow(row, interval: interval)
     } else {
       IncomeVsSpendingPeriodRow(
         row: row,
         interval: interval,
         allRows: allRows,
+        barScale: barScale,
         scope: scope,
         currencyFormat: model.currencyFormat
       )
     }
   }
 
-  private func emptyPeriodRow(_ row: IncomeVsSpendingMaths.PeriodRow) -> some View {
-    let today = Date.now.isoDateString
-    let current = IncomeVsSpendingMaths.isCurrentPeriod(row.period, interval: interval, today: today)
+  private func emptyPeriodRow(_ row: IncomeVsSpendingMaths.PeriodRow, interval: ReportInterval) -> some View {
+    let title = IncomeVsSpendingMaths.periodTitle(row, interval: interval, today: Date.now.isoDateString)
     return HStack {
-      Text(periodTitle(row.period, current: current))
+      Text(title.display)
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(.secondary)
       Spacer()
@@ -1355,25 +1447,8 @@ struct IncomeVsSpendingDetailView: View {
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 10)
-  }
-
-  private func periodTitle(_ period: String, current: Bool) -> String {
-    let label = LedgerDate.periodLabel(period)
-    return current ? "\(label) · so far" : label
-  }
-
-  private func statColumn(_ label: String, _ value: String, colour: Color) -> some View {
-    VStack(spacing: 2) {
-      Text(label)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      Text(value)
-        .font(.footnote.weight(.semibold))
-        .monospacedDigit()
-        .foregroundStyle(colour)
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
-    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("\(title.spoken), no activity")
   }
 
   private func legendDot(colour: Color, label: String) -> some View {
@@ -1387,29 +1462,44 @@ struct IncomeVsSpendingDetailView: View {
     }
   }
 
+  private func dimmed<Content: View>(_ content: Content, _ stale: Bool) -> some View {
+    content
+      .opacity(stale ? 0.55 : 1)
+      .disabled(stale)
+      .animation(Theme.Motion.standard, value: stale)
+  }
+
   private func fetch() async {
     let token = fetchGate.begin()
     phase = .loading
+    let interval = effectiveInterval
+    let from = range.fromISO
+    let to = range.toISO
+    let scope = self.scope
+    let key = fetchKey
     do {
       let next = try await model.apiClient.fetchIncomeVsSpending(
         planID: model.settings.planID,
-        from: range.fromISO,
-        to: range.toISO,
+        from: from,
+        to: to,
         interval: interval,
         accountIDs: Array(scope.accountIDs),
         categoryIDs: Array(scope.categoryIDs)
       )
       guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
-        report = next
+        loaded = Loaded(report: next, interval: interval, from: from, to: to, scope: scope, key: key)
         phase = .loaded
       }
     } catch {
       guard fetchGate.mayCommit(token) else { return }
       // Drop the previous window's figures so they never sit under the new
-      // filter chips; the placeholder offers Retry instead.
+      // filter chips; the placeholder offers Retry instead. A failed refetch
+      // of the same window keeps what is on screen, which is still right.
       withAnimation(Theme.Motion.arrive) {
-        report = nil
+        if loaded?.key != key {
+          loaded = nil
+        }
         phase = .failed(error.localizedDescription)
       }
     }
