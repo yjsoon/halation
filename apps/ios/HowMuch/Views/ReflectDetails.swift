@@ -951,14 +951,17 @@ struct NetWorthDetailView: View {
           .frame(maxWidth: 240)
           .accessibilityHidden(true)
       }
-      TrendChart(
-        values: report.periods.map { Double($0.netWorth) },
-        labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
-        voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
-        axisLabel: { NetWorthMaths.axisLabel($0, step: $1, currencyFormat: model.currencyFormat) },
-        height: 120,
-        minimumSpan: 1000
-      )
+      // One period has no trend to draw; the figures above say it all.
+      if report.periods.count > 1 {
+        TrendChart(
+          values: report.periods.map { Double($0.netWorth) },
+          labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+          voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+          axisLabel: { NetWorthMaths.axisLabel($0, step: $1, currencyFormat: model.currencyFormat) },
+          height: 120,
+          minimumSpan: 1000
+        )
+      }
       if let first, let windowChange {
         let percent = windowPercent.map { " (\(NetWorthMaths.percentLabel($0)))" } ?? ""
         Text("\(MoneyCodec.signedDisplayString(for: windowChange, currencyFormat: model.currencyFormat))\(percent) since \(LedgerDate.shortDateString(fromISO: first.endDate))")
@@ -1049,6 +1052,8 @@ struct NetWorthDetailView: View {
         .frame(width: 120, height: 6)
       }
     }
+    // Name and balance are laid out before the spacer, so a name never
+    // wraps while there is room beside it.
     return HStack {
       if dynamicTypeSize.isAccessibilitySize {
         VStack(alignment: .leading, spacing: 4) {
@@ -1057,8 +1062,10 @@ struct NetWorthDetailView: View {
         }
       } else {
         name
+          .layoutPriority(1)
         Spacer()
         balance
+          .layoutPriority(1)
       }
       if linked {
         if dynamicTypeSize.isAccessibilitySize {
@@ -1132,8 +1139,10 @@ struct NetWorthDetailView: View {
       } else {
         HStack {
           title
+            .layoutPriority(1)
           Spacer()
           figures
+            .layoutPriority(1)
         }
       }
     }

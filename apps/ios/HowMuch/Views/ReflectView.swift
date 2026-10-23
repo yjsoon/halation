@@ -282,13 +282,15 @@ struct ReflectView: View {
         }
         .font(.subheadline)
 
-        TrendChart(
-          values: report.periods.map { Double($0.netWorth) },
-          labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
-          voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
-          axisLabel: { NetWorthMaths.axisLabel($0, step: $1, currencyFormat: model.currencyFormat) },
-          minimumSpan: 1000
-        )
+        if report.periods.count > 1 {
+          TrendChart(
+            values: report.periods.map { Double($0.netWorth) },
+            labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+            voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+            axisLabel: { NetWorthMaths.axisLabel($0, step: $1, currencyFormat: model.currencyFormat) },
+            minimumSpan: 1000
+          )
+        }
       }
     }
   }
