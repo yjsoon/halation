@@ -1479,18 +1479,39 @@ private struct ChartAxisLabels: View {
 
   var body: some View {
     let visible = visibleIndices
+    // A thinned axis has blank columns either side of every tick, so a
+    // label may run past its own column instead of shrinking to "…".
+    // With every column labelled it must fit, and shrinks instead.
+    let overflows = stride > 1
+    // A year-bearing label ("Jan 26") is too wide for a month column, so
+    // it takes two lines; the whole axis is then two lines tall.
+    let twoLines = labels.indices.contains(where: carriesYear)
     HStack(alignment: .top, spacing: spacing) {
       ForEach(labels.indices, id: \.self) { index in
         let isVisible = visible.contains(index)
-        Text(isVisible ? labels[index] : " ")
+        let stacked = carriesYear(index)
+        Text(twoLines ? " \n " : " ")
           .font(.caption2)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-          .minimumScaleFactor(0.65)
           .frame(maxWidth: .infinity)
+          .overlay(alignment: .top) {
+            if isVisible {
+              Text(stacked ? labels[index].replacingOccurrences(of: " ", with: "\n") : labels[index])
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(stacked ? 2 : 1)
+                .minimumScaleFactor(overflows ? 1 : 0.65)
+                .fixedSize(horizontal: overflows, vertical: false)
+            }
+          }
           .accessibilityHidden(!isVisible)
       }
     }
+  }
+
+  /// Columns per tick: about twelve ticks across the axis.
+  private var stride: Int {
+    max(1, Int(ceil(Double(labels.count) / 12)))
   }
 
   /// About twelve ticks. If a window contains a year-bearing label
@@ -1500,22 +1521,45 @@ private struct ChartAxisLabels: View {
   private var visibleIndices: Set<Int> {
     let count = labels.count
     guard count > 0 else { return [] }
-    let stride = max(1, Int(ceil(Double(count) / 12)))
+    let stride = self.stride
     // A weekly axis mixes day numbers with month names; the first column
     // is always named, so the last name in a window is the month that
     // actually starts there.
     let mixesNumbers = labels.contains { Int($0) != nil }
-    var visible: Set<Int> = [count - 1]
+    var ticks: [Int] = []
     var start = 0
     while start < count {
       let window = start ..< min(start + stride, count)
       let tick = window.first(where: carriesYear)
         ?? (mixesNumbers ? window.last(where: isNamed) : nil)
         ?? start
-      visible.insert(tick)
+      ticks.append(tick)
       start += stride
     }
-    return visible
+    let last = count - 1
+    if ticks.last != last {
+      ticks.append(last)
+    }
+    guard stride > 1 else { return Set(ticks) }
+    // Labels run past their columns when thinned, so two ticks side by side
+    // would overlap: the less telling one yields. A year beats a month
+    // name, which beats the latest period, which beats a plain number.
+    func rank(_ index: Int) -> Int {
+      if carriesYear(index) { return 3 }
+      if mixesNumbers, isNamed(index) { return 2 }
+      return index == last ? 1 : 0
+    }
+    var kept: [Int] = []
+    for tick in ticks {
+      if let previous = kept.last, tick - previous < 2 {
+        if rank(tick) > rank(previous) {
+          kept[kept.count - 1] = tick
+        }
+      } else {
+        kept.append(tick)
+      }
+    }
+    return Set(kept)
   }
 
   private func carriesYear(_ index: Int) -> Bool {

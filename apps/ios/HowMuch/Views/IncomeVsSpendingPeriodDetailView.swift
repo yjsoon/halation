@@ -21,8 +21,9 @@ struct ReportStatRow: View {
   let stats: [Stat]
 
   var body: some View {
-    if dynamicTypeSize.isAccessibilitySize {
-      // Two by two, then one under another once a single amount fills a column.
+    if dynamicTypeSize >= .xxLarge {
+      // Two by two once four abreast would cut a figure short, then one
+      // under another once a single amount fills a column.
       let columns = dynamicTypeSize >= .accessibility2 ? 1 : 2
       LazyVGrid(
         columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: columns),
@@ -187,12 +188,14 @@ struct IncomeVsSpendingPeriodRow: View {
           .frame(maxWidth: .infinity, alignment: .leading)
         } else {
           HStack(alignment: .top, spacing: 12) {
+            // The title gets every point the net column leaves, not just
+            // the bars' width, so "28 Sep – 4 Oct 2026" stays on one line.
             VStack(alignment: .leading, spacing: 6) {
               titleText(title)
               bar(row.income, text: incomeText, colour: Theme.inflow, fullWidth: false)
               bar(row.spending, text: spendingText, colour: Theme.outflow, fullWidth: false)
             }
-            Spacer(minLength: 0)
+            .frame(maxWidth: .infinity, alignment: .leading)
             netColumn(netText, savings: savings, alignment: .trailing)
             Image(systemName: "chevron.forward")
               .font(.footnote.weight(.semibold))

@@ -1038,9 +1038,10 @@ struct IncomeVsSpendingDetailView: View {
 
       // The chart reads the zero-filled rows so an empty month keeps its
       // place on the axis instead of the neighbours closing over it.
-      // Weeks are named by their dates, as the rows are, not by week number.
-      let labels = loaded.interval == .week
-        ? IncomeVsSpendingMaths.weekAxisLabels(rows: chronological)
+      // Days and weeks are labelled by their dates, as the rows are, not
+      // by week number or a date that no column is wide enough for.
+      let labels = loaded.interval == .week || loaded.interval == .day
+        ? IncomeVsSpendingMaths.startDayAxisLabels(rows: chronological)
         : LedgerDate.periodAxisLabels(chronological.map(\.period))
       let names = loaded.interval == .week
         ? chronological.map { IncomeVsSpendingMaths.spanLabel(from: $0.from, to: $0.to) }

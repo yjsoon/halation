@@ -109,10 +109,11 @@ enum IncomeVsSpendingMaths {
     }
   }
 
-  /// Axis labels for weekly columns: the day the week starts, with the
-  /// month's name instead on the first column and whenever a week starts
-  /// a new month. "24 Aug" does not fit a column thirteen weeks wide.
-  static func weekAxisLabels(rows: [PeriodRow]) -> [String] {
+  /// Axis labels for daily and weekly columns: the day the period starts,
+  /// with the month's name instead on the first column and wherever a
+  /// period starts a new month. "24 Aug" does not fit a column a month of
+  /// days or thirteen weeks wide.
+  static func startDayAxisLabels(rows: [PeriodRow]) -> [String] {
     var previousMonth: Int?
     return rows.map { row in
       guard let start = parseISO(row.from) else { return row.period }

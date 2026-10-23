@@ -113,7 +113,7 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
       period: "2026-W01", from: "2026-01-05", to: "2026-01-11", income: 0, spending: 0, net: 0, isEmpty: true
     )
     XCTAssertEqual(
-      IncomeVsSpendingMaths.weekAxisLabels(rows: [lastWeekOfYear, firstStub, secondWeek]),
+      IncomeVsSpendingMaths.startDayAxisLabels(rows: [lastWeekOfYear, firstStub, secondWeek]),
       ["Dec", "Jan", "5"]
     )
     let currentWeekStoppedEarly = IncomeVsSpendingMaths.PeriodRow(
