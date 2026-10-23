@@ -1501,12 +1501,16 @@ private struct ChartAxisLabels: View {
     let count = labels.count
     guard count > 0 else { return [] }
     let stride = max(1, Int(ceil(Double(count) / 12)))
+    // A weekly axis mixes day numbers with month names; the first column
+    // is always named, so the last name in a window is the month that
+    // actually starts there.
+    let mixesNumbers = labels.contains { Int($0) != nil }
     var visible: Set<Int> = [count - 1]
     var start = 0
     while start < count {
       let window = start ..< min(start + stride, count)
       let tick = window.first(where: carriesYear)
-        ?? window.first(where: isNamed)
+        ?? (mixesNumbers ? window.last(where: isNamed) : nil)
         ?? start
       visible.insert(tick)
       start += stride
