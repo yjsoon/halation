@@ -1487,12 +1487,35 @@ struct StackedShareBar: View {
   }
 }
 
+private extension UIContentSizeCategory {
+  /// The UIKit category for a SwiftUI text size, to measure text as the
+  /// view will draw it.
+  init(_ size: DynamicTypeSize) {
+    self = switch size {
+    case .xSmall: .extraSmall
+    case .small: .small
+    case .medium: .medium
+    case .large: .large
+    case .xLarge: .extraLarge
+    case .xxLarge: .extraExtraLarge
+    case .xxxLarge: .extraExtraExtraLarge
+    case .accessibility1: .accessibilityMedium
+    case .accessibility2: .accessibilityLarge
+    case .accessibility3: .accessibilityExtraLarge
+    case .accessibility4: .accessibilityExtraExtraLarge
+    case .accessibility5: .accessibilityExtraExtraExtraLarge
+    @unknown default: .large
+    }
+  }
+}
+
 /// Shared x-axis row so net worth and income charts label months the same way.
 private struct ChartAxisLabels: View {
   let labels: [String]
   var spacing: CGFloat = 6
 
   @State private var rowWidth: CGFloat = 0
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   var body: some View {
     let layout = plan
@@ -1531,22 +1554,23 @@ private struct ChartAxisLabels: View {
     var shown: Set<Int> = [last]
     var labels = self.labels
     // Year ticks a stride apart, kept from the latest backwards, so a long
-    // window keeps every other January rather than losing them all.
+    // window keeps every other January rather than losing them all. A
+    // January too close to the last label lends it the year instead and
+    // takes no place in the spacing, so the January before it still shows
+    // and no plain month reads as the wrong year.
     var years: [Int] = []
-    for year in labels.indices.reversed() where carriesYear(year) {
-      if years.allSatisfy({ $0 - year >= stride }) {
+    var lent = false
+    for year in labels.indices.reversed() where carriesYear(year) && year != last {
+      if last - year < stride {
+        if !lent, !carriesYear(last), let suffix = yearSuffix(labels[year]) {
+          labels[last] += suffix
+          lent = true
+        }
+      } else if years.allSatisfy({ $0 - year >= stride }) {
         years.append(year)
       }
     }
-    for year in years where year != last {
-      if last - year < stride {
-        if !carriesYear(last), let suffix = yearSuffix(labels[year]) {
-          labels[last] += suffix
-        }
-      } else {
-        shown.insert(year)
-      }
-    }
+    shown.formUnion(years)
     // Fill the gaps between the fixed ticks a stride at a time, from the
     // left edge and from each year tick, so a long window keeps an even
     // rhythm rather than a sparse grid dodging the Januaries.
@@ -1569,7 +1593,10 @@ private struct ChartAxisLabels: View {
     guard rowWidth > 0 else {
       return longest <= 4 ? 12 : max(4, 36 / longest)
     }
-    let font = UIFont.preferredFont(forTextStyle: .caption2)
+    // Measured for the view's own text size, so a size change re-plans
+    // the row even when its width stays the same.
+    let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(dynamicTypeSize))
+    let font = UIFont.preferredFont(forTextStyle: .caption2, compatibleWith: traits)
     let widest = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
     return min(12, max(2, Int(rowWidth / (widest + 8))))
   }

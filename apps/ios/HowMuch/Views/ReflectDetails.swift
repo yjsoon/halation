@@ -1063,10 +1063,13 @@ struct NetWorthDetailView: View {
           balance
         }
       } else {
+        // The balance keeps its full width and is sized first; the name
+        // takes the rest and wraps only when that is not enough.
         name
           .layoutPriority(1)
         Spacer()
         balance
+          .fixedSize()
           .layoutPriority(1)
       }
       if linked {
@@ -1147,6 +1150,7 @@ struct NetWorthDetailView: View {
             .layoutPriority(1)
           Spacer()
           figures
+            .fixedSize()
             .layoutPriority(1)
         }
       }
