@@ -61,13 +61,93 @@ struct ReportStatRow: View {
   }
 }
 
+/// Income over spending as two bars on one scale, green above red. In the
+/// list the scale is shared by every row; in a header it is the pair itself.
+struct IncomeSpendingBars: View {
+  let income: Int
+  let spending: Int
+  let scale: Int
+  var height: CGFloat = 5
+  var spacing: CGFloat = 4
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: spacing) {
+      ShareMeter(fraction: Double(income) / Double(max(scale, 1)), colour: Theme.inflow)
+        .frame(height: height)
+      ShareMeter(fraction: Double(abs(spending)) / Double(max(scale, 1)), colour: Theme.outflow)
+        .frame(height: height)
+    }
+    .accessibilityHidden(true)
+  }
+}
+
+/// The counting rules, behind the info button on both Income vs Spending
+/// screens so the reports themselves stay figures and bars.
+struct IncomeVsSpendingInfoSheet: View {
+  @Environment(\.dismiss) private var dismiss
+
+  var body: some View {
+    NavigationStack {
+      List {
+        rule("arrow.down.left.arrow.up.right", "Income is money in, spending is money out, counted per transaction line.")
+        rule("arrow.left.arrow.right", "Transfers between your own accounts are left out, unless the transfer carries a category.")
+        rule("percent", "Savings rate is net as a share of income.")
+      }
+      .navigationTitle("How it's counted")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar {
+        ToolbarItem(placement: .confirmationAction) {
+          Button("Done") { dismiss() }
+            .tint(Theme.accent)
+        }
+      }
+    }
+    .presentationDetents([.medium])
+  }
+
+  private func rule(_ systemImage: String, _ text: String) -> some View {
+    Label {
+      Text(text)
+        .font(.subheadline)
+        .foregroundStyle(Theme.textPrimary)
+    } icon: {
+      Image(systemName: systemImage)
+        .foregroundStyle(Theme.accent)
+    }
+    .padding(.vertical, 4)
+  }
+}
+
+/// A toolbar info button that opens `IncomeVsSpendingInfoSheet`.
+struct IncomeVsSpendingInfoButton: View {
+  @State private var isShowing = false
+
+  var body: some View {
+    Button {
+      isShowing = true
+    } label: {
+      Image(systemName: "info.circle")
+    }
+    .tint(Theme.accent)
+    .accessibilityLabel("How it's counted")
+    .sheet(isPresented: $isShowing) {
+      IncomeVsSpendingInfoSheet()
+        .blocksCapturePresentation()
+    }
+  }
+}
+
 /// One period in the Income vs Spending list: the period and its net lead,
-/// income and spending sit under them, and the whole row is one tap target.
+/// income and spending are bars on a scale shared by the whole list, and
+/// the whole row is one tap target.
 struct IncomeVsSpendingPeriodRow: View {
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @ScaledMetric(relativeTo: .caption) private var meterWidth: CGFloat = 88
   let row: IncomeVsSpendingMaths.PeriodRow
   let interval: ReportInterval
   let allRows: [IncomeVsSpendingMaths.PeriodRow]
+  /// `IncomeVsSpendingMaths.barScale` over the rows on screen.
+  let barScale: Int
   let scope: ReportScope
   let currencyFormat: CurrencyFormat?
   @State private var haptic = 0
@@ -89,23 +169,19 @@ struct IncomeVsSpendingPeriodRow: View {
     } label: {
       Group {
         if dynamicTypeSize.isAccessibilitySize {
-          VStack(alignment: .leading, spacing: 6) {
+          VStack(alignment: .leading, spacing: 8) {
             titleText(title)
             netColumn(netText, savings: savings, alignment: .leading)
-            figure("Income", incomeText, colour: row.income == 0 ? .secondary : Theme.inflow)
-            figure("Spending", spendingText, colour: row.spending == 0 ? .secondary : Theme.outflow)
+            bar(row.income, text: incomeText, colour: Theme.inflow, fullWidth: true)
+            bar(row.spending, text: spendingText, colour: Theme.outflow, fullWidth: true)
           }
           .frame(maxWidth: .infinity, alignment: .leading)
         } else {
           HStack(alignment: .top, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
               titleText(title)
-              HStack(spacing: 10) {
-                figure("Income", incomeText, colour: row.income == 0 ? .secondary : Theme.inflow)
-                figure("Spending", spendingText, colour: row.spending == 0 ? .secondary : Theme.outflow)
-              }
-              .lineLimit(1)
-              .minimumScaleFactor(0.85)
+              bar(row.income, text: incomeText, colour: Theme.inflow, fullWidth: false)
+              bar(row.spending, text: spendingText, colour: Theme.outflow, fullWidth: false)
             }
             Spacer(minLength: 8)
             netColumn(netText, savings: savings, alignment: .trailing)
@@ -157,12 +233,19 @@ struct IncomeVsSpendingPeriodRow: View {
     }
   }
 
-  private func figure(_ label: String, _ value: String, colour: Color) -> some View {
-    (Text(label).foregroundStyle(.secondary)
-      + Text(" ")
-      + Text(value).foregroundStyle(colour))
-      .font(.caption)
-      .monospacedDigit()
+  /// A bar on the list's shared scale with its amount at the end. Colour
+  /// says which side; the totals card's legend names them once.
+  private func bar(_ amount: Int, text: String, colour: Color, fullWidth: Bool) -> some View {
+    HStack(spacing: 8) {
+      ShareMeter(fraction: Double(abs(amount)) / Double(max(barScale, 1)), colour: colour)
+        .frame(width: fullWidth ? nil : meterWidth, height: 5)
+        .frame(maxWidth: fullWidth ? .infinity : nil)
+      Text(text)
+        .font(.caption)
+        .monospacedDigit()
+        .foregroundStyle(amount == 0 ? Color.secondary : colour)
+        .lineLimit(1)
+    }
   }
 
   @ViewBuilder
@@ -229,7 +312,6 @@ struct IncomeVsSpendingPeriodDetailView: View {
   }
 
   var body: some View {
-    let chronological = Array(rows.reversed())
     let selected = selectedRow
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
@@ -241,7 +323,7 @@ struct IncomeVsSpendingPeriodDetailView: View {
             onBack: { step(from: selected, delta: -1) },
             onForward: { step(from: selected, delta: 1) }
           )
-          headerCard(selected, chronological: chronological)
+          headerCard(selected)
         }
 
         Picker("Breakdown", selection: $tab) {
@@ -269,6 +351,11 @@ struct IncomeVsSpendingPeriodDetailView: View {
     .background(Theme.canvas)
     .navigationTitle(selected.map { title($0).text } ?? "Income vs Spending")
     .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .topBarTrailing) {
+        IncomeVsSpendingInfoButton()
+      }
+    }
     .task(id: selectedPeriod + "|" + scope.key) {
       await fetch()
     }
@@ -292,19 +379,12 @@ struct IncomeVsSpendingPeriodDetailView: View {
     }
   }
 
-  private func headerCard(_ selected: IncomeVsSpendingMaths.PeriodRow, chronological: [IncomeVsSpendingMaths.PeriodRow]) -> some View {
-    let periodTitle = title(selected)
+  private func headerCard(_ selected: IncomeVsSpendingMaths.PeriodRow) -> some View {
     let saved = IncomeVsSpendingMaths.savingsRateLabel(net: selected.net, income: selected.income)
     let filter = IncomeVsSpendingMaths.filterLine(
       accountCount: scope.accountIDs.count,
       categoryCount: scope.categoryIDs.count
     )
-    // The running net equals this period's net on the oldest row, so it is
-    // only worth a line once there is something before it to add up.
-    let running = chronological.first?.period != selected.period
-      ? IncomeVsSpendingMaths.runningNet(rows: chronological, through: selected.period)
-      : nil
-    let progress = IncomeVsSpendingMaths.inProgressCaption(from: selected.from, to: min(selected.to, today))
     var stats = [
       ReportStatRow.Stat(
         label: "Income",
@@ -329,23 +409,17 @@ struct IncomeVsSpendingPeriodDetailView: View {
         colour: saved == "—" ? .secondary : Theme.signedReportColour(selected.net)
       ))
     }
-    return VStack(alignment: .leading, spacing: 10) {
+    return VStack(alignment: .leading, spacing: 12) {
       ReportStatRow(stats: stats)
-      // A clipped current row is already named by its span; the caption
-      // would repeat it.
-      if periodTitle.soFar, !progress.hasPrefix(periodTitle.text) {
-        Text(progress)
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-      }
-      if let running, let first = chronological.first {
-        Text("Running net for \(IncomeVsSpendingMaths.runningSpanLabel(first: first, through: selected)): \(MoneyCodec.signedDisplayString(for: running, currencyFormat: model.currencyFormat))")
-          .font(.footnote)
-          .foregroundStyle(.secondary)
-      }
+      IncomeSpendingBars(
+        income: selected.income,
+        spending: selected.spending,
+        scale: max(selected.income, abs(selected.spending)),
+        height: 8
+      )
       if let filter {
-        Text(filter)
-          .font(.footnote)
+        Label(filter, systemImage: "line.3.horizontal.decrease")
+          .font(.caption)
           .foregroundStyle(.secondary)
       }
     }
@@ -383,10 +457,6 @@ struct IncomeVsSpendingPeriodDetailView: View {
           }
         }
         .ynabCard()
-        Text("Money out, by transaction line. Transfers between your own accounts are left out unless they carry a category.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .padding(16)
       }
     }
   }
@@ -421,10 +491,6 @@ struct IncomeVsSpendingPeriodDetailView: View {
           }
         }
         .ynabCard()
-        Text("Money in, including refunds and reimbursements. Transfers between your own accounts are left out unless they carry a category.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .padding(16)
       }
     }
   }
@@ -501,7 +567,7 @@ struct IncomeVsSpendingPeriodDetailView: View {
   @ViewBuilder
   private func emptyTab(kind: IncomeSpendingTab) -> some View {
     let name = selectedRow.map(title) ?? IncomeVsSpendingMaths.PeriodTitle(text: LedgerDate.periodLabel(selectedPeriod), soFar: false)
-    let description = IncomeVsSpendingMaths.emptyTabDescription(kind: kind, title: name)
+    let description = IncomeVsSpendingMaths.emptyTabDescription(title: name)
     switch kind {
     case .income:
       ContentUnavailableView(

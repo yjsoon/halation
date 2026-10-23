@@ -935,6 +935,7 @@ struct IncomeVsSpendingDetailView: View {
   var body: some View {
     let chronological = loaded?.rows ?? []
     let filled = Array(chronological.reversed())
+    let barScale = IncomeVsSpendingMaths.barScale(rows: chronological)
     let shownInterval = loaded?.interval ?? effectiveInterval
     let sections = IncomeVsSpendingMaths.yearSections(rows: filled)
     // Year rows already name their year; a header above each would repeat it.
@@ -960,18 +961,14 @@ struct IncomeVsSpendingDetailView: View {
           if showYears {
             ForEach(sections) { section in
               Section {
-                dimmed(periodList(section.rows, allRows: filled, interval: shownInterval, scope: loaded.scope), stale)
+                dimmed(periodList(section.rows, allRows: filled, interval: shownInterval, scope: loaded.scope, barScale: barScale), stale)
               } header: {
                 yearHeader(section)
               }
             }
           } else {
-            dimmed(periodList(filled, allRows: filled, interval: shownInterval, scope: loaded.scope), stale)
+            dimmed(periodList(filled, allRows: filled, interval: shownInterval, scope: loaded.scope, barScale: barScale), stale)
           }
-          Text("Money in counts as income and money out as spending, by transaction line. Transfers between your own accounts are left out unless they carry a category.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 4)
         } else if loaded != nil, settled {
           ReflectMaths.emptyRange(title: "No Income or Spending", systemImage: "chart.bar")
         } else {
@@ -986,6 +983,11 @@ struct IncomeVsSpendingDetailView: View {
     .background(Theme.canvas)
     .navigationTitle("Income vs Spending")
     .navigationBarTitleDisplayMode(.inline)
+    .toolbar {
+      ToolbarItem(placement: .topBarTrailing) {
+        IncomeVsSpendingInfoButton()
+      }
+    }
     .task(id: fetchKey) {
       await fetch()
     }
@@ -1004,11 +1006,6 @@ struct IncomeVsSpendingDetailView: View {
     let spending = loaded.report.periods.map { abs($0.spending) }.saturatingSum()
     let net = income - spending
     let saved = IncomeVsSpendingMaths.savingsRateLabel(net: net, income: income)
-    // The filter the figures were fetched under, not the chips' live value.
-    let filter = IncomeVsSpendingMaths.filterLine(
-      accountCount: loaded.scope.accountIDs.count,
-      categoryCount: loaded.scope.categoryIDs.count
-    )
     var stats = [
       ReportStatRow.Stat(
         label: "Income",
@@ -1050,12 +1047,6 @@ struct IncomeVsSpendingDetailView: View {
       HStack(spacing: 16) {
         legendDot(colour: Theme.inflow, label: "Income")
         legendDot(colour: Theme.outflow, label: "Spending")
-        Spacer()
-        if let filter {
-          Text(filter)
-            .font(.caption)
-            .foregroundStyle(.secondary)
-        }
       }
     }
     .padding(16)
@@ -1081,11 +1072,12 @@ struct IncomeVsSpendingDetailView: View {
     _ rows: [IncomeVsSpendingMaths.PeriodRow],
     allRows: [IncomeVsSpendingMaths.PeriodRow],
     interval: ReportInterval,
-    scope: ReportScope
+    scope: ReportScope,
+    barScale: Int
   ) -> some View {
     VStack(spacing: 0) {
       ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-        periodRow(row, allRows: allRows, interval: interval, scope: scope)
+        periodRow(row, allRows: allRows, interval: interval, scope: scope, barScale: barScale)
         if index < rows.count - 1 {
           Divider()
         }
@@ -1099,7 +1091,8 @@ struct IncomeVsSpendingDetailView: View {
     _ row: IncomeVsSpendingMaths.PeriodRow,
     allRows: [IncomeVsSpendingMaths.PeriodRow],
     interval: ReportInterval,
-    scope: ReportScope
+    scope: ReportScope,
+    barScale: Int
   ) -> some View {
     if row.isEmpty {
       emptyPeriodRow(row, interval: interval)
@@ -1108,6 +1101,7 @@ struct IncomeVsSpendingDetailView: View {
         row: row,
         interval: interval,
         allRows: allRows,
+        barScale: barScale,
         scope: scope,
         currencyFormat: model.currencyFormat
       )

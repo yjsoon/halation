@@ -239,17 +239,6 @@ enum IncomeVsSpendingMaths {
     }
   }
 
-  static func runningNet(rows: [PeriodRow], through period: String) -> Int {
-    var total = 0
-    for row in rows {
-      total += row.net
-      if row.period == period {
-        break
-      }
-    }
-    return total
-  }
-
   static func isCurrentPeriod(_ key: String, interval: ReportInterval, today: String) -> Bool {
     periodKey(for: today, interval: interval) == key
   }
@@ -265,34 +254,19 @@ enum IncomeVsSpendingMaths {
     guard !parts.isEmpty else {
       return nil
     }
-    return "Filtered: " + parts.joined(separator: ", ")
+    return parts.joined(separator: " · ")
   }
 
-  /// "1–23 Oct 2026 so far" under a current period's header. The row's
-  /// figures run to `to`, which the caller has already capped at today.
-  static func inProgressCaption(from: String, to: String) -> String {
-    "\(spanLabel(from: from, to: to)) so far"
+  /// One scale for every row's income and spending bars, so the bars compare
+  /// across periods rather than each row filling its own width.
+  static func barScale(rows: [PeriodRow]) -> Int {
+    max(1, rows.map(\.income).max() ?? 0, rows.map { abs($0.spending) }.max() ?? 0)
   }
 
-  /// The span a running net covers, from the first row in the window to the
-  /// selected one: "Jan–Apr 2026", "Nov 2025 – Apr 2026", "1 Jan – 23 Oct 2026".
-  static func runningSpanLabel(first: PeriodRow, through selected: PeriodRow) -> String {
-    spanLabel(from: first.from, to: selected.to)
-  }
-
-  /// Past-tense copy for a period with no lines on one side: the period is
-  /// named by its real span, with "so far" when it is still running.
-  static func emptyTabDescription(kind: IncomeSpendingTab, title: PeriodTitle) -> String {
-    switch kind {
-    case .income:
-      return title.soFar
-        ? "Nothing has been added to your accounts in \(title.text) so far."
-        : "Nothing was added to your accounts in \(title.text)."
-    case .spending:
-      return title.soFar
-        ? "Nothing has been spent in \(title.text) so far."
-        : "Nothing was spent in \(title.text)."
-    }
+  /// The line under an empty tab: the period by its real span, with
+  /// "so far" when it is still running. The tab's title says which side.
+  static func emptyTabDescription(title: PeriodTitle) -> String {
+    title.soFar ? "Nothing in \(title.text) so far." : "Nothing in \(title.text)."
   }
 
   static func txnShareLabel(count: Int, share: Double) -> String {

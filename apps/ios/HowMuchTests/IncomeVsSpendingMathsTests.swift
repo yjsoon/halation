@@ -85,7 +85,7 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
       IncomeVsSpendingMaths.periodTitle(currentYear, interval: .year, today: today),
       IncomeVsSpendingMaths.PeriodTitle(text: "2026", soFar: true)
     )
-    XCTAssertEqual(IncomeVsSpendingMaths.inProgressCaption(from: "2026-01-01", to: today), "1 Jan – 23 Oct 2026 so far")
+    XCTAssertEqual(IncomeVsSpendingMaths.spanLabel(from: "2026-01-01", to: today), "1 Jan – 23 Oct 2026")
     let wholeMonth = IncomeVsSpendingMaths.PeriodRow(
       period: "2026-03", from: "2026-03-01", to: "2026-03-31", income: 1, spending: 0, net: 1, isEmpty: false
     )
@@ -201,15 +201,6 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
     XCTAssertEqual(sections.map(\.year), ["2026", "2025"])
     XCTAssertEqual(sections[0].net, 3)
     XCTAssertEqual(sections[1].net, 10)
-  }
-
-  func testRunningNetStopsAtSelectedPeriod() {
-    let rows = [
-      IncomeVsSpendingMaths.PeriodRow(period: "2026-01", from: "2026-01-01", to: "2026-01-31", income: 10, spending: 2, net: 8, isEmpty: false),
-      IncomeVsSpendingMaths.PeriodRow(period: "2026-02", from: "2026-02-01", to: "2026-02-28", income: 4, spending: 1, net: 3, isEmpty: false),
-      IncomeVsSpendingMaths.PeriodRow(period: "2026-03", from: "2026-03-01", to: "2026-03-31", income: 1, spending: 6, net: -5, isEmpty: false),
-    ]
-    XCTAssertEqual(IncomeVsSpendingMaths.runningNet(rows: rows, through: "2026-02"), 11)
   }
 
   /// A row's own bounds already match the window that produced its figures, so
