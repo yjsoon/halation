@@ -1513,13 +1513,15 @@ private struct ChartAxisLabels: View {
     let budget = longest <= 4 ? 12 : max(4, 36 / longest)
     let stride = max(1, Int(ceil(Double(count) / Double(budget))))
     var visible: Set<Int> = [count - 1]
+    var shown: Int?
     var start = 0
     while start < count {
       let end = min(start + stride, count)
-      if let yearTick = (start ..< end).first(where: carriesYear) {
-        visible.insert(yearTick)
-      } else if count - 1 - start >= stride {
-        visible.insert(start)
+      let candidate = (start ..< end).first(where: carriesYear) ?? start
+      // A full stride clear of the last shown label and of the final one.
+      if count - 1 - candidate >= stride, shown.map({ candidate - $0 >= stride }) ?? true {
+        visible.insert(candidate)
+        shown = candidate
       }
       start += stride
     }
@@ -1684,8 +1686,10 @@ struct TrendChart: View {
     let largest = max(abs(lowest), abs(highest))
     let span = max(highest - lowest, largest * 0.05, minimumSpan, 1)
     let pad = span * 0.1
-    var low = lowest - pad
-    var high = highest + pad
+    // At least the span, centred on the series, plus a little room each end.
+    let middle = (lowest + highest) / 2
+    var low = min(lowest - pad, middle - span / 2)
+    var high = max(highest + pad, middle + span / 2)
     if lowest >= 0 {
       low = lowest < span ? 0 : max(low, 0)
     }
@@ -1696,7 +1700,8 @@ struct TrendChart: View {
     low = (low / step).rounded(.down) * step
     high = (high / step).rounded(.up) * step
     if high <= low {
-      high = low + step
+      // Every value at zero: the ends met there, so open one step above.
+      high = low + max(step, minimumSpan)
     }
     return Axis(low: low, high: high, step: step)
   }

@@ -811,7 +811,8 @@ enum NetWorthMaths {
     }
     switch interval {
     case .month:
-      return period.endDate != end.endOfMonth().isoDateString
+      // The server's months are Gregorian whatever calendar the device uses.
+      return period.endDate != end.endOfMonth(calendar: Calendar(identifier: .gregorian)).isoDateString
     case .year:
       return !period.endDate.hasSuffix("-12-31")
     case .week, .day:
@@ -836,6 +837,9 @@ struct NetWorthDetailView: View {
   @State private var scope = ReportScope()
   @State private var interval: ReportInterval = .month
   @State private var report: NetWorthReport?
+  /// The grouping the shown report was fetched with: the chip can change
+  /// before the next report lands, and the old rows keep their own titles.
+  @State private var reportInterval: ReportInterval = .month
   @State private var phase: LoadPhase = .idle
   @State private var fetchGate = ReportFetchGate()
 
@@ -1010,8 +1014,8 @@ struct NetWorthDetailView: View {
     .accessibilityElement(children: .combine)
   }
 
-  /// Each row opens the account's register when the account is known here;
-  /// a closed one still lists while it holds a balance, without the link.
+  /// Each row opens the account's register when the account is known here,
+  /// closed or not; one the model has not loaded still lists, without the link.
   @ViewBuilder
   private func accountLink(_ account: NetWorthAccount, largest: Int) -> some View {
     if model.accounts.contains(where: { $0.id == account.accountID }) {
@@ -1093,7 +1097,7 @@ struct NetWorthDetailView: View {
   /// Period over a meter of its change against the window's largest, so
   /// the strong and weak months stand out down the list.
   private func historyRow(_ period: NetWorthPeriod, delta: Int?, largestDelta: Int) -> some View {
-    let heading = NetWorthMaths.historyTitle(period, interval: interval)
+    let heading = NetWorthMaths.historyTitle(period, interval: reportInterval)
     let title = VStack(alignment: .leading, spacing: 6) {
       (Text(heading.title).foregroundStyle(Theme.textPrimary)
         + (heading.note.map { Text(" · \($0)").foregroundStyle(.secondary) } ?? Text("")))
@@ -1155,6 +1159,7 @@ struct NetWorthDetailView: View {
       guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
         report = next
+        reportInterval = interval
         phase = .loaded
       }
     } catch {

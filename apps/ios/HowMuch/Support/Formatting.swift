@@ -249,7 +249,8 @@ enum MoneyCodec {
       // No step given: one decimal under ten ("1.2M"), none above ("579k").
       digits = 1
     }
-    digits = min(digits, 2)
+    // Three decimals cover the smallest axis step a chart asks for.
+    digits = min(digits, 3)
     let factor = pow(10, Double(digits))
     let rounded = (scaled * factor).rounded() / factor
 
