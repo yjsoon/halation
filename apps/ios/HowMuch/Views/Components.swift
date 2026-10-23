@@ -1545,7 +1545,8 @@ private struct ChartAxisLabels: View {
   /// size, up to about twelve, never two within a stride of each other.
   /// Year-bearing labels ("Jan 26") always win over plain ones so a long
   /// window keeps its year boundaries; the last label is always drawn, and
-  /// takes the year itself when January sits right beside it.
+  /// takes the year itself when January sits right beside it, unless a
+  /// month name just before it on a daily or weekly axis stands in for it.
   private var plan: (labels: [String?], shown: [Int]) {
     let count = labels.count
     guard count > 0 else { return ([], []) }
