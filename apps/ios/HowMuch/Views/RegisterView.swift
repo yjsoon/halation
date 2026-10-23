@@ -248,6 +248,9 @@ struct RegisterView: View {
   var accountIDs: Set<String>?
   var amountFilter: RegisterAmountFilter?
   var excludePlainTransfers = false
+  /// A caller's own screen title, for a drill-down the filters cannot name
+  /// (a single day from a report).
+  var titleOverride: String?
 
   @State private var searchText = ""
   /// The search drawer exists only once the magnifier asks for it; see
@@ -281,7 +284,8 @@ struct RegisterView: View {
     dateRange: ClosedRange<String>? = nil,
     accountIDs: Set<String>? = nil,
     amountFilter: RegisterAmountFilter? = nil,
-    excludePlainTransfers: Bool = false
+    excludePlainTransfers: Bool = false,
+    title: String? = nil
   ) {
     self.scope = scope
     self.categoryID = categoryID
@@ -292,6 +296,7 @@ struct RegisterView: View {
     self.accountIDs = accountIDs
     self.amountFilter = amountFilter
     self.excludePlainTransfers = excludePlainTransfers
+    titleOverride = title
   }
 
   var body: some View {
@@ -1049,6 +1054,9 @@ struct RegisterView: View {
   }
 
   private var title: String {
+    if let titleOverride {
+      return titleOverride
+    }
     if missingPayee {
       return "No payee"
     }

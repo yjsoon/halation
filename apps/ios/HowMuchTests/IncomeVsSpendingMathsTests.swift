@@ -59,6 +59,10 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
     XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: -350, income: 100), "-350.0%")
     XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: 1_750_000, income: 8_200_000), "21% saved")
     XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: -450_000, income: 3_630_000), "12% overspent")
+    XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: -400, income: 100_000), "< 1% overspent")
+    XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: 0, income: 100), "Broke even")
+    XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: 99_700, income: 100_000), "> 99% saved")
+    XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: 100, income: 100), "100% saved")
     XCTAssertNil(IncomeVsSpendingMaths.savingsPhrase(net: -100, income: 0))
   }
 
@@ -93,19 +97,51 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
       IncomeVsSpendingMaths.periodTitle(partialMonth, interval: .month, today: today),
       IncomeVsSpendingMaths.PeriodTitle(text: "15–23 Oct 2026", soFar: true)
     )
-    let week = IncomeVsSpendingMaths.PeriodRow(
-      period: "2025-W52", from: "2025-12-29", to: "2026-01-04", income: 1, spending: 0, net: 1, isEmpty: false
+    // SQLite's %W splits a week at the year boundary, so the two stubs are
+    // named by their dates. A week whose window ended before today is done.
+    let lastWeekOfYear = IncomeVsSpendingMaths.PeriodRow(
+      period: "2025-W52", from: "2025-12-29", to: "2025-12-31", income: 1, spending: 0, net: 1, isEmpty: false
     )
-    XCTAssertEqual(IncomeVsSpendingMaths.periodTitle(week, interval: .week, today: today).text, "29 Dec 2025 – 4 Jan 2026")
+    XCTAssertEqual(IncomeVsSpendingMaths.periodTitle(lastWeekOfYear, interval: .week, today: today).text, "29–31 Dec 2025")
+    let firstStub = IncomeVsSpendingMaths.PeriodRow(
+      period: "2026-W00", from: "2026-01-01", to: "2026-01-04", income: 1, spending: 0, net: 1, isEmpty: false
+    )
+    XCTAssertEqual(IncomeVsSpendingMaths.periodTitle(firstStub, interval: .week, today: today).text, "1–4 Jan 2026")
+    let currentWeekStoppedEarly = IncomeVsSpendingMaths.PeriodRow(
+      period: "2026-W42", from: "2026-10-19", to: "2026-10-20", income: 1, spending: 0, net: 1, isEmpty: false
+    )
+    XCTAssertEqual(
+      IncomeVsSpendingMaths.periodTitle(currentWeekStoppedEarly, interval: .week, today: today),
+      IncomeVsSpendingMaths.PeriodTitle(text: "19–20 Oct 2026", soFar: false)
+    )
+    XCTAssertEqual(IncomeVsSpendingMaths.spanLabel(from: "2025-12-29", to: "2026-01-04"), "29 Dec 2025 – 4 Jan 2026")
     XCTAssertEqual(IncomeVsSpendingMaths.spanLabel(from: "2025-11-01", to: "2026-04-30"), "Nov 2025 – Apr 2026")
     XCTAssertEqual(IncomeVsSpendingMaths.spanLabel(from: "2024-01-01", to: "2026-12-31"), "2024–2026")
+    XCTAssertEqual(IncomeVsSpendingMaths.spanLabel(from: "2026-02-28", to: "2026-02-28"), "28 Feb 2026")
+    // All Time infers the current month's end, so the row keeps its name and
+    // still reads "so far"; a custom range that stops before today does not.
+    let allTimeCurrent = IncomeVsSpendingMaths.PeriodRow(
+      period: "2026-10", from: "2026-10-01", to: "2026-10-31", income: 1, spending: 0, net: 1, isEmpty: false
+    )
+    XCTAssertEqual(
+      IncomeVsSpendingMaths.periodTitle(allTimeCurrent, interval: .month, today: today),
+      IncomeVsSpendingMaths.PeriodTitle(text: "October 2026", soFar: true)
+    )
+    let stoppedEarly = IncomeVsSpendingMaths.PeriodRow(
+      period: "2026-10", from: "2026-10-01", to: "2026-10-20", income: 1, spending: 0, net: 1, isEmpty: false
+    )
+    XCTAssertEqual(
+      IncomeVsSpendingMaths.periodTitle(stoppedEarly, interval: .month, today: today),
+      IncomeVsSpendingMaths.PeriodTitle(text: "1–20 Oct 2026", soFar: false)
+    )
   }
 
   /// By day over a year is hundreds of periods the paired chart cannot
   /// draw, so long windows lose the finer groupings and fall back.
   func testLongWindowsDropDayAndWeekGroupings() {
-    XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: "2026-10-01", to: "2026-10-23"), [.day, .week, .month, .year])
-    XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: "2026-01-01", to: "2026-10-23"), [.week, .month, .year])
+    XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: "2026-10-01", to: "2026-10-31"), [.day, .week, .month, .year])
+    XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: "2026-05-01", to: "2026-10-23"), [.week, .month, .year])
+    XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: "2026-01-01", to: "2026-10-23"), [.month, .year])
     XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: "2024-01-01", to: "2026-10-23"), [.month, .year])
     XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: nil, to: nil), [.month, .year])
     XCTAssertEqual(IncomeVsSpendingMaths.effectiveInterval(.day, allowed: [.week, .month, .year]), .week)

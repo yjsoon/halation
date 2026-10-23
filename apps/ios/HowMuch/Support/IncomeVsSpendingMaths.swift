@@ -59,8 +59,15 @@ enum IncomeVsSpendingMaths {
     guard income > 0 else {
       return nil
     }
+    if net == 0 {
+      return "Broke even"
+    }
     let percent = abs(Double(net)) / Double(income) * 100
-    let shown = percent > 0 && percent < 1 ? "< 1%" : "\(Int(percent.rounded()))%"
+    var shown = percent < 1 ? "< 1%" : "\(Int(percent.rounded()))%"
+    if net > 0, net < income, percent.rounded() >= 100 {
+      // Something was spent, so never claim all of it was saved.
+      shown = "> 99%"
+    }
     return net < 0 ? "\(shown) overspent" : "\(shown) saved"
   }
 
@@ -84,7 +91,9 @@ enum IncomeVsSpendingMaths {
     case .day:
       return PeriodTitle(text: LedgerDate.periodLabel(row.period), soFar: false)
     case .week:
-      return PeriodTitle(text: spanLabel(from: row.from, to: row.to), soFar: current)
+      // A current week clipped short of today (a range that ended earlier
+      // this week) is finished as far as the figures go.
+      return PeriodTitle(text: spanLabel(from: row.from, to: row.to), soFar: current && row.to >= today)
     case .month, .year:
       let natural = inferredBounds(of: row.period, interval: interval)
       let startsOnTime = row.from == natural.from
@@ -112,7 +121,7 @@ enum IncomeVsSpendingMaths {
     }
     if wholeMonths {
       if start.year == end.year, start.month == end.month {
-        return "\(Calendar.current.monthSymbols[start.month - 1]) \(start.year)"
+        return "\(gregorian.monthSymbols[start.month - 1]) \(start.year)"
       }
       if start.year == end.year {
         return "\(shortMonthSymbol(start.month))–\(shortMonthSymbol(end.month)) \(start.year)"
@@ -137,17 +146,17 @@ enum IncomeVsSpendingMaths {
       - civilDay(year: start.year, month: start.month, day: start.day) + 1
   }
 
-  /// The groupings a window can carry without the chart turning into slivers
-  /// and the list into hundreds of empty rows: days up to about a quarter,
-  /// weeks up to about eighteen months, months and years always.
+  /// The groupings a window can carry without the paired chart turning into
+  /// slivers and the list into hundreds of empty rows: days for up to a
+  /// month, weeks for up to about six months, months and years always.
   static func allowedIntervals(from: String?, to: String?) -> [ReportInterval] {
     guard let days = windowDays(from: from, to: to) else {
       return [.month, .year]
     }
-    if days <= 92 {
+    if days <= 31 {
       return [.day, .week, .month, .year]
     }
-    if days <= 550 {
+    if days <= 190 {
       return [.week, .month, .year]
     }
     return [.month, .year]
@@ -486,7 +495,15 @@ private extension IncomeVsSpendingMaths {
     return (y + y / 4 - y / 100 + y / 400 + table[month - 1] + day) % 7
   }
 
+  /// Period keys are Gregorian, so month names come from a Gregorian calendar
+  /// in the device's language, whatever calendar the device otherwise uses.
+  static let gregorian: Calendar = {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = .current
+    return calendar
+  }()
+
   static func shortMonthSymbol(_ month: Int) -> String {
-    Calendar.current.shortMonthSymbols[month - 1]
+    gregorian.shortMonthSymbols[month - 1]
   }
 }

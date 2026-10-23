@@ -22,13 +22,15 @@ struct ReportStatRow: View {
 
   var body: some View {
     if dynamicTypeSize.isAccessibilitySize {
+      // Two by two, then one under another once a single amount fills a column.
+      let columns = dynamicTypeSize >= .accessibility3 ? 1 : 2
       LazyVGrid(
-        columns: [GridItem(.flexible(), alignment: .leading), GridItem(.flexible(), alignment: .leading)],
+        columns: Array(repeating: GridItem(.flexible(), alignment: .leading), count: columns),
         alignment: .leading,
         spacing: 12
       ) {
         ForEach(stats) { stat in
-          column(stat, alignment: .leading)
+          column(stat, alignment: .leading, singleLine: false)
         }
       }
     } else {
@@ -37,13 +39,13 @@ struct ReportStatRow: View {
           if index > 0 {
             Spacer(minLength: 0)
           }
-          column(stat, alignment: .center)
+          column(stat, alignment: .center, singleLine: true)
         }
       }
     }
   }
 
-  private func column(_ stat: Stat, alignment: HorizontalAlignment) -> some View {
+  private func column(_ stat: Stat, alignment: HorizontalAlignment, singleLine: Bool) -> some View {
     VStack(alignment: alignment, spacing: 2) {
       Text(stat.label)
         .font(.caption)
@@ -52,8 +54,8 @@ struct ReportStatRow: View {
         .font(.footnote.weight(.semibold))
         .monospacedDigit()
         .foregroundStyle(stat.colour)
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
+        .lineLimit(singleLine ? 1 : nil)
+        .minimumScaleFactor(singleLine ? 0.8 : 1)
     }
     .accessibilityElement(children: .combine)
   }
@@ -171,7 +173,8 @@ struct IncomeVsSpendingPeriodRow: View {
         scope: .all,
         dateRange: IncomeVsSpendingMaths.drillDownRange(row),
         accountIDs: scope.accountIDs.isEmpty ? nil : scope.accountIDs,
-        excludePlainTransfers: true
+        excludePlainTransfers: true,
+        title: LedgerDate.spokenPeriodLabel(row.period)
       )
     } else {
       IncomeVsSpendingPeriodDetailView(
@@ -273,7 +276,9 @@ struct IncomeVsSpendingPeriodDetailView: View {
 
   @ViewBuilder
   private var tabBody: some View {
-    if let groups {
+    // Only the breakdown fetched for this period; after a step the old one
+    // would otherwise sit under the new header for a frame, still tappable.
+    if let groups, loadedWindow == selectedRow.map(IncomeVsSpendingMaths.drillDownRange) {
       switch tab {
       case .spending:
         spendingTab(groups)
@@ -294,9 +299,12 @@ struct IncomeVsSpendingPeriodDetailView: View {
       accountCount: scope.accountIDs.count,
       categoryCount: scope.categoryIDs.count
     )
-    let running = chronological.count > 1
+    // The running net equals this period's net on the oldest row, so it is
+    // only worth a line once there is something before it to add up.
+    let running = chronological.first?.period != selected.period
       ? IncomeVsSpendingMaths.runningNet(rows: chronological, through: selected.period)
       : nil
+    let progress = IncomeVsSpendingMaths.inProgressCaption(from: selected.from, to: min(selected.to, today))
     var stats = [
       ReportStatRow.Stat(
         label: "Income",
@@ -323,8 +331,10 @@ struct IncomeVsSpendingPeriodDetailView: View {
     }
     return VStack(alignment: .leading, spacing: 10) {
       ReportStatRow(stats: stats)
-      if periodTitle.soFar {
-        Text(IncomeVsSpendingMaths.inProgressCaption(from: selected.from, to: min(selected.to, today)))
+      // A clipped current row is already named by its span; the caption
+      // would repeat it.
+      if periodTitle.soFar, !progress.hasPrefix(periodTitle.text) {
+        Text(progress)
           .font(.footnote)
           .foregroundStyle(.secondary)
       }
@@ -426,10 +436,10 @@ struct IncomeVsSpendingPeriodDetailView: View {
   private static let remainderColour = Color.secondary.opacity(0.4)
 
   private func spendingSwatch(_ group: IncomeVsSpendingSpendingGroup, index: Int) -> Color {
-    if group.categoryID == CategoryGroup.uncategorisedCategoryID {
-      return Theme.uncategorised
+    guard index < Self.colouredSegments else {
+      return Self.remainderColour
     }
-    return index < Self.colouredSegments ? Theme.chartColour(index) : Self.remainderColour
+    return group.categoryID == CategoryGroup.uncategorisedCategoryID ? Theme.uncategorised : Theme.chartColour(index)
   }
 
   private func incomeSwatch(index: Int) -> Color {

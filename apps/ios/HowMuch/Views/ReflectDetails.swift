@@ -897,6 +897,9 @@ struct IncomeVsSpendingDetailView: View {
     var interval: ReportInterval
     var from: String?
     var to: String?
+    var scope: ReportScope
+    /// The `fetchKey` this was fetched under.
+    var key: String
 
     /// Chronological, zero-filled rows.
     var rows: [IncomeVsSpendingMaths.PeriodRow] {
@@ -918,6 +921,9 @@ struct IncomeVsSpendingDetailView: View {
     IncomeVsSpendingMaths.allowedIntervals(from: range.fromISO, to: range.toISO)
   }
 
+  /// `interval` is committed to the fallback in `onChange(of: intervalChoices)`;
+  /// this covers the render in between so the fetch never asks for a grouping
+  /// the window does not offer.
   private var effectiveInterval: ReportInterval {
     IncomeVsSpendingMaths.effectiveInterval(interval, allowed: intervalChoices)
   }
@@ -933,12 +939,15 @@ struct IncomeVsSpendingDetailView: View {
     let sections = IncomeVsSpendingMaths.yearSections(rows: filled)
     // Year rows already name their year; a header above each would repeat it.
     let showYears = shownInterval != .year && Set(sections.map(\.year)).count > 1
-    let stale = phase == .loading && loaded != nil
+    // Dim only while a different window loads. The silent refetch on
+    // reappearing (same key) keeps the screen as it is.
+    let stale = phase == .loading && loaded != nil && loaded?.key != fetchKey
+    let settled = phase != .loading || loaded?.key == fetchKey
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 16, pinnedViews: showYears ? [.sectionHeaders] : []) {
         ReportFilterBar(
           range: $range,
-          interval: Binding(get: { effectiveInterval }, set: { interval = $0 }),
+          interval: $interval,
           intervalChoices: intervalChoices,
           scope: $scope,
           showsCategories: true
@@ -951,19 +960,19 @@ struct IncomeVsSpendingDetailView: View {
           if showYears {
             ForEach(sections) { section in
               Section {
-                dimmed(periodList(section.rows, allRows: filled, interval: shownInterval), stale)
+                dimmed(periodList(section.rows, allRows: filled, interval: shownInterval, scope: loaded.scope), stale)
               } header: {
-                dimmed(yearHeader(section), stale)
+                yearHeader(section)
               }
             }
           } else {
-            dimmed(periodList(filled, allRows: filled, interval: shownInterval), stale)
+            dimmed(periodList(filled, allRows: filled, interval: shownInterval, scope: loaded.scope), stale)
           }
           Text("Money in counts as income and money out as spending, by transaction line. Transfers between your own accounts are left out unless they carry a category.")
             .font(.caption)
             .foregroundStyle(.secondary)
             .padding(.horizontal, 4)
-        } else if loaded != nil, phase != .loading {
+        } else if loaded != nil, settled {
           ReflectMaths.emptyRange(title: "No Income or Spending", systemImage: "chart.bar")
         } else {
           PhasePlaceholder(phase: phase) {
@@ -980,6 +989,14 @@ struct IncomeVsSpendingDetailView: View {
     .task(id: fetchKey) {
       await fetch()
     }
+    // A grouping the new window cannot show falls back for good, so the chip
+    // and the stored choice agree and the old choice does not come back by
+    // surprise when the window shrinks again.
+    .onChange(of: intervalChoices) { _, choices in
+      if !choices.contains(interval) {
+        interval = IncomeVsSpendingMaths.effectiveInterval(interval, allowed: choices)
+      }
+    }
   }
 
   private func totalsCard(_ loaded: Loaded, chronological: [IncomeVsSpendingMaths.PeriodRow]) -> some View {
@@ -987,9 +1004,10 @@ struct IncomeVsSpendingDetailView: View {
     let spending = loaded.report.periods.map { abs($0.spending) }.saturatingSum()
     let net = income - spending
     let saved = IncomeVsSpendingMaths.savingsRateLabel(net: net, income: income)
+    // The filter the figures were fetched under, not the chips' live value.
     let filter = IncomeVsSpendingMaths.filterLine(
-      accountCount: scope.accountIDs.count,
-      categoryCount: scope.categoryIDs.count
+      accountCount: loaded.scope.accountIDs.count,
+      categoryCount: loaded.scope.categoryIDs.count
     )
     var stats = [
       ReportStatRow.Stat(
@@ -1010,7 +1028,7 @@ struct IncomeVsSpendingDetailView: View {
     ]
     // Under a category filter "income" is only that category's refunds, so
     // the ratio says nothing; the filter line below explains the figures.
-    if scope.categoryIDs.isEmpty {
+    if loaded.scope.categoryIDs.isEmpty {
       stats.append(ReportStatRow.Stat(
         label: "Savings rate",
         value: saved,
@@ -1062,11 +1080,12 @@ struct IncomeVsSpendingDetailView: View {
   private func periodList(
     _ rows: [IncomeVsSpendingMaths.PeriodRow],
     allRows: [IncomeVsSpendingMaths.PeriodRow],
-    interval: ReportInterval
+    interval: ReportInterval,
+    scope: ReportScope
   ) -> some View {
     VStack(spacing: 0) {
       ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-        periodRow(row, allRows: allRows, interval: interval)
+        periodRow(row, allRows: allRows, interval: interval, scope: scope)
         if index < rows.count - 1 {
           Divider()
         }
@@ -1079,7 +1098,8 @@ struct IncomeVsSpendingDetailView: View {
   private func periodRow(
     _ row: IncomeVsSpendingMaths.PeriodRow,
     allRows: [IncomeVsSpendingMaths.PeriodRow],
-    interval: ReportInterval
+    interval: ReportInterval,
+    scope: ReportScope
   ) -> some View {
     if row.isEmpty {
       emptyPeriodRow(row, interval: interval)
@@ -1107,7 +1127,8 @@ struct IncomeVsSpendingDetailView: View {
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 10)
-    .accessibilityElement(children: .combine)
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("\(title.spoken), no activity")
   }
 
   private func legendDot(colour: Color, label: String) -> some View {
@@ -1124,6 +1145,7 @@ struct IncomeVsSpendingDetailView: View {
   private func dimmed<Content: View>(_ content: Content, _ stale: Bool) -> some View {
     content
       .opacity(stale ? 0.55 : 1)
+      .allowsHitTesting(!stale)
       .animation(Theme.Motion.standard, value: stale)
   }
 
@@ -1133,6 +1155,8 @@ struct IncomeVsSpendingDetailView: View {
     let interval = effectiveInterval
     let from = range.fromISO
     let to = range.toISO
+    let scope = self.scope
+    let key = fetchKey
     do {
       let next = try await model.apiClient.fetchIncomeVsSpending(
         planID: model.settings.planID,
@@ -1144,7 +1168,7 @@ struct IncomeVsSpendingDetailView: View {
       )
       guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
-        loaded = Loaded(report: next, interval: interval, from: from, to: to)
+        loaded = Loaded(report: next, interval: interval, from: from, to: to, scope: scope, key: key)
         phase = .loaded
       }
     } catch {
