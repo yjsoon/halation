@@ -288,13 +288,23 @@ struct ReflectView: View {
           hasActivity: monthActive
         )
 
-        if !report.periods.isEmpty {
+        // Zero-filled over the twelve months the model asked for, so a month
+        // with no lines keeps its place on the axis.
+        let monthStart = now.startOfMonth()
+        let windowStart = Calendar.current.date(byAdding: .month, value: -11, to: monthStart) ?? monthStart
+        let rows = IncomeVsSpendingMaths.zeroFill(
+          periods: report.periods,
+          interval: .month,
+          from: windowStart.isoDateString,
+          to: now.isoDateString
+        )
+        if !rows.isEmpty {
           PairedColumnChart(
-            pairs: report.periods.map { (Double($0.income), Double(abs($0.spending))) },
-            labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+            pairs: rows.map { (Double($0.income), Double(abs($0.spending))) },
+            labels: LedgerDate.periodAxisLabels(rows.map(\.period)),
             voice: .money(
               "Income and spending",
-              periods: report.periods.map(\.period),
+              periods: rows.map(\.period),
               currencyFormat: model.currencyFormat
             ),
             height: 90

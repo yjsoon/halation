@@ -47,15 +47,69 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
     XCTAssertFalse(IncomeVsSpendingMaths.hasActivity(periods: trailing, matching: "2026"))
   }
 
-  /// Zero income and rates below -100% become an em dash. Ordinary negatives stay.
-  /// The demo YTD path is ~80% saved, so E2E never sees a month like $26.40 in / $525.31 out.
-  func testSavingsRateAndZeroIncomeDash() {
+  /// Only zero income becomes the dash. Overspending stays a negative rate
+  /// however deep it goes, so a month like $26.40 in / $525.31 out is not
+  /// shown the same way as a month with no income at all.
+  func testSavingsRateDashesZeroIncomeOnly() {
     XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: 1_750_000, income: 8_200_000), "21.3%")
     XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: -450_000, income: 3_630_000), "-12.4%")
     XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: -100, income: 0), "—")
     XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: -100, income: 100), "-100.0%")
-    XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: -101, income: 100), "—")
-    XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: 26_400 - 525_310, income: 26_400), "—")
+    XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: -101, income: 100), "-101.0%")
+    XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: -350, income: 100), "-350.0%")
+    XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: 1_750_000, income: 8_200_000), "21% saved")
+    XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: -450_000, income: 3_630_000), "12% overspent")
+    XCTAssertNil(IncomeVsSpendingMaths.savingsPhrase(net: -100, income: 0))
+  }
+
+  /// A row clipped by the range is named by what it covers, not by the whole
+  /// period. Last 12 Months by year used to show a "2025" row that was only
+  /// November and December; a year-to-date header read "1–23 Oct so far".
+  func testClippedPeriodsAreNamedByTheirSpan() {
+    let today = "2026-10-23"
+    let clippedYear = IncomeVsSpendingMaths.PeriodRow(
+      period: "2025", from: "2025-11-01", to: "2025-12-31", income: 1, spending: 0, net: 1, isEmpty: false
+    )
+    XCTAssertEqual(
+      IncomeVsSpendingMaths.periodTitle(clippedYear, interval: .year, today: today),
+      IncomeVsSpendingMaths.PeriodTitle(text: "Nov–Dec 2025", soFar: false)
+    )
+    let currentYear = IncomeVsSpendingMaths.PeriodRow(
+      period: "2026", from: "2026-01-01", to: today, income: 1, spending: 0, net: 1, isEmpty: false
+    )
+    XCTAssertEqual(
+      IncomeVsSpendingMaths.periodTitle(currentYear, interval: .year, today: today),
+      IncomeVsSpendingMaths.PeriodTitle(text: "2026", soFar: true)
+    )
+    XCTAssertEqual(IncomeVsSpendingMaths.inProgressCaption(from: "2026-01-01", to: today), "1 Jan – 23 Oct 2026 so far")
+    let wholeMonth = IncomeVsSpendingMaths.PeriodRow(
+      period: "2026-03", from: "2026-03-01", to: "2026-03-31", income: 1, spending: 0, net: 1, isEmpty: false
+    )
+    XCTAssertEqual(IncomeVsSpendingMaths.periodTitle(wholeMonth, interval: .month, today: today).text, "March 2026")
+    let partialMonth = IncomeVsSpendingMaths.PeriodRow(
+      period: "2026-10", from: "2026-10-15", to: today, income: 1, spending: 0, net: 1, isEmpty: false
+    )
+    XCTAssertEqual(
+      IncomeVsSpendingMaths.periodTitle(partialMonth, interval: .month, today: today),
+      IncomeVsSpendingMaths.PeriodTitle(text: "15–23 Oct 2026", soFar: true)
+    )
+    let week = IncomeVsSpendingMaths.PeriodRow(
+      period: "2025-W52", from: "2025-12-29", to: "2026-01-04", income: 1, spending: 0, net: 1, isEmpty: false
+    )
+    XCTAssertEqual(IncomeVsSpendingMaths.periodTitle(week, interval: .week, today: today).text, "29 Dec 2025 – 4 Jan 2026")
+    XCTAssertEqual(IncomeVsSpendingMaths.spanLabel(from: "2025-11-01", to: "2026-04-30"), "Nov 2025 – Apr 2026")
+    XCTAssertEqual(IncomeVsSpendingMaths.spanLabel(from: "2024-01-01", to: "2026-12-31"), "2024–2026")
+  }
+
+  /// By day over a year is hundreds of periods the paired chart cannot
+  /// draw, so long windows lose the finer groupings and fall back.
+  func testLongWindowsDropDayAndWeekGroupings() {
+    XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: "2026-10-01", to: "2026-10-23"), [.day, .week, .month, .year])
+    XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: "2026-01-01", to: "2026-10-23"), [.week, .month, .year])
+    XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: "2024-01-01", to: "2026-10-23"), [.month, .year])
+    XCTAssertEqual(IncomeVsSpendingMaths.allowedIntervals(from: nil, to: nil), [.month, .year])
+    XCTAssertEqual(IncomeVsSpendingMaths.effectiveInterval(.day, allowed: [.week, .month, .year]), .week)
+    XCTAssertEqual(IncomeVsSpendingMaths.effectiveInterval(.year, allowed: [.month, .year]), .year)
   }
 
   func testZeroFillInsertsEmptyMonthsBetweenFirstAndLastInRange() {

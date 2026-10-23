@@ -42,15 +42,136 @@ enum IncomeVsSpendingMaths {
     row.from ... max(row.from, row.to)
   }
 
+  /// Net as a share of income. The dash means "no income to compare with";
+  /// overspending shows as a negative rate however deep it goes, so a month
+  /// that spent three times its income is not confused with one that had none.
   static func savingsRateLabel(net: Int, income: Int) -> String {
     guard income > 0 else {
       return "—"
     }
     let rate = Double(net) / Double(income)
-    if rate < -1 {
-      return "—"
-    }
     return rate.formatted(.percent.precision(.fractionLength(1)))
+  }
+
+  /// The row-sized phrase for the same ratio: "23% saved", "12% overspent",
+  /// or nil when there was no income.
+  static func savingsPhrase(net: Int, income: Int) -> String? {
+    guard income > 0 else {
+      return nil
+    }
+    let percent = abs(Double(net)) / Double(income) * 100
+    let shown = percent > 0 && percent < 1 ? "< 1%" : "\(Int(percent.rounded()))%"
+    return net < 0 ? "\(shown) overspent" : "\(shown) saved"
+  }
+
+  /// How a period row is named. `soFar` marks the current period so the
+  /// caller can set the suffix in a quieter colour.
+  struct PeriodTitle: Equatable {
+    var text: String
+    var soFar: Bool
+
+    var spoken: String { soFar ? "\(text) so far" : text }
+    var display: String { soFar ? "\(text) · so far" : text }
+  }
+
+  /// Names a row by what it covers. A whole month or year keeps its name; a
+  /// week is always its dates, because week numbers mean nothing to a reader;
+  /// a row clipped by the range (the first two months of a Last 12 Months
+  /// year, a custom range starting mid month) is named by its actual span.
+  static func periodTitle(_ row: PeriodRow, interval: ReportInterval, today: String) -> PeriodTitle {
+    let current = isCurrentPeriod(row.period, interval: interval, today: today)
+    switch interval {
+    case .day:
+      return PeriodTitle(text: LedgerDate.periodLabel(row.period), soFar: false)
+    case .week:
+      return PeriodTitle(text: spanLabel(from: row.from, to: row.to), soFar: current)
+    case .month, .year:
+      let natural = inferredBounds(of: row.period, interval: interval)
+      let startsOnTime = row.from == natural.from
+      let endsOnTime = row.to == natural.to || (current && row.to == today)
+      if startsOnTime, endsOnTime {
+        return PeriodTitle(text: LedgerDate.periodLabel(row.period), soFar: current)
+      }
+      return PeriodTitle(text: spanLabel(from: row.from, to: row.to), soFar: current && row.to == today)
+    }
+  }
+
+  /// A human span for two ISO dates: "23 Oct 2026", "1–23 Oct 2026",
+  /// "1 Jan – 23 Oct 2026", "29 Dec 2025 – 4 Jan 2026"; whole months read
+  /// "Nov–Dec 2025" and whole years "2024–2026".
+  static func spanLabel(from: String, to: String) -> String {
+    guard let start = parseISO(from), let end = parseISO(to) else {
+      return "\(from) – \(to)"
+    }
+    if start == end || from > to {
+      return "\(start.day) \(shortMonthSymbol(start.month)) \(start.year)"
+    }
+    let wholeMonths = start.day == 1 && end.day == daysInMonth(year: end.year, month: end.month)
+    if wholeMonths, start.month == 1, end.month == 12 {
+      return start.year == end.year ? "\(start.year)" : "\(start.year)–\(end.year)"
+    }
+    if wholeMonths {
+      if start.year == end.year, start.month == end.month {
+        return "\(Calendar.current.monthSymbols[start.month - 1]) \(start.year)"
+      }
+      if start.year == end.year {
+        return "\(shortMonthSymbol(start.month))–\(shortMonthSymbol(end.month)) \(start.year)"
+      }
+      return "\(shortMonthSymbol(start.month)) \(start.year) – \(shortMonthSymbol(end.month)) \(end.year)"
+    }
+    if start.year == end.year, start.month == end.month {
+      return "\(start.day)–\(end.day) \(shortMonthSymbol(start.month)) \(start.year)"
+    }
+    if start.year == end.year {
+      return "\(start.day) \(shortMonthSymbol(start.month)) – \(end.day) \(shortMonthSymbol(end.month)) \(start.year)"
+    }
+    return "\(start.day) \(shortMonthSymbol(start.month)) \(start.year) – \(end.day) \(shortMonthSymbol(end.month)) \(end.year)"
+  }
+
+  /// Days in the window, inclusive; nil when it is unbounded (All Time).
+  static func windowDays(from: String?, to: String?) -> Int? {
+    guard let from, let to, let start = parseISO(from), let end = parseISO(to) else {
+      return nil
+    }
+    return civilDay(year: end.year, month: end.month, day: end.day)
+      - civilDay(year: start.year, month: start.month, day: start.day) + 1
+  }
+
+  /// The groupings a window can carry without the chart turning into slivers
+  /// and the list into hundreds of empty rows: days up to about a quarter,
+  /// weeks up to about eighteen months, months and years always.
+  static func allowedIntervals(from: String?, to: String?) -> [ReportInterval] {
+    guard let days = windowDays(from: from, to: to) else {
+      return [.month, .year]
+    }
+    if days <= 92 {
+      return [.day, .week, .month, .year]
+    }
+    if days <= 550 {
+      return [.week, .month, .year]
+    }
+    return [.month, .year]
+  }
+
+  /// The grouping actually used: the user's choice when the window allows it,
+  /// otherwise the finest allowed one.
+  static func effectiveInterval(_ chosen: ReportInterval, allowed: [ReportInterval]) -> ReportInterval {
+    allowed.contains(chosen) ? chosen : (allowed.first ?? .month)
+  }
+
+  /// Where a row leads, for VoiceOver: a day opens its register, the rest a
+  /// period detail.
+  static func rowDestination(interval: ReportInterval) -> String {
+    switch interval {
+    case .day:
+      return "the register for this day"
+    case .week:
+      return "week detail"
+    case .month:
+      return "month detail"
+    case .year:
+      return "year detail"
+    }
   }
 
   static func zeroFill(
@@ -138,43 +259,30 @@ enum IncomeVsSpendingMaths {
     return "Filtered: " + parts.joined(separator: ", ")
   }
 
+  /// "1–23 Oct 2026 so far" under a current period's header. The row's
+  /// figures run to `to`, which the caller has already capped at today.
   static func inProgressCaption(from: String, to: String) -> String {
-    guard let start = parseISO(from), let end = parseISO(to) else {
-      return "\(from)–\(to) so far"
-    }
-    let month = shortMonthSymbol(end.month)
-    return "\(start.day)–\(end.day) \(month) so far"
+    "\(spanLabel(from: from, to: to)) so far"
   }
 
-  static func runningSinceLabel(_ firstPeriod: String, interval: ReportInterval) -> String {
-    switch interval {
-    case .month:
-      if let month = yearMonth(from: firstPeriod) {
-        return "\(shortMonthSymbol(month.month)) \(month.year)"
-      }
-    case .day, .week, .year:
-      break
-    }
-    return LedgerDate.periodLabel(firstPeriod)
+  /// The span a running net covers, from the first row in the window to the
+  /// selected one: "Jan–Apr 2026", "Nov 2025 – Apr 2026", "1 Jan – 23 Oct 2026".
+  static func runningSpanLabel(first: PeriodRow, through selected: PeriodRow) -> String {
+    spanLabel(from: first.from, to: selected.to)
   }
 
-  static func emptyPeriodName(_ key: String, interval: ReportInterval) -> String {
-    if interval == .month, let month = yearMonth(from: key) {
-      return Calendar.current.monthSymbols[month.month - 1]
-    }
-    return LedgerDate.periodLabel(key)
-  }
-
-  static func emptyWindowNoun(_ interval: ReportInterval) -> String {
-    switch interval {
-    case .day:
-      return "this day"
-    case .week:
-      return "this week"
-    case .month:
-      return "this month"
-    case .year:
-      return "this year"
+  /// Past-tense copy for a period with no lines on one side: the period is
+  /// named by its real span, with "so far" when it is still running.
+  static func emptyTabDescription(kind: IncomeSpendingTab, title: PeriodTitle) -> String {
+    switch kind {
+    case .income:
+      return title.soFar
+        ? "Nothing has been added to your accounts in \(title.text) so far."
+        : "Nothing was added to your accounts in \(title.text)."
+    case .spending:
+      return title.soFar
+        ? "Nothing has been spent in \(title.text) so far."
+        : "Nothing was spent in \(title.text)."
     }
   }
 
@@ -189,9 +297,11 @@ enum IncomeVsSpendingMaths {
     income: String,
     spending: String,
     net: String,
-    destination: String = "month detail"
+    savings: String?,
+    destination: String
   ) -> String {
-    "\(period), income \(income), spending \(spending), net \(net). Opens \(destination)."
+    let rate = savings.map { ", \($0)" } ?? ""
+    return "\(period), income \(income), spending \(spending), net \(net)\(rate). Opens \(destination)."
   }
 
   static func enumeratePeriods(from: String, to: String, interval: ReportInterval) -> [(key: String, from: String, to: String)] {
@@ -339,6 +449,17 @@ private extension IncomeVsSpendingMaths {
 
   static func isLeapYear(_ year: Int) -> Bool {
     year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)
+  }
+
+  /// Days since 1970-01-01 for a proleptic Gregorian date (Hinnant's
+  /// days_from_civil), so two ISO dates can be subtracted without a Calendar.
+  static func civilDay(year: Int, month: Int, day: Int) -> Int {
+    let shiftedYear = month <= 2 ? year - 1 : year
+    let era = (shiftedYear >= 0 ? shiftedYear : shiftedYear - 399) / 400
+    let yearOfEra = shiftedYear - era * 400
+    let dayOfYear = (153 * (month + (month > 2 ? -3 : 9)) + 2) / 5 + day - 1
+    let dayOfEra = yearOfEra * 365 + yearOfEra / 4 - yearOfEra / 100 + dayOfYear
+    return era * 146_097 + dayOfEra - 719_468
   }
 
   static func ordinalDay(year: Int, month: Int, day: Int) -> Int {
