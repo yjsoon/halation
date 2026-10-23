@@ -236,15 +236,32 @@ struct ReflectView: View {
 
   @ViewBuilder
   private var netWorthContent: some View {
-    if let report = model.netWorth, let latest = report.periods.last {
-      let assets = latest.accounts.map(\.balance).filter { $0 > 0 }.saturatingSum()
-      let debts = latest.accounts.map(\.balance).filter { $0 < 0 }.saturatingSum()
+    if let report = model.netWorth, let latest = report.periods.last, latest.accounts.isEmpty {
+      Text("No accounts yet.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    } else if let report = model.netWorth, let latest = report.periods.last {
+      let groups = NetWorthMaths.groups(latest.accounts)
+      let assets = groups.first { $0.kind == .assets }?.total ?? 0
+      let debts = groups.first { $0.kind == .debts }?.total ?? 0
+      let previous = report.periods.dropLast().last
+      let change = previous.flatMap { NetWorthMaths.change(from: $0.netWorth, to: latest.netWorth) }
       VStack(alignment: .leading, spacing: 12) {
-        Text(MoneyCodec.displayString(for: latest.netWorth, currencyFormat: model.currencyFormat))
-          .font(.title.weight(.medium))
-          .monospacedDigit()
-          .foregroundStyle(Theme.textPrimary)
-          .rollingNumber(latest.netWorth)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(MoneyCodec.displayString(for: latest.netWorth, currencyFormat: model.currencyFormat))
+            .font(.title.weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(Theme.textPrimary)
+            .rollingNumber(latest.netWorth)
+          if let previous, let change {
+            Text("\(MoneyCodec.signedDisplayString(for: change, currencyFormat: model.currencyFormat)) since \(LedgerDate.shortDateString(fromISO: previous.endDate))")
+              .font(.caption)
+              .monospacedDigit()
+              .foregroundStyle(Theme.signedReportColour(change))
+              .rollingNumber(change)
+          }
+        }
 
         HStack {
           Text("Assets")
@@ -265,11 +282,15 @@ struct ReflectView: View {
         }
         .font(.subheadline)
 
-        ColumnChart(
-          values: report.periods.map { Double($0.netWorth) },
-          labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
-          voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat)
-        )
+        if report.periods.count > 1 {
+          TrendChart(
+            values: report.periods.map { Double($0.netWorth) },
+            labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+            voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+            axisLabel: { NetWorthMaths.axisLabel($0, step: $1, currencyFormat: model.currencyFormat) },
+            minimumSpan: 1000
+          )
+        }
       }
     }
   }
@@ -462,7 +483,7 @@ extension ChartVoice {
   /// The same, with the spoken period names already chosen.
   static func money(_ name: String, periodNames: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
     ChartVoice(name: name, unit: "Amount", periodNames: periodNames) {
-      MoneyCodec.displayString(for: Int($0.rounded()), currencyFormat: currencyFormat)
+      MoneyCodec.displayString(for: NetWorthMaths.milliunits($0), currencyFormat: currencyFormat)
     }
   }
 

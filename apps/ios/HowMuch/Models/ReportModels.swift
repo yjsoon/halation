@@ -145,11 +145,14 @@ struct NetWorthAccount: Codable, Identifiable {
   let accountID: String
   let accountName: String
   let balance: Int
+  /// Absent in report snapshots saved before closed accounts were requested.
+  var closed: Bool? = nil
 
   private enum CodingKeys: String, CodingKey {
     case accountID = "accountId"
     case accountName = "accountName"
     case balance
+    case closed
   }
 }
 
