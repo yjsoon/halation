@@ -172,7 +172,14 @@ struct IncomeVsSpendingPeriodRow: View {
         // net column room beside them, so the row stacks instead.
         if dynamicTypeSize >= .xxLarge {
           VStack(alignment: .leading, spacing: 8) {
-            titleText(title)
+            HStack(alignment: .firstTextBaseline) {
+              titleText(title)
+              Spacer(minLength: 8)
+              Image(systemName: "chevron.forward")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
+                .accessibilityHidden(true)
+            }
             netColumn(netText, savings: savings, alignment: .leading)
             bar(row.income, text: incomeText, colour: Theme.inflow, fullWidth: true)
             bar(row.spending, text: spendingText, colour: Theme.outflow, fullWidth: true)
@@ -236,8 +243,8 @@ struct IncomeVsSpendingPeriodRow: View {
     }
   }
 
-  /// A bar on the list's shared scale with its amount at the end. Colour
-  /// says which side; the totals card's legend names them once.
+  /// A bar on the list's shared scale with its amount beside or above it.
+  /// Colour says which side; the totals card's legend names them once.
   @ViewBuilder
   private func bar(_ amount: Int, text: String, colour: Color, fullWidth: Bool) -> some View {
     // The meter keeps one width on every row so bars compare down the list;

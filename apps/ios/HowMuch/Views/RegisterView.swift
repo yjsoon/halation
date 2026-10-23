@@ -1294,19 +1294,11 @@ struct RegisterView: View {
     }
     let query = searchQuery
     return accountSchedules.filter { schedule in
-      if let categoryID,
-         schedule.categoryID != categoryID,
-         !schedule.activeSubtransactions.contains(where: { $0.categoryID == categoryID }) {
+      if let categoryID, !Self.scheduleMatchesCategory(schedule, categoryID: categoryID) {
         return false
       }
       if let categoryIDs, !categoryIDs.isEmpty,
-         !categoryIDs.contains(where: { wanted in
-           if wanted == CategoryGroup.uncategorisedCategoryID {
-             return schedule.categoryID == nil
-           }
-           return schedule.categoryID == wanted
-             || schedule.activeSubtransactions.contains(where: { $0.categoryID == wanted })
-         }) {
+         !categoryIDs.contains(where: { Self.scheduleMatchesCategory(schedule, categoryID: $0) }) {
         return false
       }
       if let dateRange, !dateRange.contains(schedule.dateNext) {
@@ -1314,6 +1306,21 @@ struct RegisterView: View {
       }
       return scheduleMatchesSearch(schedule, query: query)
     }
+  }
+
+  /// A schedule's category, read as the report reads a transaction's: the
+  /// parent or any live line. "Uncategorised" means a line with neither a
+  /// category nor a transfer; a plain transfer is a transfer, not a gap.
+  private static func scheduleMatchesCategory(_ schedule: ScheduledTransaction, categoryID: String) -> Bool {
+    let lines = schedule.activeSubtransactions
+    if categoryID == CategoryGroup.uncategorisedCategoryID {
+      guard schedule.categoryID == nil else { return false }
+      if lines.isEmpty {
+        return schedule.transferAccountID == nil
+      }
+      return lines.contains { $0.categoryID == nil && $0.transferAccountID == nil }
+    }
+    return schedule.categoryID == categoryID || lines.contains { $0.categoryID == categoryID }
   }
 
   private func scheduleMatchesSearch(_ schedule: ScheduledTransaction, query: RegisterQuery?) -> Bool {
