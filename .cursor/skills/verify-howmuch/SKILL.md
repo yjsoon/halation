@@ -1,6 +1,6 @@
 ---
 name: verify-howmuch
-description: Drive HowMuch in a real browser (web ledger) and, for capture/intake/Shortcuts, in the iOS Simulator against an isolated local Bun/SQLite stack. Use when proving user-facing behaviour (first-owner setup, Insights, register, quick entry, schedules, tokens, iOS Add Transaction, typed intake, App Intents) or after changing apps/web, apps/ios, the local API, or auth.
+description: Drive HowMuch in a real browser (web ledger) and, for capture/intake/Shortcuts, in the iOS Simulator against an isolated local Bun/SQLite stack. Use when proving user-facing behaviour (first-owner setup, reports, register, quick entry, schedules, tokens, iOS Add Transaction, typed intake, App Intents) or after changing apps/web, apps/ios, the local API, or auth.
 ---
 
 # Verify HowMuch

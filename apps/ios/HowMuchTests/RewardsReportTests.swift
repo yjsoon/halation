@@ -878,7 +878,7 @@ final class RewardsSnapshotTests: XCTestCase {
       "merged Add control must not sit on Edit Rewards: \(bottom.text)"
     )
     XCTAssertFalse(
-      bottom.text.contains("reflect"),
+      bottom.text.contains("insights"),
       "merged destination pill must not sit on Edit Rewards: \(bottom.text)"
     )
     let hidden = await surface.waitUntil {

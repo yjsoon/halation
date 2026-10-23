@@ -394,7 +394,7 @@ final class IPadLayoutTests: XCTestCase {
       accuracy: 18,
       "Assistant must pin above Add"
     )
-    for label in ["Accounts", "Rewards", "Reflect"] {
+    for label in ["Accounts", "Rewards", "Insights"] {
       guard let destination = surface.tabRowControl(label: label) ?? surface.firstControl(label: label) else {
         XCTFail("compact root missing \(label)")
         continue
