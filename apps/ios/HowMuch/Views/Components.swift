@@ -1482,12 +1482,18 @@ private struct ChartAxisLabels: View {
     HStack(alignment: .top, spacing: spacing) {
       ForEach(labels.indices, id: \.self) { index in
         let isVisible = visible.contains(index)
-        Text(isVisible ? labels[index] : " ")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-          .minimumScaleFactor(0.65)
-          .frame(maxWidth: .infinity)
+        // The label overlays its cell rather than filling it: a weekly run
+        // gives each of fifty-odd cells a few points, which would cut "W42"
+        // to "W", and the shown labels are several cells apart anyway.
+        Color.clear
+          .frame(maxWidth: .infinity, minHeight: 1)
+          .overlay {
+            Text(isVisible ? labels[index] : " ")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .fixedSize()
+          }
           .accessibilityHidden(!isVisible)
       }
     }
