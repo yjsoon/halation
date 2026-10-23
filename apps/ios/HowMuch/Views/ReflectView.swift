@@ -539,7 +539,7 @@ struct MonthToDate: Equatable {
   /// Spending on each day from the 1st to today, in milliunits.
   let daily: [Int]
 
-  init?(_ spending: DailySpending, includeQuiet: Bool, now: Date, calendar: Calendar = .current) {
+  init?(_ spending: DailySpending, includeQuiet: Bool, now: Date, calendar: Calendar = LedgerDate.gregorian) {
     // The app can stay open into a new month without a refetch; last
     // month's days would read as nothing spent, so the card drops the
     // summary and shows only the fetched month's breakdown until then.
@@ -549,8 +549,8 @@ struct MonthToDate: Equatable {
     let all = Self.byDate(spending.all)
     let quiet = includeQuiet ? [:] : spending.quiet.map(Self.byDate) ?? [:]
     // Walk the same dates the overview requested, from this calendar's month
-    // start, and key them as the server does (ISO dates). The device calendar
-    // need not be Gregorian, so its day numbers are not ISO day numbers.
+    // start, and key them as the server does (ISO dates). The month is the
+    // Gregorian one the overview fetched, whatever calendar the device uses.
     var amounts: [Int] = []
     var date = now.startOfMonth(calendar: calendar)
     while date <= now, amounts.count < days {
@@ -608,7 +608,7 @@ struct MonthToDateSummary: View {
     MoneyCodec.displayString(for: milliunits, currencyFormat: currencyFormat)
   }
 
-  private var monthName: String { now.formatted(.dateTime.month(.wide)) }
+  private var monthName: String { IncomeVsSpendingMaths.monthName(from: now) }
 
   /// Values move under their labels from xxLarge text, where a label and
   /// its value no longer fit side by side on a phone.

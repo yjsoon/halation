@@ -1495,7 +1495,8 @@ private struct ChartAxisLabels: View {
 
   /// About twelve ticks. If a window contains a year-bearing label
   /// (`Jan 26`), show that rather than the window start, so All Time
-  /// does not drop the year boundary.
+  /// does not drop the year boundary; failing that, a named label (a
+  /// month among weekly day numbers) beats a bare number.
   private var visibleIndices: Set<Int> {
     let count = labels.count
     guard count > 0 else { return [] }
@@ -1503,12 +1504,11 @@ private struct ChartAxisLabels: View {
     var visible: Set<Int> = [count - 1]
     var start = 0
     while start < count {
-      let end = min(start + stride, count)
-      if let yearTick = (start ..< end).first(where: carriesYear) {
-        visible.insert(yearTick)
-      } else {
-        visible.insert(start)
-      }
+      let window = start ..< min(start + stride, count)
+      let tick = window.first(where: carriesYear)
+        ?? window.first(where: isNamed)
+        ?? start
+      visible.insert(tick)
       start += stride
     }
     return visible
@@ -1516,6 +1516,10 @@ private struct ChartAxisLabels: View {
 
   private func carriesYear(_ index: Int) -> Bool {
     labels[index].range(of: #"\s\d{2}$"#, options: .regularExpression) != nil
+  }
+
+  private func isNamed(_ index: Int) -> Bool {
+    Int(labels[index]) == nil
   }
 }
 
