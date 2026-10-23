@@ -224,39 +224,51 @@ enum MoneyCodec {
   }
 
   /// Short money for a chart's value axis: "$579k", "$1.2M", "-$850". Keeps
-  /// the plan's symbol on its side and drops the minor units; a tick only
-  /// has to say what scale the chart is on.
-  static func compactDisplayString(for milliunits: Int, currencyFormat: CurrencyFormat?) -> String {
+  /// the plan's symbol on its side. `resolution` is the smallest difference
+  /// the axis has to tell apart (its tick step), so two ticks never read the
+  /// same: at a step of $200, 564,246 and 564,046 are "$564.2k" and "$564.0k".
+  static func compactDisplayString(
+    for milliunits: Int,
+    resolution: Int = 0,
+    currencyFormat: CurrencyFormat?
+  ) -> String {
     let units = abs(Double(milliunits)) / 1000
     let steps: [(limit: Double, divisor: Double, suffix: String)] = [
       (1_000_000_000, 1_000_000_000, "B"),
       (1_000_000, 1_000_000, "M"),
       (1_000, 1_000, "k"),
     ]
-    var number = String(Int(units.rounded()))
-    for step in steps where units >= step.limit {
-      let scaled = units / step.divisor
-      // One decimal under ten ("1.2M"), none above ("579k"); a value that
-      // rounds up to the next step reads as that step ("1000k" is "1M").
-      let digits = scaled < 10 ? 1 : 0
-      let factor = pow(10, Double(digits))
-      let rounded = (scaled * factor).rounded() / factor
-      if rounded >= 1000, let next = steps.first(where: { $0.divisor == step.divisor * 1000 }) {
-        number = "1" + next.suffix
-      } else {
-        var text = String(format: "%.\(digits)f", rounded)
-        if let separator = currencyFormat?.decimalSeparator, separator != "." {
-          text = text.replacingOccurrences(of: ".", with: separator)
-        }
-        number = text + step.suffix
+    let step = steps.first { units >= $0.limit }
+    let divisor = step?.divisor ?? 1
+    let scaled = units / divisor
+    let fineness = Double(abs(resolution)) / 1000 / divisor
+    var digits = 0
+    if fineness > 0 {
+      digits = max(0, Int(ceil(-log10(fineness))))
+    } else if step != nil, scaled < 10 {
+      // No step given: one decimal under ten ("1.2M"), none above ("579k").
+      digits = 1
+    }
+    digits = min(digits, 2)
+    let factor = pow(10, Double(digits))
+    let rounded = (scaled * factor).rounded() / factor
+
+    var number: String
+    if let step, rounded >= 1000, let next = steps.first(where: { $0.divisor == step.divisor * 1000 }) {
+      // A value that rounds up to the next step reads as that step, not "1000k".
+      number = "1" + next.suffix
+    } else {
+      number = String(format: "%.\(digits)f", rounded)
+      if let separator = currencyFormat?.decimalSeparator, separator != "." {
+        number = number.replacingOccurrences(of: ".", with: separator)
       }
-      break
+      number += step?.suffix ?? ""
     }
     let showsSymbol = currencyFormat?.displaySymbol ?? true
     let symbol = showsSymbol ? (currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$") : ""
     let symbolFirst = currencyFormat?.symbolFirst ?? true
     let body = symbolFirst ? symbol + number : number + symbol
-    return milliunits < 0 ? "-" + body : body
+    return milliunits < 0 && rounded > 0 ? "-" + body : body
   }
 }
 
@@ -319,6 +331,22 @@ enum LedgerDate {
       return "Yesterday"
     }
     return display.string(from: date)
+  }
+
+  /// "30 Sep 2026" from an ISO date, for a date inside a sentence.
+  static func shortDateString(fromISO isoDate: String) -> String {
+    guard let date = parser.date(from: isoDate) else {
+      return isoDate
+    }
+    return shortDisplay.string(from: date)
+  }
+
+  /// "23 Oct" from an ISO date, for a day the surrounding text already dates.
+  static func dayMonthString(fromISO isoDate: String) -> String {
+    guard let date = parser.date(from: isoDate) else {
+      return isoDate
+    }
+    return dayMonthDisplay.string(from: date)
   }
 
   /// Human label for a report period key: `2026-06-10`, `2026-W23`, `2026-06`, or `2026`.
@@ -399,6 +427,18 @@ enum LedgerDate {
   private static let display: DateFormatter = {
     let formatter = DateFormatter()
     formatter.dateFormat = "EEE d MMM yyyy"
+    return formatter
+  }()
+
+  private static let shortDisplay: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "d MMM yyyy"
+    return formatter
+  }()
+
+  private static let dayMonthDisplay: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.dateFormat = "d MMM"
     return formatter
   }()
 

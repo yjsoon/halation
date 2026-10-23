@@ -738,9 +738,10 @@ enum NetWorthMaths {
     return groups
   }
 
-  /// How much is owed, as a positive figure for a "Debts" label.
-  static func owed(_ debts: Int) -> Int {
-    debts == Int.min ? Int.max : abs(debts)
+  /// The accounts worth a row. Closed accounts stay in the series for the
+  /// periods they held a balance, but a settled one has nothing to list.
+  static func listed(_ accounts: [NetWorthAccount]) -> [NetWorthAccount] {
+    accounts.filter { $0.closed != true || $0.balance != 0 }
   }
 
   /// `latest - earlier`, or nil when the difference would overflow.
@@ -764,15 +765,36 @@ enum NetWorthMaths {
     return fraction > 0 ? "+\(label)" : label
   }
 
-  /// The last period runs only to today when the window ends today, so its
-  /// figure is still moving, like Income vs Spending's "so far" rows.
-  static func isPartial(_ period: NetWorthPeriod, today: String) -> Bool {
-    period.endDate == today
+  /// True when a month or year period was cut short by the window's end, so
+  /// its figure is a balance part-way through, not the period's close.
+  /// Weekly rows name their end date instead, and a day is never partial.
+  static func isPartial(_ period: NetWorthPeriod, interval: ReportInterval) -> Bool {
+    guard let end = Date(isoDateString: period.endDate) else {
+      return false
+    }
+    switch interval {
+    case .month:
+      return period.endDate != end.endOfMonth().isoDateString
+    case .year:
+      return !period.endDate.hasSuffix("-12-31")
+    case .week, .day:
+      return false
+    }
+  }
+
+  /// "October 2026", "October 2026 · to 23 Oct", "Week to 18 Oct 2026".
+  static func historyTitle(_ period: NetWorthPeriod, interval: ReportInterval) -> (title: String, note: String?) {
+    if interval == .week {
+      return ("Week to \(LedgerDate.shortDateString(fromISO: period.endDate))", nil)
+    }
+    let title = LedgerDate.periodLabel(period.period)
+    return (title, isPartial(period, interval: interval) ? "to \(LedgerDate.dayMonthString(fromISO: period.endDate))" : nil)
   }
 }
 
 struct NetWorthDetailView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var range = ReportRange(mode: .preset, preset: .lastTwelveMonths)
   @State private var scope = ReportScope()
   @State private var interval: ReportInterval = .month
@@ -781,14 +803,17 @@ struct NetWorthDetailView: View {
   @State private var fetchGate = ReportFetchGate()
 
   var body: some View {
+    let today = Date.now.isoDateString
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         ReportFilterBar(range: $range, interval: $interval, intervalChoices: [.week, .month, .year], scope: $scope)
 
-        if let report, let latest = report.periods.last {
+        if let report, let latest = report.periods.last, !latest.accounts.isEmpty {
           headlineCard(report: report, latest: latest)
 
-          Text("Accounts")
+          Text(latest.endDate == today
+            ? "Accounts"
+            : "Accounts · as at \(LedgerDate.shortDateString(fromISO: latest.endDate))")
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 4)
@@ -799,6 +824,14 @@ struct NetWorthDetailView: View {
             .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 4)
           historyCard(report: report)
+        } else if let report, !report.periods.isEmpty {
+          // Every period carries the same accounts, so none in the latest
+          // means none at all: an empty ledger, not an empty window.
+          ContentUnavailableView(
+            "No Accounts Yet",
+            systemImage: "building.columns",
+            description: Text("Net worth adds up your account balances. Add an account to start a history.")
+          )
         } else if report != nil, phase != .loading {
           ReflectMaths.emptyRange(title: "No Net Worth History", systemImage: "chart.bar")
         } else {
@@ -842,7 +875,7 @@ struct NetWorthDetailView: View {
         .foregroundStyle(Theme.textPrimary)
         .rollingNumber(latest.netWorth)
       if let previous, let change {
-        Text("\(MoneyCodec.signedDisplayString(for: change, currencyFormat: model.currencyFormat)) since \(LedgerDate.friendlyString(fromISO: previous.endDate))")
+        Text("\(MoneyCodec.signedDisplayString(for: change, currencyFormat: model.currencyFormat)) since \(LedgerDate.shortDateString(fromISO: previous.endDate))")
           .font(.footnote.weight(.medium))
           .monospacedDigit()
           .foregroundStyle(Theme.signedReportColour(change))
@@ -863,24 +896,27 @@ struct NetWorthDetailView: View {
           Text("Debts")
             .font(.caption)
             .foregroundStyle(Theme.outflow)
-          // Owed, so shown as how much, not as a negative under a "Debts" label.
-          Text(MoneyCodec.displayString(for: NetWorthMaths.owed(debts), currencyFormat: model.currencyFormat))
+          Text(MoneyCodec.displayString(for: debts, currencyFormat: model.currencyFormat))
             .font(.subheadline.weight(.semibold))
             .monospacedDigit()
             .foregroundStyle(Theme.textPrimary)
-            .rollingNumber(NetWorthMaths.owed(debts))
+            .rollingNumber(debts)
         }
       }
       TrendChart(
         values: report.periods.map { Double($0.netWorth) },
         labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
         voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
-        axisLabel: { MoneyCodec.compactDisplayString(for: Int($0.rounded()), currencyFormat: model.currencyFormat) },
+        axisLabel: { value, step in
+          MoneyCodec.compactDisplayString(
+            for: Int(value.rounded()), resolution: Int(step.rounded()), currencyFormat: model.currencyFormat
+          )
+        },
         height: 120
       )
       if let first, let windowChange {
         let percent = windowPercent.map { " (\(NetWorthMaths.percentLabel($0)))" } ?? ""
-        Text("\(MoneyCodec.signedDisplayString(for: windowChange, currencyFormat: model.currencyFormat))\(percent) since \(LedgerDate.friendlyString(fromISO: first.endDate))")
+        Text("\(MoneyCodec.signedDisplayString(for: windowChange, currencyFormat: model.currencyFormat))\(percent) since \(LedgerDate.shortDateString(fromISO: first.endDate))")
           .font(.caption)
           .monospacedDigit()
           .foregroundStyle(.secondary)
@@ -892,17 +928,8 @@ struct NetWorthDetailView: View {
   }
 
   private func accountsCard(latest: NetWorthPeriod) -> some View {
-    let groups = NetWorthMaths.groups(latest.accounts)
+    let groups = NetWorthMaths.groups(NetWorthMaths.listed(latest.accounts))
     return VStack(spacing: 0) {
-      if groups.isEmpty {
-        Text(scope.isActive
-          ? "None of the chosen accounts count towards net worth."
-          : "No accounts are included in net worth yet.")
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(16)
-      }
       ForEach(groups) { group in
         accountGroupHeader(group)
         ForEach(group.accounts.enumerated(), id: \.element.id) { index, account in
@@ -927,7 +954,7 @@ struct NetWorthDetailView: View {
         .foregroundStyle(colour)
       Spacer()
       if group.kind != .empty {
-        Text(MoneyCodec.displayString(for: NetWorthMaths.owed(group.total), currencyFormat: model.currencyFormat))
+        Text(MoneyCodec.displayString(for: group.total, currencyFormat: model.currencyFormat))
           .monospacedDigit()
           .foregroundStyle(Theme.textPrimary)
       }
@@ -941,7 +968,7 @@ struct NetWorthDetailView: View {
   }
 
   /// Each row opens the account's register when the account is known here;
-  /// a filtered-out or long-closed one still lists, just without the link.
+  /// a closed one still lists while it holds a balance, without the link.
   @ViewBuilder
   private func accountLink(_ account: NetWorthAccount) -> some View {
     if model.accounts.contains(where: { $0.id == account.accountID }) {
@@ -957,16 +984,28 @@ struct NetWorthDetailView: View {
   }
 
   private func accountRow(_ account: NetWorthAccount, linked: Bool) -> some View {
-    HStack {
-      Text(account.accountName)
-        .font(.subheadline)
-        .foregroundStyle(Theme.textPrimary)
-      Spacer()
-      Text(MoneyCodec.displayString(for: account.balance, currencyFormat: model.currencyFormat))
-        .font(.subheadline)
-        .monospacedDigit()
-        .foregroundStyle(account.balance == 0 ? .secondary : Theme.amountColour(account.balance))
+    let balance = Text(MoneyCodec.displayString(for: account.balance, currencyFormat: model.currencyFormat))
+      .font(.subheadline)
+      .monospacedDigit()
+      .foregroundStyle(account.balance == 0 ? .secondary : Theme.amountColour(account.balance))
+    let name = Text(account.accountName)
+      .font(.subheadline)
+      .foregroundStyle(Theme.textPrimary)
+    return HStack {
+      if dynamicTypeSize.isAccessibilitySize {
+        VStack(alignment: .leading, spacing: 2) {
+          name
+          balance
+        }
+      } else {
+        name
+        Spacer()
+        balance
+      }
       if linked {
+        if dynamicTypeSize.isAccessibilitySize {
+          Spacer()
+        }
         Image(systemName: "chevron.forward")
           .font(.footnote.weight(.semibold))
           .foregroundStyle(.tertiary)
@@ -976,42 +1015,59 @@ struct NetWorthDetailView: View {
     .padding(.horizontal, 16)
     .padding(.vertical, 11)
     .contentShape(Rectangle())
+    .accessibilityElement(children: .combine)
   }
 
   private func historyCard(report: NetWorthReport) -> some View {
     let periods = Array(report.periods.reversed())
-    let today = Date.now.isoDateString
     return VStack(spacing: 0) {
       ForEach(periods.enumerated(), id: \.element.id) { index, period in
         let prior = index + 1 < periods.count ? periods[index + 1] : nil
         let delta = prior.flatMap { NetWorthMaths.change(from: $0.netWorth, to: period.netWorth) }
-        let partial = NetWorthMaths.isPartial(period, today: today)
-        HStack {
-          (Text(LedgerDate.periodLabel(period.period)).foregroundStyle(Theme.textPrimary)
-            + (partial ? Text(" · so far").foregroundStyle(.secondary) : Text("")))
-            .font(.subheadline)
-          Spacer()
-          VStack(alignment: .trailing, spacing: 2) {
-            Text(MoneyCodec.displayString(for: period.netWorth, currencyFormat: model.currencyFormat))
-              .font(.subheadline.weight(.medium))
-              .monospacedDigit()
-              .foregroundStyle(Theme.textPrimary)
-            if let delta {
-              Text(MoneyCodec.signedDisplayString(for: delta, currencyFormat: model.currencyFormat))
-                .font(.caption)
-                .monospacedDigit()
-                .foregroundStyle(Theme.signedReportColour(delta))
-            }
-          }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
+        historyRow(period, delta: delta)
         if index < periods.count - 1 {
           Divider().padding(.leading, 16)
         }
       }
     }
     .ynabCard()
+  }
+
+  private func historyRow(_ period: NetWorthPeriod, delta: Int?) -> some View {
+    let heading = NetWorthMaths.historyTitle(period, interval: interval)
+    let title = (Text(heading.title).foregroundStyle(Theme.textPrimary)
+      + (heading.note.map { Text(" · \($0)").foregroundStyle(.secondary) } ?? Text("")))
+      .font(.subheadline)
+    let figures = VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
+      Text(MoneyCodec.displayString(for: period.netWorth, currencyFormat: model.currencyFormat))
+        .font(.subheadline.weight(.medium))
+        .monospacedDigit()
+        .foregroundStyle(Theme.textPrimary)
+      if let delta {
+        Text(MoneyCodec.signedDisplayString(for: delta, currencyFormat: model.currencyFormat))
+          .font(.caption)
+          .monospacedDigit()
+          .foregroundStyle(Theme.signedReportColour(delta))
+      }
+    }
+    return Group {
+      if dynamicTypeSize.isAccessibilitySize {
+        VStack(alignment: .leading, spacing: 4) {
+          title
+          figures
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      } else {
+        HStack {
+          title
+          Spacer()
+          figures
+        }
+      }
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 11)
+    .accessibilityElement(children: .combine)
   }
 
   private func fetch() async {
@@ -1021,9 +1077,12 @@ struct NetWorthDetailView: View {
       let next = try await model.apiClient.fetchNetWorth(
         planID: model.settings.planID,
         from: range.fromISO,
-        to: range.toISO,
+        // All Time sends no end date; the server would fill in today in UTC,
+        // which in Singapore is yesterday until 8am.
+        to: range.toISO ?? Date.now.isoDateString,
         interval: interval,
-        accountIDs: Array(scope.accountIDs)
+        accountIDs: Array(scope.accountIDs),
+        includeClosedAccounts: true
       )
       guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {

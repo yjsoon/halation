@@ -1630,66 +1630,94 @@ struct Sparkline: View {
 
 /// Line chart for a level that moves a little against a large base, such as
 /// net worth. Columns from zero would draw a year of small gains as twelve
-/// equal bars, so the value axis is fitted around the series' own low and
-/// high instead, and both are labelled so the scale is never hidden. A dashed
+/// equal bars, so the value axis is fitted around the series' own range
+/// instead, with both ends labelled so the scale is never hidden. A dashed
 /// zero line appears when the series crosses zero. Points sit at the centre
 /// of each period's cell, so the shared axis labels line up underneath.
 struct TrendChart: View {
+  struct Axis: Equatable {
+    let low: Double
+    let high: Double
+    /// The round number the ends were snapped to; a tick label's resolution.
+    let step: Double
+
+    var range: ClosedRange<Double> {
+      low ... high
+    }
+  }
+
   let values: [Double]
   var labels: [String] = []
   let voice: ChartVoice
-  /// Short label for a value on the value axis, such as compact money.
-  let axisLabel: (Double) -> String
+  /// Short label for a tick, given its value and the axis step.
+  let axisLabel: (_ value: Double, _ step: Double) -> String
   var colour: Color = Theme.accent
   var height: CGFloat = 90
 
   @State private var progress: CGFloat = 0
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-  /// The value axis: the series' range padded a little at each end, but
-  /// never padded past zero when every value is on one side of it.
-  static func domain(for values: [Double]) -> ClosedRange<Double> {
+  /// The value axis: fitted around the series so its movement shows, but
+  /// never tighter than a twentieth of the largest value, so a few dollars'
+  /// wobble on a six-figure net worth does not fill the plot. It takes in
+  /// zero when the series is within one span of it, and its ends sit on
+  /// round numbers for the ticks.
+  static func axis(for values: [Double]) -> Axis {
     guard let lowest = values.min(), let highest = values.max() else {
-      return 0 ... 1
+      return Axis(low: 0, high: 1, step: 1)
     }
-    let span = highest > lowest ? highest - lowest : max(abs(highest) * 0.1, 1)
-    let pad = span * 0.12
+    let largest = max(abs(lowest), abs(highest))
+    let span = max(highest - lowest, largest * 0.05, 1)
+    let pad = span * 0.1
     var low = lowest - pad
     var high = highest + pad
     if lowest >= 0 {
-      low = max(low, 0)
+      low = lowest < span ? 0 : max(low, 0)
     }
     if highest <= 0 {
-      high = min(high, 0)
+      high = highest > -span ? 0 : min(high, 0)
     }
-    return low ... high
+    let step = niceStep((high - low) / 5)
+    low = (low / step).rounded(.down) * step
+    high = (high / step).rounded(.up) * step
+    if high <= low {
+      high = low + step
+    }
+    return Axis(low: low, high: high, step: step)
+  }
+
+  /// 1, 2 or 5 times a power of ten, at or above `raw`.
+  static func niceStep(_ raw: Double) -> Double {
+    guard raw > 0, raw.isFinite else {
+      return 1
+    }
+    let base = pow(10, floor(log10(raw)))
+    let fraction = raw / base
+    let nice: Double = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10
+    return nice * base
   }
 
   var body: some View {
-    let domain = Self.domain(for: values)
-    let lowest = values.min() ?? 0
-    let highest = values.max() ?? 0
-    let crossesZero = lowest < 0 && highest > 0
-    let ticks = [axisLabel(highest), axisLabel(lowest)]
+    let axis = Self.axis(for: values)
+    let crossesZero = axis.low < 0 && axis.high > 0
+    let ticks = [axisLabel(axis.high, axis.step), axisLabel(axis.low, axis.step)]
     let widestTick = ticks.max { $0.count < $1.count } ?? ""
 
     VStack(spacing: 6) {
       HStack(alignment: .top, spacing: 8) {
-        plot(domain: domain, crossesZero: crossesZero)
+        plot(axis: axis, crossesZero: crossesZero)
           .frame(height: height)
-        ZStack(alignment: .topTrailing) {
-          // Size the column by its widest tick and fill the plot's height, so
-          // each tick's offset from the top lands on its gridline.
-          tickText(widestTick)
-            .hidden()
-          Color.clear
-            .frame(width: 1, height: height)
-          axisTick(highest, domain: domain)
-          if highest > lowest {
-            axisTick(lowest, domain: domain)
-          }
+        // The ticks sit on the plot's top and bottom gridlines; the hidden
+        // widest tick keeps the column one width whichever end is longer.
+        VStack(alignment: .trailing, spacing: 0) {
+          tickText(ticks[0])
+            .foregroundStyle(.secondary)
+          Spacer(minLength: 0)
+          tickText(ticks[1])
+            .foregroundStyle(.secondary)
         }
         .frame(height: height)
+        .overlay(tickText(widestTick).hidden())
         .accessibilityHidden(true)
       }
 
@@ -1703,31 +1731,41 @@ struct TrendChart: View {
     }
     .chartVoice(
       voice,
-      summary: ChartSpeech.summary(names: voice.periodNames, values: values, describe: voice.describe),
+      summary: summary,
       series: [(name: voice.name, values: values)],
-      isContinuous: true
+      isContinuous: true,
+      valueRange: axis.range
     )
   }
 
-  private func plot(domain: ClosedRange<Double>, crossesZero: Bool) -> some View {
+  /// Leads with the change across the window, which is what the line shows,
+  /// then the shared range, latest and extremes.
+  private var summary: String {
+    let shared = ChartSpeech.summary(names: voice.periodNames, values: values, describe: voice.describe)
+    guard let first = values.first, let last = values.last, values.count > 1 else {
+      return shared
+    }
+    let change = last - first
+    let direction = change > 0 ? "Up" : change < 0 ? "Down" : "Unchanged"
+    let amount = change == 0 ? "" : " \(voice.describe(abs(change)))"
+    return "\(direction)\(amount) over the window. \(shared)"
+  }
+
+  private func plot(axis: Axis, crossesZero: Bool) -> some View {
     GeometryReader { proxy in
       let size = proxy.size
       let points = values.enumerated().map { index, value in
         CGPoint(
           x: size.width * (CGFloat(index) + 0.5) / CGFloat(values.count),
-          y: y(for: value, in: domain, height: size.height)
+          y: y(for: value, axis: axis, height: size.height)
         )
       }
       ZStack(alignment: .topLeading) {
-        if let highest = values.max(), let lowest = values.min() {
-          gridline(at: y(for: highest, in: domain, height: size.height), width: size.width)
-          if highest > lowest {
-            gridline(at: y(for: lowest, in: domain, height: size.height), width: size.width)
-          }
-        }
+        gridline(at: 0.5, width: size.width)
+        gridline(at: size.height - 0.5, width: size.width)
         if crossesZero {
           Path { path in
-            let zero = y(for: 0, in: domain, height: size.height)
+            let zero = y(for: 0, axis: axis, height: size.height)
             path.move(to: CGPoint(x: 0, y: zero))
             path.addLine(to: CGPoint(x: size.width, y: zero))
           }
@@ -1778,22 +1816,15 @@ struct TrendChart: View {
     .chartReveal($progress)
   }
 
+  /// Capped so a long tick at an accessibility text size shrinks rather than
+  /// taking the plot's width.
   private func tickText(_ label: String) -> some View {
     Text(label)
       .font(.caption2)
       .monospacedDigit()
       .lineLimit(1)
-      .fixedSize()
-  }
-
-  private func axisTick(_ value: Double, domain: ClosedRange<Double>) -> some View {
-    tickText(axisLabel(value))
-      .foregroundStyle(.secondary)
-      .alignmentGuide(.top) { dimensions in
-        // Centre the label on its gridline, kept inside the column.
-        let centre = y(for: value, in: domain, height: height)
-        return dimensions.height / 2 - min(max(centre, dimensions.height / 2), height - dimensions.height / 2)
-      }
+      .minimumScaleFactor(0.7)
+      .frame(maxWidth: 72, alignment: .trailing)
   }
 
   private func gridline(at y: CGFloat, width: CGFloat) -> some View {
@@ -1804,9 +1835,9 @@ struct TrendChart: View {
     .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
   }
 
-  private func y(for value: Double, in domain: ClosedRange<Double>, height: CGFloat) -> CGFloat {
-    let span = max(domain.upperBound - domain.lowerBound, 0.000_001)
-    let fraction = (value - domain.lowerBound) / span
+  private func y(for value: Double, axis: Axis, height: CGFloat) -> CGFloat {
+    let span = max(axis.high - axis.low, 0.000_001)
+    let fraction = (value - axis.low) / span
     return height * (1 - CGFloat(min(max(fraction, 0), 1)))
   }
 }
@@ -1902,6 +1933,7 @@ private struct ChartDescriptor: AXChartDescriptorRepresentable {
   let summary: String
   let series: [(name: String, values: [Double])]
   let isContinuous: Bool
+  var valueRange: ClosedRange<Double>? = nil
 
   func makeChartDescriptor() -> AXChartDescriptor {
     let count = series.map(\.values.count).max() ?? 0
@@ -1910,8 +1942,8 @@ private struct ChartDescriptor: AXChartDescriptorRepresentable {
       ? voice.periodNames
       : (0 ..< count).map { "Period \($0 + 1)" }
     let values = series.flatMap(\.values)
-    let lowest = min(values.min() ?? 0, 0)
-    let highest = max(values.max() ?? 0, lowest + 1)
+    let lowest = valueRange?.lowerBound ?? min(values.min() ?? 0, 0)
+    let highest = max(valueRange?.upperBound ?? values.max() ?? 0, lowest + 1)
     let describe = voice.describe
     return AXChartDescriptor(
       title: voice.title,
@@ -1949,17 +1981,22 @@ private struct ChartDescriptor: AXChartDescriptorRepresentable {
 private extension View {
   /// One VoiceOver element for the whole chart, read as its title and a
   /// summary, with an Audio Graph for the detail.
+  /// `valueRange` is the drawn value axis when it is not anchored at zero,
+  /// so the Audio Graph has the same shape as the line.
   func chartVoice(
     _ voice: ChartVoice,
     summary: String,
     series: [(name: String, values: [Double])],
-    isContinuous: Bool = false
+    isContinuous: Bool = false,
+    valueRange: ClosedRange<Double>? = nil
   ) -> some View {
     accessibilityElement(children: .ignore)
       .accessibilityLabel(voice.title)
       .accessibilityValue(summary)
       .accessibilityChartDescriptor(
-        ChartDescriptor(voice: voice, summary: summary, series: series, isContinuous: isContinuous)
+        ChartDescriptor(
+          voice: voice, summary: summary, series: series, isContinuous: isContinuous, valueRange: valueRange
+        )
       )
   }
 }

@@ -483,16 +483,21 @@ struct APIClient {
     )
   }
 
+  /// `includeClosedAccounts` keeps a closed account's history in the series:
+  /// without it, paying off a card and closing it reads as a drop in net
+  /// worth, because the card's past balances vanish while the payment stays.
   func fetchNetWorth(
     planID: String,
     from: String?,
     to: String?,
     interval: ReportInterval,
-    accountIDs: [String] = []
+    accountIDs: [String] = [],
+    includeClosedAccounts: Bool = false
   ) async throws -> NetWorthReport {
     try await report(
       path: "/api/reports/net-worth", planID: planID, from: from, to: to,
-      interval: interval.rawValue, accountIDs: accountIDs
+      interval: interval.rawValue, accountIDs: accountIDs,
+      extraQueryItems: includeClosedAccounts ? [URLQueryItem(name: "include_closed_accounts", value: "true")] : []
     )
   }
 
@@ -655,7 +660,8 @@ struct APIClient {
     interval: String?,
     accountIDs: [String] = [],
     categoryIDs: [String] = [],
-    group: String? = nil
+    group: String? = nil,
+    extraQueryItems: [URLQueryItem] = []
   ) async throws -> Payload {
     // plan_id is mandatory on every report call: without it the API silently
     // answers for its configured default plan.
@@ -678,6 +684,7 @@ struct APIClient {
     if let group {
       queryItems.append(URLQueryItem(name: "group", value: group))
     }
+    queryItems.append(contentsOf: extraQueryItems)
 
     let response: APIEnvelope<Payload> = try await request(path: path, queryItems: queryItems)
     return response.data
