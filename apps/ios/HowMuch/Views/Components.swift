@@ -1453,11 +1453,12 @@ struct StackedShareBar: View {
 
   var body: some View {
     GeometryReader { proxy in
+      let widths = Self.widths(for: segments.map(\.fraction), in: proxy.size.width)
       HStack(spacing: 2) {
-        ForEach(segments.enumerated(), id: \.offset) { _, segment in
+        ForEach(segments.enumerated(), id: \.offset) { index, segment in
           RoundedRectangle(cornerRadius: 3, style: .continuous)
             .fill(segment.colour)
-            .frame(width: max(4, proxy.size.width * segment.fraction))
+            .frame(width: widths[index])
         }
       }
       .mask(alignment: .leading) {
@@ -1470,6 +1471,42 @@ struct StackedShareBar: View {
     .animation(reduceMotion ? nil : Theme.Motion.chart, value: segments.map { $0.fraction })
     .chartReveal($progress)
   }
+
+  /// Segment widths that fit the bar with its gaps: each at least a sliver,
+  /// the slivers' surplus taken from the largest segment, so a small share
+  /// still shows instead of being pushed off the trailing end.
+  static func widths(for fractions: [Double], in width: CGFloat) -> [CGFloat] {
+    guard !fractions.isEmpty else { return [] }
+    let available = max(width - 2 * CGFloat(fractions.count - 1), 0)
+    var widths = fractions.map { max(4, available * CGFloat($0)) }
+    let surplus = widths.reduce(0, +) - available
+    if surplus > 0, let largest = widths.indices.max(by: { widths[$0] < widths[$1] }) {
+      widths[largest] = max(4, widths[largest] - surplus)
+    }
+    return widths
+  }
+}
+
+private extension UIContentSizeCategory {
+  /// The UIKit category for a SwiftUI text size, to measure text as the
+  /// view will draw it.
+  init(_ size: DynamicTypeSize) {
+    self = switch size {
+    case .xSmall: .extraSmall
+    case .small: .small
+    case .medium: .medium
+    case .large: .large
+    case .xLarge: .extraLarge
+    case .xxLarge: .extraExtraLarge
+    case .xxxLarge: .extraExtraExtraLarge
+    case .accessibility1: .accessibilityMedium
+    case .accessibility2: .accessibilityLarge
+    case .accessibility3: .accessibilityExtraLarge
+    case .accessibility4: .accessibilityExtraExtraLarge
+    case .accessibility5: .accessibilityExtraExtraExtraLarge
+    @unknown default: .large
+    }
+  }
 }
 
 /// Shared x-axis row so net worth and income charts label months the same way.
@@ -1477,99 +1514,100 @@ private struct ChartAxisLabels: View {
   let labels: [String]
   var spacing: CGFloat = 6
 
+  @State private var rowWidth: CGFloat = 0
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
   var body: some View {
-    let visible = visibleIndices
+    let layout = plan
     HStack(alignment: .top, spacing: spacing) {
       ForEach(labels.indices, id: \.self) { index in
-        let isVisible = visible.contains(index)
-        Text(isVisible ? labels[index] : " ")
+        let label = layout.labels[index]
+        // The label overlays a text-height cell rather than filling it: a
+        // weekly run gives each of fifty-odd cells a few points, which would
+        // cut "W42" to "W", and the shown labels are several cells apart.
+        Text(" ")
           .font(.caption2)
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-          .minimumScaleFactor(0.65)
           .frame(maxWidth: .infinity)
-          .accessibilityHidden(!isVisible)
+          .overlay {
+            Text(label ?? " ")
+              .font(.caption2)
+              .foregroundStyle(.secondary)
+              .lineLimit(1)
+              .fixedSize()
+          }
+          .accessibilityHidden(label == nil)
       }
     }
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
   }
 
-  /// About twelve ticks. If a window contains a year-bearing label
-  /// (`Jan 26`), show that rather than the window start, so All Time
-  /// does not drop the year boundary.
-  private var visibleIndices: Set<Int> {
+  /// Which labels to draw: as many as fit the row at the current text
+  /// size, up to about twelve, never two within a stride of each other.
+  /// Year-bearing labels ("Jan 26") always win over plain ones so a long
+  /// window keeps its year boundaries; the last label is always drawn, and
+  /// takes the year itself when January sits right beside it.
+  private var plan: (labels: [String?], shown: [Int]) {
     let count = labels.count
-    guard count > 0 else { return [] }
-    let stride = max(1, Int(ceil(Double(count) / 12)))
-    var visible: Set<Int> = [count - 1]
-    var start = 0
-    while start < count {
-      let end = min(start + stride, count)
-      if let yearTick = (start ..< end).first(where: carriesYear) {
-        visible.insert(yearTick)
-      } else {
-        visible.insert(start)
+    guard count > 0 else { return ([], []) }
+    let stride = max(1, Int(ceil(Double(count) / Double(budget))))
+    let last = count - 1
+    var shown: Set<Int> = [last]
+    var labels = self.labels
+    // Year ticks a stride apart, kept from the latest backwards, so a long
+    // window keeps every other January rather than losing them all. A
+    // January too close to the last label lends it the year instead and
+    // takes no place in the spacing, so the January before it still shows
+    // and no plain month reads as the wrong year.
+    var years: [Int] = []
+    var lent = false
+    for year in labels.indices.reversed() where carriesYear(year) && year != last {
+      if last - year < stride {
+        if !lent, !carriesYear(last), let suffix = yearSuffix(labels[year]) {
+          labels[last] += suffix
+          lent = true
+        }
+      } else if years.allSatisfy({ $0 - year >= stride }) {
+        years.append(year)
       }
-      start += stride
     }
-    return visible
+    shown.formUnion(years)
+    // Fill the gaps between the fixed ticks a stride at a time, from the
+    // left edge and from each year tick, so a long window keeps an even
+    // rhythm rather than a sparse grid dodging the Januaries.
+    var previous = -stride
+    for next in shown.sorted() {
+      var candidate = previous + stride
+      while next - candidate >= stride {
+        shown.insert(candidate)
+        candidate += stride
+      }
+      previous = next
+    }
+    return (labels.indices.map { shown.contains($0) ? labels[$0] : nil }, shown.sorted())
+  }
+
+  /// How many labels the row can hold, measured when the row has a width
+  /// and estimated from label length until then.
+  private var budget: Int {
+    let longest = labels.map(\.count).max() ?? 0
+    guard rowWidth > 0 else {
+      return longest <= 4 ? 12 : max(4, 36 / longest)
+    }
+    // Measured for the view's own text size, so a size change re-plans
+    // the row even when its width stays the same.
+    let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(dynamicTypeSize))
+    let font = UIFont.preferredFont(forTextStyle: .caption2, compatibleWith: traits)
+    let widest = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+    return min(12, max(2, Int(rowWidth / (widest + 8))))
   }
 
   private func carriesYear(_ index: Int) -> Bool {
-    labels[index].range(of: #"\s\d{2}$"#, options: .regularExpression) != nil
-  }
-}
-
-/// Single-series column chart drawn with capsules; negatives drop below the axis.
-struct ColumnChart: View {
-  let values: [Double]
-  var labels: [String] = []
-  let voice: ChartVoice
-  var positiveColour: Color = Theme.accent
-  var negativeColour: Color = Theme.outflow
-  var height: CGFloat = 90
-
-  @State private var progress: CGFloat = 0
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-  /// Weekly ranges carry fifty-odd bars; tighter gaps keep them readable
-  /// instead of spending the card's width on spacing.
-  private var monthSpacing: CGFloat {
-    switch values.count {
-    case ..<19: 6
-    case ..<37: 3
-    default: 1
-    }
+    yearSuffix(labels[index]) != nil
   }
 
-  var body: some View {
-    let magnitude = max(values.map(abs).max() ?? 1, 1)
-    VStack(spacing: 6) {
-      HStack(alignment: .bottom, spacing: monthSpacing) {
-        ForEach(values.enumerated(), id: \.offset) { _, value in
-          VStack(spacing: 0) {
-            Spacer(minLength: 0)
-            // Capped so a short range on a wide card stays a column, not a blob.
-            Capsule()
-              .fill(value < 0 ? negativeColour : positiveColour)
-              .frame(maxWidth: 24)
-              .frame(height: max(3, height * abs(value) / magnitude * progress))
-          }
-          .frame(maxWidth: .infinity)
-        }
-      }
-      .frame(height: height)
-      .animation(reduceMotion ? nil : Theme.Motion.chart, value: values)
-      .chartReveal($progress)
-
-      if labels.count == values.count, !labels.isEmpty {
-        ChartAxisLabels(labels: labels, spacing: monthSpacing)
-      }
-    }
-    .chartVoice(
-      voice,
-      summary: ChartSpeech.summary(names: voice.periodNames, values: values, describe: voice.describe),
-      series: [(name: voice.name, values: values)]
-    )
+  /// " 26" from "Jan 26".
+  private func yearSuffix(_ label: String) -> String? {
+    label.range(of: #"\s\d{2}$"#, options: .regularExpression).map { String(label[$0]) }
   }
 }
 
@@ -1682,6 +1720,234 @@ struct Sparkline: View {
   }
 }
 
+/// Line chart for a level that moves a little against a large base, such as
+/// net worth. Columns from zero would draw a year of small gains as twelve
+/// equal bars, so the value axis is fitted around the series' own range
+/// instead, with both ends labelled so the scale is never hidden. A dashed
+/// zero line appears when the series crosses zero. Points sit at the centre
+/// of each period's cell, so the shared axis labels line up underneath.
+struct TrendChart: View {
+  struct Axis: Equatable {
+    let low: Double
+    let high: Double
+    /// The round number the ends were snapped to; a tick label's resolution.
+    let step: Double
+
+    var range: ClosedRange<Double> {
+      low ... high
+    }
+  }
+
+  let values: [Double]
+  var labels: [String] = []
+  let voice: ChartVoice
+  /// Short label for a tick, given its value and the axis step.
+  let axisLabel: (_ value: Double, _ step: Double) -> String
+  var colour: Color = Theme.accent
+  var height: CGFloat = 90
+  /// The narrowest value axis, in the series' units: one whole currency
+  /// unit for money in milliunits, so a flat series still has two ticks.
+  var minimumSpan: Double = 1
+
+  @State private var progress: CGFloat = 0
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  /// The value axis: fitted around the series so its movement shows, but
+  /// never tighter than a twentieth of the largest value, so a few dollars'
+  /// wobble on a six-figure net worth does not fill the plot. It takes in
+  /// zero when the series is within one span of it, and its ends sit on
+  /// round numbers for the ticks.
+  static func axis(for values: [Double], minimumSpan: Double = 1) -> Axis {
+    guard let lowest = values.min(), let highest = values.max() else {
+      return Axis(low: 0, high: minimumSpan, step: minimumSpan)
+    }
+    let largest = max(abs(lowest), abs(highest))
+    let span = max(highest - lowest, largest * 0.05, minimumSpan, 1)
+    let pad = span * 0.1
+    // At least the span, centred on the series, plus a little room each end.
+    let middle = (lowest + highest) / 2
+    var low = min(lowest - pad, middle - span / 2)
+    var high = max(highest + pad, middle + span / 2)
+    if lowest >= 0 {
+      low = lowest < span ? 0 : max(low, 0)
+    }
+    if highest <= 0 {
+      high = highest > -span ? 0 : min(high, 0)
+    }
+    let step = niceStep((high - low) / 8)
+    low = (low / step).rounded(.down) * step
+    high = (high / step).rounded(.up) * step
+    if high <= low {
+      // Every value at zero: the ends met there, so open one step above.
+      let opened = max(step, minimumSpan)
+      return Axis(low: low, high: low + opened, step: opened)
+    }
+    return Axis(low: low, high: high, step: step)
+  }
+
+  /// 1, 2 or 5 times a power of ten, at or above `raw`.
+  static func niceStep(_ raw: Double) -> Double {
+    guard raw > 0, raw.isFinite else {
+      return 1
+    }
+    let base = pow(10, floor(log10(raw)))
+    let fraction = raw / base
+    let nice: Double = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 5 ? 5 : 10
+    return nice * base
+  }
+
+  var body: some View {
+    let axis = Self.axis(for: values, minimumSpan: minimumSpan)
+    let crossesZero = axis.low < 0 && axis.high > 0
+    let ticks = [axisLabel(axis.high, axis.step), axisLabel(axis.low, axis.step)]
+
+    VStack(spacing: 6) {
+      HStack(alignment: .top, spacing: 8) {
+        plot(axis: axis, crossesZero: crossesZero)
+          .frame(height: height)
+        // The ticks sit on the plot's top and bottom gridlines; the hidden
+        // widest tick sizes the column, whichever end is longer.
+        ZStack(alignment: .trailing) {
+          ZStack {
+            tickText(ticks[0])
+            tickText(ticks[1])
+          }
+          .hidden()
+          VStack(alignment: .trailing, spacing: 0) {
+            tickText(ticks[0])
+              .foregroundStyle(.secondary)
+            Spacer(minLength: 0)
+            tickText(ticks[1])
+              .foregroundStyle(.secondary)
+          }
+        }
+        .frame(height: height)
+        .accessibilityHidden(true)
+      }
+
+      if labels.count == values.count, !labels.isEmpty {
+        HStack(spacing: 8) {
+          ChartAxisLabels(labels: labels, spacing: 0)
+          // The same column width as above, whichever tick draws wider.
+          ZStack {
+            tickText(ticks[0])
+            tickText(ticks[1])
+          }
+          .hidden()
+        }
+      }
+    }
+    .chartVoice(
+      voice,
+      summary: summary,
+      series: [(name: voice.name, values: values)],
+      isContinuous: true,
+      valueRange: axis.range
+    )
+  }
+
+  /// Leads with the change across the window, which is what the line shows,
+  /// then the shared range, latest and extremes.
+  private var summary: String {
+    let shared = ChartSpeech.summary(names: voice.periodNames, values: values, describe: voice.describe)
+    guard let first = values.first, let last = values.last, values.count > 1 else {
+      return shared
+    }
+    let change = last - first
+    let direction = change > 0 ? "Up" : change < 0 ? "Down" : "Unchanged"
+    let amount = change == 0 ? "" : " \(voice.describe(abs(change)))"
+    return "\(direction)\(amount) over the window. \(shared)"
+  }
+
+  private func plot(axis: Axis, crossesZero: Bool) -> some View {
+    GeometryReader { proxy in
+      let size = proxy.size
+      let points = values.enumerated().map { index, value in
+        CGPoint(
+          x: size.width * (CGFloat(index) + 0.5) / CGFloat(values.count),
+          y: y(for: value, axis: axis, height: size.height)
+        )
+      }
+      ZStack(alignment: .topLeading) {
+        gridline(at: 0.5, width: size.width)
+        gridline(at: size.height - 0.5, width: size.width)
+        if crossesZero {
+          Path { path in
+            let zero = y(for: 0, axis: axis, height: size.height)
+            path.move(to: CGPoint(x: 0, y: zero))
+            path.addLine(to: CGPoint(x: size.width, y: zero))
+          }
+          .stroke(Color.secondary.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+        }
+        if points.count > 1 {
+          Path { path in
+            guard let first = points.first, let last = points.last else { return }
+            path.move(to: CGPoint(x: first.x, y: size.height))
+            path.addLine(to: first)
+            for point in points.dropFirst() {
+              path.addLine(to: point)
+            }
+            path.addLine(to: CGPoint(x: last.x, y: size.height))
+            path.closeSubpath()
+          }
+          .fill(
+            LinearGradient(
+              colors: [colour.opacity(0.22), colour.opacity(0.02)],
+              startPoint: .top,
+              endPoint: .bottom
+            )
+          )
+          .mask(alignment: .leading) {
+            Rectangle().frame(width: size.width * progress)
+          }
+          Path { path in
+            guard let first = points.first else { return }
+            path.move(to: first)
+            for point in points.dropFirst() {
+              path.addLine(to: point)
+            }
+          }
+          .trim(from: 0, to: progress)
+          .stroke(colour, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+        }
+        if let last = points.last {
+          Circle()
+            .fill(colour)
+            .frame(width: 7, height: 7)
+            .scaleEffect(progress)
+            .opacity(Double(progress))
+            .position(last)
+        }
+      }
+    }
+    .animation(reduceMotion ? nil : Theme.Motion.chart, value: values)
+    .chartReveal($progress)
+  }
+
+  /// Its natural width, so the column is as wide as its ticks and no more.
+  private func tickText(_ label: String) -> some View {
+    Text(label)
+      .font(.caption2)
+      .monospacedDigit()
+      .lineLimit(1)
+      .fixedSize(horizontal: true, vertical: false)
+  }
+
+  private func gridline(at y: CGFloat, width: CGFloat) -> some View {
+    Path { path in
+      path.move(to: CGPoint(x: 0, y: y))
+      path.addLine(to: CGPoint(x: width, y: y))
+    }
+    .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+  }
+
+  private func y(for value: Double, axis: Axis, height: CGFloat) -> CGFloat {
+    let span = max(axis.high - axis.low, 0.000_001)
+    let fraction = (value - axis.low) / span
+    return height * (1 - CGFloat(min(max(fraction, 0), 1)))
+  }
+}
+
 /// What VoiceOver says for a chart: what it shows, a spoken name for each
 /// period, and how to read a value aloud. Axis labels are too terse to speak
 /// ("W23", "Aug 26"), so call sites pass `LedgerDate.spokenPeriodLabel` names.
@@ -1773,6 +2039,7 @@ private struct ChartDescriptor: AXChartDescriptorRepresentable {
   let summary: String
   let series: [(name: String, values: [Double])]
   let isContinuous: Bool
+  var valueRange: ClosedRange<Double>? = nil
 
   func makeChartDescriptor() -> AXChartDescriptor {
     let count = series.map(\.values.count).max() ?? 0
@@ -1781,8 +2048,8 @@ private struct ChartDescriptor: AXChartDescriptorRepresentable {
       ? voice.periodNames
       : (0 ..< count).map { "Period \($0 + 1)" }
     let values = series.flatMap(\.values)
-    let lowest = min(values.min() ?? 0, 0)
-    let highest = max(values.max() ?? 0, lowest + 1)
+    let lowest = valueRange?.lowerBound ?? min(values.min() ?? 0, 0)
+    let highest = max(valueRange?.upperBound ?? values.max() ?? 0, lowest + 1)
     let describe = voice.describe
     return AXChartDescriptor(
       title: voice.title,
@@ -1820,17 +2087,22 @@ private struct ChartDescriptor: AXChartDescriptorRepresentable {
 private extension View {
   /// One VoiceOver element for the whole chart, read as its title and a
   /// summary, with an Audio Graph for the detail.
+  /// `valueRange` is the drawn value axis when it is not anchored at zero,
+  /// so the Audio Graph has the same shape as the line.
   func chartVoice(
     _ voice: ChartVoice,
     summary: String,
     series: [(name: String, values: [Double])],
-    isContinuous: Bool = false
+    isContinuous: Bool = false,
+    valueRange: ClosedRange<Double>? = nil
   ) -> some View {
     accessibilityElement(children: .ignore)
       .accessibilityLabel(voice.title)
       .accessibilityValue(summary)
       .accessibilityChartDescriptor(
-        ChartDescriptor(voice: voice, summary: summary, series: series, isContinuous: isContinuous)
+        ChartDescriptor(
+          voice: voice, summary: summary, series: series, isContinuous: isContinuous, valueRange: valueRange
+        )
       )
   }
 }

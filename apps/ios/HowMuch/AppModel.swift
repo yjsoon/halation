@@ -3161,7 +3161,8 @@ final class AppModel {
         planID: planID, from: yearStart.isoDateString, to: today, interval: .month
       )
       async let worth = client.fetchNetWorth(
-        planID: planID, from: yearStart.isoDateString, to: today, interval: .month
+        planID: planID, from: yearStart.isoDateString, to: today, interval: .month,
+        includeClosedAccounts: true
       )
       async let age = client.fetchAgeOfMoney(planID: planID, interval: .month)
       async let daily = client.fetchIncomeVsSpending(
