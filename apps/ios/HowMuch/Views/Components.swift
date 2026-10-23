@@ -1547,12 +1547,17 @@ private struct ChartAxisLabels: View {
         shown.insert(year)
       }
     }
-    var start = 0
-    while start < count {
-      if shown.allSatisfy({ abs($0 - start) >= stride }) {
-        shown.insert(start)
+    // Fill the gaps between the fixed ticks a stride at a time, from the
+    // left edge and from each year tick, so a long window keeps an even
+    // rhythm rather than a sparse grid dodging the Januaries.
+    var previous = -stride
+    for next in shown.sorted() {
+      var candidate = previous + stride
+      while next - candidate >= stride {
+        shown.insert(candidate)
+        candidate += stride
       }
-      start += stride
+      previous = next
     }
     return (labels.indices.map { shown.contains($0) ? labels[$0] : nil }, shown.sorted())
   }
