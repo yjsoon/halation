@@ -200,7 +200,7 @@ enum ReportPreset: String, CaseIterable, Identifiable {
   }
 
   /// `nil` bounds mean "unbounded": All Time sends no dates at all.
-  func range(now: Date = .now, calendar: Calendar = .current) -> (from: Date?, to: Date?) {
+  func range(now: Date = .now, calendar: Calendar = LedgerDate.gregorian) -> (from: Date?, to: Date?) {
     let monthStart = now.startOfMonth(calendar: calendar)
     switch self {
     case .thisMonth:

@@ -109,6 +109,21 @@ enum IncomeVsSpendingMaths {
     }
   }
 
+  /// Axis labels for weekly columns: the day the week starts, with the
+  /// month's name instead on the first column and whenever a week starts
+  /// a new month. "24 Aug" does not fit a column thirteen weeks wide.
+  static func weekAxisLabels(rows: [PeriodRow]) -> [String] {
+    var previousMonth: Int?
+    return rows.map { row in
+      guard let start = parseISO(row.from) else { return row.period }
+      defer { previousMonth = start.month }
+      if start.month != previousMonth {
+        return shortMonthSymbol(start.month)
+      }
+      return String(start.day)
+    }
+  }
+
   /// A human span for two ISO dates: "23 Oct 2026", "1–23 Oct 2026",
   /// "1 Jan – 23 Oct 2026", "29 Dec 2025 – 4 Jan 2026"; whole months read
   /// "Nov–Dec 2025" and whole years "2024–2026".

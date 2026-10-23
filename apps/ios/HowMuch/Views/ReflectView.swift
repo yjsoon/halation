@@ -291,7 +291,7 @@ struct ReflectView: View {
         // Zero-filled over the twelve months the model asked for, so a month
         // with no lines keeps its place on the axis.
         let monthStart = now.startOfMonth()
-        let windowStart = Calendar.current.date(byAdding: .month, value: -11, to: monthStart) ?? monthStart
+        let windowStart = LedgerDate.gregorian.date(byAdding: .month, value: -11, to: monthStart) ?? monthStart
         let rows = IncomeVsSpendingMaths.zeroFill(
           periods: report.periods,
           interval: .month,

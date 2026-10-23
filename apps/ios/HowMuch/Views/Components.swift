@@ -328,7 +328,7 @@ struct MonthStepper: View {
 
   private func stepButton(systemName: String, monthDelta: Int) -> some View {
     Button {
-      if let next = Calendar.current.date(byAdding: .month, value: monthDelta, to: monthAnchor) {
+      if let next = LedgerDate.gregorian.date(byAdding: .month, value: monthDelta, to: monthAnchor) {
         steppedBack = monthDelta < 0
         steps += 1
         monthAnchor = next

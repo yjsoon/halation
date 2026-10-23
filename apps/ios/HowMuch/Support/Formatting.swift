@@ -395,11 +395,13 @@ extension Date {
     self = parsed
   }
 
-  func startOfMonth(calendar: Calendar = .current) -> Date {
+  /// Months default to the Gregorian calendar: period keys, labels and the
+  /// server's windows are all Gregorian, whatever calendar the device uses.
+  func startOfMonth(calendar: Calendar = LedgerDate.gregorian) -> Date {
     calendar.date(from: calendar.dateComponents([.year, .month], from: self)) ?? self
   }
 
-  func endOfMonth(calendar: Calendar = .current) -> Date {
+  func endOfMonth(calendar: Calendar = LedgerDate.gregorian) -> Date {
     guard
       let nextMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth(calendar: calendar)),
       let lastDay = calendar.date(byAdding: .day, value: -1, to: nextMonth)

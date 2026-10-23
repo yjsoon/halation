@@ -192,7 +192,7 @@ struct IncomeVsSpendingPeriodRow: View {
               bar(row.income, text: incomeText, colour: Theme.inflow, fullWidth: false)
               bar(row.spending, text: spendingText, colour: Theme.outflow, fullWidth: false)
             }
-            Spacer(minLength: 8)
+            Spacer(minLength: 0)
             netColumn(netText, savings: savings, alignment: .trailing)
             Image(systemName: "chevron.forward")
               .font(.footnote.weight(.semibold))

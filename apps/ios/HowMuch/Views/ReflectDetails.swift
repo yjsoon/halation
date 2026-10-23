@@ -1040,7 +1040,7 @@ struct IncomeVsSpendingDetailView: View {
       // place on the axis instead of the neighbours closing over it.
       // Weeks are named by their dates, as the rows are, not by week number.
       let labels = loaded.interval == .week
-        ? chronological.map { LedgerDate.periodAxisLabel($0.from) }
+        ? IncomeVsSpendingMaths.weekAxisLabels(rows: chronological)
         : LedgerDate.periodAxisLabels(chronological.map(\.period))
       let names = loaded.interval == .week
         ? chronological.map { IncomeVsSpendingMaths.spanLabel(from: $0.from, to: $0.to) }

@@ -3151,7 +3151,7 @@ final class AppModel {
     do {
       let now = Date.now
       let monthStart = now.startOfMonth()
-      let yearStart = Calendar.current.date(byAdding: .month, value: -11, to: monthStart) ?? monthStart
+      let yearStart = LedgerDate.gregorian.date(byAdding: .month, value: -11, to: monthStart) ?? monthStart
       let today = now.isoDateString
 
       async let spending = client.fetchSpendingBreakdown(
