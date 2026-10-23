@@ -1571,12 +1571,19 @@ private struct ChartAxisLabels: View {
       }
     }
     shown.formUnion(years)
+    // A daily or weekly axis mixes day numbers with month names; there a
+    // name within the stride takes the tick, so the months stay readable.
+    // That includes the end: a month that starts just before the last
+    // column is drawn in its place, or the latest weeks read as the month
+    // before.
+    let mixesNumbers = labels.contains { Int($0) != nil }
+    if mixesNumbers, years.isEmpty, Int(labels[last]) != nil,
+       let named = (max(0, last - stride + 1) ..< last).last(where: { Int(labels[$0]) == nil }) {
+      shown = [named]
+    }
     // Fill the gaps between the fixed ticks a stride at a time, from the
     // left edge and from each year tick, so a long window keeps an even
-    // rhythm rather than a sparse grid dodging the Januaries. A daily or
-    // weekly axis mixes day numbers with month names; there a name within
-    // the stride takes the tick, so the months stay readable.
-    let mixesNumbers = labels.contains { Int($0) != nil }
+    // rhythm rather than a sparse grid dodging the Januaries.
     var previous = -stride
     for next in shown.sorted() {
       var candidate = previous + stride
