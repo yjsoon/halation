@@ -53,7 +53,7 @@ struct ReflectView: View {
       .animation(Theme.Motion.arrive, value: model.reportsPhase)
     }
     .background(Theme.canvas)
-    .navigationTitle("Reflect")
+    .navigationTitle("Insights")
     .navigationBarTitleDisplayMode(.large)
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {

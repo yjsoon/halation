@@ -124,7 +124,7 @@ Open **Settings** and use **Change password**. Enter the current password and th
 
 ## 6. Connect the iOS app
 
-The iOS app is not on the App Store. Build it from source with Xcode, as described in [Getting the iPhone app](../README.md#getting-the-iphone-app). Then open **More, then Settings** on the Accounts, Rewards, Reflect or Assistant screen, and set the server URL to your Worker's `https://` address. Then sign in with the username and password you chose. The app never asks for the setup token, which is why first-owner setup happens in the browser.
+The iOS app is not on the App Store. Build it from source with Xcode, as described in [Getting the iPhone app](../README.md#getting-the-iphone-app). Then open **More, then Settings** on the Accounts, Rewards, Insights or Assistant screen, and set the server URL to your Worker's `https://` address. Then sign in with the username and password you chose. The app never asks for the setup token, which is why first-owner setup happens in the browser.
 
 ## Optional: automatic categories
 

@@ -412,7 +412,7 @@ enum AppTab: Hashable, CaseIterable {
     switch self {
     case .accounts: return "Accounts"
     case .rewards: return "Rewards"
-    case .reflect: return "Reflect"
+    case .reflect: return "Insights"
     case .assistant: return "Assistant"
     }
   }

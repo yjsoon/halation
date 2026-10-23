@@ -342,7 +342,7 @@ final class IPadLayoutTests: XCTestCase {
     let appeared = await surface.waitUntil {
       surface.firstControl(label: "Accounts") != nil
         && surface.firstControl(label: "Rewards") != nil
-        && surface.firstControl(label: "Reflect") != nil
+        && surface.firstControl(label: "Insights") != nil
         && surface.firstControl(label: CompactRootBar.action.title) != nil
         && surface.tabRowOverlayButton(label: "Assistant") != nil
     }
@@ -374,14 +374,14 @@ final class IPadLayoutTests: XCTestCase {
       accuracy: 8,
       "Add must be a separate round control, not a fourth destination in the pill"
     )
-    if let reflect = surface.tabRowControl(label: "Reflect") {
+    if let reflect = surface.tabRowControl(label: "Insights") {
       XCTAssertGreaterThan(
         add.frame.minX - reflect.frame.maxX,
         8,
-        "Add must have a visible gap from the Reflect end of the destination pill"
+        "Add must have a visible gap from the Insights end of the destination pill"
       )
     } else {
-      XCTFail("compact root missing Reflect")
+      XCTFail("compact root missing Insights")
     }
     XCTAssertLessThan(
       assistant.frame.maxY,
