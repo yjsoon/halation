@@ -1107,9 +1107,12 @@ struct NetWorthDetailView: View {
   /// the strong and weak months stand out down the list.
   private func historyRow(_ period: NetWorthPeriod, delta: Int?, largestDelta: Int) -> some View {
     let heading = NetWorthMaths.historyTitle(period, interval: reportInterval)
+    // The note holds together, so a tight row breaks before the dot
+    // ("October 2026" over "· to 23 Oct") rather than inside it.
+    let note = heading.note.map { " ·\u{00A0}" + $0.replacingOccurrences(of: " ", with: "\u{00A0}") }
     let title = VStack(alignment: .leading, spacing: 6) {
       (Text(heading.title).foregroundStyle(Theme.textPrimary)
-        + (heading.note.map { Text(" · \($0)").foregroundStyle(.secondary) } ?? Text("")))
+        + Text(note ?? "").foregroundStyle(.secondary))
         .font(.subheadline)
       if let delta, delta != 0 {
         ShareMeter(
