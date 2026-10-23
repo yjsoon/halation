@@ -840,6 +840,8 @@ struct NetWorthDetailView: View {
   /// The grouping the shown report was fetched with: the chip can change
   /// before the next report lands, and the old rows keep their own titles.
   @State private var reportInterval: ReportInterval = .month
+  /// Whether the shown report was fetched for chosen accounts only.
+  @State private var reportScoped = false
   @State private var phase: LoadPhase = .idle
   @State private var fetchGate = ReportFetchGate()
 
@@ -865,7 +867,7 @@ struct NetWorthDetailView: View {
             .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 4)
           historyCard(report: report)
-        } else if let report, !report.periods.isEmpty, scope.accountIDs.isEmpty {
+        } else if let report, !report.periods.isEmpty, !reportScoped {
           // Every period carries the same accounts, so none in the latest
           // means none at all: an empty ledger, not an empty window.
           ContentUnavailableView(
@@ -1153,6 +1155,10 @@ struct NetWorthDetailView: View {
 
   private func fetch() async {
     let token = fetchGate.begin()
+    // What this request asks for, kept with its report: the chips can move
+    // again before the reply lands.
+    let requestedInterval = interval
+    let requestedScope = scope
     phase = .loading
     do {
       let next = try await model.apiClient.fetchNetWorth(
@@ -1161,14 +1167,15 @@ struct NetWorthDetailView: View {
         // All Time sends no end date; the server would fill in today in UTC,
         // which in Singapore is yesterday until 8am.
         to: range.toISO ?? Date.now.isoDateString,
-        interval: interval,
-        accountIDs: Array(scope.accountIDs),
+        interval: requestedInterval,
+        accountIDs: Array(requestedScope.accountIDs),
         includeClosedAccounts: true
       )
       guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
         report = next
-        reportInterval = interval
+        reportInterval = requestedInterval
+        reportScoped = !requestedScope.accountIDs.isEmpty
         phase = .loaded
       }
     } catch {

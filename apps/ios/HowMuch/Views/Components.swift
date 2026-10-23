@@ -1453,11 +1453,12 @@ struct StackedShareBar: View {
 
   var body: some View {
     GeometryReader { proxy in
+      let widths = Self.widths(for: segments.map(\.fraction), in: proxy.size.width)
       HStack(spacing: 2) {
-        ForEach(segments.enumerated(), id: \.offset) { _, segment in
+        ForEach(segments.enumerated(), id: \.offset) { index, segment in
           RoundedRectangle(cornerRadius: 3, style: .continuous)
             .fill(segment.colour)
-            .frame(width: max(4, proxy.size.width * segment.fraction))
+            .frame(width: widths[index])
         }
       }
       .mask(alignment: .leading) {
@@ -1469,6 +1470,20 @@ struct StackedShareBar: View {
     .clipShape(RoundedRectangle(cornerRadius: height / 2, style: .continuous))
     .animation(reduceMotion ? nil : Theme.Motion.chart, value: segments.map { $0.fraction })
     .chartReveal($progress)
+  }
+
+  /// Segment widths that fit the bar with its gaps: each at least a sliver,
+  /// the slivers' surplus taken from the largest segment, so a small share
+  /// still shows instead of being pushed off the trailing end.
+  static func widths(for fractions: [Double], in width: CGFloat) -> [CGFloat] {
+    guard !fractions.isEmpty else { return [] }
+    let available = max(width - 2 * CGFloat(fractions.count - 1), 0)
+    var widths = fractions.map { max(4, available * CGFloat($0)) }
+    let surplus = widths.reduce(0, +) - available
+    if surplus > 0, let largest = widths.indices.max(by: { widths[$0] < widths[$1] }) {
+      widths[largest] = max(4, widths[largest] - surplus)
+    }
+    return widths
   }
 }
 
@@ -1515,9 +1530,14 @@ private struct ChartAxisLabels: View {
     let last = count - 1
     var shown: Set<Int> = [last]
     var labels = self.labels
-    var years = labels.indices.filter(carriesYear)
-    // Two year ticks within a stride: keep the January, drop the window start.
-    years = years.filter { index in !years.contains { $0 > index && $0 - index < stride } }
+    // Year ticks a stride apart, kept from the latest backwards, so a long
+    // window keeps every other January rather than losing them all.
+    var years: [Int] = []
+    for year in labels.indices.reversed() where carriesYear(year) {
+      if years.allSatisfy({ $0 - year >= stride }) {
+        years.append(year)
+      }
+    }
     for year in years where year != last {
       if last - year < stride {
         if !carriesYear(last), let suffix = yearSuffix(labels[year]) {
@@ -1748,7 +1768,6 @@ struct TrendChart: View {
     let axis = Self.axis(for: values, minimumSpan: minimumSpan)
     let crossesZero = axis.low < 0 && axis.high > 0
     let ticks = [axisLabel(axis.high, axis.step), axisLabel(axis.low, axis.step)]
-    let widestTick = ticks.max { $0.count < $1.count } ?? ""
 
     VStack(spacing: 6) {
       HStack(alignment: .top, spacing: 8) {
@@ -1757,8 +1776,11 @@ struct TrendChart: View {
         // The ticks sit on the plot's top and bottom gridlines; the hidden
         // widest tick sizes the column, whichever end is longer.
         ZStack(alignment: .trailing) {
-          tickText(widestTick)
-            .hidden()
+          ZStack {
+            tickText(ticks[0])
+            tickText(ticks[1])
+          }
+          .hidden()
           VStack(alignment: .trailing, spacing: 0) {
             tickText(ticks[0])
               .foregroundStyle(.secondary)
@@ -1774,8 +1796,12 @@ struct TrendChart: View {
       if labels.count == values.count, !labels.isEmpty {
         HStack(spacing: 8) {
           ChartAxisLabels(labels: labels, spacing: 0)
-          tickText(widestTick)
-            .hidden()
+          // The same column width as above, whichever tick draws wider.
+          ZStack {
+            tickText(ticks[0])
+            tickText(ticks[1])
+          }
+          .hidden()
         }
       }
     }

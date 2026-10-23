@@ -468,7 +468,7 @@ extension ChartVoice {
   /// A chart of amounts in milliunits, one per report period key.
   static func money(_ name: String, periods: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
     ChartVoice(name: name, unit: "Amount", periodNames: periods.map(LedgerDate.spokenPeriodLabel)) {
-      MoneyCodec.displayString(for: Int($0.rounded()), currencyFormat: currencyFormat)
+      MoneyCodec.displayString(for: NetWorthMaths.milliunits($0), currencyFormat: currencyFormat)
     }
   }
 
