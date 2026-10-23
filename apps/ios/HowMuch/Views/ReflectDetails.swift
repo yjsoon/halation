@@ -1051,7 +1051,10 @@ struct NetWorthDetailView: View {
           fraction: NetWorthMaths.meterFraction(account.balance, largest: largest),
           colour: account.balance < 0 ? Theme.outflow : Theme.accent
         )
-        .frame(width: 120, height: 6)
+        // Up to 120pt, never a hard minimum: a long figure at a large text
+        // size takes the width it needs and the meter gives way.
+        .frame(maxWidth: 120, alignment: .leading)
+        .frame(height: 6)
       }
     }
     // Name and balance are laid out before the spacer, so a name never
@@ -1122,7 +1125,8 @@ struct NetWorthDetailView: View {
           fraction: NetWorthMaths.meterFraction(delta, largest: largestDelta),
           colour: delta < 0 ? Theme.outflow : Theme.inflow
         )
-        .frame(width: 120, height: 6)
+        .frame(maxWidth: 120, alignment: .leading)
+        .frame(height: 6)
       }
     }
     let figures = VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
