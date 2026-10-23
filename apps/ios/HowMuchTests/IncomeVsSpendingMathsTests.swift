@@ -57,6 +57,8 @@ final class IncomeVsSpendingMathsTests: XCTestCase {
     XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: -100, income: 100), "-100.0%")
     XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: -101, income: 100), "-101.0%")
     XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: -350, income: 100), "-350.0%")
+    XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: 99_999, income: 100_000), "99.9%")
+    XCTAssertEqual(IncomeVsSpendingMaths.savingsRateLabel(net: 100, income: 100), "100.0%")
     XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: 1_750_000, income: 8_200_000), "21% saved")
     XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: -450_000, income: 3_630_000), "12% overspent")
     XCTAssertEqual(IncomeVsSpendingMaths.savingsPhrase(net: -400, income: 100_000), "< 1% overspent")

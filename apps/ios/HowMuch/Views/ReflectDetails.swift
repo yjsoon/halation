@@ -1139,7 +1139,7 @@ struct IncomeVsSpendingDetailView: View {
   private func dimmed<Content: View>(_ content: Content, _ stale: Bool) -> some View {
     content
       .opacity(stale ? 0.55 : 1)
-      .allowsHitTesting(!stale)
+      .disabled(stale)
       .animation(Theme.Motion.standard, value: stale)
   }
 
@@ -1168,9 +1168,12 @@ struct IncomeVsSpendingDetailView: View {
     } catch {
       guard fetchGate.mayCommit(token) else { return }
       // Drop the previous window's figures so they never sit under the new
-      // filter chips; the placeholder offers Retry instead.
+      // filter chips; the placeholder offers Retry instead. A failed refetch
+      // of the same window keeps what is on screen, which is still right.
       withAnimation(Theme.Motion.arrive) {
-        loaded = nil
+        if loaded?.key != key {
+          loaded = nil
+        }
         phase = .failed(error.localizedDescription)
       }
     }

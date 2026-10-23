@@ -362,6 +362,7 @@ enum LedgerDate {
 
   private static let display: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = gregorian
     formatter.dateFormat = "EEE d MMM yyyy"
     return formatter
   }()
@@ -376,6 +377,7 @@ enum LedgerDate {
 
   private static let axisDayDisplay: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = gregorian
     formatter.dateFormat = "d MMM"
     return formatter
   }()

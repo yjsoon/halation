@@ -254,6 +254,7 @@ struct IncomeVsSpendingPeriodRow: View {
       // A day is too small for a breakdown: open its register, both sides.
       RegisterView(
         scope: .all,
+        categoryIDs: scope.categoryIDs.isEmpty ? nil : scope.categoryIDs,
         dateRange: IncomeVsSpendingMaths.drillDownRange(row),
         accountIDs: scope.accountIDs.isEmpty ? nil : scope.accountIDs,
         excludePlainTransfers: true,
@@ -613,6 +614,7 @@ struct IncomeVsSpendingPeriodDetailView: View {
       RegisterView(
         scope: .all,
         categoryID: categoryID,
+        categoryIDs: scope.categoryIDs.isEmpty ? nil : scope.categoryIDs,
         payeeID: payee?.payeeID,
         payeeName: payee?.payeeName,
         missingPayee: payee.map { $0.payeeID == nil && $0.payeeName == "No payee" } ?? false,
@@ -641,6 +643,8 @@ struct IncomeVsSpendingPeriodDetailView: View {
     guard rows.indices.contains(next) else {
       return
     }
+    // The breakdown area shows the spinner from this frame, not a frame later.
+    phase = .loading
     selectedPeriod = rows[next].period
   }
 

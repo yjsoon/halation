@@ -131,6 +131,7 @@ enum RegisterReportFilter {
   static func include(
     _ transaction: Transaction,
     categoryID: String? = nil,
+    categoryIDs: Set<String>? = nil,
     payeeID: String? = nil,
     payeeName: String? = nil,
     missingPayee: Bool = false,
@@ -160,6 +161,11 @@ enum RegisterReportFilter {
       if !matchesCategory(transaction, categoryID: categoryID) {
         return false
       }
+    }
+    // A report's category scope: any of the chosen categories.
+    if let categoryIDs, !categoryIDs.isEmpty,
+       !categoryIDs.contains(where: { matchesCategory(transaction, categoryID: $0) }) {
+      return false
     }
     // `missingPayee` is the only signal for the report's missing-payee bucket.
     // "No payee" is that bucket's label, not a reserved name, so a real payee
@@ -241,6 +247,8 @@ struct RegisterView: View {
   @Environment(AppModel.self) private var model
   let scope: RegisterScope
   var categoryID: String?
+  /// A report's category scope, narrowing on top of `categoryID`.
+  var categoryIDs: Set<String>?
   var payeeID: String?
   var payeeName: String?
   var missingPayee = false
@@ -278,6 +286,7 @@ struct RegisterView: View {
   init(
     scope: RegisterScope,
     categoryID: String? = nil,
+    categoryIDs: Set<String>? = nil,
     payeeID: String? = nil,
     payeeName: String? = nil,
     missingPayee: Bool = false,
@@ -289,6 +298,7 @@ struct RegisterView: View {
   ) {
     self.scope = scope
     self.categoryID = categoryID
+    self.categoryIDs = categoryIDs
     self.payeeID = payeeID
     self.payeeName = payeeName
     self.missingPayee = missingPayee
@@ -1332,6 +1342,7 @@ struct RegisterView: View {
       return RegisterReportFilter.include(
         transaction,
         categoryID: categoryID,
+        categoryIDs: categoryIDs,
         payeeID: payeeID,
         payeeName: payeeName,
         missingPayee: missingPayee,
@@ -1349,6 +1360,7 @@ struct RegisterView: View {
       || uncategorisedOnly
       || showingUnapprovedQueue
       || categoryID != nil
+      || categoryIDs?.isEmpty == false
       || payeeID != nil
       || missingPayee
       || payeeName != nil
@@ -1574,6 +1586,9 @@ struct RegisterView: View {
         return false
       }
       if let categoryID, !row.matches(categoryID: categoryID) {
+        return false
+      }
+      if let categoryIDs, !categoryIDs.isEmpty, !categoryIDs.contains(where: { row.matches(categoryID: $0) }) {
         return false
       }
       if let dateRange, !dateRange.contains(row.isoDate) {

@@ -49,7 +49,11 @@ enum IncomeVsSpendingMaths {
     guard income > 0 else {
       return "—"
     }
-    let rate = Double(net) / Double(income)
+    var rate = Double(net) / Double(income)
+    if net > 0, net < income {
+      // Something was spent, so the stat never rounds up to a full 100%.
+      rate = min(rate, 0.999)
+    }
     return rate.formatted(.percent.precision(.fractionLength(1)))
   }
 
