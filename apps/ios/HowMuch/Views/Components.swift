@@ -1477,11 +1477,13 @@ private struct ChartAxisLabels: View {
   let labels: [String]
   var spacing: CGFloat = 6
 
+  @State private var rowWidth: CGFloat = 0
+
   var body: some View {
-    let visible = visibleIndices
+    let layout = plan
     HStack(alignment: .top, spacing: spacing) {
       ForEach(labels.indices, id: \.self) { index in
-        let isVisible = visible.contains(index)
+        let label = layout.labels[index]
         // The label overlays a text-height cell rather than filling it: a
         // weekly run gives each of fifty-odd cells a few points, which would
         // cut "W42" to "W", and the shown labels are several cells apart.
@@ -1489,47 +1491,71 @@ private struct ChartAxisLabels: View {
           .font(.caption2)
           .frame(maxWidth: .infinity)
           .overlay {
-            Text(isVisible ? labels[index] : " ")
+            Text(label ?? " ")
               .font(.caption2)
               .foregroundStyle(.secondary)
               .lineLimit(1)
               .fixedSize()
           }
-          .accessibilityHidden(!isVisible)
+          .accessibilityHidden(label == nil)
       }
     }
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
   }
 
-  /// About twelve ticks for short labels ("Oct", "W42"), fewer when any
-  /// label is long ("Jan 26", "23 Oct"), so neighbours never overlap. If a
-  /// window contains a year-bearing label (`Jan 26`), show that rather
-  /// than the window start, so All Time does not drop the year boundary.
-  /// The last label is always shown, and a window start too close to it
-  /// gives way.
-  private var visibleIndices: Set<Int> {
+  /// Which labels to draw: as many as fit the row at the current text
+  /// size, up to about twelve, never two within a stride of each other.
+  /// Year-bearing labels ("Jan 26") always win over plain ones so a long
+  /// window keeps its year boundaries; the last label is always drawn, and
+  /// takes the year itself when January sits right beside it.
+  private var plan: (labels: [String?], shown: [Int]) {
     let count = labels.count
-    guard count > 0 else { return [] }
-    let longest = labels.map(\.count).max() ?? 0
-    let budget = longest <= 4 ? 12 : max(4, 36 / longest)
+    guard count > 0 else { return ([], []) }
     let stride = max(1, Int(ceil(Double(count) / Double(budget))))
-    var visible: Set<Int> = [count - 1]
-    var shown: Int?
+    let last = count - 1
+    var shown: Set<Int> = [last]
+    var labels = self.labels
+    var years = labels.indices.filter(carriesYear)
+    // Two year ticks within a stride: keep the January, drop the window start.
+    years = years.filter { index in !years.contains { $0 > index && $0 - index < stride } }
+    for year in years where year != last {
+      if last - year < stride {
+        if !carriesYear(last), let suffix = yearSuffix(labels[year]) {
+          labels[last] += suffix
+        }
+      } else {
+        shown.insert(year)
+      }
+    }
     var start = 0
     while start < count {
-      let end = min(start + stride, count)
-      let candidate = (start ..< end).first(where: carriesYear) ?? start
-      // A full stride clear of the last shown label and of the final one.
-      if count - 1 - candidate >= stride, shown.map({ candidate - $0 >= stride }) ?? true {
-        visible.insert(candidate)
-        shown = candidate
+      if shown.allSatisfy({ abs($0 - start) >= stride }) {
+        shown.insert(start)
       }
       start += stride
     }
-    return visible
+    return (labels.indices.map { shown.contains($0) ? labels[$0] : nil }, shown.sorted())
+  }
+
+  /// How many labels the row can hold, measured when the row has a width
+  /// and estimated from label length until then.
+  private var budget: Int {
+    let longest = labels.map(\.count).max() ?? 0
+    guard rowWidth > 0 else {
+      return longest <= 4 ? 12 : max(4, 36 / longest)
+    }
+    let font = UIFont.preferredFont(forTextStyle: .caption2)
+    let widest = labels.map { ($0 as NSString).size(withAttributes: [.font: font]).width }.max() ?? 0
+    return min(12, max(2, Int(rowWidth / (widest + 8))))
   }
 
   private func carriesYear(_ index: Int) -> Bool {
-    labels[index].range(of: #"\s\d{2}$"#, options: .regularExpression) != nil
+    yearSuffix(labels[index]) != nil
+  }
+
+  /// " 26" from "Jan 26".
+  private func yearSuffix(_ label: String) -> String? {
+    label.range(of: #"\s\d{2}$"#, options: .regularExpression).map { String(label[$0]) }
   }
 }
 
@@ -1701,7 +1727,8 @@ struct TrendChart: View {
     high = (high / step).rounded(.up) * step
     if high <= low {
       // Every value at zero: the ends met there, so open one step above.
-      high = low + max(step, minimumSpan)
+      let opened = max(step, minimumSpan)
+      return Axis(low: low, high: low + opened, step: opened)
     }
     return Axis(low: low, high: high, step: step)
   }
