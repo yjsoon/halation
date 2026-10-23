@@ -222,6 +222,42 @@ enum MoneyCodec {
     let base = displayString(for: milliunits, currencyFormat: currencyFormat)
     return milliunits > 0 ? "+\(base)" : base
   }
+
+  /// Short money for a chart's value axis: "$579k", "$1.2M", "-$850". Keeps
+  /// the plan's symbol on its side and drops the minor units; a tick only
+  /// has to say what scale the chart is on.
+  static func compactDisplayString(for milliunits: Int, currencyFormat: CurrencyFormat?) -> String {
+    let units = abs(Double(milliunits)) / 1000
+    let steps: [(limit: Double, divisor: Double, suffix: String)] = [
+      (1_000_000_000, 1_000_000_000, "B"),
+      (1_000_000, 1_000_000, "M"),
+      (1_000, 1_000, "k"),
+    ]
+    var number = String(Int(units.rounded()))
+    for step in steps where units >= step.limit {
+      let scaled = units / step.divisor
+      // One decimal under ten ("1.2M"), none above ("579k"); a value that
+      // rounds up to the next step reads as that step ("1000k" is "1M").
+      let digits = scaled < 10 ? 1 : 0
+      let factor = pow(10, Double(digits))
+      let rounded = (scaled * factor).rounded() / factor
+      if rounded >= 1000, let next = steps.first(where: { $0.divisor == step.divisor * 1000 }) {
+        number = "1" + next.suffix
+      } else {
+        var text = String(format: "%.\(digits)f", rounded)
+        if let separator = currencyFormat?.decimalSeparator, separator != "." {
+          text = text.replacingOccurrences(of: ".", with: separator)
+        }
+        number = text + step.suffix
+      }
+      break
+    }
+    let showsSymbol = currencyFormat?.displaySymbol ?? true
+    let symbol = showsSymbol ? (currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$") : ""
+    let symbolFirst = currencyFormat?.symbolFirst ?? true
+    let body = symbolFirst ? symbol + number : number + symbol
+    return milliunits < 0 ? "-" + body : body
+  }
 }
 
 /// Milliunit sums. The server stores amounts up to 1e15 milliunits each, so

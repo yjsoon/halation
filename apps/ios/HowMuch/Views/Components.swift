@@ -1519,60 +1519,6 @@ private struct ChartAxisLabels: View {
   }
 }
 
-/// Single-series column chart drawn with capsules; negatives drop below the axis.
-struct ColumnChart: View {
-  let values: [Double]
-  var labels: [String] = []
-  let voice: ChartVoice
-  var positiveColour: Color = Theme.accent
-  var negativeColour: Color = Theme.outflow
-  var height: CGFloat = 90
-
-  @State private var progress: CGFloat = 0
-  @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-  /// Weekly ranges carry fifty-odd bars; tighter gaps keep them readable
-  /// instead of spending the card's width on spacing.
-  private var monthSpacing: CGFloat {
-    switch values.count {
-    case ..<19: 6
-    case ..<37: 3
-    default: 1
-    }
-  }
-
-  var body: some View {
-    let magnitude = max(values.map(abs).max() ?? 1, 1)
-    VStack(spacing: 6) {
-      HStack(alignment: .bottom, spacing: monthSpacing) {
-        ForEach(values.enumerated(), id: \.offset) { _, value in
-          VStack(spacing: 0) {
-            Spacer(minLength: 0)
-            // Capped so a short range on a wide card stays a column, not a blob.
-            Capsule()
-              .fill(value < 0 ? negativeColour : positiveColour)
-              .frame(maxWidth: 24)
-              .frame(height: max(3, height * abs(value) / magnitude * progress))
-          }
-          .frame(maxWidth: .infinity)
-        }
-      }
-      .frame(height: height)
-      .animation(reduceMotion ? nil : Theme.Motion.chart, value: values)
-      .chartReveal($progress)
-
-      if labels.count == values.count, !labels.isEmpty {
-        ChartAxisLabels(labels: labels, spacing: monthSpacing)
-      }
-    }
-    .chartVoice(
-      voice,
-      summary: ChartSpeech.summary(names: voice.periodNames, values: values, describe: voice.describe),
-      series: [(name: voice.name, values: values)]
-    )
-  }
-}
-
 /// Paired income/spending columns per period.
 struct PairedColumnChart: View {
   let pairs: [(income: Double, spending: Double)]
@@ -1679,6 +1625,189 @@ struct Sparkline: View {
       series: [(name: voice.name, values: values)],
       isContinuous: true
     )
+  }
+}
+
+/// Line chart for a level that moves a little against a large base, such as
+/// net worth. Columns from zero would draw a year of small gains as twelve
+/// equal bars, so the value axis is fitted around the series' own low and
+/// high instead, and both are labelled so the scale is never hidden. A dashed
+/// zero line appears when the series crosses zero. Points sit at the centre
+/// of each period's cell, so the shared axis labels line up underneath.
+struct TrendChart: View {
+  let values: [Double]
+  var labels: [String] = []
+  let voice: ChartVoice
+  /// Short label for a value on the value axis, such as compact money.
+  let axisLabel: (Double) -> String
+  var colour: Color = Theme.accent
+  var height: CGFloat = 90
+
+  @State private var progress: CGFloat = 0
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+  /// The value axis: the series' range padded a little at each end, but
+  /// never padded past zero when every value is on one side of it.
+  static func domain(for values: [Double]) -> ClosedRange<Double> {
+    guard let lowest = values.min(), let highest = values.max() else {
+      return 0 ... 1
+    }
+    let span = highest > lowest ? highest - lowest : max(abs(highest) * 0.1, 1)
+    let pad = span * 0.12
+    var low = lowest - pad
+    var high = highest + pad
+    if lowest >= 0 {
+      low = max(low, 0)
+    }
+    if highest <= 0 {
+      high = min(high, 0)
+    }
+    return low ... high
+  }
+
+  var body: some View {
+    let domain = Self.domain(for: values)
+    let lowest = values.min() ?? 0
+    let highest = values.max() ?? 0
+    let crossesZero = lowest < 0 && highest > 0
+    let ticks = [axisLabel(highest), axisLabel(lowest)]
+    let widestTick = ticks.max { $0.count < $1.count } ?? ""
+
+    VStack(spacing: 6) {
+      HStack(alignment: .top, spacing: 8) {
+        plot(domain: domain, crossesZero: crossesZero)
+          .frame(height: height)
+        ZStack(alignment: .topTrailing) {
+          // Size the column by its widest tick and fill the plot's height, so
+          // each tick's offset from the top lands on its gridline.
+          tickText(widestTick)
+            .hidden()
+          Color.clear
+            .frame(width: 1, height: height)
+          axisTick(highest, domain: domain)
+          if highest > lowest {
+            axisTick(lowest, domain: domain)
+          }
+        }
+        .frame(height: height)
+        .accessibilityHidden(true)
+      }
+
+      if labels.count == values.count, !labels.isEmpty {
+        HStack(spacing: 8) {
+          ChartAxisLabels(labels: labels, spacing: 0)
+          tickText(widestTick)
+            .hidden()
+        }
+      }
+    }
+    .chartVoice(
+      voice,
+      summary: ChartSpeech.summary(names: voice.periodNames, values: values, describe: voice.describe),
+      series: [(name: voice.name, values: values)],
+      isContinuous: true
+    )
+  }
+
+  private func plot(domain: ClosedRange<Double>, crossesZero: Bool) -> some View {
+    GeometryReader { proxy in
+      let size = proxy.size
+      let points = values.enumerated().map { index, value in
+        CGPoint(
+          x: size.width * (CGFloat(index) + 0.5) / CGFloat(values.count),
+          y: y(for: value, in: domain, height: size.height)
+        )
+      }
+      ZStack(alignment: .topLeading) {
+        if let highest = values.max(), let lowest = values.min() {
+          gridline(at: y(for: highest, in: domain, height: size.height), width: size.width)
+          if highest > lowest {
+            gridline(at: y(for: lowest, in: domain, height: size.height), width: size.width)
+          }
+        }
+        if crossesZero {
+          Path { path in
+            let zero = y(for: 0, in: domain, height: size.height)
+            path.move(to: CGPoint(x: 0, y: zero))
+            path.addLine(to: CGPoint(x: size.width, y: zero))
+          }
+          .stroke(Color.secondary.opacity(0.5), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+        }
+        if points.count > 1 {
+          Path { path in
+            guard let first = points.first, let last = points.last else { return }
+            path.move(to: CGPoint(x: first.x, y: size.height))
+            path.addLine(to: first)
+            for point in points.dropFirst() {
+              path.addLine(to: point)
+            }
+            path.addLine(to: CGPoint(x: last.x, y: size.height))
+            path.closeSubpath()
+          }
+          .fill(
+            LinearGradient(
+              colors: [colour.opacity(0.22), colour.opacity(0.02)],
+              startPoint: .top,
+              endPoint: .bottom
+            )
+          )
+          .mask(alignment: .leading) {
+            Rectangle().frame(width: size.width * progress)
+          }
+          Path { path in
+            guard let first = points.first else { return }
+            path.move(to: first)
+            for point in points.dropFirst() {
+              path.addLine(to: point)
+            }
+          }
+          .trim(from: 0, to: progress)
+          .stroke(colour, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
+        }
+        if let last = points.last {
+          Circle()
+            .fill(colour)
+            .frame(width: 7, height: 7)
+            .scaleEffect(progress)
+            .opacity(Double(progress))
+            .position(last)
+        }
+      }
+    }
+    .animation(reduceMotion ? nil : Theme.Motion.chart, value: values)
+    .chartReveal($progress)
+  }
+
+  private func tickText(_ label: String) -> some View {
+    Text(label)
+      .font(.caption2)
+      .monospacedDigit()
+      .lineLimit(1)
+      .fixedSize()
+  }
+
+  private func axisTick(_ value: Double, domain: ClosedRange<Double>) -> some View {
+    tickText(axisLabel(value))
+      .foregroundStyle(.secondary)
+      .alignmentGuide(.top) { dimensions in
+        // Centre the label on its gridline, kept inside the column.
+        let centre = y(for: value, in: domain, height: height)
+        return dimensions.height / 2 - min(max(centre, dimensions.height / 2), height - dimensions.height / 2)
+      }
+  }
+
+  private func gridline(at y: CGFloat, width: CGFloat) -> some View {
+    Path { path in
+      path.move(to: CGPoint(x: 0, y: y))
+      path.addLine(to: CGPoint(x: width, y: y))
+    }
+    .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+  }
+
+  private func y(for value: Double, in domain: ClosedRange<Double>, height: CGFloat) -> CGFloat {
+    let span = max(domain.upperBound - domain.lowerBound, 0.000_001)
+    let fraction = (value - domain.lowerBound) / span
+    return height * (1 - CGFloat(min(max(fraction, 0), 1)))
   }
 }
 

@@ -694,6 +694,83 @@ struct SpendingBreakdownDetailView: View {
   }
 }
 
+/// Pure helpers shared by the Net Worth card and detail screen.
+enum NetWorthMaths {
+  struct AccountGroup: Identifiable {
+    enum Kind {
+      case assets
+      case debts
+      case empty
+    }
+
+    let kind: Kind
+    let total: Int
+    let accounts: [NetWorthAccount]
+
+    var id: String { title }
+
+    var title: String {
+      switch kind {
+      case .assets: "Assets"
+      case .debts: "Debts"
+      case .empty: "Zero balance"
+      }
+    }
+  }
+
+  /// Accounts in credit, then accounts owing, then empty ones, each largest
+  /// first. The first two totals are the headline's Assets and Debts.
+  static func groups(_ accounts: [NetWorthAccount]) -> [AccountGroup] {
+    let bySize = accounts.sorted { abs($0.balance) > abs($1.balance) }
+    let assets = bySize.filter { $0.balance > 0 }
+    let debts = bySize.filter { $0.balance < 0 }
+    let empty = bySize.filter { $0.balance == 0 }
+    var groups: [AccountGroup] = []
+    if !assets.isEmpty {
+      groups.append(AccountGroup(kind: .assets, total: assets.map(\.balance).saturatingSum(), accounts: assets))
+    }
+    if !debts.isEmpty {
+      groups.append(AccountGroup(kind: .debts, total: debts.map(\.balance).saturatingSum(), accounts: debts))
+    }
+    if !empty.isEmpty {
+      groups.append(AccountGroup(kind: .empty, total: 0, accounts: empty))
+    }
+    return groups
+  }
+
+  /// How much is owed, as a positive figure for a "Debts" label.
+  static func owed(_ debts: Int) -> Int {
+    debts == Int.min ? Int.max : abs(debts)
+  }
+
+  /// `latest - earlier`, or nil when the difference would overflow.
+  static func change(from earlier: Int, to latest: Int) -> Int? {
+    let difference = latest.subtractingReportingOverflow(earlier)
+    return difference.overflow ? nil : difference.partialValue
+  }
+
+  /// The change as a share of where it started, only when it started in
+  /// credit: a move from a debt or from nothing has no honest percentage.
+  static func percentChange(from earlier: Int, to latest: Int) -> Double? {
+    guard earlier > 0, let change = change(from: earlier, to: latest) else {
+      return nil
+    }
+    return Double(change) / Double(earlier)
+  }
+
+  /// "+3.3%" or "-1.2%"; a flat window reads "0.0%".
+  static func percentLabel(_ fraction: Double) -> String {
+    let label = fraction.formatted(.percent.precision(.fractionLength(1)))
+    return fraction > 0 ? "+\(label)" : label
+  }
+
+  /// The last period runs only to today when the window ends today, so its
+  /// figure is still moving, like Income vs Spending's "so far" rows.
+  static func isPartial(_ period: NetWorthPeriod, today: String) -> Bool {
+    period.endDate == today
+  }
+}
+
 struct NetWorthDetailView: View {
   @Environment(AppModel.self) private var model
   @State private var range = ReportRange(mode: .preset, preset: .lastTwelveMonths)
@@ -706,7 +783,7 @@ struct NetWorthDetailView: View {
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
-        ReportFilterBar(range: $range, interval: $interval, intervalChoices: [.week, .month], scope: $scope)
+        ReportFilterBar(range: $range, interval: $interval, intervalChoices: [.week, .month, .year], scope: $scope)
 
         if let report, let latest = report.periods.last {
           headlineCard(report: report, latest: latest)
@@ -742,12 +819,16 @@ struct NetWorthDetailView: View {
   }
 
   private func headlineCard(report: NetWorthReport, latest: NetWorthPeriod) -> some View {
-    let assets = latest.accounts.map(\.balance).filter { $0 > 0 }.saturatingSum()
-    let debts = latest.accounts.map(\.balance).filter { $0 < 0 }.saturatingSum()
-    let change = report.periods.dropLast().last.flatMap { previous -> Int? in
-      let difference = latest.netWorth.subtractingReportingOverflow(previous.netWorth)
-      return difference.overflow ? nil : difference.partialValue
-    }
+    let groups = NetWorthMaths.groups(latest.accounts)
+    let assets = groups.first { $0.kind == .assets }?.total ?? 0
+    let debts = groups.first { $0.kind == .debts }?.total ?? 0
+    let previous = report.periods.dropLast().last
+    let change = previous.flatMap { NetWorthMaths.change(from: $0.netWorth, to: latest.netWorth) }
+    // The first period's figure is its closing balance, so the window's
+    // movement starts there; with two periods it is the step shown above.
+    let first = report.periods.count > 2 ? report.periods.first : nil
+    let windowChange = first.flatMap { NetWorthMaths.change(from: $0.netWorth, to: latest.netWorth) }
+    let windowPercent = first.flatMap { NetWorthMaths.percentChange(from: $0.netWorth, to: latest.netWorth) }
 
     return VStack(spacing: 10) {
       Text("Net Worth · as at \(LedgerDate.friendlyString(fromISO: latest.endDate))")
@@ -760,11 +841,11 @@ struct NetWorthDetailView: View {
         .minimumScaleFactor(0.5)
         .foregroundStyle(Theme.textPrimary)
         .rollingNumber(latest.netWorth)
-      if let change {
-        Text("\(MoneyCodec.signedDisplayString(for: change, currencyFormat: model.currencyFormat)) on previous period")
+      if let previous, let change {
+        Text("\(MoneyCodec.signedDisplayString(for: change, currencyFormat: model.currencyFormat)) since \(LedgerDate.friendlyString(fromISO: previous.endDate))")
           .font(.footnote.weight(.medium))
           .monospacedDigit()
-          .foregroundStyle(Theme.amountColour(change))
+          .foregroundStyle(Theme.signedReportColour(change))
           .rollingNumber(change)
       }
       HStack(spacing: 24) {
@@ -782,19 +863,28 @@ struct NetWorthDetailView: View {
           Text("Debts")
             .font(.caption)
             .foregroundStyle(Theme.outflow)
-          Text(MoneyCodec.displayString(for: debts, currencyFormat: model.currencyFormat))
+          // Owed, so shown as how much, not as a negative under a "Debts" label.
+          Text(MoneyCodec.displayString(for: NetWorthMaths.owed(debts), currencyFormat: model.currencyFormat))
             .font(.subheadline.weight(.semibold))
             .monospacedDigit()
             .foregroundStyle(Theme.textPrimary)
-            .rollingNumber(debts)
+            .rollingNumber(NetWorthMaths.owed(debts))
         }
       }
-      ColumnChart(
+      TrendChart(
         values: report.periods.map { Double($0.netWorth) },
         labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
         voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+        axisLabel: { MoneyCodec.compactDisplayString(for: Int($0.rounded()), currencyFormat: model.currencyFormat) },
         height: 120
       )
+      if let first, let windowChange {
+        let percent = windowPercent.map { " (\(NetWorthMaths.percentLabel($0)))" } ?? ""
+        Text("\(MoneyCodec.signedDisplayString(for: windowChange, currencyFormat: model.currencyFormat))\(percent) since \(LedgerDate.friendlyString(fromISO: first.endDate))")
+          .font(.caption)
+          .monospacedDigit()
+          .foregroundStyle(.secondary)
+      }
     }
     .frame(maxWidth: .infinity)
     .padding(16)
@@ -802,39 +892,104 @@ struct NetWorthDetailView: View {
   }
 
   private func accountsCard(latest: NetWorthPeriod) -> some View {
-    let accounts = latest.accounts.sorted { abs($0.balance) > abs($1.balance) }
+    let groups = NetWorthMaths.groups(latest.accounts)
     return VStack(spacing: 0) {
-      ForEach(accounts.enumerated(), id: \.element.id) { index, account in
-        HStack {
-          Text(account.accountName)
-            .font(.subheadline)
-            .foregroundStyle(Theme.textPrimary)
-          Spacer()
-          Text(MoneyCodec.displayString(for: account.balance, currencyFormat: model.currencyFormat))
-            .font(.subheadline)
-            .monospacedDigit()
-            .foregroundStyle(account.balance == 0 ? .secondary : Theme.amountColour(account.balance))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        if index < accounts.count - 1 {
-          Divider().padding(.leading, 16)
+      if groups.isEmpty {
+        Text(scope.isActive
+          ? "None of the chosen accounts count towards net worth."
+          : "No accounts are included in net worth yet.")
+          .font(.subheadline)
+          .foregroundStyle(.secondary)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(16)
+      }
+      ForEach(groups) { group in
+        accountGroupHeader(group)
+        ForEach(group.accounts.enumerated(), id: \.element.id) { index, account in
+          accountLink(account)
+          if index < group.accounts.count - 1 {
+            Divider().padding(.leading, 16)
+          }
         }
       }
     }
     .ynabCard()
   }
 
+  private func accountGroupHeader(_ group: NetWorthMaths.AccountGroup) -> some View {
+    let colour: Color = switch group.kind {
+    case .assets: Theme.accent
+    case .debts: Theme.outflow
+    case .empty: .secondary
+    }
+    return HStack {
+      Text(group.title)
+        .foregroundStyle(colour)
+      Spacer()
+      if group.kind != .empty {
+        Text(MoneyCodec.displayString(for: NetWorthMaths.owed(group.total), currencyFormat: model.currencyFormat))
+          .monospacedDigit()
+          .foregroundStyle(Theme.textPrimary)
+      }
+    }
+    .font(.footnote.weight(.semibold))
+    .padding(.horizontal, 16)
+    .padding(.vertical, 8)
+    .frame(maxWidth: .infinity)
+    .background(Theme.surfaceMuted.opacity(0.6))
+    .accessibilityElement(children: .combine)
+  }
+
+  /// Each row opens the account's register when the account is known here;
+  /// a filtered-out or long-closed one still lists, just without the link.
+  @ViewBuilder
+  private func accountLink(_ account: NetWorthAccount) -> some View {
+    if model.accounts.contains(where: { $0.id == account.accountID }) {
+      NavigationLink {
+        RegisterView(scope: .account(account.accountID))
+      } label: {
+        accountRow(account, linked: true)
+      }
+      .buttonStyle(.cardRow)
+    } else {
+      accountRow(account, linked: false)
+    }
+  }
+
+  private func accountRow(_ account: NetWorthAccount, linked: Bool) -> some View {
+    HStack {
+      Text(account.accountName)
+        .font(.subheadline)
+        .foregroundStyle(Theme.textPrimary)
+      Spacer()
+      Text(MoneyCodec.displayString(for: account.balance, currencyFormat: model.currencyFormat))
+        .font(.subheadline)
+        .monospacedDigit()
+        .foregroundStyle(account.balance == 0 ? .secondary : Theme.amountColour(account.balance))
+      if linked {
+        Image(systemName: "chevron.forward")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(.tertiary)
+          .accessibilityHidden(true)
+      }
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 11)
+    .contentShape(Rectangle())
+  }
+
   private func historyCard(report: NetWorthReport) -> some View {
     let periods = Array(report.periods.reversed())
+    let today = Date.now.isoDateString
     return VStack(spacing: 0) {
       ForEach(periods.enumerated(), id: \.element.id) { index, period in
         let prior = index + 1 < periods.count ? periods[index + 1] : nil
-        let delta = prior.map { period.netWorth - $0.netWorth }
+        let delta = prior.flatMap { NetWorthMaths.change(from: $0.netWorth, to: period.netWorth) }
+        let partial = NetWorthMaths.isPartial(period, today: today)
         HStack {
-          Text(LedgerDate.periodLabel(period.period))
+          (Text(LedgerDate.periodLabel(period.period)).foregroundStyle(Theme.textPrimary)
+            + (partial ? Text(" · so far").foregroundStyle(.secondary) : Text("")))
             .font(.subheadline)
-            .foregroundStyle(Theme.textPrimary)
           Spacer()
           VStack(alignment: .trailing, spacing: 2) {
             Text(MoneyCodec.displayString(for: period.netWorth, currencyFormat: model.currencyFormat))
@@ -845,7 +1000,7 @@ struct NetWorthDetailView: View {
               Text(MoneyCodec.signedDisplayString(for: delta, currencyFormat: model.currencyFormat))
                 .font(.caption)
                 .monospacedDigit()
-                .foregroundStyle(Theme.amountColour(delta))
+                .foregroundStyle(Theme.signedReportColour(delta))
             }
           }
         }

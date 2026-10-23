@@ -237,14 +237,26 @@ struct ReflectView: View {
   @ViewBuilder
   private var netWorthContent: some View {
     if let report = model.netWorth, let latest = report.periods.last {
-      let assets = latest.accounts.map(\.balance).filter { $0 > 0 }.saturatingSum()
-      let debts = latest.accounts.map(\.balance).filter { $0 < 0 }.saturatingSum()
+      let groups = NetWorthMaths.groups(latest.accounts)
+      let assets = groups.first { $0.kind == .assets }?.total ?? 0
+      let debts = groups.first { $0.kind == .debts }?.total ?? 0
+      let previous = report.periods.dropLast().last
+      let change = previous.flatMap { NetWorthMaths.change(from: $0.netWorth, to: latest.netWorth) }
       VStack(alignment: .leading, spacing: 12) {
-        Text(MoneyCodec.displayString(for: latest.netWorth, currencyFormat: model.currencyFormat))
-          .font(.title.weight(.medium))
-          .monospacedDigit()
-          .foregroundStyle(Theme.textPrimary)
-          .rollingNumber(latest.netWorth)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(MoneyCodec.displayString(for: latest.netWorth, currencyFormat: model.currencyFormat))
+            .font(.title.weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(Theme.textPrimary)
+            .rollingNumber(latest.netWorth)
+          if let previous, let change {
+            Text("\(MoneyCodec.signedDisplayString(for: change, currencyFormat: model.currencyFormat)) since \(LedgerDate.friendlyString(fromISO: previous.endDate))")
+              .font(.caption)
+              .monospacedDigit()
+              .foregroundStyle(Theme.signedReportColour(change))
+              .rollingNumber(change)
+          }
+        }
 
         HStack {
           Text("Assets")
@@ -259,16 +271,18 @@ struct ReflectView: View {
           Text("Debts")
             .foregroundStyle(Theme.outflow)
           Spacer()
-          Text(MoneyCodec.displayString(for: debts, currencyFormat: model.currencyFormat))
+          // Owed, so shown as how much, as the detail screen does.
+          Text(MoneyCodec.displayString(for: NetWorthMaths.owed(debts), currencyFormat: model.currencyFormat))
             .monospacedDigit()
             .foregroundStyle(Theme.textPrimary)
         }
         .font(.subheadline)
 
-        ColumnChart(
+        TrendChart(
           values: report.periods.map { Double($0.netWorth) },
           labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
-          voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat)
+          voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+          axisLabel: { MoneyCodec.compactDisplayString(for: Int($0.rounded()), currencyFormat: model.currencyFormat) }
         )
       }
     }
