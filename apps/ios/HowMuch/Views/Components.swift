@@ -1541,9 +1541,9 @@ private struct ChartAxisLabels: View {
       ticks.append(last)
     }
     guard stride > 1 else { return Set(ticks) }
-    // Labels run past their columns when thinned, so two ticks side by side
-    // would overlap: the less telling one yields. A year beats a month
-    // name, which beats the latest period, which beats a plain number.
+    // Labels run past their columns when thinned, so two ticks less than a
+    // window apart would overlap: the less telling one yields. A year beats
+    // a month name, which beats the latest period, which beats a number.
     func rank(_ index: Int) -> Int {
       if carriesYear(index) { return 3 }
       if mixesNumbers, isNamed(index) { return 2 }
@@ -1551,7 +1551,7 @@ private struct ChartAxisLabels: View {
     }
     var kept: [Int] = []
     for tick in ticks {
-      if let previous = kept.last, tick - previous < 2 {
+      if let previous = kept.last, tick - previous < stride {
         if rank(tick) > rank(previous) {
           kept[kept.count - 1] = tick
         }
