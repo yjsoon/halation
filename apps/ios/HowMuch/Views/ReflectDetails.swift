@@ -744,6 +744,31 @@ enum NetWorthMaths {
     accounts.filter { $0.closed != true || $0.balance != 0 }
   }
 
+  /// Assets and debts as shares of everything held, for one stacked bar.
+  static func shares(assets: Int, debts: Int) -> [(isDebt: Bool, fraction: Double)] {
+    let owed = Double(debts.magnitude)
+    let held = Double(assets) + owed
+    guard held > 0 else {
+      return []
+    }
+    var shares: [(isDebt: Bool, fraction: Double)] = []
+    if assets > 0 {
+      shares.append((false, Double(assets) / held))
+    }
+    if owed > 0 {
+      shares.append((true, owed / held))
+    }
+    return shares
+  }
+
+  /// `amount` against the largest of its peers, for a row's meter.
+  static func meterFraction(_ amount: Int, largest: Int) -> Double {
+    guard largest > 0 else {
+      return 0
+    }
+    return min(Double(amount.magnitude) / Double(largest.magnitude), 1)
+  }
+
   /// A chart value back to milliunits, clamped instead of trapping.
   static func milliunits(_ value: Double) -> Int {
     Int(exactly: value.rounded()) ?? (value < 0 ? Int.min : Int.max)
@@ -915,6 +940,13 @@ struct NetWorthDetailView: View {
             .rollingNumber(debts)
         }
       }
+      // How much of what is held is owed: the two figures as one bar.
+      let shares = NetWorthMaths.shares(assets: assets, debts: debts)
+      if !shares.isEmpty {
+        StackedShareBar(segments: shares.map { (colour: $0.isDebt ? Theme.outflow : Theme.accent, fraction: $0.fraction) }, height: 8)
+          .frame(maxWidth: 240)
+          .accessibilityHidden(true)
+      }
       TrendChart(
         values: report.periods.map { Double($0.netWorth) },
         labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
@@ -937,12 +969,14 @@ struct NetWorthDetailView: View {
   }
 
   private func accountsCard(latest: NetWorthPeriod) -> some View {
-    let groups = NetWorthMaths.groups(NetWorthMaths.listed(latest.accounts))
+    let listed = NetWorthMaths.listed(latest.accounts)
+    let groups = NetWorthMaths.groups(listed)
+    let largest = listed.map { Int(clamping: $0.balance.magnitude) }.max() ?? 0
     return VStack(spacing: 0) {
       ForEach(groups) { group in
         accountGroupHeader(group)
         ForEach(group.accounts.enumerated(), id: \.element.id) { index, account in
-          accountLink(account)
+          accountLink(account, largest: largest)
           if index < group.accounts.count - 1 {
             Divider().padding(.leading, 16)
           }
@@ -979,30 +1013,41 @@ struct NetWorthDetailView: View {
   /// Each row opens the account's register when the account is known here;
   /// a closed one still lists while it holds a balance, without the link.
   @ViewBuilder
-  private func accountLink(_ account: NetWorthAccount) -> some View {
+  private func accountLink(_ account: NetWorthAccount, largest: Int) -> some View {
     if model.accounts.contains(where: { $0.id == account.accountID }) {
       NavigationLink {
         RegisterView(scope: .account(account.accountID))
       } label: {
-        accountRow(account, linked: true)
+        accountRow(account, largest: largest, linked: true)
       }
       .buttonStyle(.cardRow)
     } else {
-      accountRow(account, linked: false)
+      accountRow(account, largest: largest, linked: false)
     }
   }
 
-  private func accountRow(_ account: NetWorthAccount, linked: Bool) -> some View {
+  /// Name over a meter against the largest balance listed, so the eye can
+  /// weigh the accounts without reading every figure.
+  private func accountRow(_ account: NetWorthAccount, largest: Int, linked: Bool) -> some View {
     let balance = Text(MoneyCodec.displayString(for: account.balance, currencyFormat: model.currencyFormat))
       .font(.subheadline)
       .monospacedDigit()
       .foregroundStyle(account.balance == 0 ? .secondary : Theme.amountColour(account.balance))
-    let name = Text(account.accountName)
-      .font(.subheadline)
-      .foregroundStyle(Theme.textPrimary)
+    let name = VStack(alignment: .leading, spacing: 6) {
+      Text(account.accountName)
+        .font(.subheadline)
+        .foregroundStyle(Theme.textPrimary)
+      if account.balance != 0 {
+        ShareMeter(
+          fraction: NetWorthMaths.meterFraction(account.balance, largest: largest),
+          colour: account.balance < 0 ? Theme.outflow : Theme.accent
+        )
+        .frame(width: 120, height: 6)
+      }
+    }
     return HStack {
       if dynamicTypeSize.isAccessibilitySize {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
           name
           balance
         }
@@ -1029,11 +1074,14 @@ struct NetWorthDetailView: View {
 
   private func historyCard(report: NetWorthReport) -> some View {
     let periods = Array(report.periods.reversed())
+    let deltas = periods.indices.map { index -> Int? in
+      guard index + 1 < periods.count else { return nil }
+      return NetWorthMaths.change(from: periods[index + 1].netWorth, to: periods[index].netWorth)
+    }
+    let largestDelta = deltas.compactMap { $0.map { Int(clamping: $0.magnitude) } }.max() ?? 0
     return VStack(spacing: 0) {
       ForEach(periods.enumerated(), id: \.element.id) { index, period in
-        let prior = index + 1 < periods.count ? periods[index + 1] : nil
-        let delta = prior.flatMap { NetWorthMaths.change(from: $0.netWorth, to: period.netWorth) }
-        historyRow(period, delta: delta)
+        historyRow(period, delta: deltas[index], largestDelta: largestDelta)
         if index < periods.count - 1 {
           Divider().padding(.leading, 16)
         }
@@ -1042,11 +1090,22 @@ struct NetWorthDetailView: View {
     .ynabCard()
   }
 
-  private func historyRow(_ period: NetWorthPeriod, delta: Int?) -> some View {
+  /// Period over a meter of its change against the window's largest, so
+  /// the strong and weak months stand out down the list.
+  private func historyRow(_ period: NetWorthPeriod, delta: Int?, largestDelta: Int) -> some View {
     let heading = NetWorthMaths.historyTitle(period, interval: interval)
-    let title = (Text(heading.title).foregroundStyle(Theme.textPrimary)
-      + (heading.note.map { Text(" · \($0)").foregroundStyle(.secondary) } ?? Text("")))
-      .font(.subheadline)
+    let title = VStack(alignment: .leading, spacing: 6) {
+      (Text(heading.title).foregroundStyle(Theme.textPrimary)
+        + (heading.note.map { Text(" · \($0)").foregroundStyle(.secondary) } ?? Text("")))
+        .font(.subheadline)
+      if let delta, delta != 0 {
+        ShareMeter(
+          fraction: NetWorthMaths.meterFraction(delta, largest: largestDelta),
+          colour: delta < 0 ? Theme.outflow : Theme.inflow
+        )
+        .frame(width: 120, height: 6)
+      }
+    }
     let figures = VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
       Text(MoneyCodec.displayString(for: period.netWorth, currencyFormat: model.currencyFormat))
         .font(.subheadline.weight(.medium))
