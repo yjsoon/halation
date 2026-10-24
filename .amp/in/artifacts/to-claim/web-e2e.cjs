@@ -51,7 +51,7 @@ const get = async (id) => (await api("GET", `${plan}/transactions/${id}`)).body.
 
   const list = (await api("GET", `${plan}/transactions?limit=60`)).body.data.transactions
     .filter((t) => t.amount < 0 && !t.transfer_account_id && !(t.subtransactions || []).length);
-  const [viaField, viaWord, both, claimed, legacy, plain] = list;
+  const [viaField, viaWord, both, claimed, legacy, plain, legacyClaimed, legacyChecked] = list;
   // An MCP client sets the field; an older client writes the words.
   await api("PATCH", `${plan}/transactions/${viaField.id}`, { transaction: { claim_status: "to_claim", memo: "Client dinner" } });
   const worded = (await api("PATCH", `${plan}/transactions/${viaWord.id}`, { transaction: { memo: "TODO: Taxi to client" } })).body.data.transaction;
@@ -60,6 +60,8 @@ const get = async (id) => (await api("GET", `${plan}/transactions/${id}`)).body.
   check("TOCHECK TODO sets both flags", checked.memo === "Hotel deposit" && checked.claim_status === "to_claim" && checked.needs_confirmation === true);
   await api("PATCH", `${plan}/transactions/${claimed.id}`, { transaction: { memo: "CLAIMED - 2026-01-02: Notebooks" } });
   storeLegacyMemo(legacy.id, "TODO: Conference ticket");
+  storeLegacyMemo(legacyClaimed.id, "CLAIMED - 2026-01-02: Example receipt");
+  storeLegacyMemo(legacyChecked.id, "TOCHECK TODO: Example hotel");
   await api("PATCH", `${plan}/transactions/${plain.id}`, { transaction: { memo: "Todo list app" } });
 
   await page.goto(`${state.web_url}/?from=2000-01-01`);
@@ -71,6 +73,7 @@ const get = async (id) => (await api("GET", `${plan}/transactions/${id}`)).body.
   check("flagged row shows the tag and its memo", (await tagged("Client dinner").innerText()).replace(/\s+/g, " ").trim() === "To claim Client dinner");
   check("claimed row shows Claimed and the description", (await tagged("Notebooks").innerText()).replace(/\s+/g, " ").trim() === "Claimed Notebooks");
   check("legacy TODO memo still shows as a tag", (await tagged("Conference ticket").innerText()).replace(/\s+/g, " ").trim() === "To claim Conference ticket");
+  check("legacy TOCHECK TODO memo shows the claim tag and keeps TOCHECK", (await tagged("Example hotel").innerText()).replace(/\s+/g, " ").trim() === "To claim TOCHECK Example hotel");
   const plainCell = tagged("Todo list app");
   check("prose starting with Todo keeps its memo and gets no tag", (await plainCell.locator(".memo-claim").count()) === 0);
   await page.screenshot({ path: path.join(out, "web-1-register.png") });
@@ -122,11 +125,27 @@ const get = async (id) => (await api("GET", `${plan}/transactions/${id}`)).body.
   await chips.waitFor();
   check("claimed row shows its day", await chips.getByText("Claimed 2 Jan 2026").isVisible());
   await page.screenshot({ path: path.join(out, "web-4-claimed-edit.png") });
+  // Pressing To claim twice puts the claimed state back.
+  await chips.getByRole("button", { name: "To claim" }).click();
+  await chips.getByRole("button", { name: "To claim" }).click();
+  check("pressing To claim twice on a claimed row restores Claimed",
+    (await chips.getByRole("button", { name: "To claim" }).getAttribute("aria-pressed")) === "false" && await chips.getByText("Claimed 2 Jan 2026").isVisible());
   await chips.getByRole("button", { name: "To claim" }).click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForTimeout(1200);
   const refiled = await get(claimed.id);
   check("re-claiming a claimed row files it to claim and drops the day", refiled.claim_status === "to_claim" && refiled.claimed_on === null && refiled.memo === "Notebooks");
+
+  // A legacy CLAIMED row keeps its claimed day when edited.
+  await tagged("Example receipt").dblclick();
+  await chips.waitFor();
+  check("legacy claimed row shows its day from the memo", await chips.getByText("Claimed 2 Jan 2026").isVisible());
+  await page.getByLabel("Memo", { exact: true }).fill("Example receipt, kept");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForTimeout(1200);
+  const keptDay = await get(legacyClaimed.id);
+  check("saving a legacy claimed row stores claimed with its day", keptDay.claim_status === "claimed" && keptDay.claimed_on === "2026-01-02" && keptDay.memo === "Example receipt, kept",
+    JSON.stringify([keptDay.memo, keptDay.claim_status, keptDay.claimed_on]));
 
   // A new row from the compose row with To claim on.
   await page.getByRole("button", { name: "+ Add transaction" }).click();

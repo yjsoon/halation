@@ -494,6 +494,8 @@ function planPostedCommit(
 
   if (draft.claimStatus !== undefined && draft.claimStatus !== (txn.claim_status ?? null)) {
     input.claim_status = draft.claimStatus;
+    // A row stored before the field keeps its claimed day in the memo word.
+    if (draft.claimStatus === "claimed") input.claimed_on = legacyWords(txn.memo).claimedOn;
   }
 
   if (rowFieldWritable(row, "outflow", draft, payees) || rowFieldWritable(row, "inflow", draft, payees)) {

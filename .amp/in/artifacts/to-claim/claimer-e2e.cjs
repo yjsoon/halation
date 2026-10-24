@@ -44,6 +44,16 @@ const freePort = () => new Promise((resolve) => {
     state.db_path, "TODO: Example legacy", legacy.id]);
   const prose = await create({ payee_name: "Example App Store", memo: "Todo list app" });
   const done = await create({ payee_name: "Example Stationer", memo: "CLAIMED - 2026-10-21: Example notebooks" });
+  // Transfers: the pair holds one claim, and the tool lists the outflow side.
+  const accounts = (await api("GET", `${plan}/accounts`)).body.data.accounts.filter((a) => !a.closed && !a.deleted);
+  const other = accounts.find((a) => a.id !== account.id);
+  const transferPayee = (await api("GET", `${plan}/payees`)).body.data.payees.find((p) => p.transfer_account_id === other.id);
+  const transfer = async (memo) => {
+    const out = await create({ payee_id: transferPayee.id, memo });
+    return { out, into: (await api("GET", `${plan}/transactions/${out.transfer_transaction_id}`)).body.data.transaction };
+  };
+  const viaInflow = await transfer("Example card top-up");
+  await api("PATCH", `${plan}/transactions/${viaInflow.into.id}`, { transaction: { claim_status: "to_claim" } });
   check("seeded rows as HowMuch stores them",
     worded.claim_status === "to_claim" && worded.memo === "Example lunch" && done.claim_status === "claimed" && prose.claim_status === null);
 
@@ -70,6 +80,7 @@ const freePort = () => new Promise((resolve) => {
     check("legacy TODO memo still listed", byId.get(legacy.id)?.description === "Example legacy");
     check("prose memo is not a claim", !byId.has(prose.id));
     check("claimed row is not listed", !byId.has(done.id));
+    check("transfer marked on its inflow side is listed once, as the outflow", byId.has(viaInflow.out.id) && !byId.has(viaInflow.into.id));
 
     const claimedDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore" }).format(new Date());
     const line = (todo) => ({
@@ -79,14 +90,16 @@ const freePort = () => new Promise((resolve) => {
     const marked = await (await fetch(`${workerUrl}/xero/invoices/mark-claimed`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Auth-Token": "test-auth" },
-      body: JSON.stringify({ invoiceID: "invoice-e2e", backend: "howmuch", lineItems: [line(byId.get(flagged.id)), line(byId.get(legacy.id))] }),
+      body: JSON.stringify({ invoiceID: "invoice-e2e", backend: "howmuch", lineItems: [line(byId.get(flagged.id)), line(byId.get(legacy.id)), line(byId.get(viaInflow.out.id))] }),
     })).json();
-    check("mark claimed reports both claimed", JSON.stringify(marked.claimedYnab) === JSON.stringify([{ id: flagged.id, status: "claimed" }, { id: legacy.id, status: "claimed" }]), JSON.stringify(marked.claimedYnab));
+    check("mark claimed reports all three claimed", JSON.stringify(marked.claimedYnab) === JSON.stringify([{ id: flagged.id, status: "claimed" }, { id: legacy.id, status: "claimed" }, { id: viaInflow.out.id, status: "claimed" }]), JSON.stringify(marked.claimedYnab));
     const after = async (id) => (await api("GET", `${plan}/transactions/${id}`)).body.data.transaction;
     const a = await after(flagged.id);
     const b = await after(legacy.id);
     check("flagged row is stored claimed, memo kept", a.claim_status === "claimed" && a.claimed_on === claimedDate && a.memo === "Example taxi", JSON.stringify([a.memo, a.claim_status, a.claimed_on]));
     check("legacy row is stored claimed, word gone", b.claim_status === "claimed" && b.claimed_on === claimedDate && b.memo === "Example legacy", JSON.stringify([b.memo, b.claim_status, b.claimed_on]));
+    const inflow = await after(viaInflow.into.id);
+    check("claiming the outflow side claims the inflow side too", inflow.claim_status === "claimed" && inflow.claimed_on === claimedDate && inflow.memo === "Example card top-up", JSON.stringify([inflow.memo, inflow.claim_status, inflow.claimed_on]));
     const again = (await (await fetch(`${workerUrl}/ynab/todos?backend=howmuch&since_date=2026-10-01`, { headers: { "X-Auth-Token": "test-auth" } })).json()).todos;
     check("claimed rows drop off the list", !again.some((t) => t.id === flagged.id || t.id === legacy.id) && again.some((t) => t.id === worded.id));
   } finally {

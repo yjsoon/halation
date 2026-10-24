@@ -113,14 +113,26 @@ for (const engine of ["d1", "sqlite"] as const) {
   ]);
   check("type=claimed lists claimed rows", (await api("GET", `/v1/plans/${PLAN}/transactions?type=claimed`)).body.data.transactions.length, 2);
 
-  // Transfers: each side owns its claim.
+  // Transfers: the pair holds one claim, as it holds one memo.
   const transfer = await create({ account_id: cash.id, amount: -50000, payee_id: card.transfer_payee_id, payee_name: undefined, memo: "TODO: Card top-up" });
   const mirrorId = transfer.transfer_transaction_id;
   check("transfer side carries the claim", claim(transfer), { memo: "Card top-up", claim_status: "to_claim", claimed_on: null });
-  check("mirror starts unclaimed with the stripped memo", claim(await get(mirrorId)), { memo: "Card top-up", claim_status: null, claimed_on: null });
+  check("other side takes the same claim", claim(await get(mirrorId)), { memo: "Card top-up", claim_status: "to_claim", claimed_on: null });
   await patch(mirrorId, { claim_status: "claimed", claimed_on: "2026-10-27" });
+  check("claiming the inflow side claims the pair", claim(await get(transfer.id)), { memo: "Card top-up", claim_status: "claimed", claimed_on: "2026-10-27" });
   await patch(transfer.id, { amount: -60000 });
-  check("editing one side keeps the mirror's own claim", claim(await get(mirrorId)), { memo: "Card top-up", claim_status: "claimed", claimed_on: "2026-10-27" });
+  check("an edit that leaves the claim alone keeps it on both sides", [claim(await get(transfer.id)), claim(await get(mirrorId))].map((c) => c.claim_status), ["claimed", "claimed"]);
+  await patch(transfer.id, { claim_status: null });
+  check("clearing one side clears the pair", [claim(await get(transfer.id)).claim_status, claim(await get(mirrorId)).claim_status], [null, null]);
+  await patch(mirrorId, { needs_confirmation: true });
+  check("To confirm stays each side's own", [(await get(transfer.id)).needs_confirmation, (await get(mirrorId)).needs_confirmation], [false, true]);
+
+  // A schedule's memo words become fields on each occurrence.
+  const schedule = (await api("POST", `/v1/plans/${PLAN}/scheduled_transactions`, { scheduled_transaction: {
+    account_id: card.id, date_first: "2026-10-19", frequency: "monthly", amount: -45000, memo: "TODO: Phone bill",
+  } }, { "idempotency-key": `op-${engine}-schedule` })).body.data.scheduled_transaction;
+  const occurrence = (await api("POST", `/v1/plans/${PLAN}/scheduled_transactions/${schedule.id}/materialize`, { occurrence_date: "2026-10-19", date: "2026-10-19" }, { "idempotency-key": `op-${engine}-occurrence` })).body.data?.transaction;
+  check("scheduled occurrence takes the claim from its memo", occurrence && claim(occurrence), { memo: "Phone bill", claim_status: "to_claim", claimed_on: null });
 
   // Split lines keep their memos; only the parent memo is read.
   const split = await create({ memo: "TODO: Conference", subtransactions: [{ amount: -10000, memo: "TODO: ticket" }, { amount: -2340, memo: "snacks" }] });

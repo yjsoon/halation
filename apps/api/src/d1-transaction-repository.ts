@@ -7,7 +7,7 @@ import type { D1Database } from "./d1";
 import type { SqlValues } from "./async-sql";
 import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
 import { statement } from "./d1-guarded-command";
-import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, claimParams, nextClaim } from "./transaction-claim";
+import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, claimParams, nextClaim, transferClaim } from "./transaction-claim";
 import { CLEARED_CONFIRMS_SQL, NEEDS_CONFIRMATION_CONFLICT_SQL, NEEDS_CONFIRMATION_INSERT_SQL, needsConfirmationParam, nextNeedsConfirmation } from "./transaction-confirmation";
 
 /** Fields the linked side of a split line owns and may change on its own. */
@@ -309,7 +309,7 @@ export class D1TransactionRepository {
       body.push(assertion(stable.commandId, "upsert_transaction", transferId, planId));
       body.push(assertion(stable.commandId, "mirror_transaction", transferId, input.id!));
       const existingMirror = snapshot.mirrors.find((row) => row.id === transferId);
-      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? newLinkedSideCleared(input.source_kind, target.type), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: transferDropsCategory ? null : existingMirror?.category_id, categoryName: transferDropsCategory ? null : existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
+      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? newLinkedSideCleared(input.source_kind, target.type), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: transferDropsCategory ? null : existingMirror?.category_id, categoryName: transferDropsCategory ? null : existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: { ...mirrorOwnFields(existingMirror), ...transferClaim(input) } }));
       touched.add(transferId);
     } else if (transferAccount) {
       const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [transferAccount, planId]);
@@ -436,7 +436,9 @@ function subInput(row: Record<string, any>) {
 /**
  * Fields a linked side owns. Writing the other side rewrites the mirror row,
  * and must keep its flag, its bank match and its source, as SQLite does. Its
- * category is kept by the callers, which pass it beside these fields.
+ * category is kept by the callers, which pass it beside these fields. The
+ * claim is kept here too; an ordinary transfer's caller then lays the pair's
+ * claim over it, while a split line's linked side keeps its own.
  */
 function mirrorOwnFields(existing: Record<string, any> | undefined): Record<string, unknown> {
   if (!existing) return {};

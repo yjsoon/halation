@@ -105,6 +105,20 @@ export function nextClaim(
   return { claim_status: status, claimed_on: keep };
 }
 
+export type TransferClaim = { claim_status: ClaimStatus | null; claimed_on: string | null };
+
+/**
+ * The claim the other side of an ordinary transfer takes from a write: the
+ * pair holds one claim, as it holds one memo. Undefined when the write does
+ * not mention the claim, so the other side keeps the one it has. The linked
+ * side of a split line is not a pair member here; it owns its claim.
+ */
+export function transferClaim(input: { claim_status?: unknown; claimed_on?: unknown }): TransferClaim | undefined {
+  if (input.claim_status === undefined) return undefined;
+  const status = storedStatus(input.claim_status);
+  return { claim_status: status, claimed_on: status === "claimed" && typeof input.claimed_on === "string" ? input.claimed_on : null };
+}
+
 function storedStatus(value: unknown): ClaimStatus | null {
   return value === "to_claim" || value === "claimed" ? value : null;
 }

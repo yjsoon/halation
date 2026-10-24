@@ -395,7 +395,7 @@ Supported query parameters:
 
 - `since_date`
 - `until_date`
-- `type` — `unapproved`, `approved`, `uncategorized`, `needs_confirmation`
+- `type`: `unapproved`, `approved`, `uncategorized`, `needs_confirmation`
   (rows whose amount is still to be confirmed; see [To confirm](#to-confirm)),
   `to_claim` or `claimed` (see [To claim](#to-claim))
 - `last_knowledge_of_server`
@@ -695,12 +695,15 @@ own.
   `claim_status: "claimed"` with `claimed_on` once it has billed them.
 - Moving back to `"to_claim"` or `null` drops `claimed_on`. Clearing,
   reconciling and amount edits never change the claim.
-- Each side of a transfer keeps its own claim. Split lines have none; set it
-  on the parent.
+- A transfer holds one claim, as it holds one memo: writing it on either side
+  sets both, and the claims tool lists the outflow side. The other side of a
+  transfer made from a split line keeps its own. Split lines have none; set
+  it on the parent.
 
 Memo words from older clients: before these fields existed, clients marked a
 claim in the memo. The API still accepts those words at the start of a
-transaction memo on create and update and turns them into fields, removing
+transaction memo on create and update (and in a schedule's memo, on each
+occurrence it enters) and turns them into fields, removing
 them from the stored memo:
 
 | Memo starts with | Becomes |

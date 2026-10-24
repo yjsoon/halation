@@ -5,13 +5,15 @@ import type { ClaimStatus } from "../lib/follow-up";
  * The Follow-up control in an expanded register row: two independent chips.
  * "To confirm" is the stored `needs_confirmation`; "To claim" is the stored
  * `claim_status` the claims tool reads. A claimed row shows when it was
- * claimed; pressing To claim on it files it to claim again.
+ * claimed; pressing To claim on it files it to claim again, and pressing it
+ * once more puts back the saved state (`savedClaimStatus`).
  */
 export function FollowUpChips({
   id,
   needsConfirmation,
   claimStatus,
   claimedOn,
+  savedClaimStatus,
   disabled,
   onNeedsConfirmationChange,
   onClaimStatusChange,
@@ -20,6 +22,7 @@ export function FollowUpChips({
   needsConfirmation: boolean;
   claimStatus: ClaimStatus | null;
   claimedOn?: string | null;
+  savedClaimStatus?: ClaimStatus | null;
   disabled?: boolean;
   onNeedsConfirmationChange: (value: boolean) => void;
   onClaimStatusChange?: (status: ClaimStatus | null) => void;
@@ -47,7 +50,7 @@ export function FollowUpChips({
           title={claimStatus === "claimed"
             ? "Already claimed. Press to claim it again."
             : "A spend to claim back. The claims tool lists it until it is claimed."}
-          onClick={() => onClaimStatusChange(toClaim ? null : "to_claim")}
+          onClick={() => onClaimStatusChange(toClaim ? (savedClaimStatus === "claimed" ? "claimed" : null) : "to_claim")}
           disabled={disabled}
         >
           <ClaimGlyph />

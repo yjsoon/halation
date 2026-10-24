@@ -66,7 +66,7 @@ import {
 } from "./category-management";
 import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
 import { cardFlagNames, flagNameForColour } from "./rewards/flag-names";
-import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, CLAIMED_TYPE, TO_CLAIM_TYPE, claimParams, nextClaim } from "./transaction-claim";
+import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, CLAIMED_TYPE, TO_CLAIM_TYPE, claimParams, nextClaim, normaliseFollowUpWords, transferClaim, type TransferClaim } from "./transaction-claim";
 import { CLEARED_CONFIRMS_SQL, NEEDS_CONFIRMATION_CONFLICT_SQL, NEEDS_CONFIRMATION_INSERT_SQL, NEEDS_CONFIRMATION_TYPE, needsConfirmationParam, nextNeedsConfirmation } from "./transaction-confirmation";
 import type { CreditCard } from "./rewards/types";
 import {
@@ -1388,6 +1388,7 @@ export class LedgerRepository {
           sourceAccountId: input.account_id,
           linkId: transactionId,
           cleared: linkedCleared,
+          claim: transferClaim(input),
         }, plan);
         await this.db
           .query("UPDATE transactions SET transfer_transaction_id = ? WHERE id = ?")
@@ -1402,6 +1403,7 @@ export class LedgerRepository {
           approved: input.approved,
           sourceAccountId: input.account_id,
           accountId: transferAccountId ?? undefined,
+          claim: transferClaim(input),
         }, plan);
       }
 
@@ -2281,7 +2283,8 @@ export class LedgerRepository {
       ? existing.transaction
       : await this.createTransaction(
         planId,
-        await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId),
+        // A schedule's memo can carry the follow-up words, like any write.
+        normaliseFollowUpWords(await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId)),
         { autoLink: true, operationId },
       );
     const advanceKind = schedule.frequency === "never" ? "complete" : "advance";
@@ -3014,6 +3017,7 @@ export class LedgerRepository {
       cleared?: ClearedState;
       sourceAccountId: string;
       linkId: string;
+      claim?: TransferClaim;
     },
     plan: TransactionMutationPlan,
   ): Promise<string> {
@@ -3042,6 +3046,7 @@ export class LedgerRepository {
         opts.sourceAccountId,
         opts.linkId,
       );
+    if (opts.claim) await this.writeTransferClaim(planId, id, opts.claim);
     plan.accountIdsToRecalculate.add(opts.accountId);
     plan.touchedTransactionIds.add(id);
     return id;
@@ -3058,6 +3063,7 @@ export class LedgerRepository {
       approved?: boolean | null;
       sourceAccountId: string;
       accountId?: string;
+      claim?: TransferClaim;
     },
     plan: TransactionMutationPlan,
   ): Promise<void> {
@@ -3087,11 +3093,19 @@ export class LedgerRepository {
         linkedTransactionId,
         planId,
       );
+    if (opts.claim) await this.writeTransferClaim(planId, linkedTransactionId, opts.claim);
     plan.accountIdsToRecalculate.add(linked.account_id);
     if (nextAccountId !== linked.account_id) {
       plan.accountIdsToRecalculate.add(nextAccountId);
     }
     plan.touchedTransactionIds.add(linkedTransactionId);
+  }
+
+  /** The claim is the pair's, like the memo: both sides of a transfer hold it. */
+  private async writeTransferClaim(planId: string, id: string, claim: TransferClaim): Promise<void> {
+    await this.db
+      .query("UPDATE transactions SET claim_status = ?, claimed_on = ? WHERE id = ? AND plan_id = ?")
+      .run(claim.claim_status, claim.claimed_on, id, planId);
   }
 
   private async softDeleteLinkedTransaction(

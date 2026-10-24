@@ -485,13 +485,14 @@ enum MemoClaim: String, Equatable {
     word == word.uppercased() || colon == ":"
   }
 
-  /// Reads the words leading `memo`. `withToCheck: false` stops at TOCHECK,
-  /// which the register leaves in view as it has no mark that could clear it.
+  /// Reads the words leading `memo`. `withToCheck: false` reads past TOCHECK
+  /// but keeps it in the text, as the register has no mark that could clear it.
   static func legacyWords(_ memo: String?, withToCheck: Bool = true) -> LegacyWords {
     // A String each round, so `^` anchors at the start of what is left.
     var text = memo ?? ""
     var words = LegacyWords(text: memo ?? "")
     var found = false
+    var kept = ""
     while true {
       if let match = text.firstMatch(of: todoWord), counts(match.1, colon: match.2) {
         if words.claim == nil { words.claim = .toClaim }
@@ -508,16 +509,20 @@ enum MemoClaim: String, Equatable {
         found = true
         continue
       }
-      if withToCheck, let match = text.firstMatch(of: toCheckWord), counts(match.1, colon: match.2) {
-        words.toCheck = true
+      if let match = text.firstMatch(of: toCheckWord), counts(match.1, colon: match.2) {
+        if withToCheck {
+          words.toCheck = true
+          found = true
+        } else {
+          kept += match.0.trimmingCharacters(in: .whitespacesAndNewlines) + " "
+        }
         text = String(text[match.0.endIndex...])
-        found = true
         continue
       }
       break
     }
     if found {
-      words.text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+      words.text = (kept + text).trimmingCharacters(in: .whitespacesAndNewlines)
     }
     return words
   }

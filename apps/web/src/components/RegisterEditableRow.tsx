@@ -19,7 +19,7 @@ import {
   type RegisterRowRef,
   type RowEditContext,
 } from "../lib/register-row-edit";
-import { memoForDisplay, type ClaimStatus } from "../lib/follow-up";
+import { memoForDisplay, savedClaim, type ClaimStatus } from "../lib/follow-up";
 import { CategorySelect } from "./CategorySelect";
 import { FlagPicker } from "./FlagTag";
 import { ClaimGlyph, EstimateMark, FollowUpChips, claimedLabel } from "./FollowUpChips";
@@ -195,6 +195,7 @@ export function RegisterEditableRow(props: {
   const busy = committing;
   const rowClass = [split ? "split-line-row" : null, "register-compose-row", targeted ? "register-row-targeted" : null].filter(Boolean).join(" ");
   const fieldId = domId;
+  const saved = row.kind === "posted" ? savedClaim(row.transaction) : { status: null, claimedOn: null };
 
   return (
     <>
@@ -350,7 +351,8 @@ export function RegisterEditableRow(props: {
                   id={fieldId}
                   needsConfirmation={draft.needsConfirmation}
                   claimStatus={draft.claimStatus}
-                  claimedOn={row.kind === "posted" ? row.transaction.claimed_on : null}
+                  claimedOn={saved.claimedOn}
+                  savedClaimStatus={saved.status}
                   disabled={busy}
                   onNeedsConfirmationChange={(needsConfirmation) => surface.dispatch({ type: "patch", draft: { needsConfirmation } })}
                   onClaimStatusChange={(claimStatus) => surface.dispatch({ type: "patch", draft: { claimStatus } })}

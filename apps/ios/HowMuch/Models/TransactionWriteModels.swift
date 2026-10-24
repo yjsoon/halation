@@ -483,13 +483,25 @@ struct TransactionDraft: Equatable, Codable {
   var claimedOn: String?
   var loadedClaimStatus: String?
   var loadedClaimedOn: String?
+  /// The claim the form opened with, legacy memo words included.
+  var openedClaimStatus: String?
+  var openedClaimedOn: String?
 
-  /// The chip: on while the row is to claim.
+  /// The chip: on while the row is to claim. Turning it off on a row that
+  /// opened as claimed puts the claimed state back.
   var isToClaim: Bool {
     get { claimStatus == MemoClaim.toClaim.rawValue }
     set {
-      claimStatus = newValue ? MemoClaim.toClaim.rawValue : nil
-      claimedOn = nil
+      if newValue {
+        claimStatus = MemoClaim.toClaim.rawValue
+        claimedOn = nil
+      } else if openedClaimStatus == MemoClaim.claimed.rawValue {
+        claimStatus = openedClaimStatus
+        claimedOn = openedClaimedOn
+      } else {
+        claimStatus = nil
+        claimedOn = nil
+      }
     }
   }
 
@@ -540,6 +552,8 @@ struct TransactionDraft: Equatable, Codable {
     claimedOn = transaction.claimStatus == nil ? legacy.claimedOn : transaction.claimedOn
     loadedClaimStatus = transaction.claimStatus
     loadedClaimedOn = transaction.claimedOn
+    openedClaimStatus = claimStatus
+    openedClaimedOn = claimedOn
   }
 
   init(duplicating transaction: Transaction) {
@@ -552,7 +566,12 @@ struct TransactionDraft: Equatable, Codable {
     transferAccountID = transaction.isSplit ? nil : transaction.transferAccountID
     subtransactions = transaction.subtransactions.map { TransactionSubtransactionDraft(subtransaction: $0, preserveID: false) }
     flag = FlagColour(rawValue: transaction.flagColor ?? "") ?? .none
-    memo = transaction.memo ?? ""
+    // A copy of a spend to claim is to claim too; a claimed day does not carry.
+    let legacy = MemoClaim.legacyWords(transaction.memo)
+    memo = legacy.text
+    if (transaction.claimStatus ?? legacy.claim?.rawValue) == MemoClaim.toClaim.rawValue {
+      claimStatus = MemoClaim.toClaim.rawValue
+    }
     importID = UUID().uuidString.lowercased()
   }
 
