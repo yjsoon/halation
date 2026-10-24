@@ -51,8 +51,6 @@ export function payeeMenuSections(entries: readonly PayeeListEntry[], query: str
       // Match the account name. The "Transfer : " prefix only counts once the
       // query clearly asks for it, or "a" would match every transfer.
       const prefixRank = key.length >= 3 ? matchRank(entry.value, key) : -1;
-      // Word starts only: a letter inside an account name is too weak a reason
-      // to put transfers above the payee being typed.
       // Word starts lead; a match inside a name ("360" in "Bank360") counts
       // from three characters, so one or two letters do not list every account.
       const nameRank = matchRank(entry.transferAccount, key);
@@ -70,8 +68,11 @@ export function payeeMenuSections(entries: readonly PayeeListEntry[], query: str
   const order = (a: Ranked, b: Ranked) => a.rank - b.rank || a.raw - b.raw || collator.compare(a.sort, b.sort);
   transfers.sort(order);
   payees.sort(order);
+  // Transfers sit above payees, so a match inside an account name only shows
+  // when no payee starts with what was typed.
+  const strongPayee = payees.some((item) => item.rank === 0);
   return {
-    transfers: transfers.map((item) => item.entry),
+    transfers: transfers.filter((item) => item.rank === 0 || !strongPayee).map((item) => item.entry),
     payees: payees.slice(0, PAYEE_LIMIT).map((item) => item.entry),
     morePayees: Math.max(0, payees.length - PAYEE_LIMIT),
   };
@@ -206,6 +207,9 @@ export function PayeeCombobox({
   // would move a different option beneath it and set off a loop.
   const keyboardMove = useRef(false);
   const pointer = useRef<{ x: number; y: number } | null>(null);
+  // Set by a wheel scroll, when the option under a still pointer should take
+  // the highlight; cleared by the next mousemove or arrow key.
+  const wheeled = useRef(false);
   useEffect(() => {
     if (!keyboardMove.current) return;
     keyboardMove.current = false;
@@ -274,15 +278,16 @@ export function PayeeCombobox({
           // list scrolls by keyboard; only a real move takes the highlight.
           const last = pointer.current;
           pointer.current = { x: event.clientX, y: event.clientY };
-          if (last && last.x === event.clientX && last.y === event.clientY) return;
+          if (!wheeled.current && last && last.x === event.clientX && last.y === event.clientY) return;
+          wheeled.current = false;
           const option = (event.target as Element).closest<HTMLElement>("[data-option-index]");
           const at = option ? Number(option.dataset.optionIndex) : -1;
           if (at >= 0) setActive(at);
         }}
         // After a wheel scroll the option under a still pointer should take
-        // the highlight, so forget the last position.
+        // the highlight, so let the next mousemove through.
         onWheel={() => {
-          pointer.current = null;
+          wheeled.current = true;
         }}
         style={{
           left: placement.left,
@@ -364,6 +369,7 @@ export function PayeeCombobox({
               return;
             }
             keyboardMove.current = true;
+            wheeled.current = false;
             const last = options.length - 1;
             setActive((current) => event.key === "ArrowDown"
               ? (current >= last ? 0 : current + 1)
