@@ -1,6 +1,6 @@
 # To claim matches this-claimer (E2E record)
 
-Code revision: 455d3900ca518c9669ed429b4960060396238fc2 (branch claude/project-thread-hkpzn4, base origin/main 73fd882). Round 1 ran at 159848e.
+Code revision: 13e939f1d86d85c33dfd3210e7be21437e0aacad (branch claude/project-thread-hkpzn4, base origin/main 73fd882). Earlier rounds ran at 159848e and 455d390.
 
 Rule mirrored from yjsoon/this-claimer `upload-app/worker/index.ts`:
 `parseTodoDescription` (`/^TODO[:\s]/i`) and `markHowMuchClaimed`
@@ -13,7 +13,9 @@ stack, synthetic data), then `node .amp/in/artifacts/to-confirm/web-e2e.cjs`,
 then `control-howmuch cleanup`. Fixture memos: `TODO: Client dinner`,
 `CLAIMED - 2026-01-02: Notebooks`, and the negative `Claimed back from Sam TODO`.
 
-Observed at 455d390 (all 16 PASS), including:
+Observed at 13e939f (all 19 PASS; 16 of these also passed at 455d390), including:
+- the chip reads ` TODO: Client dinner ` (padded) as a claim
+- turning it off on `TODO: TODO: Client dinner` gives `Client dinner` in one click
 - claimed row shows just `Claimed Notebooks` (tag plus description)
 - `Claimed back from Sam TODO` shows no tag
 - to-claim tag shows in place of TODO; claimed tag shows
@@ -31,4 +33,5 @@ Devin macOS session 06992d43ed31432faa2eb34681a63600, `scripts/ios-xcodebuild.sh
   Testing; RegisterQueryTests.testToClaimMatchesTheClaimsToolsMemoFormat passed. Six
   CaptureSnapshotTests assertions failed with empty accessibility lookups (`[]`), the known
   flake; the class alone then passed 32/32.
-- 455d390: pending (recorded below when it returns).
+- 455d390: not run (superseded).
+- 13e939f: pending (recorded below when it returns).
