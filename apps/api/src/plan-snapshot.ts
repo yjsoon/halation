@@ -99,6 +99,8 @@ export type SnapshotTransaction = {
   approved: boolean;
   flag_color: string | null;
   flag_name: string | null;
+  /** Optional on import (absent is false), always written on export. */
+  needs_confirmation?: boolean;
   payee_id: string | null;
   /** Free-text payee of a row with no payee row; null whenever `payee_id` is set. */
   payee_name: string | null;
@@ -370,6 +372,7 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
       approved: flag(input.approved, `${path}.approved`),
       flag_color: nullableText(input.flag_color, `${path}.flag_color`, 32),
       flag_name: nullableText(input.flag_name, `${path}.flag_name`, 200),
+      needs_confirmation: flag(input.needs_confirmation, `${path}.needs_confirmation`),
       payee_id: payeeId,
       payee_name_snapshot: payeeId ? payees.get(payeeId)!.name : nullableText(input.payee_name, `${path}.payee_name`, 500),
       category_id: categoryId,
@@ -567,7 +570,7 @@ const TABLES: Array<[keyof Omit<SnapshotRows, "counts">, TablePlan]> = [
   ["payees", { table: "payees", columns: [["id"], ["plan_id", "?"], ["name"], ["transfer_account_id"], ["external_ynab_id", "$.id"], ["deleted"]] }],
   ["accounts", { table: "accounts", columns: [["id"], ["plan_id", "?"], ["name"], ["icon"], ["type"], ["on_budget"], ["closed"], ["opening_balance_milli"], ["transfer_payee_id"], ["external_ynab_id", "$.id"]] }],
   ["transactions", { table: "transactions", columns: [
-    ["id"], ["plan_id", "?"], ["account_id"], ["date"], ["amount_milli"], ["memo"], ["cleared"], ["approved"], ["flag_color"], ["flag_name"],
+    ["id"], ["plan_id", "?"], ["account_id"], ["date"], ["amount_milli"], ["memo"], ["cleared"], ["approved"], ["flag_color"], ["flag_name"], ["needs_confirmation"],
     ["payee_id"], ["payee_name_snapshot"], ["category_id"], ["category_name_snapshot"], ["transfer_account_id"], ["transfer_transaction_id"],
     ["matched_transaction_id"], ["import_id"], ["import_payee_name"], ["import_payee_name_original"], ["source_kind", "'snapshot-import'"], ["external_ynab_id", "$.id"],
   ] }],
@@ -739,6 +742,7 @@ export function projectPlanSnapshot(source: SnapshotSource): PlanSnapshot {
       approved: Boolean(row.approved),
       flag_color: row.flag_color ?? null,
       flag_name: row.flag_name ?? null,
+      needs_confirmation: Boolean(row.needs_confirmation),
       payee_id: row.payee_id ?? null,
       payee_name: freeTextPayee(row),
       category_id: row.category_id ?? null,

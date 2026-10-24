@@ -230,7 +230,7 @@ export class D1MetadataRepository {
           [commandId, planId, accountId, statementDate, snapshot.priorReconciledBalance, snapshot.projectedReconciledBalance, candidateIdsJson],
         ),
         statement(
-          "UPDATE transactions SET cleared='reconciled',updated_at=CURRENT_TIMESTAMP WHERE plan_id=? AND account_id=? AND deleted=0 AND cleared='cleared' AND date<=?",
+          "UPDATE transactions SET cleared='reconciled',needs_confirmation=0,updated_at=CURRENT_TIMESTAMP WHERE plan_id=? AND account_id=? AND deleted=0 AND cleared='cleared' AND date<=?",
           [planId, accountId, statementDate],
         ),
         statement(

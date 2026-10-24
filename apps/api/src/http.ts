@@ -378,6 +378,9 @@ async function handleV1(
     if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "unapproved_count" && method === "GET") {
       return unapprovedCountResponse(repo, planId, countFilters(url, { accountId }));
     }
+    if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "needs_confirmation_count" && method === "GET") {
+      return json({ data: await repo.countNeedsConfirmationTransactions(planId, countFilters(url, { accountId })) });
+    }
   }
 
   if (resource === "card_payment_terms" && segments.length === 4 && method === "GET") {
@@ -641,6 +644,9 @@ async function handleV1(
     if (segments.length === 5 && segments[4] === "unapproved_count" && method === "GET") {
       return unapprovedCountResponse(repo, planId, countFilters(url));
     }
+    if (segments.length === 5 && segments[4] === "needs_confirmation_count" && method === "GET") {
+      return json({ data: await repo.countNeedsConfirmationTransactions(planId, countFilters(url)) });
+    }
 
     // Bulk commands are also path segments, and must precede the item route.
     // Each returns ordered per-item outcomes rather than promising atomicity:
@@ -888,6 +894,7 @@ async function handleNative(
       category_id: body.category_id ?? null,
       memo: body.memo ?? null,
       flag_color: body.flag_color ?? null,
+      ...(body.needs_confirmation === undefined ? {} : { needs_confirmation: body.needs_confirmation }),
       approved: true,
       source_kind: "mobile",
       source_ref: body.client_id ?? null,

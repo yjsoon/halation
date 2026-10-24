@@ -127,6 +127,10 @@ export function applyMigrations(db: Database): void {
       version: "024_card_payment_terms",
       path: join(migrationsDir, "024_card_payment_terms.sql"),
     },
+    {
+      version: "025_transaction_needs_confirmation",
+      path: join(migrationsDir, "025_transaction_needs_confirmation.sql"),
+    },
   ];
 
   // The previous runner recorded 017 but ran the JS backfill after the
