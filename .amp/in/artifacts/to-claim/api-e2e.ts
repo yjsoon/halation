@@ -58,10 +58,20 @@ for (const engine of ["d1", "sqlite"] as const) {
   check("TODO: memo becomes to_claim", claim(todo), { memo: "Airport taxi", claim_status: "to_claim", claimed_on: null });
   const both = await create({ memo: "TOCHECK TODO Hotel deposit" });
   check("TOCHECK then TODO sets both", [claim(both), both.needs_confirmation], [{ memo: "Hotel deposit", claim_status: "to_claim", claimed_on: null }, true]);
-  const bare = await create({ memo: "todo" });
-  check("bare todo leaves no memo", claim(bare), { memo: null, claim_status: "to_claim", claimed_on: null });
+  const bare = await create({ memo: "TODO" });
+  check("bare TODO leaves no memo", claim(bare), { memo: null, claim_status: "to_claim", claimed_on: null });
   const plain = await create({ memo: "Todos los dias cafe" });
   check("a word that only starts with todo is text", claim(plain), { memo: "Todos los dias cafe", claim_status: null, claimed_on: null });
+  const prose = await create({ memo: "Todo list app" });
+  check("mixed-case todo without a colon is prose", claim(prose), { memo: "Todo list app", claim_status: null, claimed_on: null });
+  const lowerBare = await create({ memo: "todo" });
+  check("a bare lower-case todo is prose", claim(lowerBare), { memo: "todo", claim_status: null, claimed_on: null });
+  const lowerColon = await create({ memo: "todo: parking" });
+  check("any case with a colon is a word", claim(lowerColon), { memo: "parking", claim_status: "to_claim", claimed_on: null });
+  const claimedProse = await create({ memo: "Claimed back from Sam" });
+  check("Claimed in prose is text", claim(claimedProse), { memo: "Claimed back from Sam", claim_status: null, claimed_on: null });
+  const tocheckProse = await create({ memo: "Tocheck later" });
+  check("mixed-case Tocheck without a colon is text", [tocheckProse.memo, tocheckProse.needs_confirmation], ["Tocheck later", false]);
   const middle = await create({ memo: "Lunch TODO later" });
   check("a word later in the memo is text", claim(middle), { memo: "Lunch TODO later", claim_status: null, claimed_on: null });
   const explicit = await create({ memo: "TODO: Taxi", claim_status: null });
@@ -87,9 +97,9 @@ for (const engine of ["d1", "sqlite"] as const) {
 
   // Filters and counts.
   const listed = (await api("GET", `/v1/plans/${PLAN}/transactions?type=to_claim`)).body.data.transactions.map((t: any) => t.id).sort();
-  check("type=to_claim lists only rows to claim", listed, [both.id, bare.id, flagged.id].sort());
-  check("plan count", (await api("GET", `/v1/plans/${PLAN}/transactions/to_claim_count`)).body.data.count, 3);
-  check("account count", (await api("GET", `/v1/plans/${PLAN}/accounts/${card.id}/transactions/to_claim_count`)).body.data.count, 3);
+  check("type=to_claim lists only rows to claim", listed, [both.id, bare.id, flagged.id, lowerColon.id].sort());
+  check("plan count", (await api("GET", `/v1/plans/${PLAN}/transactions/to_claim_count`)).body.data.count, 4);
+  check("account count", (await api("GET", `/v1/plans/${PLAN}/accounts/${card.id}/transactions/to_claim_count`)).body.data.count, 4);
   check("other account count", (await api("GET", `/v1/plans/${PLAN}/accounts/${cash.id}/transactions/to_claim_count`)).body.data.count, 0);
 
   // Collection PATCH (the claims tool's bulk path).

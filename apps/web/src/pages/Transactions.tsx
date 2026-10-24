@@ -37,6 +37,7 @@ import {
 } from "../lib/register-approval";
 import { useUnapprovedCount } from "../state/use-unapproved-count";
 import { fetchTransactionQueue, fetchUnapprovedQueue } from "../lib/unapproved-queue";
+import { ClaimGlyph } from "../components/FollowUpChips";
 import { resolvedSinceCount, showsUnapprovedBadge, unapprovedBadgeCount, unapprovedBadgeLabel } from "../lib/unapproved-badge";
 import {
   closedCompose,
@@ -285,25 +286,28 @@ export function TransactionsPage() {
   }, [bloomIds, page.filling, page.loading, page.transactions]);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
   const [unapprovedOnly, setUnapprovedOnlyState] = useState(false);
-  // "To confirm": rows whose amount is an estimate. Like the approval queue it
-  // ignores the date window, and the two lists are never shown together.
-  const [toConfirmOnly, setToConfirmOnlyState] = useState(false);
+  // Follow-up lists: "to confirm" (rows whose amount is an estimate) and "to
+  // claim". Like the approval queue they ignore the date window, and only one
+  // of the three lists shows at a time.
+  const [followUpOnly, setFollowUpOnlyState] = useState<FollowUpList | null>(null);
+  const toConfirmOnly = followUpOnly === "needs_confirmation";
+  const toClaimOnly = followUpOnly === "to_claim";
   const setUnapprovedOnly = (update: boolean | ((current: boolean) => boolean)) => {
     setUnapprovedOnlyState((current) => {
       const next = typeof update === "function" ? update(current) : update;
-      if (next) setToConfirmOnlyState(false);
+      if (next) setFollowUpOnlyState(null);
       return next;
     });
   };
-  const setToConfirmOnly = (update: boolean | ((current: boolean) => boolean)) => {
-    setToConfirmOnlyState((current) => {
-      const next = typeof update === "function" ? update(current) : update;
+  const toggleFollowUpOnly = (list: FollowUpList) => {
+    setFollowUpOnlyState((current) => {
+      const next = current === list ? null : list;
       if (next) setUnapprovedOnlyState(false);
       return next;
     });
   };
-  /** Either queue: the date window, search paging and schedules step aside. */
-  const queueMode = unapprovedOnly || toConfirmOnly;
+  /** Any queue: the date window, search paging and schedules step aside. */
+  const queueMode = unapprovedOnly || followUpOnly !== null;
   const [selection, setSelection] = useState(() => emptySelection(listKey));
   const [replacements, setReplacements] = useState<ReadonlyMap<string, Transaction>>(() => new Map());
   const [clearedOverlays, setClearedOverlays] = useState<ReadonlyMap<string, Transaction["cleared"]>>(() => new Map());
@@ -410,19 +414,13 @@ export function TransactionsPage() {
       ? fetchUnapprovedQueue(planId, selectedAccountId, { since_date: filters.from, until_date: fetchUntilDate })
       : Promise.resolve(null),
   );
-  // Always loaded: the list is short, and its length is the "to confirm" pill.
-  const confirmationQueue = useApi<Transaction[]>(
-    JSON.stringify({ planId, selectedAccountId, refreshGeneration, validatedKnowledge, cacheEpoch, confirmationQueue: true }),
-    () => fetchTransactionQueue(planId, selectedAccountId, {}, "needs_confirmation"),
-  );
-  // Every write changes the queue's key, so its data is briefly null while it
-  // reloads. Keep the last rows for the same scope meanwhile, so the pill and
-  // the filtered list do not blank out (and an open row edit is not dropped).
-  const confirmationScope = `${planId}:${selectedAccountId ?? ""}`;
-  const lastConfirmationRows = useRef<{ scope: string; rows: Transaction[] } | null>(null);
-  if (confirmationQueue.data) lastConfirmationRows.current = { scope: confirmationScope, rows: confirmationQueue.data };
-  const confirmationRows = confirmationQueue.data
-    ?? (lastConfirmationRows.current?.scope === confirmationScope ? lastConfirmationRows.current.rows : null);
+  // Always loaded: the lists are short, and their lengths are the "to confirm"
+  // and "to claim" pills.
+  const followUpKey = { planId, selectedAccountId, refreshGeneration, validatedKnowledge, cacheEpoch };
+  const confirmationQueue = useFollowUpQueue(followUpKey, "needs_confirmation");
+  const claimQueue = useFollowUpQueue(followUpKey, "to_claim");
+  const confirmationRows = confirmationQueue.rows;
+  const claimRows = claimQueue.rows;
   const reconciliationPreviewInput = reconcileDraft?.reviewReady && reconcileDraft.accountId && reconcileDraft.statementDate
     ? { accountId: reconcileDraft.accountId, statementDate: reconcileDraft.statementDate }
     : null;
@@ -1102,6 +1100,16 @@ export function TransactionsPage() {
     ).length,
     [patchedConfirmationQueue, registerAccountIds],
   );
+  const patchedClaimQueue = useMemo(
+    () => applyClearedOverlays(applyRegisterPatches(claimRows ?? [], replacements, deletedIds), clearedOverlays),
+    [claimRows, clearedOverlays, deletedIds, replacements],
+  );
+  const toClaimCount = useMemo(
+    () => patchedClaimQueue.filter(
+      (txn) => !txn.deleted && txn.claim_status === "to_claim" && registerAccountIds.has(txn.account_id),
+    ).length,
+    [patchedClaimQueue, registerAccountIds],
+  );
   const patchedPage = useMemo(
     () =>
       applyClearedOverlays(
@@ -1124,11 +1132,11 @@ export function TransactionsPage() {
   );
   const inScope = useMemo(
     () =>
-      (unapprovedOnly ? patchedQueue : toConfirmOnly ? patchedConfirmationQueue : patchedPage)
+      (unapprovedOnly ? patchedQueue : toConfirmOnly ? patchedConfirmationQueue : toClaimOnly ? patchedClaimQueue : patchedPage)
         .filter((txn) => !txn.deleted)
         .filter((txn) => registerAccountIds.has(txn.account_id))
         .filter((txn) => queueMode || dateInRegisterWindow(txn.date, filters.from, filters.to, today)),
-    [filters.from, filters.to, patchedConfirmationQueue, patchedPage, patchedQueue, queueMode, registerAccountIds, today, toConfirmOnly, unapprovedOnly],
+    [filters.from, filters.to, patchedClaimQueue, patchedConfirmationQueue, patchedPage, patchedQueue, queueMode, registerAccountIds, today, toClaimOnly, toConfirmOnly, unapprovedOnly],
   );
 
   const uncategorisedCount = useMemo(() => inScope.filter(hasUncategorisedLine).length, [inScope]);
@@ -1177,7 +1185,7 @@ export function TransactionsPage() {
     const outflowOnly = flow === "outflow" || wantsUncategorised;
     return inScope
       .filter((txn) => !unapprovedOnly || !txn.approved)
-      .filter((txn) => !toConfirmOnly || txn.needs_confirmation === true)
+      .filter((txn) => matchesFollowUp(txn, followUpOnly))
       .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
@@ -1194,7 +1202,7 @@ export function TransactionsPage() {
         return wantsUncategorised && hasUncategorisedLine(txn);
       })
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  }, [categoryIds, filters.categoryIds.length, flow, inScope, toConfirmOnly, unapprovedOnly, wantsUncategorised]);
+  }, [categoryIds, filters.categoryIds.length, flow, followUpOnly, inScope, unapprovedOnly, wantsUncategorised]);
 
   const deepLinkKey = deepLink.kind === "valid" && deepLink.link.planId === planId
     ? `${planId}:${deepLink.link.transactionId}:${deepLink.link.subtransactionId ?? ""}`
@@ -1227,7 +1235,7 @@ export function TransactionsPage() {
       .filter((txn) => registerAccountIds.has(txn.account_id))
       .filter((txn) => queueMode || dateInRegisterWindow(txn.date, filters.from, filters.to, today))
       .filter((txn) => !unapprovedOnly || !txn.approved)
-      .filter((txn) => !toConfirmOnly || txn.needs_confirmation === true)
+      .filter((txn) => matchesFollowUp(txn, followUpOnly))
       .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
@@ -1270,7 +1278,7 @@ export function TransactionsPage() {
     scopedRows,
     today,
     queueMode,
-    toConfirmOnly,
+    followUpOnly,
     unapprovedOnly,
     wantsUncategorised,
   ]);
@@ -1309,7 +1317,7 @@ export function TransactionsPage() {
   const scheduledDisclosureCount = postedFutureRows.length + visibleSchedules.length;
   const showScheduledDisclosure = scheduledDisclosureCount > 0 || Boolean(schedules.error);
 
-  const confirmationRowsPending = toConfirmOnly && confirmationRows === null;
+  const confirmationRowsPending = (toConfirmOnly && confirmationRows === null) || (toClaimOnly && claimRows === null);
   useEffect(() => {
     if (confirmationRowsPending) return;
     const present = new Set(scopedRows.map((txn) => txn.id));
@@ -1707,11 +1715,22 @@ export function TransactionsPage() {
             <button
               type="button"
               className={toConfirmOnly ? "confirm-pill confirm-pill-active" : "confirm-pill"}
-              onClick={() => setToConfirmOnly((current) => !current)}
+              onClick={() => toggleFollowUpOnly("needs_confirmation")}
               aria-pressed={toConfirmOnly}
             >
               <span className="confirm-pill-glyph" aria-hidden="true">≈</span>
               {toConfirmOnly ? "Showing to confirm · clear" : `${toConfirmCount} to confirm`}
+            </button>
+          )}
+          {(toClaimCount > 0 || toClaimOnly) && (
+            <button
+              type="button"
+              className={toClaimOnly ? "claim-pill claim-pill-active" : "claim-pill"}
+              onClick={() => toggleFollowUpOnly("to_claim")}
+              aria-pressed={toClaimOnly}
+            >
+              <ClaimGlyph />
+              {toClaimOnly ? "Showing to claim · clear" : `${toClaimCount} to claim`}
             </button>
           )}
           {uncategorisedCount > 0 && !wantsUncategorised && (
@@ -2038,11 +2057,17 @@ export function TransactionsPage() {
       {unapprovedOnly && approvalQueue.data === null && approvalQueue.loading && !approvalQueue.error && (
         <StatusPanel title="Loading transactions awaiting approval..." />
       )}
-      {confirmationRowsPending && !confirmationQueue.error && (
+      {toConfirmOnly && confirmationRows === null && !confirmationQueue.error && (
         <StatusPanel title="Loading transactions to confirm..." />
       )}
       {toConfirmOnly && confirmationQueue.error && (
         <StatusPanel title="Could not load transactions to confirm." error>{confirmationQueue.error}</StatusPanel>
+      )}
+      {toClaimOnly && claimRows === null && !claimQueue.error && (
+        <StatusPanel title="Loading transactions to claim..." />
+      )}
+      {toClaimOnly && claimQueue.error && (
+        <StatusPanel title="Could not load transactions to claim." error>{claimQueue.error}</StatusPanel>
       )}
 
       {registerLoaded && (
@@ -2267,4 +2292,35 @@ function reconciliationSuccess(result: AccountReconciliationResult): string {
   const accountName = result.account?.name ?? "account";
   const count = result.reconciled_transaction_count;
   return `${accountName} reconciled through ${formatDate(result.statement_date)}. ${count} cleared transaction${count === 1 ? "" : "s"} matched ${formatMoney(result.statement_balance)}.`;
+}
+
+type FollowUpList = "needs_confirmation" | "to_claim";
+
+function matchesFollowUp(txn: Transaction, list: FollowUpList | null): boolean {
+  if (list === "needs_confirmation") return txn.needs_confirmation === true;
+  if (list === "to_claim") return txn.claim_status === "to_claim";
+  return true;
+}
+
+/**
+ * One follow-up list, read whole. Every write changes the queue's key, so its
+ * data is briefly null while it reloads. The last rows for the same scope stay
+ * meanwhile, so the pill and the filtered list do not blank out (and an open
+ * row edit is not dropped).
+ */
+function useFollowUpQueue(
+  key: { planId: string; selectedAccountId: string | null; refreshGeneration: number; validatedKnowledge: unknown; cacheEpoch: unknown },
+  type: FollowUpList,
+): { rows: Transaction[] | null; error: string | null } {
+  const queue = useApi<Transaction[]>(
+    JSON.stringify({ ...key, followUpQueue: type }),
+    () => fetchTransactionQueue(key.planId, key.selectedAccountId, {}, type),
+  );
+  const scope = `${key.planId}:${key.selectedAccountId ?? ""}`;
+  const last = useRef<{ scope: string; rows: Transaction[] } | null>(null);
+  if (queue.data) last.current = { scope, rows: queue.data };
+  return {
+    rows: queue.data ?? (last.current?.scope === scope ? last.current.rows : null),
+    error: queue.error,
+  };
 }

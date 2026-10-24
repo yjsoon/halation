@@ -3,6 +3,7 @@ import type { Payee, Subtransaction, Transaction, TransactionUpdateInput } from 
 import { minorUnitMilliunits, parseMilliunits, planDecimalIsComma } from "./money";
 import { accountIcon } from "./account-icon";
 import { canonicalPayeeName, findTransferPayee, formatMilliunitsPadded } from "./register-compose";
+import { legacyWords, type ClaimStatus } from "./follow-up";
 
 export type RegisterRowDraft = {
   readonly date: string;
@@ -13,6 +14,7 @@ export type RegisterRowDraft = {
   readonly inflow: string;
   readonly flagColor: string;
   readonly needsConfirmation: boolean;
+  readonly claimStatus: ClaimStatus | null;
 };
 
 type RowEditAccount = {
@@ -55,7 +57,7 @@ export type RegisterRowEditSession =
 
 export type RegisterRowEditAction =
   | { readonly type: "begin"; readonly row: RegisterRowRef; readonly draft: RegisterRowDraft; readonly focus: RegisterRowFocus }
-  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation">> }
+  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "claimStatus">> }
   | { readonly type: "set-outflow"; readonly value: string }
   | { readonly type: "set-inflow"; readonly value: string }
   | { readonly type: "invalid"; readonly message: string; readonly focus?: RegisterRowFocus }
@@ -365,13 +367,17 @@ export function beginRowEdit(
 }
 
 function postedDraft(txn: Transaction): RegisterRowDraft {
+  // A row stored before the follow-up fields keeps them as memo words; editing
+  // it moves the words into the fields.
+  const legacy = legacyWords(txn.memo);
   return {
     date: txn.date,
     payeeName: txn.payee_name ?? "",
     categoryId: txn.category_id ?? "",
-    memo: txn.memo ?? "",
+    memo: legacy.text,
     flagColor: txn.flag_color ?? "",
-    needsConfirmation: txn.needs_confirmation === true,
+    needsConfirmation: txn.needs_confirmation === true || legacy.toCheck,
+    claimStatus: txn.claim_status ?? legacy.claim,
     ...amountDraft(txn.amount),
   };
 }
@@ -384,6 +390,7 @@ function splitDraft(parent: Transaction, line: Subtransaction): RegisterRowDraft
     memo: line.memo ?? "",
     flagColor: parent.flag_color ?? "",
     needsConfirmation: parent.needs_confirmation === true,
+    claimStatus: parent.claim_status ?? null,
     ...amountDraft(line.amount),
   };
 }
@@ -483,6 +490,10 @@ function planPostedCommit(
 
   if (typeof draft.needsConfirmation === "boolean" && draft.needsConfirmation !== (txn.needs_confirmation === true)) {
     input.needs_confirmation = draft.needsConfirmation;
+  }
+
+  if (draft.claimStatus !== undefined && draft.claimStatus !== (txn.claim_status ?? null)) {
+    input.claim_status = draft.claimStatus;
   }
 
   if (rowFieldWritable(row, "outflow", draft, payees) || rowFieldWritable(row, "inflow", draft, payees)) {

@@ -705,9 +705,13 @@ them from the stored memo:
 
 | Memo starts with | Becomes |
 | --- | --- |
-| `TODO`, then `:`, a space or the end (any case) | `claim_status: "to_claim"` |
-| `CLAIMED - 2026-01-02:` or `CLAIMED:` | `claim_status: "claimed"`, `claimed_on` the day or `null` |
+| `TODO`, then `:`, a space or the end | `claim_status: "to_claim"` |
+| `CLAIMED - 2026-01-02:`, `CLAIMED:` or `CLAIMED` | `claim_status: "claimed"`, `claimed_on` the day or `null` |
 | `TOCHECK` | `needs_confirmation: true` |
+
+A word counts when it is in capitals, as above, or when it is followed by a
+colon in any case (`todo: Taxi`). Ordinary prose such as `Todo list app` or
+`Claimed back from Sam` is left as it is.
 
 So `{ "memo": "TODO: Client dinner" }` stores the memo `Client dinner` with
 `claim_status: "to_claim"`. Several words can lead one memo (`TOCHECK TODO:

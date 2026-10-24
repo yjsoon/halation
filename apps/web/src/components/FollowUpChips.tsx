@@ -1,28 +1,30 @@
 import type { ReactElement } from "react";
-import { claimState, withClaimTodo } from "../lib/follow-up";
+import type { ClaimStatus } from "../lib/follow-up";
 
 /**
  * The Follow-up control in an expanded register row: two independent chips.
- * "To confirm" is the stored `needs_confirmation`; "To claim" adds or removes
- * `TODO:` at the start of the memo, the prefix the claims tool looks for.
+ * "To confirm" is the stored `needs_confirmation`; "To claim" is the stored
+ * `claim_status` the claims tool reads. A claimed row shows when it was
+ * claimed; pressing To claim on it files it to claim again.
  */
 export function FollowUpChips({
   id,
   needsConfirmation,
-  memo,
+  claimStatus,
+  claimedOn,
   disabled,
   onNeedsConfirmationChange,
-  onMemoChange,
+  onClaimStatusChange,
 }: {
   id: string;
   needsConfirmation: boolean;
-  memo: string;
+  claimStatus: ClaimStatus | null;
+  claimedOn?: string | null;
   disabled?: boolean;
   onNeedsConfirmationChange: (value: boolean) => void;
-  onMemoChange?: (memo: string) => void;
+  onClaimStatusChange?: (status: ClaimStatus | null) => void;
 }): ReactElement {
-  // The memo is trimmed on save, so judge the chip on what will be saved.
-  const toClaim = claimState(memo.trim()) === "to-claim";
+  const toClaim = claimStatus === "to_claim";
   return (
     <div className="follow-up" role="group" aria-labelledby={`${id}-follow-up-label`}>
       <span className="field-label" id={`${id}-follow-up-label`}>Follow-up</span>
@@ -37,21 +39,33 @@ export function FollowUpChips({
         <span className="follow-up-glyph" aria-hidden="true">≈</span>
         To confirm
       </button>
-      {onMemoChange ? (
+      {onClaimStatusChange ? (
         <button
           type="button"
           className="follow-up-chip follow-up-chip-claim"
           aria-pressed={toClaim}
-          title="Starts the memo with TODO: so the claims tool picks it up."
-          onClick={() => onMemoChange(withClaimTodo(memo, !toClaim))}
+          title={claimStatus === "claimed"
+            ? "Already claimed. Press to claim it again."
+            : "A spend to claim back. The claims tool lists it until it is claimed."}
+          onClick={() => onClaimStatusChange(toClaim ? null : "to_claim")}
           disabled={disabled}
         >
           <ClaimGlyph />
           To claim
         </button>
       ) : null}
+      {onClaimStatusChange && claimStatus === "claimed" ? (
+        <span className="follow-up-claimed">{claimedLabel(claimedOn)}</span>
+      ) : null}
     </div>
   );
+}
+
+/** "Claimed 24 Oct 2026", or "Claimed" when the day is not known. */
+export function claimedLabel(day: string | null | undefined): string {
+  if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return "Claimed";
+  const date = new Date(`${day}T00:00:00Z`);
+  return `Claimed ${date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })}`;
 }
 
 export function ClaimGlyph(): ReactElement {

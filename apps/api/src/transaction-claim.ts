@@ -15,9 +15,18 @@ export const CLAIMED_TYPE = "claimed";
 
 export const CLAIM_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
-const TODO_WORD = /^\s*TODO(?=[:\s]|$):?\s*/i;
-const CLAIMED_WORD = /^\s*CLAIMED\b(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?\s*(?::|$)\s*/i;
-const TOCHECK_WORD = /^\s*TOCHECK\b:?\s*/i;
+// A word counts when it is in capitals (`TODO`, `CLAIMED`, `TOCHECK`) or is
+// followed by a colon in any case (`todo: taxi`). Prose such as "Todo list app"
+// is left alone, since the word is removed from the stored memo.
+const TODO_WORD = /^\s*(TODO)(?=[:\s]|$)(:?)\s*/i;
+const CLAIMED_WORD = /^\s*(CLAIMED)\b(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?\s*(:|$)\s*/i;
+const TOCHECK_WORD = /^\s*(TOCHECK)\b(:?)\s*/i;
+
+function marker(pattern: RegExp, text: string, colonGroup: number): RegExpExecArray | null {
+  const match = pattern.exec(text);
+  if (!match) return null;
+  return match[1] === match[1]!.toUpperCase() || match[colonGroup] === ":" ? match : null;
+}
 
 export type FollowUpWords = {
   memo: string | null;
@@ -35,22 +44,22 @@ export function followUpWords(memo: string | null): FollowUpWords {
   const result: FollowUpWords = { memo };
   let text = memo ?? "";
   for (;;) {
-    const todo = TODO_WORD.exec(text);
+    const todo = marker(TODO_WORD, text, 2);
     if (todo) {
       if (!result.claim_status) result.claim_status = "to_claim";
       text = text.slice(todo[0].length);
       continue;
     }
-    const claimed = CLAIMED_WORD.exec(text);
+    const claimed = marker(CLAIMED_WORD, text, 3);
     if (claimed) {
       if (!result.claim_status) {
         result.claim_status = "claimed";
-        result.claimed_on = claimed[1] ?? null;
+        result.claimed_on = claimed[2] ?? null;
       }
       text = text.slice(claimed[0].length);
       continue;
     }
-    const check = TOCHECK_WORD.exec(text);
+    const check = marker(TOCHECK_WORD, text, 2);
     if (check) {
       result.needs_confirmation = true;
       text = text.slice(check[0].length);

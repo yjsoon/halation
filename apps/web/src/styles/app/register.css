@@ -1107,7 +1107,13 @@ button.estimate-mark:disabled {
   opacity: 0.55;
 }
 
-/* The claims tool's TODO / CLAIMED word, shown as a tag in the memo cell. */
+/* The day a claimed row was claimed, beside the To claim chip. */
+.follow-up-claimed {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+/* The row's claim (To claim or Claimed), shown as a tag in the memo cell. */
 .memo-claim {
   display: inline-flex;
   align-items: center;

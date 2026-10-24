@@ -19,10 +19,10 @@ import {
   type RegisterRowRef,
   type RowEditContext,
 } from "../lib/register-row-edit";
-import { memoForDisplay } from "../lib/follow-up";
+import { memoForDisplay, type ClaimStatus } from "../lib/follow-up";
 import { CategorySelect } from "./CategorySelect";
 import { FlagPicker } from "./FlagTag";
-import { ClaimGlyph, EstimateMark, FollowUpChips } from "./FollowUpChips";
+import { ClaimGlyph, EstimateMark, FollowUpChips, claimedLabel } from "./FollowUpChips";
 import { PayeeCombobox } from "./PayeeCombobox";
 
 export type RowEditSurface = {
@@ -179,7 +179,7 @@ export function RegisterEditableRow(props: {
           className="muted memo-cell"
           title={idleMemoTitle(row, line)}
         >
-          <IdleMemo memo={idleMemo(row, line)} />
+          <IdleMemo memo={idleMemo(row, line)} claimStatus={row.kind === "posted" ? row.transaction.claim_status : null} claimedOn={row.kind === "posted" ? row.transaction.claimed_on : null} />
         </IdleCell>
         <IdleCell row={row} focus="outflow" surface={surface} className="num amount-negative">
           {idleOutflow(row, line) ? <>{estimate}{idleOutflow(row, line)}</> : null}
@@ -349,12 +349,11 @@ export function RegisterEditableRow(props: {
                 <FollowUpChips
                   id={fieldId}
                   needsConfirmation={draft.needsConfirmation}
-                  memo={draft.memo}
+                  claimStatus={draft.claimStatus}
+                  claimedOn={row.kind === "posted" ? row.transaction.claimed_on : null}
                   disabled={busy}
                   onNeedsConfirmationChange={(needsConfirmation) => surface.dispatch({ type: "patch", draft: { needsConfirmation } })}
-                  onMemoChange={rowFieldWritable(row, "memo", draft, surface.payees)
-                    ? (memo) => surface.dispatch({ type: "patch", draft: { memo } })
-                    : undefined}
+                  onClaimStatusChange={(claimStatus) => surface.dispatch({ type: "patch", draft: { claimStatus } })}
                 />
               </div>
             )}
@@ -546,13 +545,16 @@ function idleCategory(row: RegisterRowRef, line: Subtransaction | undefined): st
   return txn.transfer_account_id ? "Transfer" : (txn.category_name ?? "Uncategorised");
 }
 
-/** A memo with the claims tool's TODO or CLAIMED shown as a tag, not a word. */
-function IdleMemo({ memo }: { memo: string }): ReactElement {
-  const { claim, text } = memoForDisplay(memo === "-" ? "" : memo);
+/** A memo with the row's claim shown as a tag before the text. */
+function IdleMemo({ memo, claimStatus, claimedOn }: { memo: string; claimStatus?: ClaimStatus | null; claimedOn?: string | null }): ReactElement {
+  const { claim, text } = memoForDisplay(memo === "-" ? "" : memo, claimStatus);
   if (!claim) return <>{memo}</>;
   return (
     <>
-      <span className={claim === "to-claim" ? "memo-claim memo-claim-todo" : "memo-claim memo-claim-done"}>
+      <span
+        className={claim === "to-claim" ? "memo-claim memo-claim-todo" : "memo-claim memo-claim-done"}
+        title={claim === "claimed" ? claimedLabel(claimedOn) : undefined}
+      >
         {claim === "to-claim" ? <ClaimGlyph /> : null}
         {claim === "to-claim" ? "To claim" : "Claimed"}
       </span>

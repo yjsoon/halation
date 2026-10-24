@@ -22,7 +22,7 @@ export async function fetchTransactionQueue(
   planId: string,
   accountId: string | null,
   range: { since_date?: string; until_date?: string },
-  type: "unapproved" | "needs_confirmation",
+  type: "unapproved" | "needs_confirmation" | "to_claim",
 ): Promise<Transaction[]> {
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
     const transactions = new Map<string, Transaction>();
