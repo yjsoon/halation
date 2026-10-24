@@ -872,3 +872,123 @@ a.page-eyebrow:hover {
 .reconcile-mismatch {
   margin-bottom: 12px;
 }
+
+/* Payee picker: the input reads as a select, and its list is drawn in the
+   ledger's own paper and type rather than the browser's datalist chrome. */
+.register-compose-row input.payee-combobox-input {
+  padding-right: 24px;
+  background-image: var(--select-chevron);
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 10px 6px;
+  text-overflow: ellipsis;
+}
+
+.payee-menu {
+  position: fixed;
+  z-index: 60;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Keyboard moves scroll an option clear of the sticky heading. */
+  scroll-padding-top: 32px;
+  padding: 4px 0 6px;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule-control);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-2);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--ink);
+  animation: payee-menu-in var(--dur-fast) var(--ease-out);
+}
+
+@keyframes payee-menu-in {
+  from { opacity: 0; transform: translateY(-3px); }
+  to { opacity: 1; transform: none; }
+}
+
+.payee-menu-above {
+  animation-name: payee-menu-in-above;
+}
+
+@keyframes payee-menu-in-above {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+.payee-menu-heading {
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  padding: 8px 12px 4px;
+  background: var(--paper-raised);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+[role="group"] + [role="group"] .payee-menu-heading {
+  margin-top: 4px;
+  border-top: 1px solid var(--rule);
+}
+
+.payee-menu-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 4px 12px;
+  cursor: pointer;
+}
+
+.payee-menu-option.is-active {
+  background: var(--plan-accent-wash);
+  /* The wash alone is too faint to show what Enter will pick. */
+  box-shadow: inset 2px 0 var(--plan-accent);
+}
+
+@media (forced-colors: active) {
+  .payee-menu-option.is-active {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+}
+
+.payee-menu-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.payee-menu-transfer .payee-menu-name {
+  font-weight: 500;
+}
+
+.payee-menu-icon {
+  flex: none;
+  width: 18px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Raw bank strings: small caps for the name, card digits and country code
+   faded. The text itself is untouched, so it matches the field and ledger. */
+.payee-menu-raw {
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.02em;
+}
+
+.payee-menu-noise {
+  color: var(--ink-faint);
+  white-space: pre;
+}
+
+.payee-menu-more {
+  padding: 6px 12px 2px;
+  font-size: 11.5px;
+  font-style: italic;
+  color: var(--ink-faint);
+}

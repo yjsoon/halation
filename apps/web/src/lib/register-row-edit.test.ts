@@ -750,11 +750,11 @@ describe("payeeListEntries", () => {
   const self = payee("p-self", "Transfer : Everyday Account", "acct");
   const listed = [shop, coffee, transfer, self];
 
-  test("labels transfer options from account names and keeps payee.name as the value", () => {
+  test("names transfer options by account and keeps payee.name as the value", () => {
     expect(payeeListEntries(listed, [everyday, saver], "acct")).toEqual([
       { id: "p-shop", value: "Shop" },
       { id: "p-coffee", value: "Coffee" },
-      { id: "p-xfer", value: "Transfer : Rainy Day Saver", label: "Transfer to Rainy Day Saver" },
+      { id: "p-xfer", value: "Transfer : Rainy Day Saver", transferAccount: "Rainy Day Saver", transferAccountIcon: "🏦" },
     ]);
   });
 

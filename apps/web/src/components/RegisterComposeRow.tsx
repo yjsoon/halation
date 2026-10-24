@@ -11,10 +11,12 @@ import {
   type RegisterComposeState,
 } from "../lib/register-compose";
 import { payeeListEntries } from "../lib/register-row-edit";
+import { PayeeCombobox } from "./PayeeCombobox";
 
 export function RegisterComposeRow({
   state,
   accounts,
+  transferAccounts,
   lockedAccount,
   payees,
   categoryGroups,
@@ -27,6 +29,8 @@ export function RegisterComposeRow({
 }: {
   state: Extract<RegisterComposeState, { status: "open" }>;
   accounts: Account[];
+  /** Every account, not just the ones in view: any of them can take a transfer. */
+  transferAccounts: Account[];
   lockedAccount: Account | null;
   payees: Payee[];
   categoryGroups: CategoryGroup[];
@@ -41,6 +45,10 @@ export function RegisterComposeRow({
   const orderedGroups = useMemo(() => splitCategoryGroups(categoryGroups), [categoryGroups]);
   const transfer = findTransferPayee(payees, state.draft.payeeName);
   const busy = state.saving || disabled;
+  const payeeEntries = useMemo(
+    () => payeeListEntries(payees, transferAccounts, state.draft.accountId),
+    [payees, transferAccounts, state.draft.accountId],
+  );
 
   useEffect(() => {
     dateRef.current?.focus();
@@ -116,40 +124,20 @@ export function RegisterComposeRow({
         </td>
         <td>
           <label className="sr-only" htmlFor="register-compose-payee">Payee</label>
-          <input
+          <PayeeCombobox
             id="register-compose-payee"
-            type="text"
-            name="payee"
-            list="register-compose-payees"
             value={state.draft.payeeName}
-            onChange={(event) => patch({ payeeName: event.target.value })}
-            onBlur={() => {
+            entries={payeeEntries}
+            disabled={busy}
+            required
+            onChange={(payeeName) => patch({ payeeName })}
+            onCommitName={() => {
               const snapped = canonicalPayeeName(payees, state.draft.payeeName);
               if (snapped !== state.draft.payeeName) {
                 patch({ payeeName: snapped });
               }
             }}
-            placeholder="Payee"
-            autoComplete="off"
-            disabled={busy}
-            required
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") {
-                return;
-              }
-              event.stopPropagation();
-              if (event.nativeEvent.isComposing || event.keyCode === 229) {
-                return;
-              }
-            }}
           />
-          <datalist id="register-compose-payees">
-            {payeeListEntries(payees, accounts, state.draft.accountId).map((entry) => (
-              <option key={entry.id} value={entry.value}>
-                {entry.label}
-              </option>
-            ))}
-          </datalist>
         </td>
         <td>
           {transfer ? (

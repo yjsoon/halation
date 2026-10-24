@@ -1993,6 +1993,7 @@ export function TransactionsPage() {
                     <RegisterComposeRow
                       state={compose}
                       accounts={composeAccounts}
+                      transferAccounts={accounts}
                       lockedAccount={lockedComposeAccount}
                       payees={payees.data ?? []}
                       categoryGroups={categoryGroups}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactElement, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactElement, type ReactNode } from "react";
 import type { Account, Payee, Subtransaction, Transaction } from "../api/types";
 import type { splitCategoryGroups } from "../lib/categories";
 import { formatDate } from "../lib/dates";
@@ -21,6 +21,7 @@ import {
 } from "../lib/register-row-edit";
 import { CategorySelect } from "./CategorySelect";
 import { FlagPicker } from "./FlagTag";
+import { PayeeCombobox } from "./PayeeCombobox";
 
 export type RowEditSurface = {
   readonly session: RegisterRowEditSession;
@@ -238,7 +239,6 @@ export function RegisterEditableRow(props: {
           {rowFieldWritable(row, "payee", draft, surface.payees) ? (
             <PayeeInput
               id={`${fieldId}-payee`}
-              listId={`${fieldId}-payees`}
               value={draft.payeeName}
               disabled={busy}
               payees={surface.payees}
@@ -428,7 +428,6 @@ function RowInput({
 
 function PayeeInput({
   id,
-  listId,
   value,
   disabled,
   payees,
@@ -437,7 +436,6 @@ function PayeeInput({
   onChange,
 }: {
   id: string;
-  listId: string;
   value: string;
   disabled: boolean;
   payees: readonly Payee[];
@@ -445,43 +443,24 @@ function PayeeInput({
   postingAccountId: string;
   onChange: (value: string) => void;
 }): ReactElement {
+  const entries = useMemo(() => payeeListEntries(payees, accounts, accountId), [payees, accounts, accountId]);
   return (
     <>
       <label className="sr-only" htmlFor={id}>Payee</label>
-      <input
+      <PayeeCombobox
         id={id}
-        data-row-focus="payee"
-        type="text"
-        name="payee"
-        list={listId}
+        focusKey="payee"
         value={value}
-        autoComplete="off"
-        placeholder="Payee"
+        entries={entries}
         disabled={disabled}
-        onChange={(event) => onChange(event.target.value)}
-        onKeyDown={(event) => {
-          if (event.key !== "Enter") {
-            return;
-          }
-          event.stopPropagation();
-          if (event.nativeEvent.isComposing || event.keyCode === 229) {
-            return;
-          }
-        }}
-        onBlur={() => {
+        onChange={onChange}
+        onCommitName={() => {
           const snapped = canonicalPayeeName(payees, value);
           if (snapped !== value) {
             onChange(snapped);
           }
         }}
       />
-      <datalist id={listId}>
-        {payeeListEntries(payees, accounts, accountId).map((entry) => (
-          <option key={entry.id} value={entry.value}>
-            {entry.label}
-          </option>
-        ))}
-      </datalist>
     </>
   );
 }
