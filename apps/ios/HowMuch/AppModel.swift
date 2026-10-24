@@ -3902,15 +3902,16 @@ final class AppModel {
         }
         return .failed(.status(reply.status, message: reply.message))
 
-      case .confirm(let approve):
-        let reply = try await client.outboxConfirm(
-          planID: planID,
-          transactionID: command.transactionID,
-          approve: approve
-        )
-        return reply.isSuccess
-          ? .done(client.outboxTransaction(in: reply))
-          : .failed(.status(reply.status, message: reply.message))
+      case .confirm:
+        let reply = try await client.outboxConfirm(planID: planID, transactionID: command.transactionID)
+        if reply.isSuccess {
+          return .done(client.outboxTransaction(in: reply))
+        }
+        // Deleted elsewhere: nothing is left to confirm.
+        if Self.isTransactionNotFound(reply) {
+          return .done(nil)
+        }
+        return .failed(.status(reply.status, message: reply.message))
 
       case .approve:
         // Sent in batches by `sendApprovals`.
@@ -4030,7 +4031,13 @@ final class AppModel {
         tally.editedMovedAccount = true
       case .cleared:
         tally.cleared = true
-      case .approve, .confirm, .delete:
+      case .confirm:
+        if let existing, existing.isToConfirm {
+          var confirmed = existing
+          confirmed.needsConfirmation = false
+          applyAcknowledgedRow(confirmed, replacing: existing)
+        }
+      case .approve, .delete:
         break
       }
       return

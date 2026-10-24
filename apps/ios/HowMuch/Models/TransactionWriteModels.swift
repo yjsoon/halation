@@ -19,18 +19,6 @@ struct ConfirmEnvelope: Encodable {
 
   struct Body: Encodable {
     let needsConfirmation: Bool
-    let approved: Bool?
-
-    func encode(to encoder: Encoder) throws {
-      var container = encoder.container(keyedBy: CodingKeys.self)
-      try container.encode(needsConfirmation, forKey: .needsConfirmation)
-      try container.encodeIfPresent(approved, forKey: .approved)
-    }
-
-    private enum CodingKeys: String, CodingKey {
-      case needsConfirmation
-      case approved
-    }
   }
 }
 

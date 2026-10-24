@@ -14,8 +14,9 @@ enum OutboxPlanner {
 
   /// Adds `incoming` to `queue`, folding it into the transaction's queued
   /// command when there is one. Keeps at most one command per transaction
-  /// that is not in flight, and never rewrites an in-flight command: a change
-  /// made while one is on the wire queues behind it as a dependent.
+  /// that is not in flight, except that a confirm can wait beside a cleared
+  /// toggle (the two share no body). Never rewrites an in-flight command: a
+  /// change made while one is on the wire queues behind it as a dependent.
   static func enqueue(_ incoming: OutboxCommand, onto queue: [OutboxCommand]) -> [OutboxCommand] {
     let sameRow = queue.filter { $0.rowKey == incoming.rowKey }
     if sameRow.contains(where: { if case .delete = $0.kind { return true }; return false }) {
@@ -28,14 +29,25 @@ enum OutboxPlanner {
     var next = queue
     // An attempted command may already be on the server, so it is treated
     // like one on the wire: never rewritten, never cancelled.
-    guard let index = next.lastIndex(where: {
-      $0.rowKey == incoming.rowKey && !$0.isInFlight && !$0.attempted
-    }) else {
-      var appended = incoming
-      appended.seq = (queue.map(\.seq).max() ?? 0) + 1
-      appended.state = .queued
-      next.append(appended)
-      return next
+    func foldable() -> [Int] {
+      next.indices.filter { next[$0].rowKey == incoming.rowKey && !next[$0].isInFlight && !next[$0].attempted }
+    }
+    if case .delete = incoming.kind {
+      // A delete replaces everything still queued for the row. The earliest
+      // command keeps the server's base, which the delete guards against.
+      let drop = Set(foldable().dropFirst())
+      next = next.indices.filter { !drop.contains($0) }.map { next[$0] }
+    }
+    let candidates = foldable()
+    let confirmIndex = candidates.first(where: { next[$0].kind.isConfirm })
+    let index: Int?
+    if incoming.kind.isConfirm {
+      index = confirmIndex ?? candidates.last
+    } else {
+      index = candidates.last(where: { !next[$0].kind.isConfirm }) ?? candidates.last
+    }
+    guard let index else {
+      return appending(incoming, to: next)
     }
 
     let existing = next[index]
@@ -43,14 +55,26 @@ enum OutboxPlanner {
     // body; they queue one behind the other, so undoing the toggle cannot
     // take the confirm with it.
     if keepsApart(existing.kind, incoming.kind) {
-      var appended = incoming
-      appended.seq = (queue.map(\.seq).max() ?? 0) + 1
-      appended.state = .queued
-      next.append(appended)
+      return appending(incoming, to: next)
+    }
+    guard var kind = merged(existing, incoming) else {
+      next.remove(at: index)
       return next
     }
-    guard let kind = merged(existing, incoming) else {
-      next.remove(at: index)
+    // An edit folded in beside a waiting confirm takes the confirm with it,
+    // so the two cannot land out of order.
+    if let confirmIndex, confirmIndex != index,
+       case .confirm(let approve) = next[confirmIndex].kind,
+       case .update(let request) = kind {
+      kind = .update(request.replacing(
+        approved: approve ? true : nil,
+        needsConfirmation: .some(request.needsConfirmation ?? false)
+      ))
+      var folded = existing
+      folded.kind = kind
+      folded.state = .queued
+      next[index] = folded
+      next.remove(at: confirmIndex)
       return next
     }
     var folded = existing
@@ -58,6 +82,13 @@ enum OutboxPlanner {
     folded.state = .queued
     next[index] = folded
     return next
+  }
+
+  private static func appending(_ incoming: OutboxCommand, to queue: [OutboxCommand]) -> [OutboxCommand] {
+    var appended = incoming
+    appended.seq = (queue.map(\.seq).max() ?? 0) + 1
+    appended.state = .queued
+    return queue + [appended]
   }
 
   /// A confirm next to a cleared toggle.
@@ -258,7 +289,12 @@ enum OutboxPlanner {
   static func action(for kind: OutboxCommand.Kind, result: ServerResult) -> Action {
     switch result {
     case .succeeded:
+      // An approval folded into a status change goes on as the batch
+      // approve, which handles linked rows and transfer graphs.
       if case .cleared(_, _, true) = kind {
+        return .continueAs(.approve)
+      }
+      if case .confirm(true) = kind {
         return .continueAs(.approve)
       }
       return .complete

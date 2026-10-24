@@ -213,6 +213,13 @@ enum OutboxEnqueueRefusal: LocalizedError, Equatable {
 }
 
 extension OutboxCommand.Kind {
+  var isConfirm: Bool {
+    if case .confirm = self {
+      return true
+    }
+    return false
+  }
+
   var isCreate: Bool {
     if case .create = self {
       return true

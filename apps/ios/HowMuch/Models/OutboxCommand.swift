@@ -15,7 +15,8 @@ struct OutboxCommand: Codable, Equatable, Identifiable {
     case approve
     /// Clears the "To confirm" marker and nothing else, so a stale copy of
     /// the row cannot overwrite a newer amount or memo. `approve` is true
-    /// when an approval was folded in; both go in one PATCH.
+    /// when an approval was folded in; it is sent as a follow-up approve
+    /// once the confirm lands.
     case confirm(approve: Bool)
     /// `expectedApproved` follows the register's convention: `false` guards
     /// an unapproved row, nil sends no guard.
