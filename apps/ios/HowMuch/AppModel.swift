@@ -3297,6 +3297,23 @@ final class AppModel {
     showSaveMessage(cleared == .cleared ? "Marked transaction cleared" : "Marked transaction uncleared")
   }
 
+  /// Clears the "To confirm" marker and keeps the amount as it stands. Sent
+  /// as an ordinary edit, so it queues offline and folds like one.
+  func confirmTransactionAmount(_ transaction: Transaction) throws {
+    let current = displayedRow(transaction.id) ?? transaction
+    guard current.isToConfirm else {
+      return
+    }
+    var draft = TransactionDraft(transaction: current)
+    draft.approved = current.approved
+    draft.needsConfirmation = false
+    try enqueueOutbox([
+      editCommand(draft, transactionID: current.id, base: serverRow(current.id) ?? transaction),
+    ])
+    let payee = current.payeeName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    showSaveMessage("\(payee.isEmpty ? "Transaction" : payee) confirmed.")
+  }
+
   func deleteTransaction(_ transaction: Transaction) async throws {
     let current = displayedRow(transaction.id) ?? transaction
     try enqueueOutbox([

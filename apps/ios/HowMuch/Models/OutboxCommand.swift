@@ -115,7 +115,8 @@ extension TransactionWriteRequest {
   func replacing(
     cleared: ClearedState?? = .none,
     approved: Bool? = nil,
-    importID: String?? = .none
+    importID: String?? = .none,
+    needsConfirmation: Bool?? = .none
   ) -> TransactionWriteRequest {
     TransactionWriteRequest(
       accountID: accountID,
@@ -130,7 +131,8 @@ extension TransactionWriteRequest {
       flagColor: flagColor,
       subtransactions: subtransactions,
       importID: importID ?? self.importID,
-      id: id
+      id: id,
+      needsConfirmation: needsConfirmation ?? self.needsConfirmation
     )
   }
 }

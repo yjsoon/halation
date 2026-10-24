@@ -24,6 +24,98 @@ extension View {
   }
 }
 
+/// One follow-up as a chip: outlined when off, tinted when on.
+struct FollowUpChip: View {
+  enum Glyph {
+    case text(String)
+    case symbol(String)
+  }
+
+  let title: String
+  let glyph: Glyph
+  let tint: Color
+  @Binding var isOn: Bool
+
+  var body: some View {
+    Button {
+      isOn.toggle()
+    } label: {
+      HStack(spacing: 4) {
+        switch glyph {
+        case .text(let text):
+          Text(text)
+            .font(.subheadline.weight(.semibold).monospaced())
+        case .symbol(let name):
+          Image(systemName: name)
+            .font(.caption.weight(.semibold))
+        }
+        Text(title)
+          .font(.subheadline.weight(isOn ? .semibold : .regular))
+          .fixedSize()
+      }
+      .padding(.horizontal, 10)
+      .padding(.vertical, 5)
+      .foregroundStyle(isOn ? tint : Color.secondary)
+      .background(Capsule().fill(isOn ? tint.opacity(0.14) : Color.clear))
+      .overlay(Capsule().strokeBorder(isOn ? tint : Color.secondary.opacity(0.45), lineWidth: 1))
+      .contentShape(Capsule())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(title)
+    .accessibilityValue(isOn ? "On" : "Off")
+    .accessibilityAddTraits(isOn ? .isSelected : [])
+    .sensoryFeedback(.selection, trigger: isOn)
+  }
+}
+
+/// The "To claim" or "Claimed" tag a register row shows in place of the
+/// memo's claim word.
+struct MemoClaimTag: View {
+  let claim: MemoClaim
+
+  var body: some View {
+    Text(claim.title)
+      .font(.caption2.weight(.semibold))
+      .padding(.horizontal, 6)
+      .padding(.vertical, 1)
+      .foregroundStyle(claim == .toClaim ? Theme.toClaim : Color.secondary)
+      .background(
+        Capsule().fill(claim == .toClaim ? Theme.toClaim.opacity(0.12) : Color.secondary.opacity(0.12))
+      )
+  }
+}
+
+/// The memo line of a register row, with any claim word drawn as a tag.
+struct RegisterMemoLine: View {
+  let memo: String
+
+  var body: some View {
+    let claim = MemoClaim(memo: memo)
+    let text = claim == nil ? memo : MemoClaim.displayText(memo)
+    HStack(alignment: .firstTextBaseline, spacing: 6) {
+      if let claim {
+        MemoClaimTag(claim: claim)
+      }
+      if !text.isEmpty {
+        Text(text)
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .lineLimit(2)
+      }
+    }
+  }
+}
+
+/// The ≈ before an estimated amount.
+struct EstimateMark: View {
+  var body: some View {
+    Text("≈")
+      .font(.subheadline.weight(.semibold).monospaced())
+      .foregroundStyle(Theme.toConfirm)
+      .accessibilityLabel("Estimate, to confirm")
+  }
+}
+
 struct FormCardRow<Content: View>: View {
   let icon: String
   var iconColor: Color = Theme.accent

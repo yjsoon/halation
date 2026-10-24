@@ -54,6 +54,10 @@ struct TransactionWriteRequest: Codable, Equatable {
   /// Client-minted create identity. The server returns the existing row when
   /// this value is replayed, so a lost response cannot double-post money.
   var importID: String?
+  /// "To confirm": nil leaves the server's value alone. Edits send it only
+  /// when the form changed it, or alongside a cleared change, where the
+  /// server would otherwise read clearing as confirming.
+  var needsConfirmation: Bool?
   /// Client-minted transaction id (`txn_<uuid>`), sent only on a create. The
   /// outbox keeps it on the command and stamps it here at send time, so a
   /// queued create has its real id before the server has seen it.
@@ -73,6 +77,7 @@ struct TransactionWriteRequest: Codable, Equatable {
     case subtransactions
     case importID
     case id
+    case needsConfirmation
   }
 
   init(
@@ -88,7 +93,8 @@ struct TransactionWriteRequest: Codable, Equatable {
     flagColor: String?,
     subtransactions: [TransactionSubtransactionWriteRequest],
     importID: String? = nil,
-    id: String? = nil
+    id: String? = nil,
+    needsConfirmation: Bool? = nil
   ) {
     self.accountID = accountID
     self.date = date
@@ -103,6 +109,7 @@ struct TransactionWriteRequest: Codable, Equatable {
     self.subtransactions = subtransactions
     self.importID = importID
     self.id = id
+    self.needsConfirmation = needsConfirmation
   }
 
   func encode(to encoder: Encoder) throws {
@@ -120,6 +127,7 @@ struct TransactionWriteRequest: Codable, Equatable {
     try container.encode(subtransactions, forKey: .subtransactions)
     try container.encodeIfPresent(importID, forKey: .importID)
     try container.encodeIfPresent(id, forKey: .id)
+    try container.encodeIfPresent(needsConfirmation, forKey: .needsConfirmation)
   }
 
   /// Captures made before split support did not persist this key. Keep those
@@ -140,6 +148,7 @@ struct TransactionWriteRequest: Codable, Equatable {
     subtransactions = try container.decodeIfPresent([TransactionSubtransactionWriteRequest].self, forKey: .subtransactions) ?? []
     importID = try container.decodeIfPresent(String.self, forKey: .importID)
     id = try container.decodeIfPresent(String.self, forKey: .id)
+    needsConfirmation = try container.decodeIfPresent(Bool.self, forKey: .needsConfirmation)
   }
 }
 
@@ -228,6 +237,7 @@ struct PendingRow: Identifiable, Equatable {
   let splitLineCount: Int
   let splitCategoryIDs: [String]
   let isCleared: Bool
+  let isToConfirm: Bool
   let status: Status
 
   init(
@@ -253,6 +263,7 @@ struct PendingRow: Identifiable, Equatable {
     splitLineCount = request.subtransactions.count
     splitCategoryIDs = request.subtransactions.compactMap(\.categoryID)
     isCleared = request.cleared != nil && request.cleared != .uncleared
+    isToConfirm = request.needsConfirmation == true
     self.status = status
   }
 
@@ -409,6 +420,17 @@ struct TransactionDraft: Equatable, Codable {
   /// Nil keeps the editor's behaviour: saving approves the row. A caller that
   /// must not change approval (a share-intake Fix) sets the row's own value.
   var approved: Bool?
+  /// "To confirm" as stored. Optional only so drafts saved before the field
+  /// existed still decode; read and write it through `needsConfirmation`.
+  var toConfirm: Bool?
+  /// The marker when the editor opened. Nil for a new row.
+  var loadedToConfirm: Bool?
+
+  /// The amount is an estimate to check against the statement later.
+  var needsConfirmation: Bool {
+    get { toConfirm ?? false }
+    set { toConfirm = newValue }
+  }
 
   init() {
     importID = UUID().uuidString.lowercased()
@@ -444,6 +466,8 @@ struct TransactionDraft: Equatable, Codable {
     linkedTransferIDs = transaction.linkedTransferIDs
     flag = FlagColour(rawValue: transaction.flagColor ?? "") ?? .none
     memo = transaction.memo ?? ""
+    toConfirm = transaction.isToConfirm
+    loadedToConfirm = transaction.isToConfirm
   }
 
   init(duplicating transaction: Transaction) {
@@ -592,6 +616,20 @@ struct TransactionDraft: Equatable, Codable {
     return clearedState != loadedCleared
   }
 
+  /// What Save sends for "To confirm". A new row sends only a set marker.
+  /// An edit sends the marker when it changed, and always when the write
+  /// carries a cleared status: the server reads clearing without an explicit
+  /// value as confirming, which would drop a marker the user kept on.
+  func needsConfirmationToWrite(includeCleared: Bool) -> Bool? {
+    guard let loadedToConfirm else {
+      return needsConfirmation ? true : nil
+    }
+    if needsConfirmation != loadedToConfirm || includeCleared {
+      return needsConfirmation
+    }
+    return nil
+  }
+
   func writeRequest(includeCleared: Bool = true) -> TransactionWriteRequest {
     let trimmedPayee = payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
     let hasParentTransfer = transferAccountID != nil
@@ -607,7 +645,8 @@ struct TransactionDraft: Equatable, Codable {
       approved: approved ?? true,
       flagColor: flag.rawValue.isEmpty ? nil : flag.rawValue,
       subtransactions: subtransactions.compactMap { $0.writeRequest() },
-      importID: importID
+      importID: importID,
+      needsConfirmation: needsConfirmationToWrite(includeCleared: includeCleared)
     )
   }
 }

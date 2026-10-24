@@ -205,6 +205,10 @@ struct Transaction: Codable, Identifiable, Hashable {
   let importPayeeNameOriginal: String?
   let deleted: Bool
   let subtransactions: [Subtransaction]
+  /// The amount is an estimate to check against the statement ("To
+  /// confirm"). Optional so rows cached before the field existed still
+  /// decode; read it through `isToConfirm`.
+  var needsConfirmation: Bool? = nil
 
   private enum CodingKeys: String, CodingKey {
     case id
@@ -230,10 +234,16 @@ struct Transaction: Codable, Identifiable, Hashable {
     case importPayeeNameOriginal = "importPayeeNameOriginal"
     case deleted
     case subtransactions
+    case needsConfirmation
   }
 }
 
 extension Transaction {
+  /// True when the amount is marked as an estimate to confirm.
+  var isToConfirm: Bool {
+    needsConfirmation == true
+  }
+
   /// True when the row still needs a category: no category, not a transfer,
   /// and not a split (whose categories live on the subtransactions).
   var isUncategorised: Bool {
@@ -270,6 +280,7 @@ extension Transaction {
     }
   }
 
+  /// Clearing an uncleared row also confirms its amount, as the server does.
   func withCleared(_ cleared: ClearedState) -> Transaction {
     Transaction(
       id: id,
@@ -294,7 +305,8 @@ extension Transaction {
       importPayeeName: importPayeeName,
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
-      subtransactions: subtransactions
+      subtransactions: subtransactions,
+      needsConfirmation: self.cleared == .uncleared && cleared != .uncleared ? false : needsConfirmation
     )
   }
 
@@ -322,7 +334,8 @@ extension Transaction {
       importPayeeName: importPayeeName,
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
-      subtransactions: subtransactions
+      subtransactions: subtransactions,
+      needsConfirmation: needsConfirmation
     )
   }
 
@@ -354,7 +367,8 @@ extension Transaction {
       importPayeeName: importPayeeName,
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
-      subtransactions: subtransactions
+      subtransactions: subtransactions,
+      needsConfirmation: needsConfirmation
     )
   }
 
@@ -384,7 +398,8 @@ extension Transaction {
       importPayeeName: importPayeeName,
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
-      subtransactions: subtransactions
+      subtransactions: subtransactions,
+      needsConfirmation: needsConfirmation
     )
   }
 
@@ -403,6 +418,70 @@ extension Transaction {
       return line.clearingTransferLink()
     }
     return changed ? replacingSubtransactions(lines) : nil
+  }
+}
+
+/// "To claim" is a memo convention rather than a stored field: `TODO` in the
+/// memo marks a receipt to claim, and the separate claims tool rewrites it to
+/// `CLAIMED`. The chip only adds or removes that word, so the claims tool
+/// keeps reading what it reads today. Web parity: `lib/follow-up.ts`.
+enum MemoClaim: Equatable {
+  case toClaim
+  case claimed
+
+  init?(memo: String?) {
+    guard let memo, !memo.isEmpty else {
+      return nil
+    }
+    if memo.contains(#/\bTODO\b/#) {
+      self = .toClaim
+    } else if memo.contains(#/\bCLAIMED\b/#) {
+      self = .claimed
+    } else {
+      return nil
+    }
+  }
+
+  /// The memo with the claim word added (at the front) or removed.
+  static func memo(_ memo: String, toClaim on: Bool) -> String {
+    let has = memo.contains(#/\bTODO\b/#)
+    if on {
+      if has {
+        return memo
+      }
+      // A claimed row claimed again goes back to TODO rather than both.
+      if memo.contains(#/\bCLAIMED\b/#) {
+        return memo.replacing(#/\bCLAIMED\b/#, with: "TODO", maxReplacements: 1)
+      }
+      return "TODO \(memo.trimmingCharacters(in: .whitespacesAndNewlines))"
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    return has ? tidy(memo.replacing(#/\bTODO\b:?/#, with: " ")) : memo
+  }
+
+  /// The memo without its claim word, for a row that shows the claim as a tag.
+  static func displayText(_ memo: String) -> String {
+    switch MemoClaim(memo: memo) {
+    case .toClaim?:
+      return tidy(memo.replacing(#/\bTODO\b:?/#, with: " ", maxReplacements: 1))
+    case .claimed?:
+      return tidy(memo.replacing(#/\bCLAIMED\b:?/#, with: " ", maxReplacements: 1))
+    case nil:
+      return memo
+    }
+  }
+
+  var title: String {
+    switch self {
+    case .toClaim: "To claim"
+    case .claimed: "Claimed"
+    }
+  }
+
+  private static func tidy(_ text: String) -> String {
+    text.replacing(#/\s{2,}/#, with: " ")
+      .replacing(#/^[\s:\-–]+/#, with: "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }
 

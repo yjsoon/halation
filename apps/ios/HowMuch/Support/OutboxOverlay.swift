@@ -153,7 +153,11 @@ enum OutboxOverlay {
       importPayeeName: row.importPayeeName,
       importPayeeNameOriginal: row.importPayeeNameOriginal,
       deleted: row.deleted,
-      subtransactions: lines
+      subtransactions: lines,
+      // Unsent means unchanged, unless the edit clears the row, which the
+      // server reads as confirming.
+      needsConfirmation: request.needsConfirmation
+        ?? (row.cleared == .uncleared && (request.cleared ?? .uncleared) != .uncleared ? false : row.needsConfirmation)
     )
   }
 }
@@ -185,7 +189,8 @@ private extension Transaction {
       importPayeeName: importPayeeName,
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
-      subtransactions: subtransactions
+      subtransactions: subtransactions,
+      needsConfirmation: needsConfirmation
     )
   }
 }

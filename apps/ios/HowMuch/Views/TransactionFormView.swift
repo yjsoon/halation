@@ -186,6 +186,7 @@ enum TransactionFormRowID {
   static let memo = "transaction-form.row.memo"
   static let split = "transaction-form.row.split"
   static let cleared = "transaction-form.row.cleared"
+  static let followUp = "transaction-form.row.follow-up"
 }
 
 struct TransactionFormView: View {
@@ -775,8 +776,64 @@ struct TransactionFormView: View {
       }
       CardDivider()
       clearedRow
+      CardDivider()
+      followUpRow
     }
     .ynabCard()
+    .onChange(of: draft.isCleared) { wasCleared, isCleared in
+      // Clearing means the amount was checked against the statement.
+      if isCleared, !wasCleared, draft.needsConfirmation {
+        draft.needsConfirmation = false
+      }
+    }
+  }
+
+  /// Two independent follow-ups as chips. To confirm is stored on the row;
+  /// To claim adds or removes TODO in the memo for the claims tool.
+  private var followUpRow: some View {
+    FormCardRow(
+      icon: draft.needsConfirmation ? "circle.dashed.inset.filled" : "circle.dashed",
+      iconColor: draft.needsConfirmation ? Theme.toConfirm : Color.secondary,
+      rowIdentifier: TransactionFormRowID.followUp
+    ) {
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 8) {
+          Text("Follow-up")
+            .foregroundStyle(Theme.textPrimary)
+            .fixedSize()
+          Spacer(minLength: 8)
+          followUpChips
+        }
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Follow-up")
+            .foregroundStyle(Theme.textPrimary)
+          followUpChips
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+  }
+
+  private var followUpChips: some View {
+    HStack(spacing: 8) {
+      FollowUpChip(
+        title: "To confirm",
+        glyph: .text("≈"),
+        tint: Theme.toConfirm,
+        isOn: $draft.needsConfirmation
+      )
+      .accessibilityHint("Marks the amount as an estimate to check against the statement.")
+      FollowUpChip(
+        title: "To claim",
+        glyph: .symbol("doc.text"),
+        tint: Theme.toClaim,
+        isOn: Binding(
+          get: { MemoClaim(memo: draft.memo) == .toClaim },
+          set: { draft.memo = MemoClaim.memo(draft.memo, toClaim: $0) }
+        )
+      )
+      .accessibilityHint("Adds TODO to the memo, which the claims tool picks up.")
+    }
   }
 
   private var splitToggleRow: some View {

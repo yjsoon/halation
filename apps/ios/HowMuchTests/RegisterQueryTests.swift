@@ -12,6 +12,16 @@ final class RegisterQueryTests: XCTestCase {
     currencySymbol: "$"
   )
 
+  func testToClaimAddsAndRemovesTheWordTheClaimsToolReads() {
+    XCTAssertEqual(MemoClaim.memo("Client dinner", toClaim: true), "TODO Client dinner")
+    XCTAssertEqual(MemoClaim.memo("TODO: Client dinner", toClaim: false), "Client dinner")
+    XCTAssertEqual(MemoClaim.memo("CLAIMED Client dinner", toClaim: true), "TODO Client dinner")
+    XCTAssertEqual(MemoClaim(memo: "Client dinner TODO"), .toClaim)
+    XCTAssertEqual(MemoClaim(memo: "CLAIMED: Notebooks"), .claimed)
+    XCTAssertNil(MemoClaim(memo: "todolist"))
+    XCTAssertEqual(MemoClaim.displayText("CLAIMED: Notebooks"), "Notebooks")
+  }
+
   func testParsesTypedMoneyPrecision() {
     XCTAssertEqual(RegisterQuery.parse("142", currencyFormat: format)?.amount, range(142_000, 143_000, .any))
     XCTAssertEqual(RegisterQuery.parse("142.30", currencyFormat: format)?.amount, range(142_300, 142_310, .any))

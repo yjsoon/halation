@@ -182,6 +182,45 @@ final class OutboxPlannerTests: XCTestCase {
     XCTAssertEqual(queue.map(\.kind), [.update(request(amount: -5_000, cleared: .cleared))])
   }
 
+  func testClearingConfirmsAMarkerAQueuedEditSet() {
+    let base = row(cleared: .uncleared)
+    var marked = request()
+    marked.needsConfirmation = true
+    let queue = enqueueAll([
+      command(.update(marked), base: base),
+      command(.cleared(expected: .uncleared, cleared: .cleared, approve: false), base: base),
+    ])
+    var expected = request(cleared: .cleared)
+    expected.needsConfirmation = false
+    XCTAssertEqual(queue.map(\.kind), [.update(expected)], "sent apart, the toggle would confirm it on the server")
+  }
+
+  func testALaterEditKeepsAQueuedMarker() {
+    var marked = request(amount: -2_000)
+    marked.needsConfirmation = true
+    let queue = enqueueAll([
+      command(.update(marked), base: row()),
+      command(.update(request(amount: -3_000)), base: row()),
+    ])
+    var expected = request(amount: -3_000)
+    expected.needsConfirmation = true
+    XCTAssertEqual(queue.map(\.kind), [.update(expected)])
+  }
+
+  func testAnEditThatClearsSendsTheMarkerItKept() {
+    var estimated = row(cleared: .uncleared)
+    estimated.needsConfirmation = true
+    var draft = TransactionDraft(transaction: estimated)
+    XCTAssertNil(draft.writeRequest(includeCleared: false).needsConfirmation, "untouched, the edit leaves it alone")
+    draft.isCleared = true
+    XCTAssertEqual(
+      draft.writeRequest(includeCleared: draft.shouldWriteCleared).needsConfirmation, true,
+      "kept on while clearing, it must be explicit or the server confirms it"
+    )
+    draft.needsConfirmation = false
+    XCTAssertEqual(draft.writeRequest(includeCleared: false).needsConfirmation, false)
+  }
+
   func testClearedToggledBackIsRemoved() {
     let base = row(cleared: .uncleared)
     let queue = enqueueAll([

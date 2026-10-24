@@ -67,18 +67,35 @@ enum OutboxPlanner {
     case (.create(let request), .update(let edit)):
       return .create(edit.replacing(
         cleared: .some(edit.cleared ?? request.cleared),
-        importID: .some(request.importID ?? edit.importID)
+        importID: .some(request.importID ?? edit.importID),
+        needsConfirmation: .some(edit.needsConfirmation ?? request.needsConfirmation)
       ))
     case (.create(let request), .cleared(_, let cleared, let approve)):
-      return .create(request.replacing(cleared: .some(cleared), approved: approve ? true : nil))
+      // Clearing confirms the amount, as it would on the server.
+      let confirms = (request.cleared ?? .uncleared) == .uncleared && cleared != .uncleared
+      return .create(request.replacing(
+        cleared: .some(cleared),
+        approved: approve ? true : nil,
+        needsConfirmation: confirms ? .some(nil) : .none
+      ))
     case (.create(let request), .approve):
       return .create(request.replacing(approved: true))
 
     case (.update(let request), .update(let edit)):
-      return .update(edit.cleared == nil ? edit.replacing(cleared: .some(request.cleared)) : edit)
-    case (.update(let request), .cleared(_, let cleared, let approve)):
+      let carriedMarker = edit.needsConfirmation ?? request.needsConfirmation
+      return .update(edit.cleared == nil
+        ? edit.replacing(cleared: .some(request.cleared), needsConfirmation: .some(carriedMarker))
+        : edit.replacing(needsConfirmation: .some(carriedMarker)))
+    case (.update(let request), .cleared(let expected, let cleared, let approve)):
       let carried: ClearedState? = cleared == base?.cleared ? nil : cleared
-      return .update(request.replacing(cleared: .some(carried), approved: approve ? true : nil))
+      // Clearing confirms the amount, even one the queued edit marked. With
+      // no marker in the edit, the carried status confirms on the server.
+      let confirms = expected == .uncleared && cleared != .uncleared
+      return .update(request.replacing(
+        cleared: .some(carried),
+        approved: approve ? true : nil,
+        needsConfirmation: confirms && request.needsConfirmation != nil ? .some(false) : .none
+      ))
     case (.update(let request), .approve):
       return .update(request.replacing(approved: true))
 
