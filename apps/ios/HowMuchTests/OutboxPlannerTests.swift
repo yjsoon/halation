@@ -207,6 +207,25 @@ final class OutboxPlannerTests: XCTestCase {
     XCTAssertEqual(queue.map(\.kind), [.update(expected)])
   }
 
+  func testConfirmSendsOnlyTheMarkerUnlessItFoldsIntoAnEdit() {
+    XCTAssertEqual(enqueueAll([command(.approve), command(.confirm(approve: false))]).map(\.kind), [.confirm(approve: true)])
+    var expected = request(amount: -2_000)
+    expected.needsConfirmation = false
+    XCTAssertEqual(
+      enqueueAll([command(.update(request(amount: -2_000))), command(.confirm(approve: false))]).map(\.kind),
+      [.update(expected)]
+    )
+  }
+
+  func testConfirmQueuesBehindAnUnclearingToggle() {
+    let queue = enqueueAll([
+      command(.cleared(expected: .cleared, cleared: .uncleared, approve: false)),
+      command(.confirm(approve: false)),
+    ])
+    XCTAssertEqual(queue.map(\.kind), [.cleared(expected: .cleared, cleared: .uncleared, approve: false), .confirm(approve: false)])
+    XCTAssertEqual(OutboxPlanner.plan(queue).deferred.map(\.kind), [.confirm(approve: false)], "one write per row per pass")
+  }
+
   func testAnEditThatClearsSendsTheMarkerItKept() {
     var estimated = row(cleared: .uncleared)
     estimated.needsConfirmation = true

@@ -13,6 +13,27 @@ struct TransactionCollectionApprovalEnvelope: Encodable {
   }
 }
 
+/// The marker-only PATCH body the outbox sends for a confirm.
+struct ConfirmEnvelope: Encodable {
+  let transaction: Body
+
+  struct Body: Encodable {
+    let needsConfirmation: Bool
+    let approved: Bool?
+
+    func encode(to encoder: Encoder) throws {
+      var container = encoder.container(keyedBy: CodingKeys.self)
+      try container.encode(needsConfirmation, forKey: .needsConfirmation)
+      try container.encodeIfPresent(approved, forKey: .approved)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+      case needsConfirmation
+      case approved
+    }
+  }
+}
+
 struct TransactionCollectionPayload: Decodable {
   let transactionIds: [String]?
   let transactions: [Transaction]
@@ -618,13 +639,13 @@ struct TransactionDraft: Equatable, Codable {
 
   /// What Save sends for "To confirm". A new row sends only a set marker.
   /// An edit sends the marker when it changed, and always when the write
-  /// carries a cleared status: the server reads clearing without an explicit
-  /// value as confirming, which would drop a marker the user kept on.
+  /// clears the row: the server reads clearing without an explicit value as
+  /// confirming, which would drop a marker the user kept on.
   func needsConfirmationToWrite(includeCleared: Bool) -> Bool? {
     guard let loadedToConfirm else {
       return needsConfirmation ? true : nil
     }
-    if needsConfirmation != loadedToConfirm || includeCleared {
+    if needsConfirmation != loadedToConfirm || (includeCleared && clearedState != .uncleared) {
       return needsConfirmation
     }
     return nil

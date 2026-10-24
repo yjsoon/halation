@@ -39,6 +39,15 @@ enum OutboxPlanner {
     }
 
     let existing = next[index]
+    // Un-clearing and confirming are separate writes with no shared body;
+    // they queue one behind the other.
+    if keepsApart(existing.kind, incoming.kind) {
+      var appended = incoming
+      appended.seq = (queue.map(\.seq).max() ?? 0) + 1
+      appended.state = .queued
+      next.append(appended)
+      return next
+    }
     guard let kind = merged(existing, incoming) else {
       next.remove(at: index)
       return next
@@ -48,6 +57,17 @@ enum OutboxPlanner {
     folded.state = .queued
     next[index] = folded
     return next
+  }
+
+  /// A confirm next to an un-clearing toggle. Clearing already confirms, so
+  /// only the un-clearing direction has nothing to fold into.
+  private static func keepsApart(_ existing: OutboxCommand.Kind, _ incoming: OutboxCommand.Kind) -> Bool {
+    switch (existing, incoming) {
+    case (.cleared(_, let cleared, _), .confirm), (.confirm, .cleared(_, let cleared, _)):
+      return cleared == .uncleared
+    default:
+      return false
+    }
   }
 
   /// The kind the queued command becomes once `incoming` is folded in, or
@@ -80,6 +100,8 @@ enum OutboxPlanner {
       ))
     case (.create(let request), .approve):
       return .create(request.replacing(approved: true))
+    case (.create(let request), .confirm(let approve)):
+      return .create(request.replacing(approved: approve ? true : nil, needsConfirmation: .some(nil)))
 
     case (.update(let request), .update(let edit)):
       let carriedMarker = edit.needsConfirmation ?? request.needsConfirmation
@@ -98,6 +120,8 @@ enum OutboxPlanner {
       ))
     case (.update(let request), .approve):
       return .update(request.replacing(approved: true))
+    case (.update(let request), .confirm(let approve)):
+      return .update(request.replacing(approved: approve ? true : nil, needsConfirmation: .some(false)))
 
     case (.cleared(let expected, let cleared, let approve), .update(let edit)):
       let carried = edit.cleared ?? (cleared == expected ? nil : cleared)
@@ -109,6 +133,9 @@ enum OutboxPlanner {
       return .cleared(expected: expected, cleared: cleared, approve: approve || alsoApprove)
     case (.cleared(let expected, let cleared, _), .approve):
       return .cleared(expected: expected, cleared: cleared, approve: true)
+    case (.cleared(let expected, let cleared, let approve), .confirm(let alsoApprove)):
+      // Clearing confirms on the server (the un-clearing case keeps apart).
+      return .cleared(expected: expected, cleared: cleared, approve: approve || alsoApprove)
 
     case (.approve, .update(let edit)):
       return .update(edit.replacing(approved: true))
@@ -116,12 +143,28 @@ enum OutboxPlanner {
       return .cleared(expected: expected, cleared: cleared, approve: true)
     case (.approve, .approve):
       return .approve
+    case (.approve, .confirm):
+      return .confirm(approve: true)
+
+    case (.confirm(let approve), .update(let edit)):
+      return .update(edit.replacing(
+        approved: approve ? true : nil,
+        needsConfirmation: .some(edit.needsConfirmation ?? false)
+      ))
+    case (.confirm(let approve), .cleared(let expected, let cleared, let alsoApprove)):
+      // Clearing confirms too (the un-clearing case keeps apart).
+      return .cleared(expected: expected, cleared: cleared, approve: approve || alsoApprove)
+    case (.confirm, .approve):
+      return .confirm(approve: true)
+    case (.confirm(let approve), .confirm(let alsoApprove)):
+      return .confirm(approve: approve || alsoApprove)
     }
   }
 
   enum Stage: Int, CaseIterable, Comparable {
     case create
     case update
+    case confirm
     case cleared
     case approve
     case delete
@@ -137,7 +180,7 @@ enum OutboxPlanner {
   }
 
   struct Plan: Equatable {
-    /// Non-empty batches in send order: creates, updates, cleared (bulk),
+    /// Non-empty batches in send order: creates, updates, confirms, cleared (bulk),
     /// approve (batch), delete (bulk). Each batch is in queue order.
     let batches: [Batch]
     /// Queued behind an in-flight command for the same row; they go on the
@@ -187,6 +230,7 @@ enum OutboxPlanner {
     switch kind {
     case .create: return .create
     case .update: return .update
+    case .confirm: return .confirm
     case .cleared: return .cleared
     case .approve: return .approve
     case .delete: return .delete
@@ -288,7 +332,7 @@ enum OutboxPlanner {
           after = Shape(request: request, previous: previous, payees: transferAccountIDsByPayeeID)
         case .cleared(_, let cleared, _):
           after?.cleared = cleared
-        case .approve:
+        case .approve, .confirm:
           break
         case .delete:
           after = nil

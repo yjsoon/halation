@@ -244,13 +244,6 @@ extension Transaction {
     needsConfirmation == true
   }
 
-  /// Whether the register can confirm this row in one step. The outbox sends
-  /// a full-body edit, which the API refuses on the linked side of a split
-  /// line; that side is confirmed by clearing it.
-  var canConfirmInPlace: Bool {
-    isToConfirm && parentTransactionID == nil
-  }
-
   /// True when the row still needs a category: no category, not a transfer,
   /// and not a split (whose categories live on the subtransactions).
   var isUncategorised: Bool {
@@ -436,13 +429,22 @@ enum MemoClaim: Equatable {
   case toClaim
   case claimed
 
+  // `.simple` word boundaries match JavaScript's `\b`, so iOS and the web
+  // agree on memos such as "TODO's receipt" or "TODO:Uber".
+  private static var todo: Regex<Substring> { #/\bTODO\b/#.wordBoundaryKind(.simple) }
+  private static var claimedWord: Regex<Substring> { #/\bCLAIMED\b/#.wordBoundaryKind(.simple) }
+  /// The word, an optional colon and one following space; nothing else of
+  /// the memo is touched.
+  private static var stripTodo: Regex<Substring> { #/\bTODO\b:?[ \t]?/#.wordBoundaryKind(.simple) }
+  private static var stripClaimed: Regex<Substring> { #/\bCLAIMED\b:?[ \t]?/#.wordBoundaryKind(.simple) }
+
   init?(memo: String?) {
     guard let memo, !memo.isEmpty else {
       return nil
     }
-    if memo.contains(#/\bTODO\b/#) {
+    if memo.contains(Self.todo) {
       self = .toClaim
-    } else if memo.contains(#/\bCLAIMED\b/#) {
+    } else if memo.contains(Self.claimedWord) {
       self = .claimed
     } else {
       return nil
@@ -451,28 +453,28 @@ enum MemoClaim: Equatable {
 
   /// The memo with the claim word added (at the front) or removed.
   static func memo(_ memo: String, toClaim on: Bool) -> String {
-    let has = memo.contains(#/\bTODO\b/#)
+    let has = memo.contains(todo)
     if on {
       if has {
         return memo
       }
       // A claimed row claimed again goes back to TODO rather than both.
-      if memo.contains(#/\bCLAIMED\b/#) {
-        return memo.replacing(#/\bCLAIMED\b/#, with: "TODO", maxReplacements: 1)
+      if memo.contains(claimedWord) {
+        return memo.replacing(claimedWord, with: "TODO", maxReplacements: 1)
       }
-      return "TODO \(memo.trimmingCharacters(in: .whitespacesAndNewlines))"
-        .trimmingCharacters(in: .whitespacesAndNewlines)
+      let trimmed = memo.trimmingCharacters(in: .whitespacesAndNewlines)
+      return trimmed.isEmpty ? "TODO" : "TODO \(trimmed)"
     }
-    return has ? tidy(memo.replacing(#/\bTODO\b:?/#, with: " ")) : memo
+    return has ? memo.replacing(stripTodo, with: "").trimmingCharacters(in: .whitespacesAndNewlines) : memo
   }
 
   /// The memo without its claim word, for a row that shows the claim as a tag.
   static func displayText(_ memo: String) -> String {
     switch MemoClaim(memo: memo) {
     case .toClaim?:
-      return tidy(memo.replacing(#/\bTODO\b:?/#, with: " ", maxReplacements: 1))
+      return memo.replacing(stripTodo, with: "", maxReplacements: 1).trimmingCharacters(in: .whitespacesAndNewlines)
     case .claimed?:
-      return tidy(memo.replacing(#/\bCLAIMED\b:?/#, with: " ", maxReplacements: 1))
+      return memo.replacing(stripClaimed, with: "", maxReplacements: 1).trimmingCharacters(in: .whitespacesAndNewlines)
     case nil:
       return memo
     }
@@ -483,12 +485,6 @@ enum MemoClaim: Equatable {
     case .toClaim: "To claim"
     case .claimed: "Claimed"
     }
-  }
-
-  private static func tidy(_ text: String) -> String {
-    text.replacing(#/\s{2,}/#, with: " ")
-      .replacing(#/^[\s:\-–]+/#, with: "")
-      .trimmingCharacters(in: .whitespacesAndNewlines)
   }
 }
 

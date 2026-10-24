@@ -4,8 +4,12 @@
 // `CLAIMED`. The chip only adds or removes that word, so the claims tool keeps
 // reading exactly what it reads today.
 
-const CLAIM_TODO = /\bTODO\b:?/;
-const CLAIMED = /\bCLAIMED\b:?/;
+const CLAIM_TODO = /\bTODO\b/;
+const CLAIMED = /\bCLAIMED\b/;
+// The word, an optional colon and one following space: nothing else of the
+// memo is touched, so line breaks, dashes and signs survive.
+const STRIP_TODO = /\bTODO\b:?[ \t]?/;
+const STRIP_CLAIMED = /\bCLAIMED\b:?[ \t]?/;
 
 export type ClaimState = "to-claim" | "claimed" | null;
 
@@ -22,22 +26,17 @@ export function withClaimTodo(memo: string, on: boolean): string {
   if (on) {
     if (has) return memo;
     // A claimed row being claimed again goes back to TODO rather than both.
-    if (CLAIMED.test(memo)) return memo.replace(/\bCLAIMED\b/, "TODO");
-    return `TODO ${memo.trim()}`.trim();
+    if (CLAIMED.test(memo)) return memo.replace(CLAIMED, "TODO");
+    return memo.trim() ? `TODO ${memo.trim()}` : "TODO";
   }
-  return has ? tidy(memo.replace(new RegExp(CLAIM_TODO.source, "g"), " ")) : memo;
+  return has ? memo.replace(new RegExp(STRIP_TODO.source, "g"), "").trim() : memo;
 }
 
 /** The memo split into its claim marker and the text a reader cares about. */
 export function memoForDisplay(memo: string | null | undefined): { claim: ClaimState; text: string } {
   const claim = claimState(memo);
   if (!memo || !claim) return { claim, text: memo ?? "" };
-  const word = claim === "to-claim" ? CLAIM_TODO : CLAIMED;
-  return { claim, text: tidy(memo.replace(word, " ")) };
-}
-
-function tidy(text: string): string {
-  return text.replace(/\s{2,}/g, " ").replace(/^[\s:\-–]+/, "").trim();
+  return { claim, text: memo.replace(claim === "to-claim" ? STRIP_TODO : STRIP_CLAIMED, "").trim() };
 }
 
 /** Short label for a row's payee in a toast. */

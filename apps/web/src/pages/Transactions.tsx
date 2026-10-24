@@ -415,6 +415,14 @@ export function TransactionsPage() {
     JSON.stringify({ planId, selectedAccountId, refreshGeneration, validatedKnowledge, cacheEpoch, confirmationQueue: true }),
     () => fetchTransactionQueue(planId, selectedAccountId, {}, "needs_confirmation"),
   );
+  // Every write changes the queue's key, so its data is briefly null while it
+  // reloads. Keep the last rows for the same scope meanwhile, so the pill and
+  // the filtered list do not blank out (and an open row edit is not dropped).
+  const confirmationScope = `${planId}:${selectedAccountId ?? ""}`;
+  const lastConfirmationRows = useRef<{ scope: string; rows: Transaction[] } | null>(null);
+  if (confirmationQueue.data) lastConfirmationRows.current = { scope: confirmationScope, rows: confirmationQueue.data };
+  const confirmationRows = confirmationQueue.data
+    ?? (lastConfirmationRows.current?.scope === confirmationScope ? lastConfirmationRows.current.rows : null);
   const reconciliationPreviewInput = reconcileDraft?.reviewReady && reconcileDraft.accountId && reconcileDraft.statementDate
     ? { accountId: reconcileDraft.accountId, statementDate: reconcileDraft.statementDate }
     : null;
@@ -1085,8 +1093,8 @@ export function TransactionsPage() {
     [approvalQueue.data, approvalSession, clearedOverlays, deletedIds, replacements],
   );
   const patchedConfirmationQueue = useMemo(
-    () => applyClearedOverlays(applyRegisterPatches(confirmationQueue.data ?? [], replacements, deletedIds), clearedOverlays),
-    [clearedOverlays, confirmationQueue.data, deletedIds, replacements],
+    () => applyClearedOverlays(applyRegisterPatches(confirmationRows ?? [], replacements, deletedIds), clearedOverlays),
+    [clearedOverlays, confirmationRows, deletedIds, replacements],
   );
   const toConfirmCount = useMemo(
     () => patchedConfirmationQueue.filter(
@@ -1301,12 +1309,14 @@ export function TransactionsPage() {
   const scheduledDisclosureCount = postedFutureRows.length + visibleSchedules.length;
   const showScheduledDisclosure = scheduledDisclosureCount > 0 || Boolean(schedules.error);
 
+  const confirmationRowsPending = toConfirmOnly && confirmationRows === null;
   useEffect(() => {
+    if (confirmationRowsPending) return;
     const present = new Set(scopedRows.map((txn) => txn.id));
     if (sessionRowGone(rowEdit, present)) {
       replaceRowEdit(idleRowEdit());
     }
-  }, [rowEdit, scopedRows]);
+  }, [confirmationRowsPending, rowEdit, scopedRows]);
 
   const eligibleIds = useMemo(
     () => eligibleApprovalIds(matchedRows, approvalSession),
@@ -2028,6 +2038,9 @@ export function TransactionsPage() {
       {unapprovedOnly && approvalQueue.data === null && approvalQueue.loading && !approvalQueue.error && (
         <StatusPanel title="Loading transactions awaiting approval..." />
       )}
+      {confirmationRowsPending && !confirmationQueue.error && (
+        <StatusPanel title="Loading transactions to confirm..." />
+      )}
       {toConfirmOnly && confirmationQueue.error && (
         <StatusPanel title="Could not load transactions to confirm." error>{confirmationQueue.error}</StatusPanel>
       )}
@@ -2190,7 +2203,7 @@ export function TransactionsPage() {
                   ])}
                 </tbody>
               </table>
-              {rows.length === 0 && !page.filling && compose.status !== "open" && !showScheduledDisclosure && (
+              {rows.length === 0 && !page.filling && !confirmationRowsPending && compose.status !== "open" && !showScheduledDisclosure && (
                 <div className="register-empty-state">
                   <p className="status-title">{emptyMessage}</p>
                   <p className="status-detail">{emptyDetail}</p>

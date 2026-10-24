@@ -983,6 +983,15 @@ extension APIClient {
     )
   }
 
+  /// Clears only the "To confirm" marker (and approves, when asked).
+  func outboxConfirm(planID: String, transactionID: String, approve: Bool) async throws -> OutboxReply {
+    try await outboxSend(
+      path: "/v1/plans/\(planID)/transactions/\(transactionID)",
+      method: "PATCH",
+      body: try encoder.encode(ConfirmEnvelope(transaction: .init(needsConfirmation: false, approved: approve ? true : nil)))
+    )
+  }
+
   func outboxApprove(planID: String, transactionIDs: [String]) async throws -> OutboxReply {
     try await outboxSend(
       path: "/v1/plans/\(planID)/transactions",

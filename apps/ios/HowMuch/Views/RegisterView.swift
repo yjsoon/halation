@@ -799,7 +799,7 @@ struct RegisterView: View {
         }
         .tint(Theme.inflow)
       }
-      if transaction.canConfirmInPlace {
+      if transaction.isToConfirm {
         Button {
           confirmAmount(transaction)
         } label: {
@@ -824,7 +824,7 @@ struct RegisterView: View {
           Label("Approve", systemImage: "checkmark")
         }
       }
-      if transaction.canConfirmInPlace {
+      if transaction.isToConfirm {
         Button {
           confirmAmount(transaction)
         } label: {

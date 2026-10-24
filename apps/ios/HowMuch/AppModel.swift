@@ -1531,6 +1531,8 @@ final class AppModel {
         action = cleared == .cleared ? "Cleared" : "Uncleared"
       case .approve:
         action = "Approve"
+      case .confirm:
+        action = "Confirm"
       case .delete:
         action = "Delete"
       }
@@ -3297,18 +3299,19 @@ final class AppModel {
     showSaveMessage(cleared == .cleared ? "Marked transaction cleared" : "Marked transaction uncleared")
   }
 
-  /// Clears the "To confirm" marker and keeps the amount as it stands. Sent
-  /// as an ordinary edit, so it queues offline and folds like one.
+  /// Clears the "To confirm" marker and keeps the amount as it stands. Only
+  /// the marker is sent, so a stale copy cannot overwrite newer fields.
   func confirmTransactionAmount(_ transaction: Transaction) throws {
     let current = displayedRow(transaction.id) ?? transaction
-    guard current.canConfirmInPlace else {
+    guard current.isToConfirm else {
       return
     }
-    var draft = TransactionDraft(transaction: current)
-    draft.approved = current.approved
-    draft.needsConfirmation = false
     try enqueueOutbox([
-      editCommand(draft, transactionID: current.id, base: serverRow(current.id) ?? transaction),
+      makeCommand(
+        transactionID: current.id,
+        kind: .confirm(approve: false),
+        base: serverRow(current.id) ?? transaction
+      ),
     ])
     let payee = current.payeeName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
     showSaveMessage("\(payee.isEmpty ? "Transaction" : payee) confirmed.")
@@ -3899,6 +3902,16 @@ final class AppModel {
         }
         return .failed(.status(reply.status, message: reply.message))
 
+      case .confirm(let approve):
+        let reply = try await client.outboxConfirm(
+          planID: planID,
+          transactionID: command.transactionID,
+          approve: approve
+        )
+        return reply.isSuccess
+          ? .done(client.outboxTransaction(in: reply))
+          : .failed(.status(reply.status, message: reply.message))
+
       case .approve:
         // Sent in batches by `sendApprovals`.
         return .failed(.offline)
@@ -4017,7 +4030,7 @@ final class AppModel {
         tally.editedMovedAccount = true
       case .cleared:
         tally.cleared = true
-      case .approve, .delete:
+      case .approve, .confirm, .delete:
         break
       }
       return
@@ -4040,6 +4053,8 @@ final class AppModel {
       applyAcknowledgedRow(row, replacing: existing)
     case .cleared:
       tally.cleared = true
+      applyAcknowledgedRow(row, replacing: existing)
+    case .confirm:
       applyAcknowledgedRow(row, replacing: existing)
     case .approve, .delete:
       break

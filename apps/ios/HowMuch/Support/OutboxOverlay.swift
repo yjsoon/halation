@@ -47,6 +47,11 @@ enum OutboxOverlay {
           if !current.approved {
             current = current.withApproved(true)
           }
+        case .confirm(let approve):
+          current.needsConfirmation = false
+          if approve, !current.approved {
+            current = current.withApproved(true)
+          }
         case .delete:
           let link = SplitMirrorLink(
             id: row.id,
@@ -223,7 +228,7 @@ extension OutboxCommand {
     switch kind {
     case .approve:
       return true
-    case .cleared(_, _, let approve):
+    case .cleared(_, _, let approve), .confirm(let approve):
       return approve
     case .update(let request):
       return request.approved && baseSnapshot?.approved == false
@@ -247,7 +252,7 @@ extension OutboxCommand {
     case .create(let request), .update(let request):
       ids.insert(request.accountID)
       ids.formUnion(request.subtransactions.compactMap(\.transferAccountID))
-    case .cleared, .approve, .delete:
+    case .cleared, .approve, .confirm, .delete:
       break
     }
     return ids

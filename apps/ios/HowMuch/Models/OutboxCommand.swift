@@ -13,6 +13,10 @@ struct OutboxCommand: Codable, Equatable, Identifiable {
     /// status change lands.
     case cleared(expected: ClearedState, cleared: ClearedState, approve: Bool)
     case approve
+    /// Clears the "To confirm" marker and nothing else, so a stale copy of
+    /// the row cannot overwrite a newer amount or memo. `approve` is true
+    /// when an approval was folded in; both go in one PATCH.
+    case confirm(approve: Bool)
     /// `expectedApproved` follows the register's convention: `false` guards
     /// an unapproved row, nil sends no guard.
     case delete(expectedApproved: Bool?)
