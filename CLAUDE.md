@@ -6,7 +6,7 @@ Read [AGENTS.md](AGENTS.md) at the start of every thread, and [apps/ios/AGENTS.m
 
 ## Working style: pstack
 
-Threads follow [pstack](https://github.com/michael-denyer/pstack-claude) when the plugin is loaded. It was vetted at version 0.9.102 (commit 356c6e0); flag to YJ if a different version is loaded. Route work it covers (more than one file, a design choice, a bug with an unknown cause) through `pstack:poteto-mode`, and apply the project playbooks in `.agents/playbooks/`. When pstack is not loaded, the merge policy below still applies in full.
+Threads follow [pstack](https://github.com/michael-denyer/pstack-claude) when the plugin is loaded. It was vetted at version 0.9.102 (commit 356c6e0); flag to YJ if a different version is loaded. Route work it covers (more than one file, a design choice, a bug with an unknown cause) through `pstack:poteto-mode`, and apply the project playbooks in `.agents/playbooks/`. Cloud threads get pstack only when YJ adds it under Project settings > Plugins; do not clone or install it yourself. When pstack is not loaded, follow the repository rules and the merge policy below in full.
 
 Where pstack and this repository disagree, this repository wins:
 
@@ -19,7 +19,7 @@ Where pstack and this repository disagree, this repository wins:
 
 ## Merge policy
 
-Do not open pull requests. Land work with [.agents/playbooks/land-on-main.md](.agents/playbooks/land-on-main.md). On every round, run an adversarial review with an Opus reviewer at max effort and a Fable reviewer at high effort, fix verified findings, then merge the reviewed commit of the thread branch into `main` with a merge commit.
+Do not open pull requests. When a round of work is finished, land it with [.agents/playbooks/land-on-main.md](.agents/playbooks/land-on-main.md). On every round, run an adversarial review with an Opus reviewer at max effort and a Fable reviewer at high effort, fix verified findings, then merge the reviewed commit of the thread branch into `main` with a merge commit.
 
 This is standing permission for a thread's lead session to commit each round, push its own thread branch, and merge that branch into `main` and push `main`. It overrides AGENTS.md's "Commit only when requested", "Commit permission does not imply push permission" and "Do not infer permission to merge" for that case only. Subagents never commit to, merge into or push `main`, and no session lands another thread's branch.
 
