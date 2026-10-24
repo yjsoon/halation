@@ -53,8 +53,12 @@ export function payeeMenuSections(entries: readonly PayeeListEntry[], query: str
       const prefixRank = key.length >= 3 ? matchRank(entry.value, key) : -1;
       // Word starts only: a letter inside an account name is too weak a reason
       // to put transfers above the payee being typed.
-      if (matchRank(entry.transferAccount, key) === 0 || prefixRank === 0) {
-        transfers.push({ entry, rank: 0, raw: 0, sort: entry.transferAccount });
+      // Word starts lead; a match inside a name ("360" in "Bank360") counts
+      // from three characters, so one or two letters do not list every account.
+      const nameRank = matchRank(entry.transferAccount, key);
+      const rank = nameRank === 0 || prefixRank === 0 ? 0 : nameRank === 1 && key.length >= 3 ? 1 : -1;
+      if (rank >= 0) {
+        transfers.push({ entry, rank, raw: 0, sort: entry.transferAccount });
       }
     } else {
       const rank = matchRank(entry.value, key);
@@ -155,6 +159,9 @@ export function PayeeCombobox({
       const clip = input.closest(".table-wrap")?.getBoundingClientRect();
       if (clip && (rect.right <= clip.left || rect.left >= clip.right || rect.bottom <= clip.top || rect.top >= clip.bottom)) {
         setPlacement(null);
+        // The list comes back scrolled to the top; drop a highlight that
+        // would then sit out of view.
+        setActive(-1);
         return;
       }
       // The visual viewport excludes an on-screen keyboard.
@@ -235,14 +242,6 @@ export function PayeeCombobox({
         aria-label={transfer ? `Transfer: ${entry.transferAccount}` : undefined}
         data-option-index={at}
         className={`payee-menu-option${transfer ? " payee-menu-transfer" : ""}${at === active ? " is-active" : ""}`}
-        onMouseMove={(event) => {
-          // Scrolling by keyboard fires a mousemove under a still pointer;
-          // only a real pointer move should take the highlight.
-          const last = pointer.current;
-          pointer.current = { x: event.clientX, y: event.clientY };
-          if (last && last.x === event.clientX && last.y === event.clientY) return;
-          if (active !== at) setActive(at);
-        }}
         onClick={() => choose(entry)}
       >
         {transfer ? (
@@ -270,6 +269,21 @@ export function PayeeCombobox({
         onMouseDown={(event) => event.preventDefault()}
         // A pointer passing over the list must not leave a choice for Enter.
         onMouseLeave={() => setActive(-1)}
+        onMouseMove={(event) => {
+          // Some browsers fire a mousemove under a still pointer after the
+          // list scrolls by keyboard; only a real move takes the highlight.
+          const last = pointer.current;
+          pointer.current = { x: event.clientX, y: event.clientY };
+          if (last && last.x === event.clientX && last.y === event.clientY) return;
+          const option = (event.target as Element).closest<HTMLElement>("[data-option-index]");
+          const at = option ? Number(option.dataset.optionIndex) : -1;
+          if (at >= 0) setActive(at);
+        }}
+        // After a wheel scroll the option under a still pointer should take
+        // the highlight, so forget the last position.
+        onWheel={() => {
+          pointer.current = null;
+        }}
         style={{
           left: placement.left,
           width: placement.width,
