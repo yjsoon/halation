@@ -43,10 +43,12 @@ const check = (label, ok, detail = "") => {
   // Mark two existing demo rows: one estimated, one estimated and to claim.
   const list = (await api("GET", `/v1/plans/${state.plan_id}/transactions?limit=40`)).body.data.transactions
     .filter((t) => t.amount < 0 && !t.transfer_account_id && !(t.subtransactions || []).length);
-  const [first, second, third] = list;
+  const [first, second, third, fourth] = list;
   await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${first.id}`, { transaction: { needs_confirmation: true, cleared: "uncleared" } });
-  await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${second.id}`, { transaction: { needs_confirmation: true, memo: "TODO Client dinner" } });
-  await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${third.id}`, { transaction: { memo: "CLAIMED: Notebooks" } });
+  await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${second.id}`, { transaction: { needs_confirmation: true, memo: "TODO: Client dinner" } });
+  await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${third.id}`, { transaction: { memo: "CLAIMED - 2026-01-02: Notebooks" } });
+  // Not claims to the claims tool: TODO later in the memo, and an ordinary "Claimed".
+  await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${fourth.id}`, { transaction: { memo: "Claimed back from Sam TODO" } });
 
   await page.reload();
   await page.getByRole("heading", { name: "Ledger" }).waitFor();
@@ -58,6 +60,12 @@ const check = (label, ok, detail = "") => {
   check("two rows carry the estimate mark", (await page.locator("tr.register-row-to-confirm").count()) === 2);
   check("to-claim tag shows in place of TODO", await page.locator(".memo-claim-todo").first().isVisible());
   check("claimed tag shows", await page.locator(".memo-claim-done").first().isVisible());
+  const claimedCell = page.locator("td", { has: page.locator(".memo-claim-done") }).first();
+  const claimedText = (await claimedCell.innerText()).replace(/\s+/g, " ").trim();
+  check("claimed row shows just its description", claimedText === "Claimed Notebooks", claimedText);
+  const plainCell = page.locator("td", { hasText: "Claimed back from Sam TODO" }).first();
+  check("ordinary memo with Claimed and a late TODO gets no tag",
+    (await plainCell.isVisible()) && (await plainCell.locator(".memo-claim").count()) === 0);
   await page.screenshot({ path: path.join(out, "web-1-register.png") });
 
   await pill.click();
@@ -89,13 +97,27 @@ const check = (label, ok, detail = "") => {
   const memoValue = await page.getByLabel("Memo", { exact: true }).inputValue();
   check("turning To claim off removes TODO from the memo", memoValue === "Client dinner", memoValue);
   await claimChip.click();
-  check("turning it back on restores TODO", (await page.getByLabel("Memo", { exact: true }).inputValue()) === "TODO Client dinner");
+  check("turning it back on restores TODO", (await page.getByLabel("Memo", { exact: true }).inputValue()) === "TODO: Client dinner");
+  // The memo is trimmed on save, so the chip judges the trimmed memo, and Off
+  // clears every leading TODO prefix.
+  const memoInput = page.getByLabel("Memo", { exact: true });
+  await memoInput.fill(" TODO: Client dinner ");
+  check("chip reads a padded TODO memo as a claim", (await claimChip.getAttribute("aria-pressed")) === "true");
+  await memoInput.fill("TODO: TODO: Client dinner");
+  await claimChip.click();
+  check("turning it off clears repeated prefixes", (await memoInput.inputValue()) === "Client dinner", await memoInput.inputValue());
+  check("chip is off after one click", (await claimChip.getAttribute("aria-pressed")) === "false");
+  // Claiming a claimed row again keeps a single prefix, even when the tool
+  // stored a description that itself starts with TODO.
+  await memoInput.fill("CLAIMED - 2026-01-02: TODO: Client dinner");
+  await claimChip.click();
+  check("re-claiming a claimed memo keeps one prefix", (await memoInput.inputValue()) === "TODO: Client dinner", await memoInput.inputValue());
   await confirmChip.click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForTimeout(1200);
   const saved = (await api("GET", `/v1/plans/${state.plan_id}/transactions/${second.id}`)).body.data.transaction;
   check("saving with To confirm off persists", saved.needs_confirmation === false);
-  check("memo kept TODO for the claims tool", saved.memo === "TODO Client dinner", saved.memo);
+  check("memo kept TODO for the claims tool", saved.memo === "TODO: Client dinner", saved.memo);
   check("pill gone when nothing is left", !(await page.locator(".confirm-pill").isVisible().catch(() => false)));
 
   // A new row from the compose row with To confirm on.
