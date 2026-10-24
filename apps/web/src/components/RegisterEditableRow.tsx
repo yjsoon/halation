@@ -19,8 +19,10 @@ import {
   type RegisterRowRef,
   type RowEditContext,
 } from "../lib/register-row-edit";
+import { memoForDisplay } from "../lib/follow-up";
 import { CategorySelect } from "./CategorySelect";
 import { FlagPicker } from "./FlagTag";
+import { ClaimGlyph, EstimateMark, FollowUpChips } from "./FollowUpChips";
 import { PayeeCombobox } from "./PayeeCombobox";
 
 export type RowEditSurface = {
@@ -44,9 +46,12 @@ export function RegisterEditableRow(props: {
   payeeExtra?: ReactNode;
   flagNames?: Record<string, string>;
   onDelete?: () => void;
+  /** Confirms an estimated amount as it stands; absent when the row cannot. */
+  onConfirm?: () => void;
+  confirming?: boolean;
   targeted?: boolean;
 }): ReactElement | null {
-  const { row, surface, leading, account, status, payeeExtra, flagNames, onDelete, targeted = false } = props;
+  const { row, surface, leading, account, status, payeeExtra, flagNames, onDelete, onConfirm, confirming = false, targeted = false } = props;
   const line = row.kind === "split-line"
     ? row.parent.subtransactions?.find((sub) => sub.id === row.lineId)
     : undefined;
@@ -106,9 +111,12 @@ export function RegisterEditableRow(props: {
 
   if (!active || !draft) {
     const linkedMirror = row.kind === "posted" && Boolean(row.transaction.parent_transaction_id);
+    const estimated = row.kind === "posted" && row.transaction.needs_confirmation === true;
+    const estimate = estimated ? <EstimateMark onConfirm={onConfirm} busy={confirming} /> : null;
     const className = [
       "register-row-idle",
       split ? "split-line-row" : null,
+      estimated ? "register-row-to-confirm" : null,
       !split && !approved ? "register-row-unapproved" : null,
       targeted ? "register-row-targeted" : null,
     ].filter(Boolean).join(" ");
@@ -171,13 +179,13 @@ export function RegisterEditableRow(props: {
           className="muted memo-cell"
           title={idleMemoTitle(row, line)}
         >
-          {idleMemo(row, line)}
+          <IdleMemo memo={idleMemo(row, line)} />
         </IdleCell>
         <IdleCell row={row} focus="outflow" surface={surface} className="num amount-negative">
-          {idleOutflow(row, line)}
+          {idleOutflow(row, line) ? <>{estimate}{idleOutflow(row, line)}</> : null}
         </IdleCell>
         <IdleCell row={row} focus="inflow" surface={surface} className="num amount-positive">
-          {idleInflow(row, line)}
+          {idleInflow(row, line) ? <>{estimate}{idleInflow(row, line)}</> : null}
         </IdleCell>
         <td className="register-status">{split ? null : status}</td>
       </tr>
@@ -327,14 +335,26 @@ export function RegisterEditableRow(props: {
         <td colSpan={9}>
           <div className="register-compose-actions">
             {split ? null : (
-              <div className="register-compose-flags">
-                <span className="field-label" id={`${fieldId}-flag-label`}>Flag</span>
-                <FlagPicker
-                  labelledBy={`${fieldId}-flag-label`}
-                  value={draft.flagColor}
-                  onChange={(flagColor) => surface.dispatch({ type: "patch", draft: { flagColor } })}
+              <div className="register-compose-meta">
+                <div className="register-compose-flags">
+                  <span className="field-label" id={`${fieldId}-flag-label`}>Flag</span>
+                  <FlagPicker
+                    labelledBy={`${fieldId}-flag-label`}
+                    value={draft.flagColor}
+                    onChange={(flagColor) => surface.dispatch({ type: "patch", draft: { flagColor } })}
+                    disabled={busy}
+                    names={flagNames}
+                  />
+                </div>
+                <FollowUpChips
+                  id={fieldId}
+                  needsConfirmation={draft.needsConfirmation}
+                  memo={draft.memo}
                   disabled={busy}
-                  names={flagNames}
+                  onNeedsConfirmationChange={(needsConfirmation) => surface.dispatch({ type: "patch", draft: { needsConfirmation } })}
+                  onMemoChange={rowFieldWritable(row, "memo", draft, surface.payees)
+                    ? (memo) => surface.dispatch({ type: "patch", draft: { memo } })
+                    : undefined}
                 />
               </div>
             )}
@@ -524,6 +544,21 @@ function idleCategory(row: RegisterRowRef, line: Subtransaction | undefined): st
     return `Split · ${txn.subtransactions.length} lines`;
   }
   return txn.transfer_account_id ? "Transfer" : (txn.category_name ?? "Uncategorised");
+}
+
+/** A memo with the claims tool's TODO or CLAIMED shown as a tag, not a word. */
+function IdleMemo({ memo }: { memo: string }): ReactElement {
+  const { claim, text } = memoForDisplay(memo === "-" ? "" : memo);
+  if (!claim) return <>{memo}</>;
+  return (
+    <>
+      <span className={claim === "to-claim" ? "memo-claim memo-claim-todo" : "memo-claim memo-claim-done"}>
+        {claim === "to-claim" ? <ClaimGlyph /> : null}
+        {claim === "to-claim" ? "To claim" : "Claimed"}
+      </span>
+      {text ? ` ${text}` : null}
+    </>
+  );
 }
 
 function idleMemo(row: RegisterRowRef, line: Subtransaction | undefined): string {

@@ -147,6 +147,7 @@ export interface TransactionUpdateInput {
   approved?: boolean;
   flag_color?: string | null;
   flag_name?: string | null;
+  needs_confirmation?: boolean;
   payee_id?: string | null;
   payee_name?: string | null;
   category_id?: string | null;
@@ -309,6 +310,7 @@ export interface QuickEntryInput {
   category_id: string | null;
   memo: string | null;
   flag_color: string | null;
+  needs_confirmation?: boolean;
   subtransactions?: QuickEntrySplitLine[];
 }
 

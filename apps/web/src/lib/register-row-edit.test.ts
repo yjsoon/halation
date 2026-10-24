@@ -108,6 +108,7 @@ const shopDraft: RegisterRowDraft = {
   outflow: "3.40",
   inflow: "",
   flagColor: "",
+  needsConfirmation: false,
 };
 
 describe("sameRow and rowId", () => {

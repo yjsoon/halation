@@ -36,7 +36,7 @@ import {
   rowLooksApproved,
 } from "../lib/register-approval";
 import { useUnapprovedCount } from "../state/use-unapproved-count";
-import { fetchUnapprovedQueue } from "../lib/unapproved-queue";
+import { fetchTransactionQueue, fetchUnapprovedQueue } from "../lib/unapproved-queue";
 import { resolvedSinceCount, showsUnapprovedBadge, unapprovedBadgeCount, unapprovedBadgeLabel } from "../lib/unapproved-badge";
 import {
   closedCompose,
@@ -87,6 +87,7 @@ import { currentCacheEpoch, readSlot, shouldUseCache, writeSlot } from "../state
 import { useCachedApi } from "../state/use-cached-api";
 import { StatusPanel } from "../components/StatusPanel";
 import { ClearedStatus } from "../components/ClearedStatus";
+import { confirmedMessage } from "../lib/follow-up";
 import { RegisterScheduledDisclosure } from "../components/RegisterScheduledDisclosure";
 
 function hasUncategorisedLine(txn: Transaction): boolean {
@@ -283,7 +284,26 @@ export function TransactionsPage() {
     }
   }, [bloomIds, page.filling, page.loading, page.transactions]);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
-  const [unapprovedOnly, setUnapprovedOnly] = useState(false);
+  const [unapprovedOnly, setUnapprovedOnlyState] = useState(false);
+  // "To confirm": rows whose amount is an estimate. Like the approval queue it
+  // ignores the date window, and the two lists are never shown together.
+  const [toConfirmOnly, setToConfirmOnlyState] = useState(false);
+  const setUnapprovedOnly = (update: boolean | ((current: boolean) => boolean)) => {
+    setUnapprovedOnlyState((current) => {
+      const next = typeof update === "function" ? update(current) : update;
+      if (next) setToConfirmOnlyState(false);
+      return next;
+    });
+  };
+  const setToConfirmOnly = (update: boolean | ((current: boolean) => boolean)) => {
+    setToConfirmOnlyState((current) => {
+      const next = typeof update === "function" ? update(current) : update;
+      if (next) setUnapprovedOnlyState(false);
+      return next;
+    });
+  };
+  /** Either queue: the date window, search paging and schedules step aside. */
+  const queueMode = unapprovedOnly || toConfirmOnly;
   const [selection, setSelection] = useState(() => emptySelection(listKey));
   const [replacements, setReplacements] = useState<ReadonlyMap<string, Transaction>>(() => new Map());
   const [clearedOverlays, setClearedOverlays] = useState<ReadonlyMap<string, Transaction["cleared"]>>(() => new Map());
@@ -389,6 +409,11 @@ export function TransactionsPage() {
     () => approvalQueueNeeded
       ? fetchUnapprovedQueue(planId, selectedAccountId, { since_date: filters.from, until_date: fetchUntilDate })
       : Promise.resolve(null),
+  );
+  // Always loaded: the list is short, and its length is the "to confirm" pill.
+  const confirmationQueue = useApi<Transaction[]>(
+    JSON.stringify({ planId, selectedAccountId, refreshGeneration, validatedKnowledge, cacheEpoch, confirmationQueue: true }),
+    () => fetchTransactionQueue(planId, selectedAccountId, {}, "needs_confirmation"),
   );
   const reconciliationPreviewInput = reconcileDraft?.reviewReady && reconcileDraft.accountId && reconcileDraft.statementDate
     ? { accountId: reconcileDraft.accountId, statementDate: reconcileDraft.statementDate }
@@ -579,7 +604,7 @@ export function TransactionsPage() {
 
   useEffect(() => {
     const q = registerQuery?.raw;
-    if (!q || unapprovedOnly) {
+    if (!q || queueMode) {
       searchVersionRef.current += 1;
       setSearchPage({
         query: "",
@@ -639,10 +664,10 @@ export function TransactionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [fetchUntilDate, filters.from, planId, registerQuery?.raw, selectedAccountId, unapprovedOnly, refreshGeneration]);
+  }, [fetchUntilDate, filters.from, planId, registerQuery?.raw, selectedAccountId, queueMode, refreshGeneration]);
 
   const loadOlder = async () => {
-    if (registerQuery && !unapprovedOnly) {
+    if (registerQuery && !queueMode) {
       if (searchPage.loadingMore || !searchPage.hasMore || searchPage.nextOffset === null) {
         return;
       }
@@ -701,7 +726,8 @@ export function TransactionsPage() {
     if (mutationLockRef.current || (transaction.cleared !== "uncleared" && transaction.cleared !== "cleared")) return false;
     if (clearedInFlightRef.current.has(transaction.id)) return false;
     const cleared = transaction.cleared === "cleared" ? "uncleared" : "cleared";
-    const overlay = { ...transaction, cleared };
+    // Clearing an uncleared row confirms its amount on the server too.
+    const overlay = { ...transaction, cleared, ...(cleared === "cleared" ? { needs_confirmation: false } : {}) };
     clearedInFlightRef.current.add(transaction.id);
     setClearedOverlays((current) => new Map(current).set(transaction.id, cleared));
     setReplacements((current) => new Map(current).set(transaction.id, overlay));
@@ -728,6 +754,27 @@ export function TransactionsPage() {
       return false;
     } finally {
       clearedInFlightRef.current.delete(transaction.id);
+      setMutatingId((current) => (current === transaction.id ? null : current));
+    }
+  };
+
+  /** Accepts an estimated amount as it stands. */
+  const confirmAmount = async (transaction: Transaction): Promise<void> => {
+    if (mutationLockRef.current || transaction.needs_confirmation !== true) return;
+    setReplacements((current) => new Map(current).set(transaction.id, { ...transaction, needs_confirmation: false }));
+    setMutatingId(transaction.id);
+    setMutationError(null);
+    setMutationSuccess(null);
+    try {
+      const updated = await api.updateTransaction(planId, transaction.id, { needs_confirmation: false });
+      setReplacements((current) => new Map(current).set(updated.id, updated));
+      setDeepLinkedTransaction((current) => applyDeepLinkedTransactionMutation(current, updated.id, updated));
+      setMutationSuccess(confirmedMessage(updated.payee_name ?? transaction.payee_name));
+      reload();
+    } catch (cause) {
+      setReplacements((current) => new Map(current).set(transaction.id, transaction));
+      setMutationError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
       setMutatingId((current) => (current === transaction.id ? null : current));
     }
   };
@@ -1037,6 +1084,16 @@ export function TransactionsPage() {
       ),
     [approvalQueue.data, approvalSession, clearedOverlays, deletedIds, replacements],
   );
+  const patchedConfirmationQueue = useMemo(
+    () => applyClearedOverlays(applyRegisterPatches(confirmationQueue.data ?? [], replacements, deletedIds), clearedOverlays),
+    [clearedOverlays, confirmationQueue.data, deletedIds, replacements],
+  );
+  const toConfirmCount = useMemo(
+    () => patchedConfirmationQueue.filter(
+      (txn) => !txn.deleted && txn.needs_confirmation === true && registerAccountIds.has(txn.account_id),
+    ).length,
+    [patchedConfirmationQueue, registerAccountIds],
+  );
   const patchedPage = useMemo(
     () =>
       applyClearedOverlays(
@@ -1059,11 +1116,11 @@ export function TransactionsPage() {
   );
   const inScope = useMemo(
     () =>
-      (unapprovedOnly ? patchedQueue : patchedPage)
+      (unapprovedOnly ? patchedQueue : toConfirmOnly ? patchedConfirmationQueue : patchedPage)
         .filter((txn) => !txn.deleted)
         .filter((txn) => registerAccountIds.has(txn.account_id))
-        .filter((txn) => unapprovedOnly || dateInRegisterWindow(txn.date, filters.from, filters.to, today)),
-    [filters.from, filters.to, patchedPage, patchedQueue, registerAccountIds, today, unapprovedOnly],
+        .filter((txn) => queueMode || dateInRegisterWindow(txn.date, filters.from, filters.to, today)),
+    [filters.from, filters.to, patchedConfirmationQueue, patchedPage, patchedQueue, queueMode, registerAccountIds, today, toConfirmOnly, unapprovedOnly],
   );
 
   const uncategorisedCount = useMemo(() => inScope.filter(hasUncategorisedLine).length, [inScope]);
@@ -1112,6 +1169,7 @@ export function TransactionsPage() {
     const outflowOnly = flow === "outflow" || wantsUncategorised;
     return inScope
       .filter((txn) => !unapprovedOnly || !txn.approved)
+      .filter((txn) => !toConfirmOnly || txn.needs_confirmation === true)
       .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
@@ -1128,7 +1186,7 @@ export function TransactionsPage() {
         return wantsUncategorised && hasUncategorisedLine(txn);
       })
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  }, [categoryIds, filters.categoryIds.length, flow, inScope, unapprovedOnly, wantsUncategorised]);
+  }, [categoryIds, filters.categoryIds.length, flow, inScope, toConfirmOnly, unapprovedOnly, wantsUncategorised]);
 
   const deepLinkKey = deepLink.kind === "valid" && deepLink.link.planId === planId
     ? `${planId}:${deepLink.link.transactionId}:${deepLink.link.subtransactionId ?? ""}`
@@ -1159,8 +1217,9 @@ export function TransactionsPage() {
     return rows
       .filter((txn) => !txn.deleted)
       .filter((txn) => registerAccountIds.has(txn.account_id))
-      .filter((txn) => unapprovedOnly || dateInRegisterWindow(txn.date, filters.from, filters.to, today))
+      .filter((txn) => queueMode || dateInRegisterWindow(txn.date, filters.from, filters.to, today))
       .filter((txn) => !unapprovedOnly || !txn.approved)
+      .filter((txn) => !toConfirmOnly || txn.needs_confirmation === true)
       .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
@@ -1185,7 +1244,7 @@ export function TransactionsPage() {
     if (!registerQuery) {
       return scopedRows;
     }
-    if (unapprovedOnly) {
+    if (queueMode) {
       return localMatches;
     }
     return mergeSearchRows(localMatches, applyRowFilters(patchedSearch));
@@ -1202,6 +1261,8 @@ export function TransactionsPage() {
     registerQuery,
     scopedRows,
     today,
+    queueMode,
+    toConfirmOnly,
     unapprovedOnly,
     wantsUncategorised,
   ]);
@@ -1214,7 +1275,7 @@ export function TransactionsPage() {
     [deepLinkedTransactionId, matchedRows, today],
   );
   const visibleSchedules = useMemo(() => {
-    if (unapprovedOnly) {
+    if (queueMode) {
       return [];
     }
     const query = registerQuery;
@@ -1236,7 +1297,7 @@ export function TransactionsPage() {
       const payeeName = schedule.payee_name ?? (schedule.payee_id ? payees.data?.find((payee) => payee.id === schedule.payee_id)?.name : undefined);
       return matchesRegisterQuery(query, fieldsFromSchedule(schedule, { accountName, payeeName }));
     });
-  }, [accounts, categoryIds, filters.categoryIds.length, payees.data, registerAccountIds, registerQuery, schedules.data, unapprovedOnly, wantsUncategorised]);
+  }, [accounts, categoryIds, filters.categoryIds.length, payees.data, registerAccountIds, registerQuery, schedules.data, queueMode, wantsUncategorised]);
   const scheduledDisclosureCount = postedFutureRows.length + visibleSchedules.length;
   const showScheduledDisclosure = scheduledDisclosureCount > 0 || Boolean(schedules.error);
 
@@ -1447,9 +1508,9 @@ export function TransactionsPage() {
     [rows],
   );
 
-  const hasMoreToLoad = ((registerQuery && !unapprovedOnly) ? searchPage.hasMore : page.hasMore)
+  const hasMoreToLoad = ((registerQuery && !queueMode) ? searchPage.hasMore : page.hasMore)
     && !page.filling
-    && !unapprovedOnly;
+    && !queueMode;
   const footerMeta = registerQuery
     ? searchStatusCopy({
         shown: rows.length,
@@ -1630,6 +1691,18 @@ export function TransactionsPage() {
               {eligibleIds.some((id) => approvalSession.pending.has(id))
                 ? "Approving…"
                 : approveAllLabel(eligibleIds.length)}
+            </button>
+          )}
+          {(toConfirmCount > 0 || toConfirmOnly) && (
+            <button
+              type="button"
+              className={toConfirmOnly ? "confirm-pill confirm-pill-active" : "confirm-pill"}
+              onClick={() => setToConfirmOnly((current) => !current)}
+              aria-pressed={toConfirmOnly}
+              aria-label={toConfirmOnly ? "Showing transactions to confirm. Clear" : `Show transactions to confirm, ${toConfirmCount}`}
+            >
+              <span className="confirm-pill-glyph" aria-hidden="true">≈</span>
+              {toConfirmOnly ? "Showing to confirm · clear" : `${toConfirmCount} to confirm`}
             </button>
           )}
           {uncategorisedCount > 0 && !wantsUncategorised && (
@@ -1956,6 +2029,9 @@ export function TransactionsPage() {
       {unapprovedOnly && approvalQueue.data === null && approvalQueue.loading && !approvalQueue.error && (
         <StatusPanel title="Loading transactions awaiting approval..." />
       )}
+      {toConfirmOnly && confirmationQueue.error && (
+        <StatusPanel title="Could not load transactions to confirm." error>{confirmationQueue.error}</StatusPanel>
+      )}
 
       {registerLoaded && (
         <section className="report-section">
@@ -2041,6 +2117,8 @@ export function TransactionsPage() {
                           )}
                           payeeExtra={<FlagTag colour={txn.flag_color} name={namedFlagLabel(colourNamesByAccountId.get(txn.account_id), txn.flag_color, txn.flag_name)} />}
                           flagNames={ledgerFlagNames(colourNamesByAccountId.get(txn.account_id) ?? {})}
+                          onConfirm={() => void confirmAmount(txn)}
+                          confirming={writeLocked || mutatingId === txn.id}
                         />,
                         ...(txn.subtransactions ?? []).map((sub) => (
                           <RegisterEditableRow
@@ -2095,6 +2173,8 @@ export function TransactionsPage() {
                       )}
                       payeeExtra={<FlagTag colour={txn.flag_color} name={namedFlagLabel(colourNamesByAccountId.get(txn.account_id), txn.flag_color, txn.flag_name)} />}
                       flagNames={ledgerFlagNames(colourNamesByAccountId.get(txn.account_id) ?? {})}
+                      onConfirm={() => void confirmAmount(txn)}
+                      confirming={writeLocked || mutatingId === txn.id}
                       targeted={deepLink.kind === "valid" && deepLink.link.subtransactionId === null && txn.id === deepLinkedTransactionId}
                     />,
                     ...(txn.subtransactions ?? []).map((sub) => (

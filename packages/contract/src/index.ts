@@ -41,9 +41,10 @@ export interface Transaction {
   /**
    * The amount is an estimate still to be checked against the statement, such
    * as a foreign-currency charge entered at an estimated rate. Clearing or
-   * reconciling the row confirms it.
+   * reconciling the row confirms it. The API always sends it; it is optional
+   * here because rows cached before the field existed lack it.
    */
-  needs_confirmation: boolean;
+  needs_confirmation?: boolean;
   account_id: string;
   account_name: string | null;
   payee_id: string | null;

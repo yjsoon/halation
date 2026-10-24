@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { Account, CategoryGroup, Payee } from "../api/types";
 import { CategorySelect } from "./CategorySelect";
 import { FlagPicker } from "./FlagTag";
+import { FollowUpChips } from "./FollowUpChips";
 import { splitCategoryGroups } from "../lib/categories";
 import {
   canonicalPayeeName,
@@ -61,6 +62,7 @@ export function RegisterComposeRow({
     categoryId?: string;
     memo?: string;
     flagColor?: string;
+    needsConfirmation?: boolean;
   }) => {
     onChange(reduceCompose(state, { type: "patch", draft }));
   };
@@ -207,14 +209,24 @@ export function RegisterComposeRow({
       <tr className="register-compose-actions-row">
         <td colSpan={9}>
           <div className="register-compose-actions">
-            <div className="register-compose-flags">
-              <span className="field-label" id="register-compose-flag-label">Flag</span>
-              <FlagPicker
-                labelledBy="register-compose-flag-label"
-                value={state.draft.flagColor}
-                onChange={(flagColor) => patch({ flagColor })}
+            <div className="register-compose-meta">
+              <div className="register-compose-flags">
+                <span className="field-label" id="register-compose-flag-label">Flag</span>
+                <FlagPicker
+                  labelledBy="register-compose-flag-label"
+                  value={state.draft.flagColor}
+                  onChange={(flagColor) => patch({ flagColor })}
+                  disabled={busy}
+                  names={flagNames}
+                />
+              </div>
+              <FollowUpChips
+                id="register-compose"
+                needsConfirmation={state.draft.needsConfirmation}
+                memo={state.draft.memo}
                 disabled={busy}
-                names={flagNames}
+                onNeedsConfirmationChange={(needsConfirmation) => patch({ needsConfirmation })}
+                onMemoChange={(memo) => patch({ memo })}
               />
             </div>
             {state.error ? <p className="register-compose-error" role="alert">{state.error}</p> : null}
