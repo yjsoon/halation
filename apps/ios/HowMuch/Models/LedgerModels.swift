@@ -481,6 +481,17 @@ enum MemoClaim: String, Equatable {
       .ignoresCase().wordBoundaryKind(.simple).asciiOnlyWordCharacters()
   }
 
+  /// The day when it is a real calendar date, as the API requires.
+  private static func calendarDay(_ value: String) -> String? {
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(identifier: "UTC")
+    formatter.dateFormat = "yyyy-MM-dd"
+    guard let date = formatter.date(from: value), formatter.string(from: date) == value else { return nil }
+    return value
+  }
+
   private static func counts(_ word: Substring, colon: Substring) -> Bool {
     word == word.uppercased() || colon == ":"
   }
@@ -503,7 +514,7 @@ enum MemoClaim: String, Equatable {
       if let match = text.firstMatch(of: claimedWord), counts(match.1, colon: match.3) {
         if words.claim == nil {
           words.claim = .claimed
-          words.claimedOn = match.2.map(String.init)
+          words.claimedOn = match.2.map(String.init).flatMap(Self.calendarDay)
         }
         text = String(text[match.0.endIndex...])
         found = true

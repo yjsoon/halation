@@ -19,6 +19,13 @@ function marker(pattern: RegExp, text: string, colonGroup = 2): RegExpExecArray 
   return match[1] === match[1]!.toUpperCase() || match[colonGroup] === ":" ? match : null;
 }
 
+/** The day when it is a real calendar date, as the API requires. */
+function calendarDay(value: string | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value ? value : null;
+}
+
 export type ClaimStatus = "to_claim" | "claimed";
 export type ClaimState = "to-claim" | "claimed" | null;
 
@@ -52,7 +59,7 @@ export function legacyWords(
     if (claimed) {
       if (!claim) {
         claim = "claimed";
-        claimedOn = claimed[2] ?? null;
+        claimedOn = calendarDay(claimed[2]);
       }
       found = true;
       text = text.slice(claimed[0].length);

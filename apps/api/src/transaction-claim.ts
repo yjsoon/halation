@@ -13,7 +13,12 @@ export const CLAIM_STATUSES: readonly ClaimStatus[] = ["to_claim", "claimed"];
 export const TO_CLAIM_TYPE = "to_claim";
 export const CLAIMED_TYPE = "claimed";
 
-export const CLAIM_DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** A claimed day: a real calendar date as YYYY-MM-DD, as snapshots require. */
+export function isClaimDay(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
 
 // A word counts when it is in capitals (`TODO`, `CLAIMED`, `TOCHECK`) or is
 // followed by a colon in any case (`todo: taxi`). Prose such as "Todo list app"
@@ -54,7 +59,7 @@ export function followUpWords(memo: string | null): FollowUpWords {
     if (claimed) {
       if (!result.claim_status) {
         result.claim_status = "claimed";
-        result.claimed_on = claimed[2] ?? null;
+        result.claimed_on = isClaimDay(claimed[2]) ? claimed[2] : null;
       }
       text = text.slice(claimed[0].length);
       continue;
@@ -82,9 +87,10 @@ export function normaliseFollowUpWords<T extends Partial<TransactionInput>>(inpu
   if (words.memo === input.memo) return input;
   const next = input as Partial<TransactionInput>;
   next.memo = words.memo;
-  if (words.claim_status && next.claim_status === undefined) {
-    next.claim_status = words.claim_status;
-    if (words.claim_status === "claimed" && next.claimed_on === undefined) next.claimed_on = words.claimed_on ?? null;
+  if (words.claim_status && next.claim_status === undefined) next.claim_status = words.claim_status;
+  // The word's day fills a claimed write that does not give one.
+  if (words.claim_status === "claimed" && next.claim_status === "claimed" && next.claimed_on === undefined) {
+    next.claimed_on = words.claimed_on ?? null;
   }
   if (words.needs_confirmation && next.needs_confirmation === undefined) next.needs_confirmation = true;
   return input;

@@ -154,7 +154,7 @@ bunx wrangler d1 migrations apply <db-name> --remote --config wrangler.self-host
 bun run deploy:self-host
 ```
 
-Apply migrations before deploying so the new code never meets an old schema. Read the tag's commit log (`git log --oneline <previous-tag>..<new-tag>`) for anything that needs more than this.
+Apply migrations before deploying so the new code never meets an old schema. Update the Worker before installing an iOS build from the same or a newer tag: an older Worker ignores fields the newer app sends, such as the To claim flag, and the app may drop the memo word that used to carry it. Read the tag's commit log (`git log --oneline <previous-tag>..<new-tag>`) for anything that needs more than this.
 
 ## Backups
 

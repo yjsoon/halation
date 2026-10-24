@@ -9,16 +9,18 @@ adds this README revision; each run was made on that tree before committing.
 
 | Run | Revision | Command | Result |
 | :-- | :-- | :-- | :-- |
-| API, D1 and SQLite engines | branch head | `bun .amp/in/artifacts/to-claim/api-e2e.ts` | ALL PASS (39 checks per engine) |
+| API, D1 and SQLite engines | branch head | `bun .amp/in/artifacts/to-claim/api-e2e.ts` | ALL PASS (42 checks per engine) |
 | Web | branch head | `node .amp/in/artifacts/to-claim/web-e2e.cjs` | ALL PASS (24 checks), screenshots `web-1` to `web-7` |
 | Claims tool against this API | branch head + this-claimer `claude/howmuch-claim-flag` head | `CLAIMER=/path/to/this-claimer node .amp/in/artifacts/to-claim/claimer-e2e.cjs` | ALL PASS (12 checks) |
 | Memo conversion | branch head | see below | as expected |
-| iOS build and tests (Devin macOS) | b149697 | `scripts/ios-xcodebuild.sh test` | 806 executed, 0 failures, 1 skipped (opt-in live model test) |
-| iOS simulator pass (Devin macOS, local mode) | b149697 | To claim chip, To confirm chip, filter menu, dark mode | as described, screenshots `ios-*` |
+| iOS build and tests (Devin macOS) | b149697, then 0c983bf | `scripts/ios-xcodebuild.sh test` | each 806 executed, 0 failures, 1 skipped (opt-in live model test) |
+| iOS simulator pass (Devin macOS, local mode) | b149697 | To claim chip, To confirm chip, filter menu, dark mode | as described, screenshots `ios-a` to `ios-d` |
+| iOS simulator pass (Devin macOS, local mode) | 0c983bf | `TODO:` memo becomes the flag; chip off and on keeps it, off clears it; Duplicate keeps To claim; a transfer's other side shows To claim | as described, screenshots `ios-2a` to `ios-2d` |
 
-The claims tool's fallback for an older HowMuch (no `claim_status`) is
-covered by its own `npm run smoke:worker-claims`, which models both server
-versions; this folder only runs it against this branch's API.
+Against an older HowMuch (no `claim_status`), the claims tool's marking
+fallback is covered by its own `npm run smoke:worker-claims`, which models
+both server versions for the collection PATCH. Its listing fallback for an
+older server is the unchanged memo rule and has no run here.
 
 ## Memo conversion run
 

@@ -1,6 +1,6 @@
 import { isStorableMilliunits } from "@howmuch/money";
 import { ValidationError } from "./repository";
-import { CLAIM_DAY } from "./transaction-claim";
+import { isClaimDay } from "./transaction-claim";
 import {
   MAX_TRANSACTION_WRITE_BATCH,
   type ClaimStatus,
@@ -234,8 +234,8 @@ function claimStatus(value: unknown, label: string): ClaimStatus | null {
 
 function claimedOn(value: unknown, label: string): string | null {
   if (value === null) return null;
-  if (typeof value === "string" && CLAIM_DAY.test(value)) return value;
-  throw new ValidationError(`${label} must be a YYYY-MM-DD date or null`);
+  if (isClaimDay(value)) return value;
+  throw new ValidationError(`${label} must be a valid YYYY-MM-DD date or null`);
 }
 
 function parseSubtransaction(value: unknown): SubtransactionInput {

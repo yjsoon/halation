@@ -152,6 +152,15 @@ for (const engine of ["d1", "sqlite"] as const) {
   check("snapshot import succeeds", imported.status, 201);
   const back = await fresh("GET", `/v1/plans/${PLAN}/transactions/${both.id}`);
   check("snapshot import keeps the claim", claim(back.body.data.transaction), { memo: "Hotel deposit", claim_status: "claimed", claimed_on: "2026-10-26" });
+
+  // A claimed day must be a real date, so snapshots always round-trip.
+  const badDay = await create({ memo: "CLAIMED - 2026-02-30: Example parking" });
+  check("a word with an impossible day still marks claimed, without the day", claim(badDay), { memo: "Example parking", claim_status: "claimed", claimed_on: null });
+  const refused = await api("PATCH", `/v1/plans/${PLAN}/transactions/${badDay.id}`, { transaction: { claimed_on: "2026-02-30" } });
+  check("an impossible claimed_on is refused", refused.status, 400);
+  const cab = await create({ memo: "TODO: Example cab" });
+  check("an explicit claimed write takes the day from the word", claim(await patch(cab.id, { memo: "CLAIMED - 2026-01-02: Example cab", claim_status: "claimed" })),
+    { memo: "Example cab", claim_status: "claimed", claimed_on: "2026-01-02" });
 }
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILED`);
