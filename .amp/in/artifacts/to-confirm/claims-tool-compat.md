@@ -13,7 +13,8 @@ stack, synthetic data), then `node .amp/in/artifacts/to-confirm/web-e2e.cjs`,
 then `control-howmuch cleanup`. Fixture memos: `TODO: Client dinner`,
 `CLAIMED - 2026-01-02: Notebooks`, and the negative `Claimed back from Sam TODO`.
 
-Observed at 13e939f (all 19 PASS; 16 of these also passed at 455d390), including:
+Observed at 13e939f code (all 20 PASS with the re-claim step added after round 3; 19 before it; 16 of these also passed at 455d390), including:
+- re-claiming `CLAIMED - 2026-01-02: TODO: Client dinner` gives `TODO: Client dinner`
 - the chip reads ` TODO: Client dinner ` (padded) as a claim
 - turning it off on `TODO: TODO: Client dinner` gives `Client dinner` in one click
 - claimed row shows just `Claimed Notebooks` (tag plus description)
@@ -34,4 +35,9 @@ Devin macOS session 06992d43ed31432faa2eb34681a63600, `scripts/ios-xcodebuild.sh
   CaptureSnapshotTests assertions failed with empty accessibility lookups (`[]`), the known
   flake; the class alone then passed 32/32.
 - 455d390: not run (superseded).
-- 13e939f: pending (recorded below when it returns).
+- 13e939f: build succeeded (Xcode 26.6, iPhone 17 simulator, iOS 26.5); 806 XCTest + 3 Swift
+  Testing, 1 opt-in skip; RegisterQueryTests (5) passed, including
+  testToClaimMatchesTheClaimsToolsMemoFormat. The same six CaptureSnapshotTests assertions
+  failed with empty accessibility lookups (`[]`), the known flake; the class alone then
+  passed 32/32. The tree at the reviewed commit differs from 13e939f only under
+  `.amp/in/artifacts/`.

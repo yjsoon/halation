@@ -107,7 +107,11 @@ const check = (label, ok, detail = "") => {
   await claimChip.click();
   check("turning it off clears repeated prefixes", (await memoInput.inputValue()) === "Client dinner", await memoInput.inputValue());
   check("chip is off after one click", (await claimChip.getAttribute("aria-pressed")) === "false");
+  // Claiming a claimed row again keeps a single prefix, even when the tool
+  // stored a description that itself starts with TODO.
+  await memoInput.fill("CLAIMED - 2026-01-02: TODO: Client dinner");
   await claimChip.click();
+  check("re-claiming a claimed memo keeps one prefix", (await memoInput.inputValue()) === "TODO: Client dinner", await memoInput.inputValue());
   await confirmChip.click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForTimeout(1200);
