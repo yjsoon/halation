@@ -13,6 +13,11 @@ struct OutboxCommand: Codable, Equatable, Identifiable {
     /// status change lands.
     case cleared(expected: ClearedState, cleared: ClearedState, approve: Bool)
     case approve
+    /// Clears the "To confirm" marker and nothing else, so a stale copy of
+    /// the row cannot overwrite a newer amount or memo. `approve` is true
+    /// when an approval was folded in; it is sent as a follow-up approve
+    /// once the confirm lands.
+    case confirm(approve: Bool)
     /// `expectedApproved` follows the register's convention: `false` guards
     /// an unapproved row, nil sends no guard.
     case delete(expectedApproved: Bool?)
@@ -115,7 +120,8 @@ extension TransactionWriteRequest {
   func replacing(
     cleared: ClearedState?? = .none,
     approved: Bool? = nil,
-    importID: String?? = .none
+    importID: String?? = .none,
+    needsConfirmation: Bool?? = .none
   ) -> TransactionWriteRequest {
     TransactionWriteRequest(
       accountID: accountID,
@@ -130,7 +136,8 @@ extension TransactionWriteRequest {
       flagColor: flagColor,
       subtransactions: subtransactions,
       importID: importID ?? self.importID,
-      id: id
+      id: id,
+      needsConfirmation: needsConfirmation ?? self.needsConfirmation
     )
   }
 }

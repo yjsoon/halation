@@ -186,6 +186,7 @@ enum TransactionFormRowID {
   static let memo = "transaction-form.row.memo"
   static let split = "transaction-form.row.split"
   static let cleared = "transaction-form.row.cleared"
+  static let followUp = "transaction-form.row.follow-up"
 }
 
 struct TransactionFormView: View {
@@ -196,6 +197,8 @@ struct TransactionFormView: View {
   @State private var isKeypadVisible: Bool
   @State private var errorMessage: String?
   @State private var isConfirmingDelete = false
+  /// Set when turning Cleared on also turned To confirm off.
+  @State private var confirmationDroppedByClearing = false
   /// Looked up when Delete is tapped, not in the alert's message builder, which
   /// runs with every body pass (each keypad tap included).
   @State private var deleteDetail: String?
@@ -775,8 +778,77 @@ struct TransactionFormView: View {
       }
       CardDivider()
       clearedRow
+      CardDivider()
+      followUpRow
     }
     .ynabCard()
+    .onChange(of: draft.isCleared) { wasCleared, isCleared in
+      // Clearing means the amount was checked against the statement. Turning
+      // Cleared back off before saving puts the marker back. A row that was
+      // already cleared with the marker kept it on purpose.
+      let loadedUncleared = (draft.loadedCleared ?? .uncleared) == .uncleared
+      if isCleared, !wasCleared, loadedUncleared, draft.needsConfirmation {
+        draft.needsConfirmation = false
+        confirmationDroppedByClearing = true
+      } else if !isCleared, wasCleared, confirmationDroppedByClearing {
+        draft.needsConfirmation = true
+        confirmationDroppedByClearing = false
+      }
+    }
+  }
+
+  /// Two independent follow-ups as chips. To confirm is stored on the row;
+  /// To claim adds or removes TODO in the memo for the claims tool.
+  private var followUpRow: some View {
+    FormCardRow(
+      icon: draft.needsConfirmation ? "circle.dashed.inset.filled" : "circle.dashed",
+      iconColor: draft.needsConfirmation ? Theme.toConfirm : Color.secondary,
+      rowIdentifier: TransactionFormRowID.followUp
+    ) {
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 8) {
+          Text("Follow-up")
+            .foregroundStyle(Theme.textPrimary)
+            .fixedSize()
+          Spacer(minLength: 8)
+          followUpChips
+        }
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Follow-up")
+            .foregroundStyle(Theme.textPrimary)
+          followUpChips
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+  }
+
+  private var followUpChips: some View {
+    HStack(spacing: 8) {
+      FollowUpChip(
+        title: "To confirm",
+        glyph: .text("≈"),
+        tint: Theme.toConfirm,
+        isOn: Binding(
+          get: { draft.needsConfirmation },
+          set: {
+            draft.needsConfirmation = $0
+            confirmationDroppedByClearing = false
+          }
+        )
+      )
+      .accessibilityHint("Marks the amount as an estimate to check against the statement.")
+      FollowUpChip(
+        title: "To claim",
+        glyph: .symbol("doc.text"),
+        tint: Theme.toClaim,
+        isOn: Binding(
+          get: { MemoClaim(memo: draft.memo) == .toClaim },
+          set: { draft.memo = MemoClaim.memo(draft.memo, toClaim: $0) }
+        )
+      )
+      .accessibilityHint("Adds TODO to the memo, which the claims tool picks up.")
+    }
   }
 
   private var splitToggleRow: some View {

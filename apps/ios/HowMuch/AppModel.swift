@@ -1531,6 +1531,8 @@ final class AppModel {
         action = cleared == .cleared ? "Cleared" : "Uncleared"
       case .approve:
         action = "Approve"
+      case .confirm:
+        action = "Confirm"
       case .delete:
         action = "Delete"
       }
@@ -3297,6 +3299,24 @@ final class AppModel {
     showSaveMessage(cleared == .cleared ? "Marked transaction cleared" : "Marked transaction uncleared")
   }
 
+  /// Clears the "To confirm" marker and keeps the amount as it stands. Only
+  /// the marker is sent, so a stale copy cannot overwrite newer fields.
+  func confirmTransactionAmount(_ transaction: Transaction) throws {
+    let current = displayedRow(transaction.id) ?? transaction
+    guard current.isToConfirm else {
+      return
+    }
+    try enqueueOutbox([
+      makeCommand(
+        transactionID: current.id,
+        kind: .confirm(approve: false),
+        base: serverRow(current.id) ?? transaction
+      ),
+    ])
+    let payee = current.payeeName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    showSaveMessage("\(payee.isEmpty ? "Transaction" : payee) confirmed.")
+  }
+
   func deleteTransaction(_ transaction: Transaction) async throws {
     let current = displayedRow(transaction.id) ?? transaction
     try enqueueOutbox([
@@ -3567,7 +3587,7 @@ final class AppModel {
   private enum WireResult {
     /// The server has what the command asked for; the row when it sent one.
     case done(Transaction?)
-    /// A delete found the row already gone.
+    /// A delete or a confirm found the row already gone.
     case gone
     /// A status change found the row changed underneath; the row as it is.
     case conflict(Transaction?)
@@ -3882,6 +3902,18 @@ final class AppModel {
         }
         return .failed(.status(reply.status, message: reply.message))
 
+      case .confirm:
+        let reply = try await client.outboxConfirm(planID: planID, transactionID: command.transactionID)
+        if reply.isSuccess {
+          return .done(client.outboxTransaction(in: reply))
+        }
+        // Deleted elsewhere: settle it as a delete, which drops anything
+        // else queued for the row and removes it locally.
+        if Self.isTransactionNotFound(reply) {
+          return .gone
+        }
+        return .failed(.status(reply.status, message: reply.message))
+
       case .approve:
         // Sent in batches by `sendApprovals`.
         return .failed(.offline)
@@ -4000,6 +4032,12 @@ final class AppModel {
         tally.editedMovedAccount = true
       case .cleared:
         tally.cleared = true
+      case .confirm:
+        if let existing, existing.isToConfirm {
+          var confirmed = existing
+          confirmed.needsConfirmation = false
+          applyAcknowledgedRow(confirmed, replacing: existing)
+        }
       case .approve, .delete:
         break
       }
@@ -4023,6 +4061,8 @@ final class AppModel {
       applyAcknowledgedRow(row, replacing: existing)
     case .cleared:
       tally.cleared = true
+      applyAcknowledgedRow(row, replacing: existing)
+    case .confirm:
       applyAcknowledgedRow(row, replacing: existing)
     case .approve, .delete:
       break

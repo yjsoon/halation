@@ -90,6 +90,11 @@ environment `tk` in `wrangler.jsonc`:
   applies D1 migrations. If a release includes a migration, apply it manually
   (`wrangler d1 migrations apply DB --env tk --remote --profile tinkertanker`)
   before tagging, following the verification order in this document.
+- Migration `0022_transaction_needs_confirmation.sql` adds
+  `transactions.needs_confirmation` (default 0) and a partial index. It is
+  additive and the running Worker ignores the column, but the Worker that
+  writes it needs it, so apply it (after `scripts/backup-d1.sh`) before
+  tagging that release.
 - Migration `0021_card_payment_terms.sql` adds the `card_payment_terms`
   table and its ownership triggers. It is additive and the running Worker
   ignores it, so apply it (after `scripts/backup-d1.sh`) before tagging the

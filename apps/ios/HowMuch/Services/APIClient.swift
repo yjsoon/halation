@@ -983,6 +983,16 @@ extension APIClient {
     )
   }
 
+  /// Clears only the "To confirm" marker. A folded approval follows as the
+  /// batch approve.
+  func outboxConfirm(planID: String, transactionID: String) async throws -> OutboxReply {
+    try await outboxSend(
+      path: "/v1/plans/\(planID)/transactions/\(transactionID)",
+      method: "PATCH",
+      body: try encoder.encode(ConfirmEnvelope(transaction: .init(needsConfirmation: false)))
+    )
+  }
+
   func outboxApprove(planID: String, transactionIDs: [String]) async throws -> OutboxReply {
     try await outboxSend(
       path: "/v1/plans/\(planID)/transactions",

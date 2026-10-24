@@ -87,6 +87,7 @@ private struct RegisterFilterCounts {
   let unapproved: Int
   let uncleared: Int
   let uncategorised: Int
+  let toConfirm: Int
 }
 
 private struct RegisterSearchPage: Equatable {
@@ -268,6 +269,7 @@ struct RegisterView: View {
   @State private var searchPage = RegisterSearchPage()
   @State private var unclearedOnly = false
   @State private var uncategorisedOnly = false
+  @State private var toConfirmOnly = false
   @State private var unapprovedOnly = false
   /// The row that last started an older page ahead of the reader.
   @State private var olderPagePrefetchedRowID: String?
@@ -575,7 +577,7 @@ struct RegisterView: View {
         Image(systemName: "line.3.horizontal.decrease.circle")
       }
       .accessibilityLabel("Register filters")
-      .accessibilityHint("Review new, uncleared, or uncategorised transactions.")
+      .accessibilityHint("Review new, uncleared, uncategorised, or to-confirm transactions.")
     }
   }
 
@@ -605,6 +607,12 @@ struct RegisterView: View {
     if counts.uncategorised > 0 || uncategorisedOnly {
       Toggle(isOn: $uncategorisedOnly.animation(Theme.Motion.standard)) {
         Label(uncategorisedMenuTitle(counts.uncategorised), systemImage: "tag.slash")
+      }
+      .menuActionDismissBehavior(.disabled)
+    }
+    if counts.toConfirm > 0 || toConfirmOnly {
+      Toggle(isOn: $toConfirmOnly.animation(Theme.Motion.standard)) {
+        Label(toConfirmMenuTitle(counts.toConfirm), systemImage: "circle.dashed")
       }
       .menuActionDismissBehavior(.disabled)
     }
@@ -791,6 +799,14 @@ struct RegisterView: View {
         }
         .tint(Theme.inflow)
       }
+      if transaction.isToConfirm {
+        Button {
+          confirmAmount(transaction)
+        } label: {
+          Label("Confirm", systemImage: "checkmark.seal")
+        }
+        .tint(Theme.toConfirm)
+      }
     }
     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
       Button(role: .destructive) {
@@ -806,6 +822,13 @@ struct RegisterView: View {
           approve(transaction)
         } label: {
           Label("Approve", systemImage: "checkmark")
+        }
+      }
+      if transaction.isToConfirm {
+        Button {
+          confirmAmount(transaction)
+        } label: {
+          Label("Confirm Amount", systemImage: "checkmark.seal")
         }
       }
       Button {
@@ -878,7 +901,7 @@ struct RegisterView: View {
         Group {
           if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             ContentUnavailableView.search
-          } else if unclearedOnly || uncategorisedOnly || (unapprovedOnly && scope != .unapproved) {
+          } else if unclearedOnly || uncategorisedOnly || toConfirmOnly || (unapprovedOnly && scope != .unapproved) {
             ContentUnavailableView(
               "Nothing matches",
               systemImage: "line.3.horizontal.decrease",
@@ -1050,6 +1073,16 @@ struct RegisterView: View {
   private func approve(_ transaction: Transaction) {
     withAnimation(Theme.Motion.standard) {
       model.approveTransaction(transaction)
+    }
+  }
+
+  private func confirmAmount(_ transaction: Transaction) {
+    do {
+      try withAnimation(Theme.Motion.standard) {
+        try model.confirmTransactionAmount(transaction)
+      }
+    } catch {
+      statusError = error.localizedDescription
     }
   }
 
@@ -1289,7 +1322,7 @@ struct RegisterView: View {
   }
 
   private var visibleSchedules: [ScheduledTransaction] {
-    if showingUnapprovedQueue || unclearedOnly || uncategorisedOnly {
+    if showingUnapprovedQueue || unclearedOnly || uncategorisedOnly || toConfirmOnly {
       return []
     }
     let query = searchQuery
@@ -1375,6 +1408,7 @@ struct RegisterView: View {
     !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || unclearedOnly
       || uncategorisedOnly
+      || toConfirmOnly
       || showingUnapprovedQueue
       || categoryID != nil
       || categoryIDs?.isEmpty == false
@@ -1427,6 +1461,7 @@ struct RegisterView: View {
     (scope != .unapproved && (counts.unapproved > 0 || unapprovedOnly))
       || counts.uncleared > 0 || unclearedOnly
       || counts.uncategorised > 0 || uncategorisedOnly
+      || counts.toConfirm > 0 || toConfirmOnly
   }
 
   private var showingUnapprovedQueue: Bool {
@@ -1460,11 +1495,18 @@ struct RegisterView: View {
       : "Show \(uncategorisedCount) uncategorised"
   }
 
+  private func toConfirmMenuTitle(_ toConfirmCount: Int) -> String {
+    toConfirmCount == 0
+      ? "Show to confirm"
+      : "Show \(toConfirmCount) to confirm"
+  }
+
   private var activeRegisterFilterSummary: String? {
     var parts: [String] = []
     if unapprovedOnly { parts.append("new") }
     if unclearedOnly { parts.append("uncleared") }
     if uncategorisedOnly { parts.append("uncategorised") }
+    if toConfirmOnly { parts.append("to confirm") }
     guard !parts.isEmpty else {
       return nil
     }
@@ -1472,6 +1514,7 @@ struct RegisterView: View {
       switch parts[0] {
       case "new": return "Showing new transactions"
       case "uncleared": return "Showing uncleared transactions"
+      case "to confirm": return "Showing transactions to confirm"
       default: return "Showing uncategorised transactions"
       }
     }
@@ -1482,20 +1525,24 @@ struct RegisterView: View {
     unapprovedOnly = false
     unclearedOnly = false
     uncategorisedOnly = false
+    toConfirmOnly = false
   }
 
   private func filterCounts(scopedLedger: [Transaction], approvalScoped: [Transaction]) -> RegisterFilterCounts {
     var uncleared = 0
     var uncategorised = 0
+    var toConfirm = 0
     for transaction in scopedLedger {
       if transaction.cleared == .uncleared { uncleared += 1 }
       if transaction.isUncategorised { uncategorised += 1 }
+      if transaction.isToConfirm { toConfirm += 1 }
     }
     return RegisterFilterCounts(
       // The New register has no "Review new" filter, so it never reads this.
       unapproved: scope == .unapproved ? 0 : unapprovedCount(approvalScoped: approvalScoped),
       uncleared: uncleared,
-      uncategorised: uncategorised
+      uncategorised: uncategorised,
+      toConfirm: toConfirm
     )
   }
 
@@ -1564,6 +1611,9 @@ struct RegisterView: View {
       if uncategorisedOnly, !transaction.isUncategorised {
         return false
       }
+      if toConfirmOnly, !transaction.isToConfirm {
+        return false
+      }
       if showingUnapprovedQueue, transaction.approved {
         return false
       }
@@ -1580,6 +1630,7 @@ struct RegisterView: View {
       if merged[hit.id] != nil { continue }
       if unclearedOnly, hit.cleared != .uncleared { continue }
       if uncategorisedOnly, !hit.isUncategorised { continue }
+      if toConfirmOnly, !hit.isToConfirm { continue }
       // A hit joins the list only if it would have been in it unsearched:
       // the same account, category, payee, amount, date and transfer rules.
       if scoped([hit]).isEmpty { continue }
@@ -1621,6 +1672,9 @@ struct RegisterView: View {
         return false
       }
       if uncategorisedOnly, row.categoryID != nil || row.splitLineCount > 0 {
+        return false
+      }
+      if toConfirmOnly, !row.isToConfirm {
         return false
       }
       guard let query else {
@@ -2082,15 +2136,15 @@ private struct PendingTransactionRow: View {
             .foregroundStyle(row.categoryID == nil && row.splitLineCount == 0 ? AnyShapeStyle(Theme.uncategorised) : AnyShapeStyle(.secondary))
             .lineLimit(1)
           if let memo = row.memo, !memo.isEmpty {
-            Text(memo)
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-              .lineLimit(2)
+            RegisterMemoLine(memo: memo)
           }
         }
 
         Spacer()
 
+        if row.isToConfirm {
+          EstimateMark()
+        }
         Text(MoneyCodec.signedDisplayString(for: row.signedAmount, currencyFormat: currencyFormat))
           .font(.subheadline.weight(.medium))
           .monospacedDigit()
@@ -2202,10 +2256,7 @@ struct TransactionRow: View {
               .foregroundStyle(transaction.isUncategorised ? AnyShapeStyle(Theme.uncategorised) : AnyShapeStyle(.secondary))
               .lineLimit(1)
             if let memo = transaction.memo, !memo.isEmpty {
-              Text(memo)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+              RegisterMemoLine(memo: memo)
             }
           }
 
@@ -2213,6 +2264,9 @@ struct TransactionRow: View {
 
           HStack(spacing: 4) {
             syncGlyph
+            if transaction.isToConfirm {
+              EstimateMark()
+            }
             Text(MoneyCodec.signedDisplayString(for: transaction.amount, currencyFormat: currencyFormat))
               .font(.subheadline.weight(.medium))
               .monospacedDigit()
@@ -2230,6 +2284,7 @@ struct TransactionRow: View {
     .padding(.leading, 16)
     .padding(.trailing, 8)
     .padding(.vertical, 10)
+    .background(transaction.isToConfirm ? Theme.toConfirmWash.opacity(0.45) : Color.clear)
     .flagRail(Theme.flagColour(named: transaction.flagColor))
     .contentShape(Rectangle())
   }

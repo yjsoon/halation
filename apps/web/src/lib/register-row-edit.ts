@@ -12,6 +12,7 @@ export type RegisterRowDraft = {
   readonly outflow: string;
   readonly inflow: string;
   readonly flagColor: string;
+  readonly needsConfirmation: boolean;
 };
 
 type RowEditAccount = {
@@ -54,7 +55,7 @@ export type RegisterRowEditSession =
 
 export type RegisterRowEditAction =
   | { readonly type: "begin"; readonly row: RegisterRowRef; readonly draft: RegisterRowDraft; readonly focus: RegisterRowFocus }
-  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "payeeName" | "categoryId" | "memo" | "flagColor">> }
+  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation">> }
   | { readonly type: "set-outflow"; readonly value: string }
   | { readonly type: "set-inflow"; readonly value: string }
   | { readonly type: "invalid"; readonly message: string; readonly focus?: RegisterRowFocus }
@@ -370,6 +371,7 @@ function postedDraft(txn: Transaction): RegisterRowDraft {
     categoryId: txn.category_id ?? "",
     memo: txn.memo ?? "",
     flagColor: txn.flag_color ?? "",
+    needsConfirmation: txn.needs_confirmation === true,
     ...amountDraft(txn.amount),
   };
 }
@@ -381,6 +383,7 @@ function splitDraft(parent: Transaction, line: Subtransaction): RegisterRowDraft
     categoryId: line.category_id ?? "",
     memo: line.memo ?? "",
     flagColor: parent.flag_color ?? "",
+    needsConfirmation: parent.needs_confirmation === true,
     ...amountDraft(line.amount),
   };
 }
@@ -476,6 +479,10 @@ function planPostedCommit(
   const flagColor = draft.flagColor || null;
   if (flagColor !== (txn.flag_color ?? null)) {
     input.flag_color = flagColor;
+  }
+
+  if (typeof draft.needsConfirmation === "boolean" && draft.needsConfirmation !== (txn.needs_confirmation === true)) {
+    input.needs_confirmation = draft.needsConfirmation;
   }
 
   if (rowFieldWritable(row, "outflow", draft, payees) || rowFieldWritable(row, "inflow", draft, payees)) {

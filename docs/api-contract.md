@@ -395,7 +395,8 @@ Supported query parameters:
 
 - `since_date`
 - `until_date`
-- `type`
+- `type` — `unapproved`, `approved`, `uncategorized` or `needs_confirmation`
+  (rows whose amount is still to be confirmed; see [To confirm](#to-confirm))
 - `last_knowledge_of_server`
 - `limit` — whole number from 1 to 250; defaults to 100
 - `offset` — zero-based whole-number offset; defaults to 0
@@ -440,6 +441,15 @@ The count and `server_knowledge` are read in one batch, so the number is always
 labelled with the knowledge value it was counted at. Clients show the "New"
 badge from this and load the queue rows only when the approval flow is opened,
 instead of paging the whole queue before the register is usable.
+
+To-confirm count:
+
+`GET /v1/plans/{plan_id}/transactions/needs_confirmation_count`
+
+`GET /v1/plans/{plan_id}/accounts/{account_id}/transactions/needs_confirmation_count`
+
+Same shape and rules as the unapproved count, over the rows
+`?type=needs_confirmation` lists.
 
 Bulk import:
 
@@ -610,6 +620,56 @@ Updatable fields:
 - `approved`
 - `flag_color`
 - `flag_name`
+- `needs_confirmation`
+
+#### To confirm
+
+`needs_confirmation` is a boolean on every transaction. `true` means the
+amount in the plan currency is an estimate that still has to be checked
+against the statement. It is HowMuch's own field, not part of the YNAB API:
+YNAB clients can ignore it, and an omitted or `null` value on create means
+`false`. The web and iOS apps show these rows with an amber ≈ before the
+amount and list them under "to confirm".
+
+Guidance for MCP servers, agents and scripts that add transactions:
+
+- Set `needs_confirmation: true` when you cannot know the exact amount the
+  account will be charged. Typical cases: a foreign-currency purchase
+  converted at an estimated rate, a hold or pre-authorisation (hotels, fuel,
+  car hire), a bill whose tip, service charge or surcharge is still pending,
+  and an amount read from a photo or email you are not sure of.
+- Leave it `false` (or omit it) when the amount is exact, for example a
+  plan-currency card purchase or a figure copied from the statement itself.
+- Put what you do know in the memo so the user can check it later, such as
+  `JPY 4,900 at ~0.0086`. There are no separate foreign-amount fields.
+- It is not a review flag. A row the user has not looked at yet is
+  `approved: false`; flags (`flag_color`) carry reward subcategories. Do not
+  use either to mean "estimated", and do not use `needs_confirmation` to mean
+  "please review".
+- It is independent of the receipt-claim convention: a memo containing
+  `TODO` still marks a row to claim, and the claims tool rewrites it to
+  `CLAIMED`. A row can be both. Never write the word `TODO` in a memo to
+  mean "check this later": that files the row as a receipt to claim. Use
+  `needs_confirmation` for estimates.
+
+Confirming:
+
+- Set it back with a plain update, for example
+  `PATCH /v1/plans/{plan_id}/transactions/{transaction_id}` with
+  `{ "transaction": { "needs_confirmation": false } }`, usually together with
+  the corrected `amount`.
+- Clearing confirms. Moving a row from `uncleared` to `cleared` or
+  `reconciled` (the cleared toggle, the bulk cleared command, or an update
+  that sets `cleared`) sets `needs_confirmation` to `false`, because ticking
+  a row off against the statement is the check. An update that sets
+  `needs_confirmation` explicitly keeps that value. Reconciling an account
+  also confirms every row it reconciles.
+- Editing the amount alone keeps the marker, so an early correction to a
+  better estimate does not hide the row.
+
+Each side of a transfer, and the linked side of a split-line transfer, keeps
+its own `needs_confirmation`, like `cleared` and flags. Split lines have no
+marker of their own; set it on the parent.
 
 Transfers (YNAB semantics):
 
@@ -624,7 +684,7 @@ Transfers (YNAB semantics):
   Changing the payee to a regular payee deletes the mirrored side; changing it
   to a different transfer payee moves the mirrored side to the new account.
 - Deleting either side deletes both.
-- `cleared` and flags stay per-side.
+- `cleared`, flags and `needs_confirmation` stay per-side.
 
 Splits:
 
@@ -827,12 +887,16 @@ Body:
   "category_id": null,
   "memo": "optional",
   "flag_color": null,
+  "needs_confirmation": false,
   "subtransactions": [
     { "amount": "-8.34", "category_id": "cat-a", "memo": "optional" },
     { "amount": "-4.00", "category_id": "cat-b" }
   ]
 }
 ```
+
+`needs_confirmation` (optional boolean) marks an estimated amount; see
+[To confirm](#to-confirm).
 
 `payee_id` may be an account's `transfer_payee_id` to record a transfer, and
 `subtransactions` (optional, decimal amounts) records a split; both follow the

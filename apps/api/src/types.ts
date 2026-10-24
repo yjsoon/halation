@@ -29,6 +29,7 @@ export type TransactionInput = {
   approved?: boolean | null;
   flag_color?: string | null;
   flag_name?: string | null;
+  needs_confirmation?: boolean | null;
   transfer_account_id?: string | null;
   transfer_transaction_id?: string | null;
   matched_transaction_id?: string | null;

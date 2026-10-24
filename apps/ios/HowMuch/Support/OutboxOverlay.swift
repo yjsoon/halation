@@ -47,6 +47,11 @@ enum OutboxOverlay {
           if !current.approved {
             current = current.withApproved(true)
           }
+        case .confirm(let approve):
+          current.needsConfirmation = false
+          if approve, !current.approved {
+            current = current.withApproved(true)
+          }
         case .delete:
           let link = SplitMirrorLink(
             id: row.id,
@@ -153,7 +158,11 @@ enum OutboxOverlay {
       importPayeeName: row.importPayeeName,
       importPayeeNameOriginal: row.importPayeeNameOriginal,
       deleted: row.deleted,
-      subtransactions: lines
+      subtransactions: lines,
+      // Unsent means unchanged, unless the edit clears the row, which the
+      // server reads as confirming.
+      needsConfirmation: request.needsConfirmation
+        ?? (row.cleared == .uncleared && (request.cleared ?? .uncleared) != .uncleared ? false : row.needsConfirmation)
     )
   }
 }
@@ -185,7 +194,8 @@ private extension Transaction {
       importPayeeName: importPayeeName,
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
-      subtransactions: subtransactions
+      subtransactions: subtransactions,
+      needsConfirmation: needsConfirmation
     )
   }
 }
@@ -203,6 +213,13 @@ enum OutboxEnqueueRefusal: LocalizedError, Equatable {
 }
 
 extension OutboxCommand.Kind {
+  var isConfirm: Bool {
+    if case .confirm = self {
+      return true
+    }
+    return false
+  }
+
   var isCreate: Bool {
     if case .create = self {
       return true
@@ -218,7 +235,7 @@ extension OutboxCommand {
     switch kind {
     case .approve:
       return true
-    case .cleared(_, _, let approve):
+    case .cleared(_, _, let approve), .confirm(let approve):
       return approve
     case .update(let request):
       return request.approved && baseSnapshot?.approved == false
@@ -242,7 +259,7 @@ extension OutboxCommand {
     case .create(let request), .update(let request):
       ids.insert(request.accountID)
       ids.formUnion(request.subtransactions.compactMap(\.transferAccountID))
-    case .cleared, .approve, .delete:
+    case .cleared, .approve, .confirm, .delete:
       break
     }
     return ids
