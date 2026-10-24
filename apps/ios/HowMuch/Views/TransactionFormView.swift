@@ -784,8 +784,10 @@ struct TransactionFormView: View {
     .ynabCard()
     .onChange(of: draft.isCleared) { wasCleared, isCleared in
       // Clearing means the amount was checked against the statement. Turning
-      // Cleared back off before saving puts the marker back.
-      if isCleared, !wasCleared, draft.needsConfirmation {
+      // Cleared back off before saving puts the marker back. A row that was
+      // already cleared with the marker kept it on purpose.
+      let loadedUncleared = (draft.loadedCleared ?? .uncleared) == .uncleared
+      if isCleared, !wasCleared, loadedUncleared, draft.needsConfirmation {
         draft.needsConfirmation = false
         confirmationDroppedByClearing = true
       } else if !isCleared, wasCleared, confirmationDroppedByClearing {

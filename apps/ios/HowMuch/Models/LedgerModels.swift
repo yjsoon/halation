@@ -429,14 +429,14 @@ enum MemoClaim: Equatable {
   case toClaim
   case claimed
 
-  // `.simple` word boundaries match JavaScript's `\b`, so iOS and the web
-  // agree on memos such as "TODO's receipt" or "TODO:Uber".
-  private static var todo: Regex<Substring> { #/\bTODO\b/#.wordBoundaryKind(.simple) }
-  private static var claimedWord: Regex<Substring> { #/\bCLAIMED\b/#.wordBoundaryKind(.simple) }
+  // Simple, ASCII-only word boundaries match JavaScript's `\b`, so iOS and
+  // the web agree on memos such as "TODO's receipt", "TODO:Uber" or "éTODO".
+  private static var todo: Regex<Substring> { #/\bTODO\b/#.wordBoundaryKind(.simple).asciiOnlyWordCharacters() }
+  private static var claimedWord: Regex<Substring> { #/\bCLAIMED\b/#.wordBoundaryKind(.simple).asciiOnlyWordCharacters() }
   /// The word, an optional colon and one following space; nothing else of
   /// the memo is touched.
-  private static var stripTodo: Regex<Substring> { #/\bTODO\b:?[ \t]?/#.wordBoundaryKind(.simple) }
-  private static var stripClaimed: Regex<Substring> { #/\bCLAIMED\b:?[ \t]?/#.wordBoundaryKind(.simple) }
+  private static var stripTodo: Regex<Substring> { #/\bTODO\b:?[ \t]?/#.wordBoundaryKind(.simple).asciiOnlyWordCharacters() }
+  private static var stripClaimed: Regex<Substring> { #/\bCLAIMED\b:?[ \t]?/#.wordBoundaryKind(.simple).asciiOnlyWordCharacters() }
 
   init?(memo: String?) {
     guard let memo, !memo.isEmpty else {

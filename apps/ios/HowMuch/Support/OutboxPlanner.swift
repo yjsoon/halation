@@ -39,8 +39,9 @@ enum OutboxPlanner {
     }
 
     let existing = next[index]
-    // Un-clearing and confirming are separate writes with no shared body;
-    // they queue one behind the other.
+    // A confirm and a cleared toggle are separate writes with no shared
+    // body; they queue one behind the other, so undoing the toggle cannot
+    // take the confirm with it.
     if keepsApart(existing.kind, incoming.kind) {
       var appended = incoming
       appended.seq = (queue.map(\.seq).max() ?? 0) + 1
@@ -59,12 +60,11 @@ enum OutboxPlanner {
     return next
   }
 
-  /// A confirm next to an un-clearing toggle. Clearing already confirms, so
-  /// only the un-clearing direction has nothing to fold into.
+  /// A confirm next to a cleared toggle.
   private static func keepsApart(_ existing: OutboxCommand.Kind, _ incoming: OutboxCommand.Kind) -> Bool {
     switch (existing, incoming) {
-    case (.cleared(_, let cleared, _), .confirm), (.confirm, .cleared(_, let cleared, _)):
-      return cleared == .uncleared
+    case (.cleared, .confirm), (.confirm, .cleared):
+      return true
     default:
       return false
     }
@@ -133,9 +133,9 @@ enum OutboxPlanner {
       return .cleared(expected: expected, cleared: cleared, approve: approve || alsoApprove)
     case (.cleared(let expected, let cleared, _), .approve):
       return .cleared(expected: expected, cleared: cleared, approve: true)
-    case (.cleared(let expected, let cleared, let approve), .confirm(let alsoApprove)):
-      // Clearing confirms on the server (the un-clearing case keeps apart).
-      return .cleared(expected: expected, cleared: cleared, approve: approve || alsoApprove)
+    case (.cleared, .confirm), (.confirm, .cleared):
+      // Kept apart by `keepsApart`; never folded.
+      return existing.kind
 
     case (.approve, .update(let edit)):
       return .update(edit.replacing(approved: true))
@@ -151,9 +151,6 @@ enum OutboxPlanner {
         approved: approve ? true : nil,
         needsConfirmation: .some(edit.needsConfirmation ?? false)
       ))
-    case (.confirm(let approve), .cleared(let expected, let cleared, let alsoApprove)):
-      // Clearing confirms too (the un-clearing case keeps apart).
-      return .cleared(expected: expected, cleared: cleared, approve: approve || alsoApprove)
     case (.confirm, .approve):
       return .confirm(approve: true)
     case (.confirm(let approve), .confirm(let alsoApprove)):

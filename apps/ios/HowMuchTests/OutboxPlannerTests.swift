@@ -217,6 +217,15 @@ final class OutboxPlannerTests: XCTestCase {
     )
   }
 
+  func testUndoingAClearingToggleKeepsAQueuedConfirm() {
+    let queue = enqueueAll([
+      command(.confirm(approve: false)),
+      command(.cleared(expected: .uncleared, cleared: .cleared, approve: false)),
+      command(.cleared(expected: .cleared, cleared: .uncleared, approve: false)),
+    ])
+    XCTAssertEqual(queue.map(\.kind), [.confirm(approve: false)])
+  }
+
   func testConfirmQueuesBehindAnUnclearingToggle() {
     let queue = enqueueAll([
       command(.cleared(expected: .cleared, cleared: .uncleared, approve: false)),
