@@ -754,7 +754,7 @@ describe("payeeListEntries", () => {
     expect(payeeListEntries(listed, [everyday, saver], "acct")).toEqual([
       { id: "p-shop", value: "Shop" },
       { id: "p-coffee", value: "Coffee" },
-      { id: "p-xfer", value: "Transfer : Rainy Day Saver", transferAccount: "Rainy Day Saver" },
+      { id: "p-xfer", value: "Transfer : Rainy Day Saver", transferAccount: "Rainy Day Saver", transferAccountIcon: "🏦" },
     ]);
   });
 

@@ -897,7 +897,7 @@ a.page-eyebrow:hover {
   font-family: var(--font-ui);
   font-size: 13px;
   color: var(--ink);
-  animation: payee-menu-in 120ms ease-out;
+  animation: payee-menu-in var(--dur-fast) var(--ease-out);
 }
 
 @keyframes payee-menu-in {
@@ -912,13 +912,6 @@ a.page-eyebrow:hover {
 @keyframes payee-menu-in-above {
   from { opacity: 0; transform: translateY(3px); }
   to { opacity: 1; transform: none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .payee-menu,
-  .payee-menu-above {
-    animation: none;
-  }
 }
 
 .payee-menu-heading {
@@ -945,13 +938,11 @@ a.page-eyebrow:hover {
   gap: 8px;
   min-height: 30px;
   padding: 4px 12px;
-  box-shadow: inset 0 0 0 transparent;
   cursor: pointer;
 }
 
 .payee-menu-option.is-active {
   background: var(--plan-accent-wash);
-  box-shadow: inset 3px 0 var(--plan-accent);
 }
 
 .payee-menu-name {
@@ -965,9 +956,23 @@ a.page-eyebrow:hover {
   font-weight: 500;
 }
 
-.payee-menu-glyph {
+.payee-menu-icon {
   flex: none;
-  color: var(--plan-accent);
+  width: 18px;
+  font-size: 13px;
+  text-align: center;
+}
+
+/* Raw bank strings: small caps for the name, card digits and country code
+   faded. The text itself is untouched, so it matches the field and ledger. */
+.payee-menu-raw {
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.02em;
+}
+
+.payee-menu-noise {
+  color: var(--ink-faint);
+  white-space: pre;
 }
 
 .payee-menu-more {

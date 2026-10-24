@@ -8,33 +8,58 @@ const PAYEE_LIMIT = 60;
 
 type Placement = { left: number; top: number; width: number; maxHeight: number; above: boolean };
 
+const collator = new Intl.Collator(undefined, { sensitivity: "base", ignorePunctuation: true });
+
+// Bank imports often lead with card digits ("-1234 SHOP NAME CITY SG").
+const CARD_PREFIX = /^-?\d{2,}\s+/;
+const COUNTRY_SUFFIX = /\s+[A-Z]{2}$/;
+
 function matchKey(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-/** Transfers first, then payees; prefix matches ahead of other matches. */
+/** A raw bank string: letters, none of them lower case. */
+function isShouting(name: string): boolean {
+  return /[A-Z]/.test(name) && !/[a-z]/.test(name);
+}
+
+/** 0 for a match at the start of a word, 1 elsewhere, -1 for no match. */
+function matchRank(text: string, key: string): number {
+  if (!key) return 0;
+  const haystack = text.toLowerCase();
+  let at = haystack.indexOf(key);
+  let rank = -1;
+  while (at >= 0) {
+    if (at === 0 || !/[\p{L}\p{N}]/u.test(haystack[at - 1]!)) return 0;
+    rank = 1;
+    at = haystack.indexOf(key, at + 1);
+  }
+  return rank;
+}
+
+/**
+ * Transfers first, then payees. Word-start matches lead; names the owner has
+ * tidied come before raw bank strings; card digits do not decide the order.
+ */
 export function payeeMenuSections(entries: readonly PayeeListEntry[], query: string) {
   const key = matchKey(query);
-  const rank = (text: string) => {
-    if (!key) return 0;
-    const at = text.toLowerCase().indexOf(key);
-    if (at < 0) return -1;
-    return at === 0 ? 0 : 1;
-  };
-  const transfers: { entry: PayeeListEntry; rank: number }[] = [];
-  const payees: { entry: PayeeListEntry; rank: number }[] = [];
+  type Ranked = { entry: PayeeListEntry; rank: number; raw: number; sort: string };
+  const transfers: Ranked[] = [];
+  const payees: Ranked[] = [];
   for (const entry of entries) {
     if (entry.transferAccount !== undefined) {
-      const scores = [rank(entry.transferAccount), rank(entry.value)].filter((score) => score >= 0);
-      if (scores.length) transfers.push({ entry, rank: Math.min(...scores) });
+      const ranks = [matchRank(entry.transferAccount, key), matchRank(entry.value, key)].filter((rank) => rank >= 0);
+      if (ranks.length) transfers.push({ entry, rank: Math.min(...ranks), raw: 0, sort: entry.transferAccount });
     } else {
-      const score = rank(entry.value);
-      if (score >= 0) payees.push({ entry, rank: score });
+      const rank = matchRank(entry.value, key);
+      if (rank >= 0) {
+        payees.push({ entry, rank, raw: isShouting(entry.value) ? 1 : 0, sort: entry.value.replace(CARD_PREFIX, "") });
+      }
     }
   }
-  const byRank = (a: { rank: number }, b: { rank: number }) => a.rank - b.rank;
-  transfers.sort(byRank);
-  payees.sort(byRank);
+  const order = (a: Ranked, b: Ranked) => a.rank - b.rank || a.raw - b.raw || collator.compare(a.sort, b.sort);
+  transfers.sort(order);
+  payees.sort(order);
   return {
     transfers: transfers.map((item) => item.entry),
     payees: payees.slice(0, PAYEE_LIMIT).map((item) => item.entry),
@@ -42,18 +67,21 @@ export function payeeMenuSections(entries: readonly PayeeListEntry[], query: str
   };
 }
 
-function TransferGlyph(): ReactElement {
+/** Shows a raw bank string quietly; the text stays exactly the payee name. */
+function PayeeName({ name }: { name: string }): ReactElement {
+  if (!isShouting(name)) {
+    return <span className="payee-menu-name">{name}</span>;
+  }
+  const prefix = name.match(CARD_PREFIX)?.[0] ?? "";
+  const rest = name.slice(prefix.length);
+  const suffix = rest.match(COUNTRY_SUFFIX)?.[0] ?? "";
+  const body = rest.slice(0, rest.length - suffix.length);
   return (
-    <svg className="payee-menu-glyph" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-      <path
-        d="M2.5 5h10m0 0L10 2.5M12.5 5 10 7.5M13.5 11h-10m0 0L6 8.5M3.5 11 6 13.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.4"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
+    <span className="payee-menu-name">
+      {prefix ? <span className="payee-menu-noise">{prefix}</span> : null}
+      <span className="payee-menu-raw">{body}</span>
+      {suffix ? <span className="payee-menu-noise">{suffix}</span> : null}
+    </span>
   );
 }
 
@@ -134,7 +162,18 @@ export function PayeeCombobox({
     };
   }, [showing]);
 
+  // A save started with Enter disables the field; if it fails, the list
+  // should not pop back open on its own.
   useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
+  // Only keyboard moves scroll the list. Scrolling under a hovering pointer
+  // would move a different option beneath it and set off a loop.
+  const keyboardMove = useRef(false);
+  useEffect(() => {
+    if (!keyboardMove.current) return;
+    keyboardMove.current = false;
     if (!showing || active < 0) return;
     menuRef.current
       ?.querySelector<HTMLElement>(`[data-option-index="${active}"]`)
@@ -167,15 +206,19 @@ export function PayeeCombobox({
         aria-selected={at === active}
         data-option-index={at}
         className={`payee-menu-option${transfer ? " payee-menu-transfer" : ""}${at === active ? " is-active" : ""}`}
-        // Keep focus in the input so blur does not close the list first.
-        onMouseDown={(event) => event.preventDefault()}
         onMouseMove={() => {
           if (active !== at) setActive(at);
         }}
         onClick={() => choose(entry)}
       >
-        {transfer ? <TransferGlyph /> : null}
-        <span className="payee-menu-name">{transfer ? entry.transferAccount : entry.value}</span>
+        {transfer ? (
+          <>
+            <span className="payee-menu-icon" aria-hidden="true">{entry.transferAccountIcon}</span>
+            <span className="payee-menu-name">{entry.transferAccount}</span>
+          </>
+        ) : (
+          <PayeeName name={entry.value} />
+        )}
       </div>
     );
   };
@@ -188,6 +231,9 @@ export function PayeeCombobox({
         role="listbox"
         aria-label="Payees"
         className={`payee-menu${placement.above ? " payee-menu-above" : ""}`}
+        // Keep focus in the input, so a press on an option, a heading or the
+        // scrollbar does not blur it and close the list.
+        onMouseDown={(event) => event.preventDefault()}
         style={{
           left: placement.left,
           width: placement.width,
@@ -197,7 +243,7 @@ export function PayeeCombobox({
       >
         {sections.transfers.length > 0 && (
           <div role="group" aria-labelledby={`${listId}-transfers`}>
-            <div className="payee-menu-heading" id={`${listId}-transfers`} role="presentation">Transfer</div>
+            <div className="payee-menu-heading" id={`${listId}-transfers`} role="presentation">Transfers</div>
             {sections.transfers.map(renderOption)}
           </div>
         )}
@@ -265,6 +311,7 @@ export function PayeeCombobox({
               openMenu();
               return;
             }
+            keyboardMove.current = true;
             const last = options.length - 1;
             setActive((current) => event.key === "ArrowDown"
               ? (current >= last ? 0 : current + 1)

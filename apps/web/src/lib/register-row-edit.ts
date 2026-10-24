@@ -1,6 +1,7 @@
 import { isStorableMilliunits } from "@howmuch/money";
 import type { Payee, Subtransaction, Transaction, TransactionUpdateInput } from "../api/types";
 import { minorUnitMilliunits, parseMilliunits, planDecimalIsComma } from "./money";
+import { accountIcon } from "./account-icon";
 import { canonicalPayeeName, findTransferPayee, formatMilliunitsPadded } from "./register-compose";
 
 export type RegisterRowDraft = {
@@ -17,6 +18,7 @@ type RowEditAccount = {
   readonly id: string;
   readonly name: string;
   readonly closed?: boolean;
+  readonly icon?: string | null;
 };
 
 export type PayeeListEntry = {
@@ -24,6 +26,7 @@ export type PayeeListEntry = {
   readonly value: string;
   /** Set for a transfer payee: the other account's current name. */
   readonly transferAccount?: string;
+  readonly transferAccountIcon?: string;
 };
 
 export type RegisterRowRef =
@@ -322,6 +325,7 @@ export function payeeListEntries(
       id: payee.id,
       value: payee.name,
       transferAccount: account.name,
+      transferAccountIcon: accountIcon(account),
     });
   }
   return entries;
