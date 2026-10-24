@@ -45,6 +45,13 @@ export interface Transaction {
    * here because rows cached before the field existed lack it.
    */
   needs_confirmation?: boolean;
+  /**
+   * Whether the spend is to be claimed back (`to_claim`) or has been claimed
+   * (`claimed`, with the day in `claimed_on`). Null when it is not a claim.
+   * Optional here because rows cached before the field existed lack it.
+   */
+  claim_status?: "to_claim" | "claimed" | null;
+  claimed_on?: string | null;
   account_id: string;
   account_name: string | null;
   payee_id: string | null;

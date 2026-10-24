@@ -90,6 +90,14 @@ environment `tk` in `wrangler.jsonc`:
   applies D1 migrations. If a release includes a migration, apply it manually
   (`wrangler d1 migrations apply DB --env tk --remote --profile tinkertanker`)
   before tagging, following the verification order in this document.
+- Migration `0023_transaction_claim_status.sql` adds
+  `transactions.claim_status` and `transactions.claimed_on` (both null by
+  default) and a partial index over rows to claim. It is additive and the
+  running Worker ignores the columns, so apply it (after
+  `scripts/backup-d1.sh`) before tagging the release that writes them. That
+  release turns `TODO` and `CLAIMED` memo words into these fields, so deploy
+  the claims tool version that reads `claim_status` first (it also works with
+  the older Worker).
 - Migration `0022_transaction_needs_confirmation.sql` adds
   `transactions.needs_confirmation` (default 0) and a partial index. It is
   additive and the running Worker ignores the column, but the Worker that

@@ -7,10 +7,11 @@ import type { D1Database } from "./d1";
 import type { SqlValues } from "./async-sql";
 import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
 import { statement } from "./d1-guarded-command";
+import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, claimParams, nextClaim } from "./transaction-claim";
 import { CLEARED_CONFIRMS_SQL, NEEDS_CONFIRMATION_CONFLICT_SQL, NEEDS_CONFIRMATION_INSERT_SQL, needsConfirmationParam, nextNeedsConfirmation } from "./transaction-confirmation";
 
 /** Fields the linked side of a split line owns and may change on its own. */
-const LINKED_SIDE_OWN_FIELDS = new Set(["flag_color", "flag_name", "needs_confirmation"]);
+const LINKED_SIDE_OWN_FIELDS = new Set(["flag_color", "flag_name", "needs_confirmation", "claim_status", "claimed_on"]);
 
 export type PlannedStatement = Readonly<{ sql: string; values: Readonly<SqlValues> }>;
 export type D1WriteContext = Readonly<{
@@ -54,7 +55,7 @@ export class D1TransactionRepository {
       if (snapshot.linkedSub) {
         // The split line owns this row's link, amount, date and memo, but not
         // its flag (a rewards flag rename restamps every row in the account)
-        // or whether its amount still needs confirming.
+        // or whether its amount still needs confirming or claiming back.
         const old = snapshot.transaction;
         const fields = Object.keys(patch).filter((field) => (patch as Record<string, unknown>)[field] !== undefined);
         if (!old || old.deleted) throw new NotFoundError("Transaction not found");
@@ -62,12 +63,15 @@ export class D1TransactionRepository {
         if (fields.length === 0 || fields.some((field) => !LINKED_SIDE_OWN_FIELDS.has(field))) {
           throw new ValidationError("This transaction is the linked side of a split line; edit the split parent");
         }
+        const claim = nextClaim(old, patch);
         const body: PlannedStatement[] = [
           assertion(stable.commandId, "graph_update_target", transactionId, planId),
-          statement("UPDATE transactions SET flag_color=?,flag_name=?,needs_confirmation=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0", [
+          statement("UPDATE transactions SET flag_color=?,flag_name=?,needs_confirmation=?,claim_status=?,claimed_on=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0", [
             patch.flag_color === undefined ? old.flag_color : patch.flag_color,
             patch.flag_name === undefined ? old.flag_name : patch.flag_name,
             nextNeedsConfirmation(old, patch) ? 1 : 0,
+            claim.claim_status,
+            claim.claimed_on,
             transactionId,
             planId,
           ]),
@@ -91,6 +95,7 @@ export class D1TransactionRepository {
         flag_color: patch.flag_color === undefined ? old.flag_color : patch.flag_color,
         flag_name: patch.flag_name === undefined ? old.flag_name : patch.flag_name,
         needs_confirmation: nextNeedsConfirmation(old, patch),
+        ...nextClaim(old, patch),
         matched_transaction_id: patch.matched_transaction_id === undefined ? old.matched_transaction_id : patch.matched_transaction_id,
         import_id: old.import_id,
         import_payee_name: patch.import_payee_name === undefined ? old.import_payee_name : patch.import_payee_name,
@@ -437,6 +442,7 @@ function mirrorOwnFields(existing: Record<string, any> | undefined): Record<stri
   if (!existing) return {};
   return {
     flag_color: existing.flag_color, flag_name: existing.flag_name, needs_confirmation: existing.needs_confirmation,
+    claim_status: existing.claim_status ?? null, claimed_on: existing.claimed_on ?? null,
     matched_transaction_id: existing.matched_transaction_id, import_id: existing.import_id,
     import_payee_name: existing.import_payee_name, import_payee_name_original: existing.import_payee_name_original,
     source_kind: existing.source_kind, source_ref: existing.source_ref, external_ynab_id: existing.external_ynab_id,
@@ -444,10 +450,11 @@ function mirrorOwnFields(existing: Record<string, any> | undefined): Record<stri
 }
 function upsertTransaction(value: Record<string, any>): PlannedStatement {
   const extra = value.extra ?? {};
-  const columns = "id,plan_id,account_id,date,amount_milli,memo,cleared,approved,flag_color,flag_name,payee_id,payee_name_snapshot,category_id,category_name_snapshot,transfer_account_id,transfer_transaction_id,matched_transaction_id,import_id,import_payee_name,import_payee_name_original,source_kind,source_ref,external_ynab_id,deleted,needs_confirmation";
+  const columns = "id,plan_id,account_id,date,amount_milli,memo,cleared,approved,flag_color,flag_name,payee_id,payee_name_snapshot,category_id,category_name_snapshot,transfer_account_id,transfer_transaction_id,matched_transaction_id,import_id,import_payee_name,import_payee_name_original,source_kind,source_ref,external_ynab_id,deleted,needs_confirmation,claim_status,claimed_on";
   const values = [value.id,value.planId,value.accountId,value.date,value.amount,value.memo??null,value.cleared??"uncleared",value.approved?1:0,extra.flag_color??null,extra.flag_name??null,value.payeeId??null,value.payeeName??null,value.categoryId??null,value.categoryName??null,value.transferAccountId??null,value.transferTransactionId??null,extra.matched_transaction_id??null,extra.import_id??null,extra.import_payee_name??null,extra.import_payee_name_original??null,extra.source_kind??null,extra.source_ref??null,extra.external_ynab_id??value.id,value.deleted?1:0];
   const needsConfirmation = needsConfirmationParam(extra.needs_confirmation);
-  return statement(`INSERT INTO transactions (${columns},updated_at) VALUES (${values.map(() => "?").join(",")},${NEEDS_CONFIRMATION_INSERT_SQL},CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,date=excluded.date,amount_milli=excluded.amount_milli,memo=excluded.memo,cleared=excluded.cleared,approved=excluded.approved,flag_color=excluded.flag_color,flag_name=excluded.flag_name,payee_id=excluded.payee_id,payee_name_snapshot=excluded.payee_name_snapshot,category_id=excluded.category_id,category_name_snapshot=excluded.category_name_snapshot,transfer_account_id=excluded.transfer_account_id,transfer_transaction_id=excluded.transfer_transaction_id,matched_transaction_id=excluded.matched_transaction_id,import_id=excluded.import_id,import_payee_name=excluded.import_payee_name,import_payee_name_original=excluded.import_payee_name_original,source_kind=excluded.source_kind,source_ref=excluded.source_ref,external_ynab_id=excluded.external_ynab_id,deleted=excluded.deleted,${NEEDS_CONFIRMATION_CONFLICT_SQL},updated_at=CURRENT_TIMESTAMP`, [...values, needsConfirmation, needsConfirmation]);
+  const [claimGiven, claimStatus, claimedOn] = claimParams(extra);
+  return statement(`INSERT INTO transactions (${columns},updated_at) VALUES (${values.map(() => "?").join(",")},${NEEDS_CONFIRMATION_INSERT_SQL},${CLAIM_INSERT_SQL},CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,date=excluded.date,amount_milli=excluded.amount_milli,memo=excluded.memo,cleared=excluded.cleared,approved=excluded.approved,flag_color=excluded.flag_color,flag_name=excluded.flag_name,payee_id=excluded.payee_id,payee_name_snapshot=excluded.payee_name_snapshot,category_id=excluded.category_id,category_name_snapshot=excluded.category_name_snapshot,transfer_account_id=excluded.transfer_account_id,transfer_transaction_id=excluded.transfer_transaction_id,matched_transaction_id=excluded.matched_transaction_id,import_id=excluded.import_id,import_payee_name=excluded.import_payee_name,import_payee_name_original=excluded.import_payee_name_original,source_kind=excluded.source_kind,source_ref=excluded.source_ref,external_ynab_id=excluded.external_ynab_id,deleted=excluded.deleted,${NEEDS_CONFIRMATION_CONFLICT_SQL},${CLAIM_CONFLICT_SQL},updated_at=CURRENT_TIMESTAMP`, [...values, needsConfirmation, claimStatus, claimedOn, needsConfirmation, claimGiven, claimGiven]);
 }
 function bothOnBudget(source: Record<string, any>, target: Record<string, any>): boolean {
   return Number(source.on_budget) === 1 && Number(target.on_budget) === 1;

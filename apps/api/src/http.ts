@@ -4,6 +4,7 @@ import { AccountPreferencesConflictError, LedgerRepository, NotFoundError, Recon
 import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
 import { assertTransactionFieldTypes, collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
+import { normaliseFollowUpWords } from "./transaction-claim";
 import { ReportService } from "./reports";
 import { type AmountFormat, amountFormatOf, isStorableMilliunits } from "@howmuch/money";
 import { decimalToMilliunits } from "./money";
@@ -381,6 +382,9 @@ async function handleV1(
     if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "needs_confirmation_count" && method === "GET") {
       return json({ data: await repo.countNeedsConfirmationTransactions(planId, countFilters(url, { accountId })) });
     }
+    if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "to_claim_count" && method === "GET") {
+      return json({ data: await repo.countToClaimTransactions(planId, countFilters(url, { accountId })) });
+    }
   }
 
   if (resource === "card_payment_terms" && segments.length === 4 && method === "GET") {
@@ -569,6 +573,7 @@ async function handleV1(
     }
     if (segments.length === 4 && method === "PATCH") {
       const edits = parseTransactionUpdates(await readJson(request));
+      for (const edit of edits) normaliseFollowUpWords(edit.patch);
       // A bulk recolour takes the card's name for the new colour, as a single
       // edit does; otherwise the row keeps the old colour's name.
       for (const edit of edits) {
@@ -585,6 +590,7 @@ async function handleV1(
       const body = await readJson(request);
       if (collectionPostIntent(body) === "many") {
         const inputs = parseTransactionCreates(body.transactions);
+        for (const input of inputs) normaliseFollowUpWords(input);
         for (const input of inputs) await stampTransactionFlagName(repo, planId, input.account_id, input);
         await autoCategorise(repo, planId, inputs, categoriser);
         const result = await repo.createTransactions(planId, inputs);
@@ -595,6 +601,7 @@ async function handleV1(
         return apiError(400, "bad_request", "transaction is required");
       }
       assertTransactionFieldTypes(input);
+      normaliseFollowUpWords(input);
       const existing = input?.import_id && input?.account_id
         ? await repo.findTransactionByImportId(planId, input.import_id, input.account_id)
         : null;
@@ -647,6 +654,9 @@ async function handleV1(
     if (segments.length === 5 && segments[4] === "needs_confirmation_count" && method === "GET") {
       return json({ data: await repo.countNeedsConfirmationTransactions(planId, countFilters(url)) });
     }
+    if (segments.length === 5 && segments[4] === "to_claim_count" && method === "GET") {
+      return json({ data: await repo.countToClaimTransactions(planId, countFilters(url)) });
+    }
 
     // Bulk commands are also path segments, and must precede the item route.
     // Each returns ordered per-item outcomes rather than promising atomicity:
@@ -677,6 +687,7 @@ async function handleV1(
       const body = await readJson(request);
       const patch = body.transaction ?? body;
       assertTransactionFieldTypes(patch);
+      normaliseFollowUpWords(patch);
       if (Object.prototype.hasOwnProperty.call(patch, "flag_color") && !Object.prototype.hasOwnProperty.call(patch, "flag_name")) {
         // A move and a flag in one edit take the destination card's names.
         const accountId = typeof patch.account_id === "string" && patch.account_id
@@ -895,12 +906,14 @@ async function handleNative(
       memo: body.memo ?? null,
       flag_color: body.flag_color ?? null,
       ...(body.needs_confirmation === undefined ? {} : { needs_confirmation: body.needs_confirmation }),
+      ...(body.claim_status === undefined ? {} : { claim_status: body.claim_status }),
       approved: true,
       source_kind: "mobile",
       source_ref: body.client_id ?? null,
       subtransactions,
     };
     assertTransactionFieldTypes(input);
+    normaliseFollowUpWords(input);
     await stampTransactionFlagName(repo, targetPlanId, input.account_id, input);
     await autoCategorise(repo, targetPlanId, [input], categoriser);
     const transaction = await repo.createTransaction(targetPlanId, input);

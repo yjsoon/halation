@@ -395,8 +395,9 @@ Supported query parameters:
 
 - `since_date`
 - `until_date`
-- `type` — `unapproved`, `approved`, `uncategorized` or `needs_confirmation`
-  (rows whose amount is still to be confirmed; see [To confirm](#to-confirm))
+- `type` — `unapproved`, `approved`, `uncategorized`, `needs_confirmation`
+  (rows whose amount is still to be confirmed; see [To confirm](#to-confirm)),
+  `to_claim` or `claimed` (see [To claim](#to-claim))
 - `last_knowledge_of_server`
 - `limit` — whole number from 1 to 250; defaults to 100
 - `offset` — zero-based whole-number offset; defaults to 0
@@ -450,6 +451,14 @@ To-confirm count:
 
 Same shape and rules as the unapproved count, over the rows
 `?type=needs_confirmation` lists.
+
+To-claim count:
+
+`GET /v1/plans/{plan_id}/transactions/to_claim_count`
+
+`GET /v1/plans/{plan_id}/accounts/{account_id}/transactions/to_claim_count`
+
+Same shape and rules again, over the rows `?type=to_claim` lists.
 
 Bulk import:
 
@@ -515,7 +524,7 @@ Collection update:
 ```json
 {
   "transactions": [
-    { "id": "txn-1", "memo": "CLAIMED - 2026-01-02: Client dinner" },
+    { "id": "txn-1", "claim_status": "claimed", "claimed_on": "2026-01-02" },
     { "import_id": "source-unique-id", "approved": true }
   ]
 }
@@ -621,6 +630,8 @@ Updatable fields:
 - `flag_color`
 - `flag_name`
 - `needs_confirmation`
+- `claim_status`
+- `claimed_on`
 
 #### To confirm
 
@@ -646,12 +657,9 @@ Guidance for MCP servers, agents and scripts that add transactions:
   `approved: false`; flags (`flag_color`) carry reward subcategories. Do not
   use either to mean "estimated", and do not use `needs_confirmation` to mean
   "please review".
-- It is independent of the receipt-claim convention: a memo that starts with
-  `TODO` followed by `:` or a space (any case), such as `TODO: Client dinner`,
-  marks a row to claim, and the claims tool rewrites it to
-  `CLAIMED - YYYY-MM-DD: Client dinner`. A row can be both. Never start a
-  memo with `TODO` to mean "check this later": that files the row as a
-  receipt to claim. Use `needs_confirmation` for estimates.
+- It is independent of [To claim](#to-claim). A row can be both. Never use
+  `claim_status` or a `TODO` memo to mean "check this later": that files the
+  row as a receipt to claim. Use `needs_confirmation` for estimates.
 
 Confirming:
 
@@ -671,6 +679,42 @@ Confirming:
 Each side of a transfer, and the linked side of a split-line transfer, keeps
 its own `needs_confirmation`, like `cleared` and flags. Split lines have no
 marker of their own; set it on the parent.
+
+#### To claim
+
+`claim_status` marks a spend to be claimed back, such as a work expense paid
+on a personal card. It is `"to_claim"` until the claim is made, `"claimed"`
+afterwards, and `null` for an ordinary row. `claimed_on` is the day it was
+claimed (`YYYY-MM-DD`) or `null`; it is only kept while the row is
+`claimed`. Both are HowMuch fields, not part of the YNAB API. The web and iOS
+apps show a To claim or Claimed tag on these rows and can list them on their
+own.
+
+- Set `claim_status: "to_claim"` when the user says a spend is to be claimed
+  or reimbursed. The claims tool lists those rows, and sets
+  `claim_status: "claimed"` with `claimed_on` once it has billed them.
+- Moving back to `"to_claim"` or `null` drops `claimed_on`. Clearing,
+  reconciling and amount edits never change the claim.
+- Each side of a transfer keeps its own claim. Split lines have none; set it
+  on the parent.
+
+Memo words from older clients: before these fields existed, clients marked a
+claim in the memo. The API still accepts those words at the start of a
+transaction memo on create and update and turns them into fields, removing
+them from the stored memo:
+
+| Memo starts with | Becomes |
+| --- | --- |
+| `TODO`, then `:`, a space or the end (any case) | `claim_status: "to_claim"` |
+| `CLAIMED - 2026-01-02:` or `CLAIMED:` | `claim_status: "claimed"`, `claimed_on` the day or `null` |
+| `TOCHECK` | `needs_confirmation: true` |
+
+So `{ "memo": "TODO: Client dinner" }` stores the memo `Client dinner` with
+`claim_status: "to_claim"`. Several words can lead one memo (`TOCHECK TODO:
+Hotel`); a word later in the memo is ordinary text. A field sent in the same
+write wins over the word. Split-line memos and bulk bank imports
+(`POST /transactions/import`) are stored as sent. New clients should send
+the fields and not the words.
 
 Transfers (YNAB semantics):
 
@@ -889,6 +933,7 @@ Body:
   "memo": "optional",
   "flag_color": null,
   "needs_confirmation": false,
+  "claim_status": null,
   "subtransactions": [
     { "amount": "-8.34", "category_id": "cat-a", "memo": "optional" },
     { "amount": "-4.00", "category_id": "cat-b" }
@@ -897,7 +942,9 @@ Body:
 ```
 
 `needs_confirmation` (optional boolean) marks an estimated amount; see
-[To confirm](#to-confirm).
+[To confirm](#to-confirm). `claim_status` (optional, `"to_claim"` or `null`)
+marks a spend to claim back; see [To claim](#to-claim). The memo words
+described there apply here too.
 
 `payee_id` may be an account's `transfer_payee_id` to record a transfer, and
 `subtransactions` (optional, decimal amounts) records a split; both follow the

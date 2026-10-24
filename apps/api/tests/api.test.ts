@@ -1129,16 +1129,17 @@ describe("YNAB-compatible API", () => {
     const body = await response.json();
     expect(body.data.transaction_ids).toEqual([firstId, secondId]);
     expect(body.data.transactions.map((transaction: { id: string }) => transaction.id)).toEqual([firstId, secondId]);
-    expect(body.data.transactions[0]).toMatchObject({ memo: "CLAIMED: one", flag_color: "green" });
-    expect(body.data.transactions[1]).toMatchObject({ memo: "CLAIMED: two", approved: true });
+    // The claims tool's memo word becomes the claim flag; the memo keeps the rest.
+    expect(body.data.transactions[0]).toMatchObject({ memo: "one", claim_status: "claimed", claimed_on: null, flag_color: "green" });
+    expect(body.data.transactions[1]).toMatchObject({ memo: "two", claim_status: "claimed", approved: true });
     expect(body.data.server_knowledge).toBe(knowledgeBefore + 1);
 
     const alias = await request("/v1/budgets/plan-test/transactions", {
       method: "PATCH",
-      body: { transactions: [{ import_id: "bulk-import-1", account_id: "acct-1", memo: "CLAIMED: import" }] },
+      body: { transactions: [{ import_id: "bulk-import-1", account_id: "acct-1", memo: "CLAIMED - 2026-06-12: import" }] },
     });
     expect(alias.status).toBe(200);
-    expect((await alias.json()).data.transactions[0].memo).toBe("CLAIMED: import");
+    expect((await alias.json()).data.transactions[0]).toMatchObject({ memo: "import", claim_status: "claimed", claimed_on: "2026-06-12" });
   });
 
   test("collection PATCH preserves an earlier transfer edit when both legs are included", async () => {
