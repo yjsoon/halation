@@ -48,7 +48,10 @@ export function payeeMenuSections(entries: readonly PayeeListEntry[], query: str
   const payees: Ranked[] = [];
   for (const entry of entries) {
     if (entry.transferAccount !== undefined) {
-      const ranks = [matchRank(entry.transferAccount, key), matchRank(entry.value, key)].filter((rank) => rank >= 0);
+      // Match the account name. The "Transfer : " prefix only counts once the
+      // query clearly asks for it, or "a" would match every transfer.
+      const prefixRank = key.length >= 3 ? matchRank(entry.value, key) : -1;
+      const ranks = [matchRank(entry.transferAccount, key), prefixRank === 0 ? 0 : -1].filter((rank) => rank >= 0);
       if (ranks.length) transfers.push({ entry, rank: Math.min(...ranks), raw: 0, sort: entry.transferAccount });
     } else {
       const rank = matchRank(entry.value, key);
@@ -96,6 +99,7 @@ export function PayeeCombobox({
   entries,
   disabled,
   focusKey,
+  required,
   onChange,
   onCommitName,
 }: {
@@ -105,6 +109,7 @@ export function PayeeCombobox({
   disabled: boolean;
   /** Written to data-row-focus so the row editor can focus this field. */
   focusKey?: string;
+  required?: boolean;
   onChange: (value: string) => void;
   /** Called on blur so the caller can snap the text to a known payee. */
   onCommitName: () => void;
@@ -138,10 +143,21 @@ export function PayeeCombobox({
       const input = inputRef.current;
       if (!input) return;
       const rect = input.getBoundingClientRect();
+      // Hide the list while the field is scrolled out of its table, rather
+      // than leave it floating over other columns.
+      const clip = input.closest(".table-wrap")?.getBoundingClientRect();
+      if (clip && (rect.right <= clip.left || rect.left >= clip.right || rect.bottom <= clip.top || rect.top >= clip.bottom)) {
+        setPlacement(null);
+        return;
+      }
+      // The visual viewport excludes an on-screen keyboard.
+      const viewport = window.visualViewport;
+      const viewTop = viewport?.offsetTop ?? 0;
+      const viewBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight;
       const gap = 6;
       const margin = 12;
-      const below = window.innerHeight - rect.bottom - gap - margin;
-      const aboveRoom = rect.top - gap - margin;
+      const below = viewBottom - rect.bottom - gap - margin;
+      const aboveRoom = rect.top - viewTop - gap - margin;
       const flip = below < 200 && aboveRoom > below;
       const width = Math.min(Math.max(rect.width, 300), 420, window.innerWidth - margin * 2);
       const left = Math.min(Math.max(margin, rect.left), window.innerWidth - width - margin);
@@ -156,9 +172,11 @@ export function PayeeCombobox({
     place();
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
+    window.visualViewport?.addEventListener("resize", place);
     return () => {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
+      window.visualViewport?.removeEventListener("resize", place);
     };
   }, [showing]);
 
@@ -181,7 +199,7 @@ export function PayeeCombobox({
   }, [active, showing]);
 
   const openMenu = () => {
-    if (disabled || open) return;
+    if (disabled || showing) return;
     setQuery("");
     setActive(-1);
     setOpen(true);
@@ -204,6 +222,7 @@ export function PayeeCombobox({
         id={optionId(at)}
         role="option"
         aria-selected={at === active}
+        aria-label={transfer ? `Transfer: ${entry.transferAccount}` : undefined}
         data-option-index={at}
         className={`payee-menu-option${transfer ? " payee-menu-transfer" : ""}${at === active ? " is-active" : ""}`}
         onMouseMove={() => {
@@ -234,6 +253,8 @@ export function PayeeCombobox({
         // Keep focus in the input, so a press on an option, a heading or the
         // scrollbar does not blur it and close the list.
         onMouseDown={(event) => event.preventDefault()}
+        // A pointer passing over the list must not leave a choice for Enter.
+        onMouseLeave={() => setActive(-1)}
         style={{
           left: placement.left,
           width: placement.width,
@@ -283,6 +304,7 @@ export function PayeeCombobox({
         autoComplete="off"
         placeholder="Payee"
         disabled={disabled}
+        required={required}
         onChange={(event) => {
           onChange(event.target.value);
           setQuery(event.target.value);
@@ -290,7 +312,7 @@ export function PayeeCombobox({
           setOpen(true);
         }}
         onClick={() => {
-          if (open) {
+          if (showing) {
             setOpen(false);
           } else {
             openMenu();
@@ -302,7 +324,8 @@ export function PayeeCombobox({
         }}
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing || event.keyCode === 229) {
-            if (event.key === "Enter") event.stopPropagation();
+            // Enter and Escape belong to the input method, not the row.
+            if (event.key === "Enter" || event.key === "Escape") event.stopPropagation();
             return;
           }
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -323,6 +346,12 @@ export function PayeeCombobox({
             event.preventDefault();
             event.stopPropagation();
             choose(options[active]);
+            return;
+          }
+          if (event.key === "Enter") {
+            // Keep the typed text and let the row save; the list should not
+            // stay over a validation message.
+            setOpen(false);
             return;
           }
           if (event.key === "Escape" && showing) {

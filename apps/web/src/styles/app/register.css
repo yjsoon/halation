@@ -889,6 +889,8 @@ a.page-eyebrow:hover {
   z-index: 60;
   overflow-y: auto;
   overscroll-behavior: contain;
+  /* Keyboard moves scroll an option clear of the sticky heading. */
+  scroll-padding-top: 32px;
   padding: 4px 0 6px;
   background: var(--paper-raised);
   border: 1px solid var(--rule-control);
@@ -943,6 +945,13 @@ a.page-eyebrow:hover {
 
 .payee-menu-option.is-active {
   background: var(--plan-accent-wash);
+}
+
+@media (forced-colors: active) {
+  .payee-menu-option.is-active {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
 }
 
 .payee-menu-name {
