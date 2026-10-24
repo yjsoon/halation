@@ -244,6 +244,13 @@ extension Transaction {
     needsConfirmation == true
   }
 
+  /// Whether the register can confirm this row in one step. The outbox sends
+  /// a full-body edit, which the API refuses on the linked side of a split
+  /// line; that side is confirmed by clearing it.
+  var canConfirmInPlace: Bool {
+    isToConfirm && parentTransactionID == nil
+  }
+
   /// True when the row still needs a category: no category, not a transfer,
   /// and not a split (whose categories live on the subtransactions).
   var isUncategorised: Bool {

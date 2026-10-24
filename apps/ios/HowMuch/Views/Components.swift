@@ -63,7 +63,6 @@ struct FollowUpChip: View {
     .buttonStyle(.plain)
     .accessibilityLabel(title)
     .accessibilityValue(isOn ? "On" : "Off")
-    .accessibilityAddTraits(isOn ? .isSelected : [])
     .sensoryFeedback(.selection, trigger: isOn)
   }
 }

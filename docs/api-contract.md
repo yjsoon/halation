@@ -648,7 +648,9 @@ Guidance for MCP servers, agents and scripts that add transactions:
   "please review".
 - It is independent of the receipt-claim convention: a memo containing
   `TODO` still marks a row to claim, and the claims tool rewrites it to
-  `CLAIMED`. A row can be both.
+  `CLAIMED`. A row can be both. Never write the word `TODO` in a memo to
+  mean "check this later": that files the row as a receipt to claim. Use
+  `needs_confirmation` for estimates.
 
 Confirming:
 

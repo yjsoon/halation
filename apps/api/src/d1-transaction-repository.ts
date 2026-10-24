@@ -154,7 +154,7 @@ export class D1TransactionRepository {
       if (old.cleared !== expectedCleared) throw new Error("transaction cleared state conflict");
       const body = [
         assertion(stable.commandId, "graph_update_target", transactionId, planId),
-        statement(`UPDATE transactions SET cleared=?,${CLEARED_CONFIRMS_SQL},updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0`, [cleared, cleared, transactionId, planId]),
+        statement(`UPDATE transactions SET cleared=?,${CLEARED_CONFIRMS_SQL},updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0`, [cleared, expectedCleared, cleared, transactionId, planId]),
         recalculate(old.account_id),
         knowledge(planId, transactionId),
       ];

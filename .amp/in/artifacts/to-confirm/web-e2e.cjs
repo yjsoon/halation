@@ -52,7 +52,7 @@ const check = (label, ok, detail = "") => {
   await page.getByRole("heading", { name: "Ledger" }).waitFor();
   // Widen the window to all time so the marked rows are on screen.
   await page.goto(`${state.web_url}/?from=2000-01-01`);
-  const pill = page.getByRole("button", { name: /Show transactions to confirm, 2/ });
+  const pill = page.getByRole("button", { name: "2 to confirm" });
   await pill.waitFor({ timeout: 15000 });
   check("pill shows 2 to confirm", await pill.isVisible());
   check("two rows carry the estimate mark", (await page.locator("tr.register-row-to-confirm").count()) === 2);
@@ -66,7 +66,7 @@ const check = (label, ok, detail = "") => {
   await page.screenshot({ path: path.join(out, "web-2-filtered.png") });
 
   // Confirm one through the ≈ mark.
-  await page.getByRole("button", { name: /Estimated amount, to confirm\. Confirm amount/ }).first().click();
+  await page.getByRole("button", { name: "Confirm estimated amount" }).first().click();
   await page.getByText(/confirmed\./).first().waitFor({ timeout: 10000 });
   await page.waitForTimeout(600);
   const after = (await api("GET", `/v1/plans/${state.plan_id}/transactions/needs_confirmation_count`)).body.data.count;
@@ -74,7 +74,7 @@ const check = (label, ok, detail = "") => {
   await page.screenshot({ path: path.join(out, "web-3-confirmed.png") });
 
   // Clear the filter and open the remaining row for editing.
-  await page.getByRole("button", { name: /Showing transactions to confirm/ }).click();
+  await page.getByRole("button", { name: /Showing to confirm/ }).click();
   await page.waitForTimeout(400);
   const row = page.locator("tr.register-row-to-confirm").first();
   await row.locator("td.memo-cell").dblclick();

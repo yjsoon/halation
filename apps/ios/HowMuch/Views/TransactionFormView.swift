@@ -197,6 +197,8 @@ struct TransactionFormView: View {
   @State private var isKeypadVisible: Bool
   @State private var errorMessage: String?
   @State private var isConfirmingDelete = false
+  /// Set when turning Cleared on also turned To confirm off.
+  @State private var confirmationDroppedByClearing = false
   /// Looked up when Delete is tapped, not in the alert's message builder, which
   /// runs with every body pass (each keypad tap included).
   @State private var deleteDetail: String?
@@ -781,9 +783,14 @@ struct TransactionFormView: View {
     }
     .ynabCard()
     .onChange(of: draft.isCleared) { wasCleared, isCleared in
-      // Clearing means the amount was checked against the statement.
+      // Clearing means the amount was checked against the statement. Turning
+      // Cleared back off before saving puts the marker back.
       if isCleared, !wasCleared, draft.needsConfirmation {
         draft.needsConfirmation = false
+        confirmationDroppedByClearing = true
+      } else if !isCleared, wasCleared, confirmationDroppedByClearing {
+        draft.needsConfirmation = true
+        confirmationDroppedByClearing = false
       }
     }
   }
@@ -820,7 +827,13 @@ struct TransactionFormView: View {
         title: "To confirm",
         glyph: .text("≈"),
         tint: Theme.toConfirm,
-        isOn: $draft.needsConfirmation
+        isOn: Binding(
+          get: { draft.needsConfirmation },
+          set: {
+            draft.needsConfirmation = $0
+            confirmationDroppedByClearing = false
+          }
+        )
       )
       .accessibilityHint("Marks the amount as an estimate to check against the statement.")
       FollowUpChip(

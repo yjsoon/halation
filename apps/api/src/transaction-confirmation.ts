@@ -32,8 +32,12 @@ export const NEEDS_CONFIRMATION_INSERT_SQL = "COALESCE(?, 0)";
 export const NEEDS_CONFIRMATION_CONFLICT_SQL =
   "needs_confirmation = CASE WHEN ? IS NULL THEN transactions.needs_confirmation ELSE excluded.needs_confirmation END";
 
-/** For the cleared toggle, binding the new cleared state: clearing confirms. */
-export const CLEARED_CONFIRMS_SQL = "needs_confirmation = CASE WHEN ? = 'uncleared' THEN needs_confirmation ELSE 0 END";
+/**
+ * For the cleared toggle, binding the expected (old) state and then the new
+ * one: only an uncleared row being cleared confirms.
+ */
+export const CLEARED_CONFIRMS_SQL =
+  "needs_confirmation = CASE WHEN ? = 'uncleared' AND ? <> 'uncleared' THEN 0 ELSE needs_confirmation END";
 
 /** The `type` filter value that lists rows still to confirm. */
 export const NEEDS_CONFIRMATION_TYPE = "needs_confirmation";

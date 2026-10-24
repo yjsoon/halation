@@ -3301,7 +3301,7 @@ final class AppModel {
   /// as an ordinary edit, so it queues offline and folds like one.
   func confirmTransactionAmount(_ transaction: Transaction) throws {
     let current = displayedRow(transaction.id) ?? transaction
-    guard current.isToConfirm else {
+    guard current.canConfirmInPlace else {
       return
     }
     var draft = TransactionDraft(transaction: current)

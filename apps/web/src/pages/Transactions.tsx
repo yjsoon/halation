@@ -1699,7 +1699,6 @@ export function TransactionsPage() {
               className={toConfirmOnly ? "confirm-pill confirm-pill-active" : "confirm-pill"}
               onClick={() => setToConfirmOnly((current) => !current)}
               aria-pressed={toConfirmOnly}
-              aria-label={toConfirmOnly ? "Showing transactions to confirm. Clear" : `Show transactions to confirm, ${toConfirmCount}`}
             >
               <span className="confirm-pill-glyph" aria-hidden="true">≈</span>
               {toConfirmOnly ? "Showing to confirm · clear" : `${toConfirmCount} to confirm`}

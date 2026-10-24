@@ -80,7 +80,7 @@ export function EstimateMark({
     <button
       type="button"
       className="estimate-mark"
-      aria-label="Estimated amount, to confirm. Confirm amount"
+      aria-label="Confirm estimated amount"
       title="Estimated amount. Click to confirm it."
       disabled={busy}
       onClick={(event) => { event.stopPropagation(); onConfirm(); }}

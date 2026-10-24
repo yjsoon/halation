@@ -1458,7 +1458,7 @@ export class LedgerRepository {
       if (existing.cleared !== expectedCleared) throw new TransactionStateConflictError();
       await this.db.query(
         `UPDATE transactions SET cleared=?,${CLEARED_CONFIRMS_SQL},updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0 AND cleared=?`,
-      ).run(cleared, cleared, transactionId, planId, expectedCleared);
+      ).run(cleared, expectedCleared, cleared, transactionId, planId, expectedCleared);
       plan.accountIdsToRecalculate.add(String(existing.account_id));
       plan.touchedTransactionIds.add(transactionId);
       await this.executeMutationPlan(planId, plan);
