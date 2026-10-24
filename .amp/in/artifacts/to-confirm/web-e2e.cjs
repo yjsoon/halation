@@ -45,8 +45,8 @@ const check = (label, ok, detail = "") => {
     .filter((t) => t.amount < 0 && !t.transfer_account_id && !(t.subtransactions || []).length);
   const [first, second, third] = list;
   await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${first.id}`, { transaction: { needs_confirmation: true, cleared: "uncleared" } });
-  await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${second.id}`, { transaction: { needs_confirmation: true, memo: "TODO Client dinner" } });
-  await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${third.id}`, { transaction: { memo: "CLAIMED: Notebooks" } });
+  await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${second.id}`, { transaction: { needs_confirmation: true, memo: "TODO: Client dinner" } });
+  await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${third.id}`, { transaction: { memo: "CLAIMED - 2026-01-02: Notebooks" } });
 
   await page.reload();
   await page.getByRole("heading", { name: "Ledger" }).waitFor();
@@ -89,13 +89,13 @@ const check = (label, ok, detail = "") => {
   const memoValue = await page.getByLabel("Memo", { exact: true }).inputValue();
   check("turning To claim off removes TODO from the memo", memoValue === "Client dinner", memoValue);
   await claimChip.click();
-  check("turning it back on restores TODO", (await page.getByLabel("Memo", { exact: true }).inputValue()) === "TODO Client dinner");
+  check("turning it back on restores TODO", (await page.getByLabel("Memo", { exact: true }).inputValue()) === "TODO: Client dinner");
   await confirmChip.click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForTimeout(1200);
   const saved = (await api("GET", `/v1/plans/${state.plan_id}/transactions/${second.id}`)).body.data.transaction;
   check("saving with To confirm off persists", saved.needs_confirmation === false);
-  check("memo kept TODO for the claims tool", saved.memo === "TODO Client dinner", saved.memo);
+  check("memo kept TODO for the claims tool", saved.memo === "TODO: Client dinner", saved.memo);
   check("pill gone when nothing is left", !(await page.locator(".confirm-pill").isVisible().catch(() => false)));
 
   // A new row from the compose row with To confirm on.

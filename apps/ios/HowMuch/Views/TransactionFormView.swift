@@ -798,7 +798,7 @@ struct TransactionFormView: View {
   }
 
   /// Two independent follow-ups as chips. To confirm is stored on the row;
-  /// To claim adds or removes TODO in the memo for the claims tool.
+  /// To claim adds or removes the TODO: prefix the claims tool reads.
   private var followUpRow: some View {
     FormCardRow(
       icon: draft.needsConfirmation ? "circle.dashed.inset.filled" : "circle.dashed",
@@ -847,7 +847,7 @@ struct TransactionFormView: View {
           set: { draft.memo = MemoClaim.memo(draft.memo, toClaim: $0) }
         )
       )
-      .accessibilityHint("Adds TODO to the memo, which the claims tool picks up.")
+      .accessibilityHint("Starts the memo with TODO:, which the claims tool picks up.")
     }
   }
 

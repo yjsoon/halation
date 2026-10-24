@@ -12,14 +12,16 @@ final class RegisterQueryTests: XCTestCase {
     currencySymbol: "$"
   )
 
-  func testToClaimAddsAndRemovesTheWordTheClaimsToolReads() {
-    XCTAssertEqual(MemoClaim.memo("Client dinner", toClaim: true), "TODO Client dinner")
-    XCTAssertEqual(MemoClaim.memo("TODO: Client dinner", toClaim: false), "Client dinner")
-    XCTAssertEqual(MemoClaim.memo("CLAIMED Client dinner", toClaim: true), "TODO Client dinner")
-    XCTAssertEqual(MemoClaim(memo: "Client dinner TODO"), .toClaim)
-    XCTAssertEqual(MemoClaim(memo: "CLAIMED: Notebooks"), .claimed)
-    XCTAssertNil(MemoClaim(memo: "todolist"))
-    XCTAssertEqual(MemoClaim.displayText("CLAIMED: Notebooks"), "Notebooks")
+  func testToClaimMatchesTheClaimsToolsMemoFormat() {
+    XCTAssertEqual(MemoClaim.memo("Client dinner", toClaim: true), "TODO: Client dinner")
+    XCTAssertEqual(MemoClaim.memo("", toClaim: true), "TODO:")
+    XCTAssertEqual(MemoClaim.memo("todo: Client dinner", toClaim: false), "Client dinner")
+    XCTAssertEqual(MemoClaim.memo("CLAIMED - 2026-01-02: Client dinner", toClaim: true), "TODO: Client dinner")
+    XCTAssertEqual(MemoClaim(memo: "todo Client dinner"), .toClaim)
+    XCTAssertNil(MemoClaim(memo: "Client dinner TODO"))
+    XCTAssertNil(MemoClaim(memo: "TODO"))
+    XCTAssertNil(MemoClaim(memo: "TODOs"))
+    XCTAssertEqual(MemoClaim.displayText("CLAIMED - 2026-01-02: Notebooks"), "Notebooks")
   }
 
   func testParsesTypedMoneyPrecision() {

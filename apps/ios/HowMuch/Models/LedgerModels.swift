@@ -421,22 +421,26 @@ extension Transaction {
   }
 }
 
-/// "To claim" is a memo convention rather than a stored field: `TODO` in the
-/// memo marks a receipt to claim, and the separate claims tool rewrites it to
-/// `CLAIMED`. The chip only adds or removes that word, so the claims tool
-/// keeps reading what it reads today. Web parity: `lib/follow-up.ts`.
+/// "To claim" is a memo convention rather than a stored field, read by the
+/// separate claims tool (yjsoon/this-claimer). These patterns mirror that tool
+/// exactly, so the tag shows only on rows it will pick up: a memo starting with
+/// `TODO` and then `:` or whitespace, in any case, is a claim, and the tool
+/// rewrites it to `CLAIMED - YYYY-MM-DD: <description>`. Web parity:
+/// `lib/follow-up.ts`.
 enum MemoClaim: Equatable {
   case toClaim
   case claimed
 
-  // Simple, ASCII-only word boundaries match JavaScript's `\b`, so iOS and
-  // the web agree on memos such as "TODO's receipt", "TODO:Uber" or "éTODO".
-  private static var todo: Regex<Substring> { #/\bTODO\b/#.wordBoundaryKind(.simple).asciiOnlyWordCharacters() }
-  private static var claimedWord: Regex<Substring> { #/\bCLAIMED\b/#.wordBoundaryKind(.simple).asciiOnlyWordCharacters() }
-  /// The word, an optional colon and one following space; nothing else of
-  /// the memo is touched.
-  private static var stripTodo: Regex<Substring> { #/\bTODO\b:?[ \t]?/#.wordBoundaryKind(.simple).asciiOnlyWordCharacters() }
-  private static var stripClaimed: Regex<Substring> { #/\bCLAIMED\b:?[ \t]?/#.wordBoundaryKind(.simple).asciiOnlyWordCharacters() }
+  private static var todo: Regex<Substring> { #/^TODO[:\s]/#.ignoresCase() }
+  private static var stripTodo: Regex<Substring> { #/^TODO[:\s]\s*/#.ignoresCase() }
+  // Simple, ASCII-only word boundaries and digits match JavaScript's `\b` and `\d`.
+  private static var claimedWord: Regex<Substring> {
+    #/^\s*CLAIMED\b/#.ignoresCase().wordBoundaryKind(.simple).asciiOnlyWordCharacters()
+  }
+  private static var stripClaimed: Regex<Substring> {
+    #/^\s*CLAIMED\b(?:\s*-\s*\d{4}-\d{2}-\d{2})?\s*:?\s*/#
+      .ignoresCase().wordBoundaryKind(.simple).asciiOnlyWordCharacters().asciiOnlyDigits()
+  }
 
   init?(memo: String?) {
     guard let memo, !memo.isEmpty else {
@@ -451,24 +455,34 @@ enum MemoClaim: Equatable {
     }
   }
 
-  /// The memo with the claim word added (at the front) or removed.
+  /// The memo with the claim prefix added or removed.
   static func memo(_ memo: String, toClaim on: Bool) -> String {
     let has = memo.contains(todo)
     if on {
       if has {
         return memo
       }
-      // A claimed row claimed again goes back to TODO rather than both.
-      if memo.contains(claimedWord) {
-        return memo.replacing(claimedWord, with: "TODO", maxReplacements: 1)
+      var text = memo.trimmingCharacters(in: .whitespacesAndNewlines)
+      if text.contains(todo) {
+        return text
       }
-      let trimmed = memo.trimmingCharacters(in: .whitespacesAndNewlines)
-      return trimmed.isEmpty ? "TODO" : "TODO \(trimmed)"
+      // A claimed row claimed again starts over as TODO rather than both.
+      if text.contains(claimedWord) {
+        text = text.replacing(stripClaimed, with: "", maxReplacements: 1)
+          .trimmingCharacters(in: .whitespacesAndNewlines)
+      }
+      // A bare "TODO" is not a claim to the claims tool; give it the colon.
+      if text.uppercased() == "TODO" {
+        text = ""
+      }
+      return text.isEmpty ? "TODO:" : "TODO: \(text)"
     }
-    return has ? memo.replacing(stripTodo, with: "").trimmingCharacters(in: .whitespacesAndNewlines) : memo
+    return has
+      ? memo.replacing(stripTodo, with: "", maxReplacements: 1).trimmingCharacters(in: .whitespacesAndNewlines)
+      : memo
   }
 
-  /// The memo without its claim word, for a row that shows the claim as a tag.
+  /// The memo without its claim prefix, for a row that shows the claim as a tag.
   static func displayText(_ memo: String) -> String {
     switch MemoClaim(memo: memo) {
     case .toClaim?:

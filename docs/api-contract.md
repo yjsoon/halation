@@ -646,11 +646,12 @@ Guidance for MCP servers, agents and scripts that add transactions:
   `approved: false`; flags (`flag_color`) carry reward subcategories. Do not
   use either to mean "estimated", and do not use `needs_confirmation` to mean
   "please review".
-- It is independent of the receipt-claim convention: a memo containing
-  `TODO` still marks a row to claim, and the claims tool rewrites it to
-  `CLAIMED`. A row can be both. Never write the word `TODO` in a memo to
-  mean "check this later": that files the row as a receipt to claim. Use
-  `needs_confirmation` for estimates.
+- It is independent of the receipt-claim convention: a memo that starts with
+  `TODO` followed by `:` or a space (any case), such as `TODO: Client dinner`,
+  marks a row to claim, and the claims tool rewrites it to
+  `CLAIMED - YYYY-MM-DD: Client dinner`. A row can be both. Never start a
+  memo with `TODO` to mean "check this later": that files the row as a
+  receipt to claim. Use `needs_confirmation` for estimates.
 
 Confirming:
 

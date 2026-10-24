@@ -4,7 +4,7 @@ import { claimState, withClaimTodo } from "../lib/follow-up";
 /**
  * The Follow-up control in an expanded register row: two independent chips.
  * "To confirm" is the stored `needs_confirmation`; "To claim" adds or removes
- * `TODO` in the memo, the word the claims tool already looks for.
+ * `TODO:` at the start of the memo, the prefix the claims tool looks for.
  */
 export function FollowUpChips({
   id,
@@ -41,7 +41,7 @@ export function FollowUpChips({
           type="button"
           className="follow-up-chip follow-up-chip-claim"
           aria-pressed={toClaim}
-          title="Adds TODO to the memo, which the claims tool picks up."
+          title="Starts the memo with TODO:, which the claims tool picks up."
           onClick={() => onMemoChange(withClaimTodo(memo, !toClaim))}
           disabled={disabled}
         >
