@@ -515,7 +515,7 @@ Collection update:
 ```json
 {
   "transactions": [
-    { "id": "txn-1", "memo": "CLAIMED" },
+    { "id": "txn-1", "memo": "CLAIMED - 2026-01-02: Client dinner" },
     { "import_id": "source-unique-id", "approved": true }
   ]
 }

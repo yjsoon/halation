@@ -43,10 +43,12 @@ const check = (label, ok, detail = "") => {
   // Mark two existing demo rows: one estimated, one estimated and to claim.
   const list = (await api("GET", `/v1/plans/${state.plan_id}/transactions?limit=40`)).body.data.transactions
     .filter((t) => t.amount < 0 && !t.transfer_account_id && !(t.subtransactions || []).length);
-  const [first, second, third] = list;
+  const [first, second, third, fourth] = list;
   await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${first.id}`, { transaction: { needs_confirmation: true, cleared: "uncleared" } });
   await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${second.id}`, { transaction: { needs_confirmation: true, memo: "TODO: Client dinner" } });
   await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${third.id}`, { transaction: { memo: "CLAIMED - 2026-01-02: Notebooks" } });
+  // Not claims to the claims tool: TODO later in the memo, and an ordinary "Claimed".
+  await api("PATCH", `/v1/plans/${state.plan_id}/transactions/${fourth.id}`, { transaction: { memo: "Claimed back from Sam TODO" } });
 
   await page.reload();
   await page.getByRole("heading", { name: "Ledger" }).waitFor();
@@ -58,6 +60,12 @@ const check = (label, ok, detail = "") => {
   check("two rows carry the estimate mark", (await page.locator("tr.register-row-to-confirm").count()) === 2);
   check("to-claim tag shows in place of TODO", await page.locator(".memo-claim-todo").first().isVisible());
   check("claimed tag shows", await page.locator(".memo-claim-done").first().isVisible());
+  const claimedCell = page.locator("td", { has: page.locator(".memo-claim-done") }).first();
+  const claimedText = (await claimedCell.innerText()).replace(/\s+/g, " ").trim();
+  check("claimed row shows just its description", claimedText === "Claimed Notebooks", claimedText);
+  const plainCell = page.locator("td", { hasText: "Claimed back from Sam TODO" }).first();
+  check("ordinary memo with Claimed and a late TODO gets no tag",
+    (await plainCell.isVisible()) && (await plainCell.locator(".memo-claim").count()) === 0);
   await page.screenshot({ path: path.join(out, "web-1-register.png") });
 
   await pill.click();

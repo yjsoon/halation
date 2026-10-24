@@ -843,11 +843,12 @@ struct TransactionFormView: View {
         glyph: .symbol("doc.text"),
         tint: Theme.toClaim,
         isOn: Binding(
-          get: { MemoClaim(memo: draft.memo) == .toClaim },
+          // The memo is trimmed on save, so judge the chip on what will be saved.
+          get: { MemoClaim(memo: draft.memo.trimmingCharacters(in: .whitespacesAndNewlines)) == .toClaim },
           set: { draft.memo = MemoClaim.memo(draft.memo, toClaim: $0) }
         )
       )
-      .accessibilityHint("Starts the memo with TODO:, which the claims tool picks up.")
+      .accessibilityHint("Starts the memo with TODO: so the claims tool picks it up.")
     }
   }
 

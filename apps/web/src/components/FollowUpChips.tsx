@@ -21,7 +21,8 @@ export function FollowUpChips({
   onNeedsConfirmationChange: (value: boolean) => void;
   onMemoChange?: (memo: string) => void;
 }): ReactElement {
-  const toClaim = claimState(memo) === "to-claim";
+  // The memo is trimmed on save, so judge the chip on what will be saved.
+  const toClaim = claimState(memo.trim()) === "to-claim";
   return (
     <div className="follow-up" role="group" aria-labelledby={`${id}-follow-up-label`}>
       <span className="field-label" id={`${id}-follow-up-label`}>Follow-up</span>
@@ -41,7 +42,7 @@ export function FollowUpChips({
           type="button"
           className="follow-up-chip follow-up-chip-claim"
           aria-pressed={toClaim}
-          title="Starts the memo with TODO:, which the claims tool picks up."
+          title="Starts the memo with TODO: so the claims tool picks it up."
           onClick={() => onMemoChange(withClaimTodo(memo, !toClaim))}
           disabled={disabled}
         >

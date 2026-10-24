@@ -22,6 +22,8 @@ final class RegisterQueryTests: XCTestCase {
     XCTAssertNil(MemoClaim(memo: "TODO"))
     XCTAssertNil(MemoClaim(memo: "TODOs"))
     XCTAssertEqual(MemoClaim.displayText("CLAIMED - 2026-01-02: Notebooks"), "Notebooks")
+    XCTAssertNil(MemoClaim(memo: "Claimed back from Sam"))
+    XCTAssertEqual(MemoClaim.memo("TODO: TODO: Client dinner", toClaim: false), "Client dinner")
   }
 
   func testParsesTypedMoneyPrecision() {

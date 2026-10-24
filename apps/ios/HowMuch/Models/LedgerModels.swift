@@ -422,8 +422,9 @@ extension Transaction {
 }
 
 /// "To claim" is a memo convention rather than a stored field, read by the
-/// separate claims tool (yjsoon/this-claimer). These patterns mirror that tool
-/// exactly, so the tag shows only on rows it will pick up: a memo starting with
+/// separate claims tool (yjsoon/this-claimer). These patterns follow that
+/// tool's memo rule (it also skips transfer inflows, split parents with claimed
+/// lines and rows older than its window): a memo starting with
 /// `TODO` and then `:` or whitespace, in any case, is a claim, and the tool
 /// rewrites it to `CLAIMED - YYYY-MM-DD: <description>`. Web parity:
 /// `lib/follow-up.ts`.
@@ -434,8 +435,11 @@ enum MemoClaim: Equatable {
   private static var todo: Regex<Substring> { #/^TODO[:\s]/#.ignoresCase() }
   private static var stripTodo: Regex<Substring> { #/^TODO[:\s]\s*/#.ignoresCase() }
   // Simple, ASCII-only word boundaries and digits match JavaScript's `\b` and `\d`.
+  // Only the tool's own shapes ("CLAIMED - 2026-01-02: x", "CLAIMED: x" or a
+  // bare "CLAIMED"), so an ordinary memo such as "Claimed back from Sam" stays text.
   private static var claimedWord: Regex<Substring> {
-    #/^\s*CLAIMED\b/#.ignoresCase().wordBoundaryKind(.simple).asciiOnlyWordCharacters()
+    #/^\s*CLAIMED\b(?:\s*-\s*\d{4}-\d{2}-\d{2})?\s*(?::|$)/#
+      .ignoresCase().wordBoundaryKind(.simple).asciiOnlyWordCharacters().asciiOnlyDigits()
   }
   private static var stripClaimed: Regex<Substring> {
     #/^\s*CLAIMED\b(?:\s*-\s*\d{4}-\d{2}-\d{2})?\s*:?\s*/#
@@ -455,16 +459,13 @@ enum MemoClaim: Equatable {
     }
   }
 
-  /// The memo with the claim prefix added or removed.
+  /// The memo with the claim prefix added or removed. Clients trim the memo
+  /// on save, so this reads the trimmed memo, as the editor's chip does.
   static func memo(_ memo: String, toClaim on: Bool) -> String {
-    let has = memo.contains(todo)
+    var text = memo.trimmingCharacters(in: .whitespacesAndNewlines)
     if on {
-      if has {
-        return memo
-      }
-      var text = memo.trimmingCharacters(in: .whitespacesAndNewlines)
       if text.contains(todo) {
-        return text
+        return memo
       }
       // A claimed row claimed again starts over as TODO rather than both.
       if text.contains(claimedWord) {
@@ -477,9 +478,13 @@ enum MemoClaim: Equatable {
       }
       return text.isEmpty ? "TODO:" : "TODO: \(text)"
     }
-    return has
-      ? memo.replacing(stripTodo, with: "", maxReplacements: 1).trimmingCharacters(in: .whitespacesAndNewlines)
-      : memo
+    guard text.contains(todo) else {
+      return memo
+    }
+    while text.contains(todo) {
+      text = text.replacing(stripTodo, with: "", maxReplacements: 1)
+    }
+    return text.trimmingCharacters(in: .whitespacesAndNewlines)
   }
 
   /// The memo without its claim prefix, for a row that shows the claim as a tag.
