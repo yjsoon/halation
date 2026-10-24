@@ -97,7 +97,11 @@ environment `tk` in `wrangler.jsonc`:
   `scripts/backup-d1.sh`) before tagging the release that writes them. That
   release turns `TODO` and `CLAIMED` memo words into these fields, so deploy
   the claims tool version that reads `claim_status` first (it also works with
-  the older Worker).
+  the older Worker). Rows written before the release keep their memo words
+  until edited; after the release is live, convert them in one pass with
+  `scripts/convert-follow-up-memos.ts`. Run it without `--apply` first and
+  review the list (it holds real memos, so write any `--out` report under the
+  gitignored `data/`), take a fresh backup, then re-run with `--apply`.
 - Migration `0022_transaction_needs_confirmation.sql` adds
   `transactions.needs_confirmation` (default 0) and a partial index. It is
   additive and the running Worker ignores the column, but the Worker that
