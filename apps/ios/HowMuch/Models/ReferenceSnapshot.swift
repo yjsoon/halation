@@ -26,7 +26,8 @@ struct ReferenceSnapshot: Codable, Equatable, ConnectionScopedSnapshot {
   ///
   /// 2: carries the plan-wide unapproved count (#181's badge).
   /// 3: ledger rows carry `needsConfirmation` ("To confirm").
-  static let currentSchemaVersion = 3
+  /// 4: ledger rows carry `claimStatus` and `claimedOn` ("To claim").
+  static let currentSchemaVersion = 4
 
   /// One bounded ledger page, stored exactly as the network returned it.
   /// `TransactionPage` itself is not `Codable` and carries no identity, so the

@@ -88,6 +88,7 @@ private struct RegisterFilterCounts {
   let uncleared: Int
   let uncategorised: Int
   let toConfirm: Int
+  let toClaim: Int
 }
 
 private struct RegisterSearchPage: Equatable {
@@ -270,6 +271,7 @@ struct RegisterView: View {
   @State private var unclearedOnly = false
   @State private var uncategorisedOnly = false
   @State private var toConfirmOnly = false
+  @State private var toClaimOnly = false
   @State private var unapprovedOnly = false
   /// The row that last started an older page ahead of the reader.
   @State private var olderPagePrefetchedRowID: String?
@@ -616,6 +618,12 @@ struct RegisterView: View {
       }
       .menuActionDismissBehavior(.disabled)
     }
+    if counts.toClaim > 0 || toClaimOnly {
+      Toggle(isOn: $toClaimOnly.animation(Theme.Motion.standard)) {
+        Label(toClaimMenuTitle(counts.toClaim), systemImage: "doc.text")
+      }
+      .menuActionDismissBehavior(.disabled)
+    }
   }
 
   private func accountOverflowHint(_ account: Account, counts: RegisterFilterCounts) -> String {
@@ -901,7 +909,7 @@ struct RegisterView: View {
         Group {
           if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             ContentUnavailableView.search
-          } else if unclearedOnly || uncategorisedOnly || toConfirmOnly || (unapprovedOnly && scope != .unapproved) {
+          } else if unclearedOnly || uncategorisedOnly || toConfirmOnly || toClaimOnly || (unapprovedOnly && scope != .unapproved) {
             ContentUnavailableView(
               "Nothing matches",
               systemImage: "line.3.horizontal.decrease",
@@ -1322,7 +1330,7 @@ struct RegisterView: View {
   }
 
   private var visibleSchedules: [ScheduledTransaction] {
-    if showingUnapprovedQueue || unclearedOnly || uncategorisedOnly || toConfirmOnly {
+    if showingUnapprovedQueue || unclearedOnly || uncategorisedOnly || toConfirmOnly || toClaimOnly {
       return []
     }
     let query = searchQuery
@@ -1409,6 +1417,7 @@ struct RegisterView: View {
       || unclearedOnly
       || uncategorisedOnly
       || toConfirmOnly
+      || toClaimOnly
       || showingUnapprovedQueue
       || categoryID != nil
       || categoryIDs?.isEmpty == false
@@ -1462,6 +1471,7 @@ struct RegisterView: View {
       || counts.uncleared > 0 || unclearedOnly
       || counts.uncategorised > 0 || uncategorisedOnly
       || counts.toConfirm > 0 || toConfirmOnly
+      || counts.toClaim > 0 || toClaimOnly
   }
 
   private var showingUnapprovedQueue: Bool {
@@ -1501,12 +1511,19 @@ struct RegisterView: View {
       : "Show \(toConfirmCount) to confirm"
   }
 
+  private func toClaimMenuTitle(_ toClaimCount: Int) -> String {
+    toClaimCount == 0
+      ? "Show to claim"
+      : "Show \(toClaimCount) to claim"
+  }
+
   private var activeRegisterFilterSummary: String? {
     var parts: [String] = []
     if unapprovedOnly { parts.append("new") }
     if unclearedOnly { parts.append("uncleared") }
     if uncategorisedOnly { parts.append("uncategorised") }
     if toConfirmOnly { parts.append("to confirm") }
+    if toClaimOnly { parts.append("to claim") }
     guard !parts.isEmpty else {
       return nil
     }
@@ -1515,6 +1532,7 @@ struct RegisterView: View {
       case "new": return "Showing new transactions"
       case "uncleared": return "Showing uncleared transactions"
       case "to confirm": return "Showing transactions to confirm"
+      case "to claim": return "Showing transactions to claim"
       default: return "Showing uncategorised transactions"
       }
     }
@@ -1526,23 +1544,27 @@ struct RegisterView: View {
     unclearedOnly = false
     uncategorisedOnly = false
     toConfirmOnly = false
+    toClaimOnly = false
   }
 
   private func filterCounts(scopedLedger: [Transaction], approvalScoped: [Transaction]) -> RegisterFilterCounts {
     var uncleared = 0
     var uncategorised = 0
     var toConfirm = 0
+    var toClaim = 0
     for transaction in scopedLedger {
       if transaction.cleared == .uncleared { uncleared += 1 }
       if transaction.isUncategorised { uncategorised += 1 }
       if transaction.isToConfirm { toConfirm += 1 }
+      if transaction.isToClaim { toClaim += 1 }
     }
     return RegisterFilterCounts(
       // The New register has no "Review new" filter, so it never reads this.
       unapproved: scope == .unapproved ? 0 : unapprovedCount(approvalScoped: approvalScoped),
       uncleared: uncleared,
       uncategorised: uncategorised,
-      toConfirm: toConfirm
+      toConfirm: toConfirm,
+      toClaim: toClaim
     )
   }
 
@@ -1614,6 +1636,9 @@ struct RegisterView: View {
       if toConfirmOnly, !transaction.isToConfirm {
         return false
       }
+      if toClaimOnly, !transaction.isToClaim {
+        return false
+      }
       if showingUnapprovedQueue, transaction.approved {
         return false
       }
@@ -1631,6 +1656,7 @@ struct RegisterView: View {
       if unclearedOnly, hit.cleared != .uncleared { continue }
       if uncategorisedOnly, !hit.isUncategorised { continue }
       if toConfirmOnly, !hit.isToConfirm { continue }
+      if toClaimOnly, !hit.isToClaim { continue }
       // A hit joins the list only if it would have been in it unsearched:
       // the same account, category, payee, amount, date and transfer rules.
       if scoped([hit]).isEmpty { continue }
@@ -1675,6 +1701,9 @@ struct RegisterView: View {
         return false
       }
       if toConfirmOnly, !row.isToConfirm {
+        return false
+      }
+      if toClaimOnly, row.claimStatus != MemoClaim.toClaim.rawValue {
         return false
       }
       guard let query else {
@@ -2135,8 +2164,8 @@ private struct PendingTransactionRow: View {
             .font(.footnote)
             .foregroundStyle(row.categoryID == nil && row.splitLineCount == 0 ? AnyShapeStyle(Theme.uncategorised) : AnyShapeStyle(.secondary))
             .lineLimit(1)
-          if let memo = row.memo, !memo.isEmpty {
-            RegisterMemoLine(memo: memo)
+          if !(row.memo ?? "").isEmpty || row.claimStatus != nil {
+            RegisterMemoLine(memo: row.memo ?? "", claimStatus: row.claimStatus)
           }
         }
 
@@ -2255,8 +2284,8 @@ struct TransactionRow: View {
               .font(.footnote)
               .foregroundStyle(transaction.isUncategorised ? AnyShapeStyle(Theme.uncategorised) : AnyShapeStyle(.secondary))
               .lineLimit(1)
-            if let memo = transaction.memo, !memo.isEmpty {
-              RegisterMemoLine(memo: memo)
+            if !(transaction.memo ?? "").isEmpty || transaction.claimStatus != nil {
+              RegisterMemoLine(memo: transaction.memo ?? "", claimStatus: transaction.claimStatus)
             }
           }
 

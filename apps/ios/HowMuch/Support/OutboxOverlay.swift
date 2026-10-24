@@ -162,7 +162,10 @@ enum OutboxOverlay {
       // Unsent means unchanged, unless the edit clears the row, which the
       // server reads as confirming.
       needsConfirmation: request.needsConfirmation
-        ?? (row.cleared == .uncleared && (request.cleared ?? .uncleared) != .uncleared ? false : row.needsConfirmation)
+        ?? (row.cleared == .uncleared && (request.cleared ?? .uncleared) != .uncleared ? false : row.needsConfirmation),
+      // Unsent means unchanged.
+      claimStatus: request.claimStatus.map(\.storedStatus) ?? row.claimStatus,
+      claimedOn: request.claimStatus.map { $0 == .claimed ? request.claimedOn : nil } ?? row.claimedOn
     )
   }
 }
@@ -195,7 +198,9 @@ private extension Transaction {
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
       subtransactions: subtransactions,
-      needsConfirmation: needsConfirmation
+      needsConfirmation: needsConfirmation,
+      claimStatus: claimStatus,
+      claimedOn: claimedOn
     )
   }
 }

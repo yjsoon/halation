@@ -41,6 +41,19 @@ struct TransactionSubtransactionWriteRequest: Codable, Equatable {
   let transferTransactionID: String?
 }
 
+/// "To claim" in a write. `notClaimed` is sent as `null`, which clears the
+/// claim; a request with no value leaves the server's claim alone.
+enum ClaimWrite: String, Codable, Equatable {
+  case toClaim = "to_claim"
+  case claimed
+  case notClaimed = "none"
+
+  /// The stored `claimStatus` this write leaves on the row.
+  var storedStatus: String? {
+    self == .notClaimed ? nil : rawValue
+  }
+}
+
 /// Create/update body. Encodes optional fields as explicit nulls so an update
 /// can clear them — the API treats omitted keys as "keep existing".
 /// Cleared status is the exception: edits omit it so the guarded status
@@ -67,6 +80,10 @@ struct TransactionWriteRequest: Codable, Equatable {
   /// when the form changed it, or alongside a cleared change, where the
   /// server would otherwise read clearing as confirming.
   var needsConfirmation: Bool?
+  /// "To claim": nil leaves the server's value alone. `claimedOn` goes only
+  /// with `.claimed`.
+  var claimStatus: ClaimWrite?
+  var claimedOn: String?
   /// Client-minted transaction id (`txn_<uuid>`), sent only on a create. The
   /// outbox keeps it on the command and stamps it here at send time, so a
   /// queued create has its real id before the server has seen it.
@@ -87,6 +104,8 @@ struct TransactionWriteRequest: Codable, Equatable {
     case importID
     case id
     case needsConfirmation
+    case claimStatus
+    case claimedOn
   }
 
   init(
@@ -103,7 +122,9 @@ struct TransactionWriteRequest: Codable, Equatable {
     subtransactions: [TransactionSubtransactionWriteRequest],
     importID: String? = nil,
     id: String? = nil,
-    needsConfirmation: Bool? = nil
+    needsConfirmation: Bool? = nil,
+    claimStatus: ClaimWrite? = nil,
+    claimedOn: String? = nil
   ) {
     self.accountID = accountID
     self.date = date
@@ -119,6 +140,8 @@ struct TransactionWriteRequest: Codable, Equatable {
     self.importID = importID
     self.id = id
     self.needsConfirmation = needsConfirmation
+    self.claimStatus = claimStatus
+    self.claimedOn = claimStatus == .claimed ? claimedOn : nil
   }
 
   func encode(to encoder: Encoder) throws {
@@ -137,6 +160,14 @@ struct TransactionWriteRequest: Codable, Equatable {
     try container.encodeIfPresent(importID, forKey: .importID)
     try container.encodeIfPresent(id, forKey: .id)
     try container.encodeIfPresent(needsConfirmation, forKey: .needsConfirmation)
+    if let claimStatus {
+      if let stored = claimStatus.storedStatus {
+        try container.encode(stored, forKey: .claimStatus)
+      } else {
+        try container.encodeNil(forKey: .claimStatus)
+      }
+    }
+    try container.encodeIfPresent(claimedOn, forKey: .claimedOn)
   }
 
   /// Captures made before split support did not persist this key. Keep those
@@ -158,6 +189,15 @@ struct TransactionWriteRequest: Codable, Equatable {
     importID = try container.decodeIfPresent(String.self, forKey: .importID)
     id = try container.decodeIfPresent(String.self, forKey: .id)
     needsConfirmation = try container.decodeIfPresent(Bool.self, forKey: .needsConfirmation)
+    // A queued "not a claim" is persisted as an explicit null.
+    if let stored = try container.decodeIfPresent(String.self, forKey: .claimStatus) {
+      claimStatus = ClaimWrite(rawValue: stored)
+    } else if container.contains(.claimStatus) {
+      claimStatus = .notClaimed
+    } else {
+      claimStatus = nil
+    }
+    claimedOn = try container.decodeIfPresent(String.self, forKey: .claimedOn)
   }
 }
 
@@ -247,6 +287,7 @@ struct PendingRow: Identifiable, Equatable {
   let splitCategoryIDs: [String]
   let isCleared: Bool
   let isToConfirm: Bool
+  let claimStatus: String?
   let status: Status
 
   init(
@@ -273,6 +314,7 @@ struct PendingRow: Identifiable, Equatable {
     splitCategoryIDs = request.subtransactions.compactMap(\.categoryID)
     isCleared = request.cleared != nil && request.cleared != .uncleared
     isToConfirm = request.needsConfirmation == true
+    claimStatus = request.claimStatus?.storedStatus
     self.status = status
   }
 
@@ -434,6 +476,22 @@ struct TransactionDraft: Equatable, Codable {
   var toConfirm: Bool?
   /// The marker when the editor opened. Nil for a new row.
   var loadedToConfirm: Bool?
+  /// "To claim" as the form shows it (`to_claim`, `claimed` or nil), and the
+  /// stored values when the editor opened. A row stored before the field
+  /// carries the claim as a memo word, which the form moves into the field.
+  var claimStatus: String?
+  var claimedOn: String?
+  var loadedClaimStatus: String?
+  var loadedClaimedOn: String?
+
+  /// The chip: on while the row is to claim.
+  var isToClaim: Bool {
+    get { claimStatus == MemoClaim.toClaim.rawValue }
+    set {
+      claimStatus = newValue ? MemoClaim.toClaim.rawValue : nil
+      claimedOn = nil
+    }
+  }
 
   /// The amount is an estimate to check against the statement later.
   var needsConfirmation: Bool {
@@ -474,9 +532,14 @@ struct TransactionDraft: Equatable, Codable {
     }
     linkedTransferIDs = transaction.linkedTransferIDs
     flag = FlagColour(rawValue: transaction.flagColor ?? "") ?? .none
-    memo = transaction.memo ?? ""
-    toConfirm = transaction.isToConfirm
+    let legacy = MemoClaim.legacyWords(transaction.memo)
+    memo = legacy.text
+    toConfirm = transaction.isToConfirm || legacy.toCheck
     loadedToConfirm = transaction.isToConfirm
+    claimStatus = transaction.claimStatus ?? legacy.claim?.rawValue
+    claimedOn = transaction.claimStatus == nil ? legacy.claimedOn : transaction.claimedOn
+    loadedClaimStatus = transaction.claimStatus
+    loadedClaimedOn = transaction.claimedOn
   }
 
   init(duplicating transaction: Transaction) {
@@ -639,6 +702,19 @@ struct TransactionDraft: Equatable, Codable {
     return nil
   }
 
+  /// What Save sends for "To claim": a new row only a set claim, an edit only
+  /// a claim that differs from the stored one.
+  var claimToWrite: ClaimWrite? {
+    let wanted = claimStatus.flatMap(ClaimWrite.init(rawValue:)) ?? .notClaimed
+    guard id != nil else {
+      return wanted == .notClaimed ? nil : wanted
+    }
+    if claimStatus == loadedClaimStatus && (claimStatus != MemoClaim.claimed.rawValue || claimedOn == loadedClaimedOn) {
+      return nil
+    }
+    return wanted
+  }
+
   func writeRequest(includeCleared: Bool = true) -> TransactionWriteRequest {
     let trimmedPayee = payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
     let hasParentTransfer = transferAccountID != nil
@@ -655,7 +731,9 @@ struct TransactionDraft: Equatable, Codable {
       flagColor: flag.rawValue.isEmpty ? nil : flag.rawValue,
       subtransactions: subtransactions.compactMap { $0.writeRequest() },
       importID: importID,
-      needsConfirmation: needsConfirmationToWrite(includeCleared: includeCleared)
+      needsConfirmation: needsConfirmationToWrite(includeCleared: includeCleared),
+      claimStatus: claimToWrite,
+      claimedOn: claimedOn
     )
   }
 }

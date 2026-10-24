@@ -797,8 +797,8 @@ struct TransactionFormView: View {
     }
   }
 
-  /// Two independent follow-ups as chips. To confirm is stored on the row;
-  /// To claim adds or removes the TODO: prefix the claims tool reads.
+  /// Two independent follow-ups as chips, both stored on the row. A claimed
+  /// row shows the day; turning To claim on files it to claim again.
   private var followUpRow: some View {
     FormCardRow(
       icon: draft.needsConfirmation ? "circle.dashed.inset.filled" : "circle.dashed",
@@ -843,13 +843,26 @@ struct TransactionFormView: View {
         glyph: .symbol("doc.text"),
         tint: Theme.toClaim,
         isOn: Binding(
-          // The memo is trimmed on save, so judge the chip on what will be saved.
-          get: { MemoClaim(memo: draft.memo.trimmingCharacters(in: .whitespacesAndNewlines)) == .toClaim },
-          set: { draft.memo = MemoClaim.memo(draft.memo, toClaim: $0) }
+          get: { draft.isToClaim },
+          set: { draft.isToClaim = $0 }
         )
       )
-      .accessibilityHint("Starts the memo with TODO: so the claims tool picks it up.")
+      .accessibilityHint("Marks a spend to claim back. The claims tool lists it until it is claimed.")
+      if draft.claimStatus == MemoClaim.claimed.rawValue {
+        Text(Self.claimedLabel(draft.claimedOn))
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .fixedSize()
+      }
     }
+  }
+
+  /// "Claimed 2 Jan 2026", or "Claimed" when the day is not known.
+  static func claimedLabel(_ isoDay: String?) -> String {
+    guard let isoDay, let day = Date(isoDateString: isoDay) else {
+      return "Claimed"
+    }
+    return "Claimed \(day.formatted(.dateTime.day().month(.abbreviated).year()))"
   }
 
   private var splitToggleRow: some View {

@@ -131,7 +131,8 @@ enum OutboxPlanner {
       return .create(edit.replacing(
         cleared: .some(edit.cleared ?? request.cleared),
         importID: .some(request.importID ?? edit.importID),
-        needsConfirmation: .some(edit.needsConfirmation ?? request.needsConfirmation)
+        needsConfirmation: .some(edit.needsConfirmation ?? request.needsConfirmation),
+        claim: edit.claim(over: request)
       ))
     case (.create(let request), .cleared(_, let cleared, let approve)):
       // Clearing confirms the amount, as it would on the server.
@@ -149,8 +150,8 @@ enum OutboxPlanner {
     case (.update(let request), .update(let edit)):
       let carriedMarker = edit.needsConfirmation ?? request.needsConfirmation
       return .update(edit.cleared == nil
-        ? edit.replacing(cleared: .some(request.cleared), needsConfirmation: .some(carriedMarker))
-        : edit.replacing(needsConfirmation: .some(carriedMarker)))
+        ? edit.replacing(cleared: .some(request.cleared), needsConfirmation: .some(carriedMarker), claim: edit.claim(over: request))
+        : edit.replacing(needsConfirmation: .some(carriedMarker), claim: edit.claim(over: request)))
     case (.update(let request), .cleared(let expected, let cleared, let approve)):
       let carried: ClearedState? = cleared == base?.cleared ? nil : cleared
       // Clearing confirms the amount, even one the queued edit marked. With

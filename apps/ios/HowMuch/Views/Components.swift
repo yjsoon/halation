@@ -84,12 +84,13 @@ struct MemoClaimTag: View {
   }
 }
 
-/// The memo line of a register row, with any claim word drawn as a tag.
+/// The memo line of a register row, with the row's claim drawn as a tag.
 struct RegisterMemoLine: View {
   let memo: String
+  var claimStatus: String? = nil
 
   var body: some View {
-    let claim = MemoClaim(memo: memo)
+    let claim = MemoClaim(status: claimStatus, memo: memo)
     let text = claim == nil ? memo : MemoClaim.displayText(memo)
     HStack(alignment: .firstTextBaseline, spacing: 6) {
       if let claim {
