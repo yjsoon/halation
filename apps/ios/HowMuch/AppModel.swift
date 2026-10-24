@@ -3587,7 +3587,7 @@ final class AppModel {
   private enum WireResult {
     /// The server has what the command asked for; the row when it sent one.
     case done(Transaction?)
-    /// A delete found the row already gone.
+    /// A delete or a confirm found the row already gone.
     case gone
     /// A status change found the row changed underneath; the row as it is.
     case conflict(Transaction?)
