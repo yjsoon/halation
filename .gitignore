@@ -17,3 +17,8 @@ apps/worker/.wrangler/
 *.log
 apps/worker/wrangler.self-host.*
 !apps/worker/wrangler.self-host.example.jsonc
+
+# pstack working files
+/todo.md
+/decisions.tsv
+/.audit/
