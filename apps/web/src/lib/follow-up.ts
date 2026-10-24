@@ -1,8 +1,8 @@
 // Follow-ups on a transaction: "To confirm" is the stored `needs_confirmation`
 // field; "To claim" is the existing memo convention read by the separate
 // claims tool (yjsoon/this-claimer). These patterns follow that tool's memo
-// rule (it also skips transfer inflows, split parents with claimed lines and
-// rows older than its window):
+// rule (it also skips transfer inflows, split parents whose lines carry their
+// own TODO and rows older than its window):
 // - a memo starting with `TODO` and then `:` or whitespace is a claim, any case;
 // - the tool rewrites it to `CLAIMED - YYYY-MM-DD: <description>`.
 
@@ -32,6 +32,7 @@ export function withClaimTodo(memo: string, on: boolean): string {
     if (CLAIM_TODO.test(text)) return memo;
     // A claimed row claimed again starts over as TODO rather than both.
     if (CLAIMED.test(text)) text = text.replace(STRIP_CLAIMED, "").trim();
+    if (CLAIM_TODO.test(text)) return text;
     // A bare "TODO" is not a claim to the claims tool; give it the colon.
     if (/^TODO$/i.test(text)) text = "";
     return text ? `TODO: ${text}` : "TODO:";

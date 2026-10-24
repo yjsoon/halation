@@ -423,8 +423,8 @@ extension Transaction {
 
 /// "To claim" is a memo convention rather than a stored field, read by the
 /// separate claims tool (yjsoon/this-claimer). These patterns follow that
-/// tool's memo rule (it also skips transfer inflows, split parents with claimed
-/// lines and rows older than its window): a memo starting with
+/// tool's memo rule (it also skips transfer inflows, split parents whose lines
+/// carry their own TODO and rows older than its window): a memo starting with
 /// `TODO` and then `:` or whitespace, in any case, is a claim, and the tool
 /// rewrites it to `CLAIMED - YYYY-MM-DD: <description>`. Web parity:
 /// `lib/follow-up.ts`.
@@ -471,6 +471,9 @@ enum MemoClaim: Equatable {
       if text.contains(claimedWord) {
         text = text.replacing(stripClaimed, with: "", maxReplacements: 1)
           .trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.contains(todo) {
+          return text
+        }
       }
       // A bare "TODO" is not a claim to the claims tool; give it the colon.
       if text.uppercased() == "TODO" {

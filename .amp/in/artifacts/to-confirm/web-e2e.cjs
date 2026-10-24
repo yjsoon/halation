@@ -98,6 +98,16 @@ const check = (label, ok, detail = "") => {
   check("turning To claim off removes TODO from the memo", memoValue === "Client dinner", memoValue);
   await claimChip.click();
   check("turning it back on restores TODO", (await page.getByLabel("Memo", { exact: true }).inputValue()) === "TODO: Client dinner");
+  // The memo is trimmed on save, so the chip judges the trimmed memo, and Off
+  // clears every leading TODO prefix.
+  const memoInput = page.getByLabel("Memo", { exact: true });
+  await memoInput.fill(" TODO: Client dinner ");
+  check("chip reads a padded TODO memo as a claim", (await claimChip.getAttribute("aria-pressed")) === "true");
+  await memoInput.fill("TODO: TODO: Client dinner");
+  await claimChip.click();
+  check("turning it off clears repeated prefixes", (await memoInput.inputValue()) === "Client dinner", await memoInput.inputValue());
+  check("chip is off after one click", (await claimChip.getAttribute("aria-pressed")) === "false");
+  await claimChip.click();
   await confirmChip.click();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await page.waitForTimeout(1200);
