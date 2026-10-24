@@ -11,7 +11,7 @@ type Placement = { left: number; top: number; width: number; maxHeight: number; 
 const collator = new Intl.Collator(undefined, { sensitivity: "base", ignorePunctuation: true });
 
 // Bank imports often lead with card digits ("-1234 SHOP NAME CITY SG").
-const CARD_PREFIX = /^-?\d{2,}\s+/;
+const CARD_PREFIX = /^-\d{2,}\s+/;
 const COUNTRY_SUFFIX = /\s+[A-Z]{2}$/;
 
 function matchKey(value: string): string {
@@ -26,7 +26,7 @@ function isShouting(name: string): boolean {
 /** 0 for a match at the start of a word, 1 elsewhere, -1 for no match. */
 function matchRank(text: string, key: string): number {
   if (!key) return 0;
-  const haystack = text.toLowerCase();
+  const haystack = matchKey(text);
   let at = haystack.indexOf(key);
   let rank = -1;
   while (at >= 0) {
@@ -51,8 +51,11 @@ export function payeeMenuSections(entries: readonly PayeeListEntry[], query: str
       // Match the account name. The "Transfer : " prefix only counts once the
       // query clearly asks for it, or "a" would match every transfer.
       const prefixRank = key.length >= 3 ? matchRank(entry.value, key) : -1;
-      const ranks = [matchRank(entry.transferAccount, key), prefixRank === 0 ? 0 : -1].filter((rank) => rank >= 0);
-      if (ranks.length) transfers.push({ entry, rank: Math.min(...ranks), raw: 0, sort: entry.transferAccount });
+      // Word starts only: a letter inside an account name is too weak a reason
+      // to put transfers above the payee being typed.
+      if (matchRank(entry.transferAccount, key) === 0 || prefixRank === 0) {
+        transfers.push({ entry, rank: 0, raw: 0, sort: entry.transferAccount });
+      }
     } else {
       const rank = matchRank(entry.value, key);
       if (rank >= 0) {
@@ -77,7 +80,8 @@ function PayeeName({ name }: { name: string }): ReactElement {
   }
   const prefix = name.match(CARD_PREFIX)?.[0] ?? "";
   const rest = name.slice(prefix.length);
-  const suffix = rest.match(COUNTRY_SUFFIX)?.[0] ?? "";
+  // A trailing country code is only noise on a card-prefixed bank string.
+  const suffix = prefix ? (rest.match(COUNTRY_SUFFIX)?.[0] ?? "") : "";
   const body = rest.slice(0, rest.length - suffix.length);
   return (
     <span className="payee-menu-name">
@@ -129,6 +133,9 @@ export function PayeeCombobox({
   const sections = useMemo(() => payeeMenuSections(entries, query), [entries, query]);
   const options = useMemo(() => [...sections.transfers, ...sections.payees], [sections]);
   const showing = open && !disabled && options.length > 0;
+  // Showing and placed: hidden while the field is scrolled out of its table,
+  // and then neither announced nor driven by the keyboard.
+  const visible = showing && placement !== null;
 
   useEffect(() => {
     setActive((current) => Math.min(current, options.length - 1));
@@ -173,10 +180,12 @@ export function PayeeCombobox({
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     window.visualViewport?.addEventListener("resize", place);
+    window.visualViewport?.addEventListener("scroll", place);
     return () => {
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
       window.visualViewport?.removeEventListener("resize", place);
+      window.visualViewport?.removeEventListener("scroll", place);
     };
   }, [showing]);
 
@@ -189,6 +198,7 @@ export function PayeeCombobox({
   // Only keyboard moves scroll the list. Scrolling under a hovering pointer
   // would move a different option beneath it and set off a loop.
   const keyboardMove = useRef(false);
+  const pointer = useRef<{ x: number; y: number } | null>(null);
   useEffect(() => {
     if (!keyboardMove.current) return;
     keyboardMove.current = false;
@@ -225,7 +235,12 @@ export function PayeeCombobox({
         aria-label={transfer ? `Transfer: ${entry.transferAccount}` : undefined}
         data-option-index={at}
         className={`payee-menu-option${transfer ? " payee-menu-transfer" : ""}${at === active ? " is-active" : ""}`}
-        onMouseMove={() => {
+        onMouseMove={(event) => {
+          // Scrolling by keyboard fires a mousemove under a still pointer;
+          // only a real pointer move should take the highlight.
+          const last = pointer.current;
+          pointer.current = { x: event.clientX, y: event.clientY };
+          if (last && last.x === event.clientX && last.y === event.clientY) return;
           if (active !== at) setActive(at);
         }}
         onClick={() => choose(entry)}
@@ -242,7 +257,7 @@ export function PayeeCombobox({
     );
   };
 
-  const menu = showing && placement
+  const menu = visible && placement
     ? createPortal(
       <div
         ref={menuRef}
@@ -297,9 +312,9 @@ export function PayeeCombobox({
         name="payee"
         role="combobox"
         aria-autocomplete="list"
-        aria-expanded={showing}
-        aria-controls={showing ? listId : undefined}
-        aria-activedescendant={showing && options[active] ? optionId(active) : undefined}
+        aria-expanded={visible}
+        aria-controls={visible ? listId : undefined}
+        aria-activedescendant={visible && options[active] ? optionId(active) : undefined}
         value={value}
         autoComplete="off"
         placeholder="Payee"
@@ -330,7 +345,7 @@ export function PayeeCombobox({
           }
           if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault();
-            if (!showing) {
+            if (!visible) {
               openMenu();
               return;
             }
@@ -341,7 +356,7 @@ export function PayeeCombobox({
               : (current <= 0 ? last : current - 1));
             return;
           }
-          if (event.key === "Enter" && showing && options[active]) {
+          if (event.key === "Enter" && visible && options[active]) {
             // Pick the highlighted entry; the row saves on the next Enter.
             event.preventDefault();
             event.stopPropagation();
@@ -354,7 +369,7 @@ export function PayeeCombobox({
             setOpen(false);
             return;
           }
-          if (event.key === "Escape" && showing) {
+          if (event.key === "Escape" && visible) {
             // Close the list without cancelling the whole row.
             event.preventDefault();
             event.stopPropagation();

@@ -945,6 +945,8 @@ a.page-eyebrow:hover {
 
 .payee-menu-option.is-active {
   background: var(--plan-accent-wash);
+  /* The wash alone is too faint to show what Enter will pick. */
+  box-shadow: inset 2px 0 var(--plan-accent);
 }
 
 @media (forced-colors: active) {
