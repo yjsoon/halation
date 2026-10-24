@@ -19,10 +19,11 @@ type RowEditAccount = {
   readonly closed?: boolean;
 };
 
-type PayeeListEntry = {
+export type PayeeListEntry = {
   readonly id: string;
   readonly value: string;
-  readonly label?: string;
+  /** Set for a transfer payee: the other account's current name. */
+  readonly transferAccount?: string;
 };
 
 export type RegisterRowRef =
@@ -295,10 +296,6 @@ export function postingAccountId(row: RegisterRowRef): string {
   return row.kind === "posted" ? row.transaction.account_id : row.parent.account_id;
 }
 
-function transferOptionLabel(accountName: string): string {
-  return `Transfer to ${accountName}`;
-}
-
 export function payeeListEntries(
   payees: readonly Payee[],
   accounts: readonly RowEditAccount[],
@@ -324,7 +321,7 @@ export function payeeListEntries(
     entries.push({
       id: payee.id,
       value: payee.name,
-      label: transferOptionLabel(account.name),
+      transferAccount: account.name,
     });
   }
   return entries;
