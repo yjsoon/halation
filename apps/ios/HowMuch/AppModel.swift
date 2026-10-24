@@ -3907,9 +3907,10 @@ final class AppModel {
         if reply.isSuccess {
           return .done(client.outboxTransaction(in: reply))
         }
-        // Deleted elsewhere: nothing is left to confirm.
+        // Deleted elsewhere: settle it as a delete, which drops anything
+        // else queued for the row and removes it locally.
         if Self.isTransactionNotFound(reply) {
-          return .done(nil)
+          return .gone
         }
         return .failed(.status(reply.status, message: reply.message))
 

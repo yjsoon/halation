@@ -61,14 +61,26 @@ enum OutboxPlanner {
       next.remove(at: index)
       return next
     }
+    // An approval already on its way (in flight, or attempted) lands before
+    // this delete, so guarding against the unapproved base would refuse it.
+    if case .delete = kind,
+       next.contains(where: { $0.rowKey == incoming.rowKey && ($0.isInFlight || $0.attempted) && $0.carriesApproval }) {
+      kind = .delete(expectedApproved: nil)
+    }
     // An edit folded in beside a waiting confirm takes the confirm with it,
-    // so the two cannot land out of order.
+    // so the two cannot land out of order: the newest say on the marker wins.
     if let confirmIndex, confirmIndex != index,
        case .confirm(let approve) = next[confirmIndex].kind,
        case .update(let request) = kind {
+      let incomingMarker: Bool? = {
+        if case .update(let edit) = incoming.kind { return edit.needsConfirmation }
+        return nil
+      }()
+      let confirmIsNewer = next[confirmIndex].seq > existing.seq
+      let marker = incomingMarker ?? (confirmIsNewer ? false : request.needsConfirmation ?? false)
       kind = .update(request.replacing(
         approved: approve ? true : nil,
-        needsConfirmation: .some(request.needsConfirmation ?? false)
+        needsConfirmation: .some(marker)
       ))
       var folded = existing
       folded.kind = kind
