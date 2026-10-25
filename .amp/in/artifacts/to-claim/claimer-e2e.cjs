@@ -43,6 +43,7 @@ const freePort = () => new Promise((resolve) => {
     `const { Database } = require("bun:sqlite"); new Database(process.argv[1]).query("UPDATE transactions SET memo = ?, claim_status = NULL WHERE id = ?").run(process.argv[2], process.argv[3]);`,
     state.db_path, "TODO: Example legacy", legacy.id]);
   const prose = await create({ payee_name: "Example App Store", memo: "Todo list app" });
+  const bare = await create({ payee_name: "Example Car Park", memo: null, claim_status: "to_claim" });
   const done = await create({ payee_name: "Example Stationer", memo: "CLAIMED - 2026-10-21: Example notebooks" });
   // Transfers: the pair holds one claim, and the tool lists the outflow side.
   const accounts = (await api("GET", `${plan}/accounts`)).body.data.accounts.filter((a) => !a.closed && !a.deleted);
@@ -78,26 +79,30 @@ const freePort = () => new Promise((resolve) => {
     check("flagged row is listed with its memo as the description", byId.get(flagged.id)?.description === "Example taxi", byId.get(flagged.id)?.description);
     check("row an older client wrote as TODO is listed", byId.get(worded.id)?.description === "Example lunch");
     check("legacy TODO memo still listed", byId.get(legacy.id)?.description === "Example legacy");
-    check("prose memo is not a claim", !byId.has(prose.id));
+    check("a memo starting with Todo is still read as a claim, as the tool always did", byId.get(prose.id)?.description === "list app");
+    check("a flagged row is marked as held in the field; a TODO-word row is not", byId.get(flagged.id)?.claimFlagged === true && byId.get(legacy.id)?.claimFlagged === undefined);
+    check("a flagged row with no memo is listed as Claim", byId.get(bare.id)?.description === "Claim");
     check("claimed row is not listed", !byId.has(done.id));
     check("transfer marked on its inflow side is listed once, as the outflow", byId.has(viaInflow.out.id) && !byId.has(viaInflow.into.id));
 
     const claimedDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Singapore" }).format(new Date());
     const line = (todo) => ({
       receiptKey: `e2e/${todo.id}.pdf`, ynabClaimId: todo.id, claimSource: "transaction", claimDescription: todo.description,
-      claimsBackend: "howmuch", date: todo.date, description: todo.description, accountCode: "463", taxType: "NRINPUT", amount: todo.amount,
+      claimFlagged: todo.claimFlagged, claimsBackend: "howmuch", date: todo.date, description: todo.description, accountCode: "463", taxType: "NRINPUT", amount: todo.amount,
     });
     const marked = await (await fetch(`${workerUrl}/xero/invoices/mark-claimed`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Auth-Token": "test-auth" },
-      body: JSON.stringify({ invoiceID: "invoice-e2e", backend: "howmuch", lineItems: [line(byId.get(flagged.id)), line(byId.get(legacy.id)), line(byId.get(viaInflow.out.id))] }),
+      body: JSON.stringify({ invoiceID: "invoice-e2e", backend: "howmuch", lineItems: [line(byId.get(flagged.id)), line(byId.get(legacy.id)), line(byId.get(viaInflow.out.id)), line(byId.get(bare.id))] }),
     })).json();
-    check("mark claimed reports all three claimed", JSON.stringify(marked.claimedYnab) === JSON.stringify([{ id: flagged.id, status: "claimed" }, { id: legacy.id, status: "claimed" }, { id: viaInflow.out.id, status: "claimed" }]), JSON.stringify(marked.claimedYnab));
+    check("mark claimed reports all four claimed", JSON.stringify(marked.claimedYnab) === JSON.stringify([flagged.id, legacy.id, viaInflow.out.id, bare.id].map((id) => ({ id, status: "claimed" }))), JSON.stringify(marked.claimedYnab));
     const after = async (id) => (await api("GET", `${plan}/transactions/${id}`)).body.data.transaction;
     const a = await after(flagged.id);
     const b = await after(legacy.id);
     check("flagged row is stored claimed, memo kept", a.claim_status === "claimed" && a.claimed_on === claimedDate && a.memo === "Example taxi", JSON.stringify([a.memo, a.claim_status, a.claimed_on]));
     check("legacy row is stored claimed, word gone", b.claim_status === "claimed" && b.claimed_on === claimedDate && b.memo === "Example legacy", JSON.stringify([b.memo, b.claim_status, b.claimed_on]));
+    const bareAfter = await after(bare.id);
+    check("a flagged row with no memo keeps no memo", bareAfter.claim_status === "claimed" && bareAfter.memo === null, JSON.stringify([bareAfter.memo, bareAfter.claim_status]));
     const inflow = await after(viaInflow.into.id);
     check("claiming the outflow side claims the inflow side too", inflow.claim_status === "claimed" && inflow.claimed_on === claimedDate && inflow.memo === "Example card top-up", JSON.stringify([inflow.memo, inflow.claim_status, inflow.claimed_on]));
     const again = (await (await fetch(`${workerUrl}/ynab/todos?backend=howmuch&since_date=2026-10-01`, { headers: { "X-Auth-Token": "test-auth" } })).json()).todos;

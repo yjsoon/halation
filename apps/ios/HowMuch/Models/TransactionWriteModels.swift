@@ -486,6 +486,19 @@ struct TransactionDraft: Equatable, Codable {
   /// The claim the form opened with, legacy memo words included.
   var openedClaimStatus: String?
   var openedClaimedOn: String?
+  /// The stored memo when it carries follow-up words (written before the
+  /// fields). Saving without touching the memo or follow-ups sends it back
+  /// as it is, and the server keeps the words.
+  var legacyMemo: String?
+
+  /// True while the memo and follow-ups are as the words left them.
+  var keepsLegacyWords: Bool {
+    guard let legacyMemo else { return false }
+    let legacy = MemoClaim.legacyWords(legacyMemo)
+    return memo.trimmingCharacters(in: .whitespacesAndNewlines) == legacy.text
+      && claimStatus == (loadedClaimStatus ?? legacy.claim?.rawValue)
+      && needsConfirmation == ((loadedToConfirm ?? false) || legacy.toCheck)
+  }
 
   /// The chip: on while the row is to claim. Turning it off on a row that
   /// opened as claimed puts the claimed state back.
@@ -554,6 +567,9 @@ struct TransactionDraft: Equatable, Codable {
     loadedClaimedOn = transaction.claimedOn
     openedClaimStatus = claimStatus
     openedClaimedOn = claimedOn
+    if legacy.claim != nil || legacy.toCheck {
+      legacyMemo = transaction.memo
+    }
   }
 
   init(duplicating transaction: Transaction) {
@@ -744,14 +760,14 @@ struct TransactionDraft: Equatable, Codable {
       payeeID: isSplit && hasParentTransfer ? nil : payeeID,
       payeeName: isSplit && hasParentTransfer ? nil : (trimmedPayee.isEmpty ? nil : trimmedPayee),
       categoryID: isSplit ? nil : categoryID,
-      memo: memo.trimmedNil,
+      memo: keepsLegacyWords ? legacyMemo : memo.trimmedNil,
       cleared: includeCleared ? clearedState : nil,
       approved: approved ?? true,
       flagColor: flag.rawValue.isEmpty ? nil : flag.rawValue,
       subtransactions: subtransactions.compactMap { $0.writeRequest() },
       importID: importID,
-      needsConfirmation: needsConfirmationToWrite(includeCleared: includeCleared),
-      claimStatus: claimToWrite,
+      needsConfirmation: keepsLegacyWords ? nil : needsConfirmationToWrite(includeCleared: includeCleared),
+      claimStatus: keepsLegacyWords ? nil : claimToWrite,
       claimedOn: claimedOn
     )
   }

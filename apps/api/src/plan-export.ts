@@ -73,6 +73,7 @@ function withoutCredentials<T>(value: T): T {
 const CSV_COLUMNS = [
   "Date", "Account", "Payee", "Category group", "Category", "Memo", "Amount",
   "Cleared", "Approved", "Flag", "Transfer account", "Transaction ID", "Split of",
+  "To confirm", "Claim",
 ];
 
 /**
@@ -92,6 +93,10 @@ export function transactionsCsv(snapshot: PlanSnapshot, options: { decimalDigits
   for (const parent of ordered) {
     const approved = parent.approved ? "yes" : "no";
     const flag = parent.flag_name ?? parent.flag_color ?? "";
+    const toConfirm = parent.needs_confirmation ? "yes" : "";
+    const claim = parent.claim_status === "to_claim"
+      ? "to claim"
+      : parent.claim_status === "claimed" ? `claimed${parent.claimed_on ? ` ${parent.claimed_on}` : ""}` : "";
     const payeeOf = (payeeId: string | null, payeeName: string | null) => (payeeId ? payees.get(payeeId) : payeeName) ?? "";
     const parentPayee = payeeOf(parent.payee_id, parent.payee_name);
     const line = (fields: {
@@ -113,6 +118,8 @@ export function transactionsCsv(snapshot: PlanSnapshot, options: { decimalDigits
         fields.transferAccountId ? accounts.get(fields.transferAccountId) ?? "" : "",
         fields.id,
         fields.splitOf,
+        toConfirm,
+        claim,
       ]);
     };
     if (parent.subtransactions.length === 0) {

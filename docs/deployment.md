@@ -100,14 +100,9 @@ environment `tk` in `wrangler.jsonc`:
   the older Worker). Ship an iOS build with the To claim field only after that
   Worker is live: an older Worker ignores the field, so the app would drop the
   claim along with the memo word it strips. Rows written before the release
-  keep their memo words until edited; convert them in one pass with
-  `scripts/convert-follow-up-memos.ts`. Run its dry run (no `--apply`) before
-  tagging too: its "Left as text" list shows memos the claims tool used to
-  read as claims (such as `todo taxi`) that stop counting once the release is
-  live, so they can be rewritten as `TODO: taxi` first. The report holds real
-  memos, so write any `--out` file under the gitignored `data/`. After the
-  release is live, take a fresh backup, run the dry run again, then re-run
-  with `--apply` while nobody is editing.
+  keep their memo words: nothing converts them in bulk, the apps and the
+  claims tool read both the words and the fields, and a row's words become
+  fields only when its memo or follow-ups are edited.
 - Migration `0022_transaction_needs_confirmation.sql` adds
   `transactions.needs_confirmation` (default 0) and a partial index. It is
   additive and the running Worker ignores the column, but the Worker that

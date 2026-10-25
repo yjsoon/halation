@@ -716,6 +716,12 @@ A word counts when it is in capitals, as above, or when it is followed by a
 colon in any case (`todo: Taxi`). Ordinary prose such as `Todo list app` or
 `Claimed back from Sam` is left as it is.
 
+Rows stored before these fields keep their words. An edit that sends a
+row's stored memo back unchanged (a client saving another field) leaves the
+words in place; only a new or changed memo is converted. Clients and the
+claims tool therefore read a leading word on a row whose field is `null` as
+that follow-up.
+
 So `{ "memo": "TODO: Client dinner" }` stores the memo `Client dinner` with
 `claim_status: "to_claim"`. Several words can lead one memo (`TOCHECK TODO:
 Hotel`); a word later in the memo is ordinary text. A field sent in the same
@@ -796,7 +802,7 @@ The JSON archive (`format: "howmuch-export"`, `version: 1`) has:
 
 Passwords, sessions, API tokens and other users are never included. Because `import_snapshot` reads the `snapshot` key of its body, the archive file can be posted to it unchanged to restore the ledger into an empty plan. `import_snapshot` accepts at most 8 MiB, so when Rewards data pushes an archive past that, post `{ "snapshot": … }` with just the archive's `snapshot` instead. Preferences and Rewards cards are then restored through their own endpoints.
 
-The CSV is UTF-8 with a byte-order mark and CRLF line endings, one row per live transaction, oldest first: `Date`, `Account`, `Payee`, `Category group`, `Category`, `Memo`, `Amount`, `Cleared`, `Approved`, `Flag`, `Transfer account`, `Transaction ID`, `Split of`. A split is written as one row per line, with the parent's id in `Split of` and no parent row, so the amounts sum to the ledger. `Amount` is a decimal in the plan currency's decimal places, widened to three when a milliunit would otherwise be lost. Text cells starting with `=`, `+`, `-`, `@`, tab or carriage return get a leading `'` so spreadsheets do not run them as formulas.
+The CSV is UTF-8 with a byte-order mark and CRLF line endings, one row per live transaction, oldest first: `Date`, `Account`, `Payee`, `Category group`, `Category`, `Memo`, `Amount`, `Cleared`, `Approved`, `Flag`, `Transfer account`, `Transaction ID`, `Split of`, `To confirm` (`yes` or empty), `Claim` (`to claim`, `claimed` with its day, or empty). A split is written as one row per line, with the parent's id in `Split of` and no parent row, so the amounts sum to the ledger. `Amount` is a decimal in the plan currency's decimal places, widened to three when a milliunit would otherwise be lost. Text cells starting with `=`, `+`, `-`, `@`, tab or carriage return get a leading `'` so spreadsheets do not run them as formulas.
 
 ### Plan snapshots
 

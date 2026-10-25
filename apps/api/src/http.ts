@@ -4,7 +4,7 @@ import { AccountPreferencesConflictError, LedgerRepository, NotFoundError, Recon
 import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
 import { assertTransactionFieldTypes, collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
-import { normaliseFollowUpWords } from "./transaction-claim";
+import { followUpWords, normaliseFollowUpWords } from "./transaction-claim";
 import { ReportService } from "./reports";
 import { type AmountFormat, amountFormatOf, isStorableMilliunits } from "@howmuch/money";
 import { decimalToMilliunits } from "./money";
@@ -573,7 +573,7 @@ async function handleV1(
     }
     if (segments.length === 4 && method === "PATCH") {
       const edits = parseTransactionUpdates(await readJson(request));
-      for (const edit of edits) normaliseFollowUpWords(edit.patch);
+      for (const edit of edits) await normaliseFollowUpEdit(repo, planId, () => repo.resolveTransactionLookup(planId, edit.lookup), edit.patch);
       // A bulk recolour takes the card's name for the new colour, as a single
       // edit does; otherwise the row keeps the old colour's name.
       for (const edit of edits) {
@@ -687,7 +687,7 @@ async function handleV1(
       const body = await readJson(request);
       const patch = body.transaction ?? body;
       assertTransactionFieldTypes(patch);
-      normaliseFollowUpWords(patch);
+      await normaliseFollowUpEdit(repo, planId, async () => transactionId, patch);
       if (Object.prototype.hasOwnProperty.call(patch, "flag_color") && !Object.prototype.hasOwnProperty.call(patch, "flag_name")) {
         // A move and a flag in one edit take the destination card's names.
         const accountId = typeof patch.account_id === "string" && patch.account_id
@@ -1699,4 +1699,21 @@ function parseAccountUsageWindow(url: URL): { days: number; since: string; until
     throw new ValidationError("until must be a valid calendar date");
   }
   return { days, since: new Date(untilMs - (days - 1) * 86_400_000).toISOString().slice(0, 10), until };
+}
+
+/**
+ * Memo words in an edit become fields, unless the memo is the one already
+ * stored: a row kept with its words (written before the fields) stays as it
+ * is when a client saves it back unchanged with another edit.
+ */
+async function normaliseFollowUpEdit(
+  repo: LedgerStore,
+  planId: string,
+  resolveId: () => string | Promise<string>,
+  patch: Record<string, any>,
+): Promise<void> {
+  if (typeof patch.memo !== "string" || followUpWords(patch.memo).memo === patch.memo) return;
+  const stored = await repo.getTransaction(planId, await resolveId()).catch(() => null);
+  if (stored && stored.memo === patch.memo) return;
+  normaliseFollowUpWords(patch);
 }

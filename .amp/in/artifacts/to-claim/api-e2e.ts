@@ -30,14 +30,17 @@ async function stack(engine: "d1" | "sqlite") {
   await new D1AuthStore(db).setup({ userId: "u", username: "owner", credential: await passwordCredential("correct-horse-battery-staple"), session, planId: PLAN });
   const repo = engine === "d1" ? new D1LedgerRepository(db, PLAN) : new LedgerRepository(sqlite, PLAN);
   const handler = createHandler({ repo, reports: new AsyncReportService(db), auth: new D1AuthStore(db), config: { dbPath: "", port: 0, apiToken: "api-token", defaultPlanId: PLAN, transitionReadOnly: false } });
-  return async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
+  return Object.assign(async (method: string, path: string, body?: unknown, headers: Record<string, string> = {}) => {
     const response = await handler(new Request(`https://howmuch.test${path}`, {
       method,
       headers: { authorization: `Bearer ${session.token}`, "content-type": "application/json", ...headers },
       body: body === undefined ? undefined : JSON.stringify(body),
     }));
     return { status: response.status, body: await response.json() as any };
-  };
+  }, {
+    sqlite,
+    raw: (method: string, path: string) => handler(new Request(`https://howmuch.test${path}`, { method, headers: { authorization: `Bearer ${session.token}` } })),
+  });
 }
 
 for (const engine of ["d1", "sqlite"] as const) {
@@ -152,6 +155,22 @@ for (const engine of ["d1", "sqlite"] as const) {
   check("snapshot import succeeds", imported.status, 201);
   const back = await fresh("GET", `/v1/plans/${PLAN}/transactions/${both.id}`);
   check("snapshot import keeps the claim", claim(back.body.data.transaction), { memo: "Hotel deposit", claim_status: "claimed", claimed_on: "2026-10-26" });
+
+  // Rows stored with memo words keep them unless their memo is edited.
+  const kept = await create({ memo: "seed" });
+  api.sqlite.query("UPDATE transactions SET memo = ?, claim_status = NULL WHERE id = ?").run("TODO: Example kept", kept.id);
+  check("saving a stored memo back unchanged keeps its word", claim(await patch(kept.id, { memo: "TODO: Example kept", flag_color: "red" })),
+    { memo: "TODO: Example kept", claim_status: null, claimed_on: null });
+  const keptBulk = (await api("PATCH", `/v1/plans/${PLAN}/transactions`, { transactions: [{ id: kept.id, memo: "TODO: Example kept", approved: true }] })).body.data.transactions[0];
+  check("a collection PATCH with the stored memo keeps it too", claim(keptBulk), { memo: "TODO: Example kept", claim_status: null, claimed_on: null });
+  check("editing the memo turns the word into the field", claim(await patch(kept.id, { memo: "TODO: Example kept, edited" })),
+    { memo: "Example kept, edited", claim_status: "to_claim", claimed_on: null });
+
+  // The CSV export carries both follow-ups.
+  const csv = await (await api.raw("GET", `/v1/plans/${PLAN}/export/transactions.csv`)).text();
+  const header = csv.replace(/^\uFEFF/, "").split("\r\n")[0];
+  check("CSV header ends with the follow-up columns", header.endsWith(",To confirm,Claim"), true);
+  check("CSV row shows a claimed day", csv.includes(",claimed 2026-10-26"), true);
 
   // A claimed day must be a real date, so snapshots always round-trip.
   const badDay = await create({ memo: "CLAIMED - 2026-02-30: Example parking" });

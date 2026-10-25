@@ -136,6 +136,17 @@ const get = async (id) => (await api("GET", `${plan}/transactions/${id}`)).body.
   const refiled = await get(claimed.id);
   check("re-claiming a claimed row files it to claim and drops the day", refiled.claim_status === "to_claim" && refiled.claimed_on === null && refiled.memo === "Notebooks");
 
+  // Saving another field on a row kept with its words leaves the words alone.
+  await tagged("Example hotel").dblclick();
+  await chips.waitFor();
+  await page.getByLabel("Outflow", { exact: true }).fill("77.70");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForTimeout(1200);
+  const keptWords = await get(legacyChecked.id);
+  check("saving the amount of a row kept with its words keeps the memo and no field",
+    keptWords.memo === "TOCHECK TODO: Example hotel" && keptWords.claim_status === null && keptWords.needs_confirmation === false && keptWords.amount === -77700,
+    JSON.stringify([keptWords.memo, keptWords.claim_status, keptWords.needs_confirmation, keptWords.amount]));
+
   // A legacy CLAIMED row keeps its claimed day when edited.
   await tagged("Example receipt").dblclick();
   await chips.waitFor();

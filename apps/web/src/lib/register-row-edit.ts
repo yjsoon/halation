@@ -476,7 +476,16 @@ function planPostedCommit(
     }
   }
 
-  if (rowFieldWritable(row, "memo", draft, payees)) {
+  // A row stored with memo words keeps them until its memo or follow-ups are
+  // edited; saving another field leaves both alone, so a stale draft cannot
+  // write back a claim the claims tool has since marked.
+  const legacy = legacyWords(txn.memo);
+  const keepWords = (legacy.claim !== null || legacy.toCheck)
+    && draft.memo.trim() === legacy.text
+    && draft.needsConfirmation === (txn.needs_confirmation === true || legacy.toCheck)
+    && draft.claimStatus === (txn.claim_status ?? legacy.claim);
+
+  if (!keepWords && rowFieldWritable(row, "memo", draft, payees)) {
     const memo = draft.memo.trim() || null;
     if (memo !== (txn.memo ?? null)) {
       input.memo = memo;
@@ -488,14 +497,14 @@ function planPostedCommit(
     input.flag_color = flagColor;
   }
 
-  if (typeof draft.needsConfirmation === "boolean" && draft.needsConfirmation !== (txn.needs_confirmation === true)) {
+  if (!keepWords && typeof draft.needsConfirmation === "boolean" && draft.needsConfirmation !== (txn.needs_confirmation === true)) {
     input.needs_confirmation = draft.needsConfirmation;
   }
 
-  if (draft.claimStatus !== undefined && draft.claimStatus !== (txn.claim_status ?? null)) {
+  if (!keepWords && draft.claimStatus !== undefined && draft.claimStatus !== (txn.claim_status ?? null)) {
     input.claim_status = draft.claimStatus;
     // A row stored before the field keeps its claimed day in the memo word.
-    if (draft.claimStatus === "claimed") input.claimed_on = legacyWords(txn.memo).claimedOn;
+    if (draft.claimStatus === "claimed") input.claimed_on = legacy.claimedOn;
   }
 
   if (rowFieldWritable(row, "outflow", draft, payees) || rowFieldWritable(row, "inflow", draft, payees)) {
