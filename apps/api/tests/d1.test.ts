@@ -223,7 +223,10 @@ describe("D1 foundation", () => {
     expect(wranglerConfig.routes).toEqual([{ pattern: "howmuch.soon.sg", custom_domain: true }]);
     // tk env = production in the Tinkertanker account: SIN database, writable, daily materialisation, no redirect var.
     expect(wranglerConfig.env.tk.d1_databases[0]).toMatchObject({ database_name: "howmuch-production-sg", database_id: "d13295f9-10d4-4ac0-bf62-b3e8c78cbf29" });
-    expect(wranglerConfig.env.tk.routes).toEqual([{ pattern: "howmuch.tk.sg", custom_domain: true }]);
+    expect(wranglerConfig.env.tk.routes).toEqual([
+      { pattern: "howmuch.tk.sg", custom_domain: true },
+      { pattern: "halation.tk.sg", custom_domain: true },
+    ]);
     expect(wranglerConfig.env.tk.triggers.crons).toEqual(["5 16 * * *"]);
     expect(wranglerConfig.env.tk.vars).toEqual({
       HOWMUCH_DEFAULT_PLAN_ID: "80bc6db0-d926-4635-a37a-1ba0787c4c4e",
