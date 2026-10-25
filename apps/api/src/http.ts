@@ -1704,7 +1704,8 @@ function parseAccountUsageWindow(url: URL): { days: number; since: string; until
 /**
  * Memo words in an edit become fields, unless the memo is the one already
  * stored: a row kept with its words (written before the fields) stays as it
- * is when a client saves it back unchanged with another edit.
+ * is when a client saves it back unchanged with another edit. A write that
+ * sets a follow-up field itself still converts the words, so the field wins.
  */
 async function normaliseFollowUpEdit(
   repo: LedgerStore,
@@ -1712,8 +1713,21 @@ async function normaliseFollowUpEdit(
   resolveId: () => string | Promise<string>,
   patch: Record<string, any>,
 ): Promise<void> {
-  if (typeof patch.memo !== "string" || followUpWords(patch.memo).memo === patch.memo) return;
+  if (typeof patch.memo !== "string") return;
+  const words = followUpWords(patch.memo);
+  if (words.memo === patch.memo) return;
   const stored = await repo.getTransaction(planId, await resolveId()).catch(() => null);
-  if (stored && stored.memo === patch.memo) return;
+  const setsClaim = patch.claim_status !== undefined;
+  const setsField = setsClaim || patch.needs_confirmation !== undefined;
+  if (stored && stored.memo === patch.memo && !setsField) return;
   normaliseFollowUpWords(patch);
+  // The stored memo plus a TODO word a client cached before it became the
+  // field (a stale draft, a queued offline save) must not reopen a claim the
+  // claims tool has since marked claimed.
+  if (
+    stored?.claim_status === "claimed" && stored.memo === words.memo
+    && words.claim_status === "to_claim" && !setsClaim
+  ) {
+    delete patch.claim_status;
+  }
 }

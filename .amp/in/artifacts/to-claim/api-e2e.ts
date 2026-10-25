@@ -165,6 +165,20 @@ for (const engine of ["d1", "sqlite"] as const) {
   check("a collection PATCH with the stored memo keeps it too", claim(keptBulk), { memo: "TODO: Example kept", claim_status: null, claimed_on: null });
   check("editing the memo turns the word into the field", claim(await patch(kept.id, { memo: "TODO: Example kept, edited" })),
     { memo: "Example kept, edited", claim_status: "to_claim", claimed_on: null });
+  // A field sent with the stored memo wins over its word.
+  const unflag = await create({ memo: "seed" });
+  api.sqlite.query("UPDATE transactions SET memo = ?, claim_status = NULL WHERE id = ?").run("TODO: Example clear", unflag.id);
+  check("a claim field sent with the stored memo converts its word", claim(await patch(unflag.id, { memo: "TODO: Example clear", claim_status: null })),
+    { memo: "Example clear", claim_status: null, claimed_on: null });
+  // A stale save that still carries the TODO word cannot reopen a marked claim.
+  const stale = await create({ memo: "seed" });
+  api.sqlite.query("UPDATE transactions SET memo = ?, claim_status = NULL WHERE id = ?").run("TODO: Example stale", stale.id);
+  await api("PATCH", `/v1/plans/${PLAN}/transactions`, { transactions: [{ id: stale.id, memo: "CLAIMED - 2026-10-25: Example stale", claim_status: "claimed", claimed_on: "2026-10-25" }] });
+  check("a stale save with the old TODO memo keeps the claim claimed", claim(await patch(stale.id, { memo: "TODO: Example stale", amount: -9990 })),
+    { memo: "Example stale", claim_status: "claimed", claimed_on: "2026-10-25" });
+  check("a stale save does not lose its other edit", (await get(stale.id)).amount, -9990);
+  check("typing TODO on a claimed row with new text reopens it", claim(await patch(stale.id, { memo: "TODO: Example stale again" })),
+    { memo: "Example stale again", claim_status: "to_claim", claimed_on: null });
 
   // The CSV export carries both follow-ups.
   const csv = await (await api.raw("GET", `/v1/plans/${PLAN}/export/transactions.csv`)).text();

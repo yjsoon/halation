@@ -718,9 +718,11 @@ colon in any case (`todo: Taxi`). Ordinary prose such as `Todo list app` or
 
 Rows stored before these fields keep their words. An edit that sends a
 row's stored memo back unchanged (a client saving another field) leaves the
-words in place; only a new or changed memo is converted. Clients and the
-claims tool therefore read a leading word on a row whose field is `null` as
-that follow-up.
+words in place; only a new or changed memo, or a write that also sends a
+follow-up field, is converted. Clients and the claims tool therefore read a
+leading word on a row whose field is `null` as that follow-up. A memo that
+is the stored one with a `TODO` word in front (a save from a client that
+cached the row before it was marked claimed) does not reopen a claimed row.
 
 So `{ "memo": "TODO: Client dinner" }` stores the memo `Client dinner` with
 `claim_status: "to_claim"`. Several words can lead one memo (`TOCHECK TODO:
