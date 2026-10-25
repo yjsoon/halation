@@ -102,7 +102,10 @@ environment `tk` in `wrangler.jsonc`:
   claim along with the memo word it strips. Rows written before the release
   keep their memo words: nothing converts them in bulk, the apps and the
   claims tool read both the words and the fields, and a row's words become
-  fields only when its memo or follow-ups are edited.
+  fields only when its memo or follow-ups are edited. Rolling the Worker
+  back to a tag before 0023 after the release hides claims held in the field
+  from the apps and the claims tool until it rolls forward again; the
+  columns and their values stay in D1.
 - Migration `0022_transaction_needs_confirmation.sql` adds
   `transactions.needs_confirmation` (default 0) and a partial index. It is
   additive and the running Worker ignores the column, but the Worker that

@@ -177,6 +177,24 @@ for (const engine of ["d1", "sqlite"] as const) {
   check("a stale save with the old TODO memo keeps the claim claimed", claim(await patch(stale.id, { memo: "TODO: Example stale", amount: -9990 })),
     { memo: "Example stale", claim_status: "claimed", claimed_on: "2026-10-25" });
   check("a stale save does not lose its other edit", (await get(stale.id)).amount, -9990);
+  // Changing only To confirm sends the stored word memo with the field: the
+  // words convert, and a claim marked since stays claimed.
+  const echo = await create({ memo: "seed" });
+  api.sqlite.query("UPDATE transactions SET memo = ?, claim_status = NULL WHERE id = ?").run("TODO: Example echo", echo.id);
+  check("To confirm with the stored word memo converts the words", claim(await patch(echo.id, { memo: "TODO: Example echo", needs_confirmation: true })),
+    { memo: "Example echo", claim_status: "to_claim", claimed_on: null });
+  check("and sets To confirm", (await get(echo.id)).needs_confirmation, true);
+  const echoStale = await create({ memo: "seed" });
+  api.sqlite.query("UPDATE transactions SET memo = ?, claim_status = 'claimed', claimed_on = '2026-10-20' WHERE id = ?").run("Example echo stale", echoStale.id);
+  check("To confirm with a stale word memo keeps a marked claim", claim(await patch(echoStale.id, { memo: "TODO: Example echo stale", needs_confirmation: true })),
+    { memo: "Example echo stale", claim_status: "claimed", claimed_on: "2026-10-20" });
+  // An empty stored memo counts as no memo for the stale guard.
+  const emptyStale = await create({ memo: "seed" });
+  api.sqlite.query("UPDATE transactions SET memo = '', claim_status = 'claimed', claimed_on = '2026-10-20' WHERE id = ?").run(emptyStale.id);
+  check("a stale bare TODO: on a claimed row with an empty memo keeps it claimed", (await patch(emptyStale.id, { memo: "TODO:" })).claim_status, "claimed");
+  // A CLAIMED word without a day keeps the day a claimed row already has.
+  check("a CLAIMED word without a day keeps the stored day", claim(await patch(echoStale.id, { memo: "CLAIMED: Example echo stale" })),
+    { memo: "Example echo stale", claim_status: "claimed", claimed_on: "2026-10-20" });
   check("typing TODO on a claimed row with new text reopens it", claim(await patch(stale.id, { memo: "TODO: Example stale again" })),
     { memo: "Example stale again", claim_status: "to_claim", claimed_on: null });
 

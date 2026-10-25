@@ -1725,7 +1725,7 @@ async function normaliseFollowUpEdit(
   // field (a stale draft, a queued offline save) must not reopen a claim the
   // claims tool has since marked claimed.
   if (
-    stored?.claim_status === "claimed" && stored.memo === words.memo
+    stored?.claim_status === "claimed" && (stored.memo || null) === (words.memo || null)
     && words.claim_status === "to_claim" && !setsClaim
   ) {
     delete patch.claim_status;

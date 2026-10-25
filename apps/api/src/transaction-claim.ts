@@ -88,9 +88,10 @@ export function normaliseFollowUpWords<T extends Partial<TransactionInput>>(inpu
   const next = input as Partial<TransactionInput>;
   next.memo = words.memo;
   if (words.claim_status && next.claim_status === undefined) next.claim_status = words.claim_status;
-  // The word's day fills a claimed write that does not give one.
-  if (words.claim_status === "claimed" && next.claim_status === "claimed" && next.claimed_on === undefined) {
-    next.claimed_on = words.claimed_on ?? null;
+  // The word's day fills a claimed write that does not give one. A word
+  // without a day leaves the day to the row (kept if it is already claimed).
+  if (words.claim_status === "claimed" && next.claim_status === "claimed" && next.claimed_on === undefined && words.claimed_on) {
+    next.claimed_on = words.claimed_on;
   }
   if (words.needs_confirmation && next.needs_confirmation === undefined) next.needs_confirmation = true;
   return input;

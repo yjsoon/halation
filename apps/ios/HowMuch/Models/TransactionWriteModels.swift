@@ -491,13 +491,25 @@ struct TransactionDraft: Equatable, Codable {
   /// as it is, and the server keeps the words.
   var legacyMemo: String?
 
-  /// True while the memo and follow-ups are as the words left them.
-  var keepsLegacyWords: Bool {
+  /// True while the memo text and To claim are as the words left them. Save
+  /// then sends the stored memo back and no claim: the server keeps the
+  /// words, or turns them into fields if To confirm is sent, without
+  /// reopening a claim the claims tool has marked since the row was loaded.
+  var echoesLegacyWords: Bool {
     guard let legacyMemo else { return false }
     let legacy = MemoClaim.legacyWords(legacyMemo)
     return memo.trimmingCharacters(in: .whitespacesAndNewlines) == legacy.text
       && claimStatus == (loadedClaimStatus ?? legacy.claim?.rawValue)
-      && needsConfirmation == ((loadedToConfirm ?? false) || legacy.toCheck)
+  }
+
+  /// To confirm as the editor opened it, from the field or a TOCHECK word.
+  var openedToConfirm: Bool {
+    (loadedToConfirm ?? false) || (legacyMemo.map { MemoClaim.legacyWords($0).toCheck } ?? false)
+  }
+
+  /// True while the memo and both follow-ups are as the words left them.
+  var keepsLegacyWords: Bool {
+    echoesLegacyWords && needsConfirmation == openedToConfirm
   }
 
   /// The chip: on while the row is to claim. Turning it off on a row that
@@ -753,6 +765,13 @@ struct TransactionDraft: Equatable, Codable {
   func writeRequest(includeCleared: Bool = true) -> TransactionWriteRequest {
     let trimmedPayee = payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
     let hasParentTransfer = transferAccountID != nil
+    // Clearing an uncleared row confirms it unless the write says otherwise,
+    // so a row kept with its words sends To confirm then, as other rows do.
+    let clearsRow = includeCleared && loadedCleared == .uncleared && clearedState != .uncleared
+    let echoesWords = echoesLegacyWords
+    let toConfirmWrite: Bool? = echoesWords
+      ? (needsConfirmation != openedToConfirm || clearsRow ? needsConfirmation : nil)
+      : needsConfirmationToWrite(includeCleared: includeCleared)
     return TransactionWriteRequest(
       accountID: accountID,
       date: date.isoDateString,
@@ -760,14 +779,14 @@ struct TransactionDraft: Equatable, Codable {
       payeeID: isSplit && hasParentTransfer ? nil : payeeID,
       payeeName: isSplit && hasParentTransfer ? nil : (trimmedPayee.isEmpty ? nil : trimmedPayee),
       categoryID: isSplit ? nil : categoryID,
-      memo: keepsLegacyWords ? legacyMemo : memo.trimmedNil,
+      memo: echoesWords ? legacyMemo : memo.trimmedNil,
       cleared: includeCleared ? clearedState : nil,
       approved: approved ?? true,
       flagColor: flag.rawValue.isEmpty ? nil : flag.rawValue,
       subtransactions: subtransactions.compactMap { $0.writeRequest() },
       importID: importID,
-      needsConfirmation: keepsLegacyWords ? nil : needsConfirmationToWrite(includeCleared: includeCleared),
-      claimStatus: keepsLegacyWords ? nil : claimToWrite,
+      needsConfirmation: toConfirmWrite,
+      claimStatus: echoesWords ? nil : claimToWrite,
       claimedOn: claimedOn
     )
   }

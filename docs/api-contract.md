@@ -957,7 +957,7 @@ Body:
 ```
 
 `needs_confirmation` (optional boolean) marks an estimated amount; see
-[To confirm](#to-confirm). `claim_status` (optional, `"to_claim"` or `null`)
+[To confirm](#to-confirm). `claim_status` (optional, `"to_claim"`, `"claimed"` or `null`)
 marks a spend to claim back; see [To claim](#to-claim). The memo words
 described there apply here too.
 

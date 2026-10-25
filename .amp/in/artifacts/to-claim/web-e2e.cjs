@@ -147,6 +147,17 @@ const get = async (id) => (await api("GET", `${plan}/transactions/${id}`)).body.
     keptWords.memo === "TOCHECK TODO: Example hotel" && keptWords.claim_status === null && keptWords.needs_confirmation === false && keptWords.amount === -77700,
     JSON.stringify([keptWords.memo, keptWords.claim_status, keptWords.needs_confirmation, keptWords.amount]));
 
+  // Changing only To confirm on such a row turns its words into fields.
+  await tagged("Example hotel").dblclick();
+  await chips.waitFor();
+  await chips.getByRole("button", { name: "To confirm" }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await page.waitForTimeout(1200);
+  const confirmedWords = await get(legacyChecked.id);
+  check("turning To confirm off on a row kept with its words stores the fields",
+    confirmedWords.memo === "Example hotel" && confirmedWords.claim_status === "to_claim" && confirmedWords.needs_confirmation === false,
+    JSON.stringify([confirmedWords.memo, confirmedWords.claim_status, confirmedWords.needs_confirmation]));
+
   // A legacy CLAIMED row keeps its claimed day when edited.
   await tagged("Example receipt").dblclick();
   await chips.waitFor();

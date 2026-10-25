@@ -476,14 +476,22 @@ function planPostedCommit(
     }
   }
 
-  // A row stored with memo words keeps them until its memo or follow-ups are
-  // edited; saving another field leaves both alone, so a stale draft cannot
-  // write back a claim the claims tool has since marked.
+  // A row stored with memo words keeps them while its memo text and To claim
+  // are untouched: saving another field leaves both alone. Changing only To
+  // confirm sends the stored memo back with it, so the server turns the words
+  // into fields without reopening a claim the claims tool has since marked.
   const legacy = legacyWords(txn.memo);
-  const keepWords = (legacy.claim !== null || legacy.toCheck)
+  const echoWords = (legacy.claim !== null || legacy.toCheck)
     && draft.memo.trim() === legacy.text
-    && draft.needsConfirmation === (txn.needs_confirmation === true || legacy.toCheck)
     && draft.claimStatus === (txn.claim_status ?? legacy.claim);
+  if (
+    echoWords && typeof draft.needsConfirmation === "boolean"
+    && draft.needsConfirmation !== (txn.needs_confirmation === true || legacy.toCheck)
+  ) {
+    if (rowFieldWritable(row, "memo", draft, payees)) input.memo = txn.memo ?? null;
+    input.needs_confirmation = draft.needsConfirmation;
+  }
+  const keepWords = echoWords;
 
   if (!keepWords && rowFieldWritable(row, "memo", draft, payees)) {
     const memo = draft.memo.trim() || null;
