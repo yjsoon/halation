@@ -709,7 +709,7 @@ them from the stored memo:
 | Memo starts with | Becomes |
 | --- | --- |
 | `TODO`, then `:`, a space or the end | `claim_status: "to_claim"` |
-| `CLAIMED - 2026-01-02:`, `CLAIMED:` or `CLAIMED` | `claim_status: "claimed"`, `claimed_on` the day or `null` |
+| `CLAIMED - 2026-01-02:`, `CLAIMED:` or `CLAIMED` | `claim_status: "claimed"`, `claimed_on` the day; without a day, the day a claimed row already has, otherwise `null` |
 | `TOCHECK` | `needs_confirmation: true` |
 
 A word counts when it is in capitals, as above, or when it is followed by a
@@ -722,7 +722,9 @@ words in place; only a new or changed memo, or a write that also sends a
 follow-up field, is converted. Clients and the claims tool therefore read a
 leading word on a row whose field is `null` as that follow-up. A memo that
 is the stored one with a `TODO` word in front (a save from a client that
-cached the row before it was marked claimed) does not reopen a claimed row.
+cached the row before it was marked claimed) does not reopen a claimed row,
+and words in a memo sent back exactly as stored never change a claim the
+field already holds.
 
 So `{ "memo": "TODO: Client dinner" }` stores the memo `Client dinner` with
 `claim_status: "to_claim"`. Several words can lead one memo (`TOCHECK TODO:

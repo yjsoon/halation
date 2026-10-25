@@ -482,6 +482,7 @@ function planPostedCommit(
   // into fields without reopening a claim the claims tool has since marked.
   const legacy = legacyWords(txn.memo);
   const echoWords = (legacy.claim !== null || legacy.toCheck)
+    && (txn.claim_status ?? null) === null
     && draft.memo.trim() === legacy.text
     && draft.claimStatus === (txn.claim_status ?? legacy.claim);
   if (

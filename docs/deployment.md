@@ -105,7 +105,9 @@ environment `tk` in `wrangler.jsonc`:
   fields only when its memo or follow-ups are edited. Rolling the Worker
   back to a tag before 0023 after the release hides claims held in the field
   from the apps and the claims tool until it rolls forward again; the
-  columns and their values stay in D1.
+  columns and their values stay in D1, and on rolling forward they win over
+  any claim changed through memo words in the meantime, so check claims
+  changed during a rollback.
 - Migration `0022_transaction_needs_confirmation.sql` adds
   `transactions.needs_confirmation` (default 0) and a partial index. It is
   additive and the running Worker ignores the column, but the Worker that

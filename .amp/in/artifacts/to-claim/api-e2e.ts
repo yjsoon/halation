@@ -188,6 +188,17 @@ for (const engine of ["d1", "sqlite"] as const) {
   api.sqlite.query("UPDATE transactions SET memo = ?, claim_status = 'claimed', claimed_on = '2026-10-20' WHERE id = ?").run("Example echo stale", echoStale.id);
   check("To confirm with a stale word memo keeps a marked claim", claim(await patch(echoStale.id, { memo: "TODO: Example echo stale", needs_confirmation: true })),
     { memo: "Example echo stale", claim_status: "claimed", claimed_on: "2026-10-20" });
+  // A row whose field is set but whose memo still carries a word (an API
+  // client set the field alone): sending that memo back with To confirm does
+  // not let the word move the claim either way.
+  const heldClaimed = await create({ memo: "seed" });
+  api.sqlite.query("UPDATE transactions SET memo = ?, claim_status = 'claimed', claimed_on = '2026-10-24' WHERE id = ?").run("TODO: Example held", heldClaimed.id);
+  check("a stored TODO word sent back does not reopen a claimed field", claim(await patch(heldClaimed.id, { memo: "TODO: Example held", needs_confirmation: true })),
+    { memo: "Example held", claim_status: "claimed", claimed_on: "2026-10-24" });
+  const heldOpen = await create({ memo: "seed" });
+  api.sqlite.query("UPDATE transactions SET memo = ?, claim_status = 'to_claim', claimed_on = NULL WHERE id = ?").run("CLAIMED - 2026-01-02: Example refiled", heldOpen.id);
+  check("a stored CLAIMED word sent back does not close a to-claim field", claim(await patch(heldOpen.id, { memo: "CLAIMED - 2026-01-02: Example refiled", needs_confirmation: true })),
+    { memo: "Example refiled", claim_status: "to_claim", claimed_on: null });
   // An empty stored memo counts as no memo for the stale guard.
   const emptyStale = await create({ memo: "seed" });
   api.sqlite.query("UPDATE transactions SET memo = '', claim_status = 'claimed', claimed_on = '2026-10-20' WHERE id = ?").run(emptyStale.id);

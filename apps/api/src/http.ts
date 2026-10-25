@@ -1718,16 +1718,21 @@ async function normaliseFollowUpEdit(
   if (words.memo === patch.memo) return;
   const stored = await repo.getTransaction(planId, await resolveId()).catch(() => null);
   const setsClaim = patch.claim_status !== undefined;
+  const patchMemo = patch.memo;
   const setsField = setsClaim || patch.needs_confirmation !== undefined;
   if (stored && stored.memo === patch.memo && !setsField) return;
   normaliseFollowUpWords(patch);
-  // The stored memo plus a TODO word a client cached before it became the
-  // field (a stale draft, a queued offline save) must not reopen a claim the
-  // claims tool has since marked claimed.
+  // Words never move a claim the field already holds when they only echo
+  // what was stored: the stored memo plus a TODO word a client cached before
+  // it became the field (a stale draft, a queued offline save, after the
+  // claims tool marked the row), or the stored memo sent back as it is.
   if (
-    stored?.claim_status === "claimed" && (stored.memo || null) === (words.memo || null)
-    && words.claim_status === "to_claim" && !setsClaim
+    !setsClaim && stored && (
+      (stored.claim_status === "claimed" && (stored.memo || null) === (words.memo || null) && words.claim_status === "to_claim")
+      || (stored.claim_status != null && stored.memo === patchMemo)
+    )
   ) {
     delete patch.claim_status;
+    delete patch.claimed_on;
   }
 }

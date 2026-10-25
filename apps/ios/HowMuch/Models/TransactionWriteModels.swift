@@ -496,7 +496,7 @@ struct TransactionDraft: Equatable, Codable {
   /// words, or turns them into fields if To confirm is sent, without
   /// reopening a claim the claims tool has marked since the row was loaded.
   var echoesLegacyWords: Bool {
-    guard let legacyMemo else { return false }
+    guard let legacyMemo, loadedClaimStatus == nil else { return false }
     let legacy = MemoClaim.legacyWords(legacyMemo)
     return memo.trimmingCharacters(in: .whitespacesAndNewlines) == legacy.text
       && claimStatus == (loadedClaimStatus ?? legacy.claim?.rawValue)

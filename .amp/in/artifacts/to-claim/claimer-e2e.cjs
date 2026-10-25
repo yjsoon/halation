@@ -47,6 +47,13 @@ const freePort = () => new Promise((resolve) => {
   storeLegacyMemo(checked.id, "TOCHECK TODO: Example hotel");
   const emptyWord = await create({ payee_name: "Example Kiosk", memo: "seed" });
   storeLegacyMemo(emptyWord.id, "TODO:");
+  const checkedAfterTodo = await create({ payee_name: "Example Inn", memo: "seed" });
+  storeLegacyMemo(checkedAfterTodo.id, "TODO: TOCHECK: Example inn");
+  // An API client set the field alone, so the word stayed in the memo.
+  const leftover = await create({ payee_name: "Example Ferry", memo: "Example ferry" });
+  execFileSync("bun", ["-e",
+    `const { Database } = require("bun:sqlite"); new Database(process.argv[1]).query("UPDATE transactions SET memo = ?, claim_status = 'to_claim' WHERE id = ?").run(process.argv[2], process.argv[3]);`,
+    state.db_path, "TODO: Example ferry", leftover.id]);
   const prose = await create({ payee_name: "Example App Store", memo: "Todo list app" });
   const bare = await create({ payee_name: "Example Car Park", memo: null, claim_status: "to_claim" });
   const done = await create({ payee_name: "Example Stationer", memo: "CLAIMED - 2026-10-21: Example notebooks" });
@@ -99,6 +106,8 @@ const freePort = () => new Promise((resolve) => {
     check("claimed row is not listed", !byId.has(done.id));
     check("a TOCHECK TODO row is listed as an estimate", byId.get(checked.id)?.description === "Example hotel" && byId.get(checked.id)?.needsConfirmation === true, JSON.stringify(byId.get(checked.id)));
     check("a bare TODO: row is listed as Claim", byId.get(emptyWord.id)?.description === "Claim");
+    check("a TOCHECK word after TODO also marks the claim an estimate", byId.get(checkedAfterTodo.id)?.description === "Example inn" && byId.get(checkedAfterTodo.id)?.needsConfirmation === true);
+    check("a flagged row's leftover word is not in its description", byId.get(leftover.id)?.description === "Example ferry" && byId.get(leftover.id)?.claimFlagged === true);
     check("the linked side of a split-line transfer is listed", byId.get(linked.id)?.claimFlagged === true, `linked amount ${linked.amount}`);
     check("transfer marked on its inflow side is listed once, as the outflow", byId.has(viaInflow.out.id) && !byId.has(viaInflow.into.id));
 
