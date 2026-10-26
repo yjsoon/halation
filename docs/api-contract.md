@@ -395,8 +395,9 @@ Supported query parameters:
 
 - `since_date`
 - `until_date`
-- `type` — `unapproved`, `approved`, `uncategorized` or `needs_confirmation`
-  (rows whose amount is still to be confirmed; see [To confirm](#to-confirm))
+- `type`: `unapproved`, `approved`, `uncategorized`, `needs_confirmation`
+  (rows whose amount is still to be confirmed; see [To confirm](#to-confirm)),
+  `to_claim` or `claimed` (see [To claim](#to-claim))
 - `last_knowledge_of_server`
 - `limit` — whole number from 1 to 250; defaults to 100
 - `offset` — zero-based whole-number offset; defaults to 0
@@ -450,6 +451,14 @@ To-confirm count:
 
 Same shape and rules as the unapproved count, over the rows
 `?type=needs_confirmation` lists.
+
+To-claim count:
+
+`GET /v1/plans/{plan_id}/transactions/to_claim_count`
+
+`GET /v1/plans/{plan_id}/accounts/{account_id}/transactions/to_claim_count`
+
+Same shape and rules again, over the rows `?type=to_claim` lists.
 
 Bulk import:
 
@@ -515,7 +524,7 @@ Collection update:
 ```json
 {
   "transactions": [
-    { "id": "txn-1", "memo": "CLAIMED - 2026-01-02: Client dinner" },
+    { "id": "txn-1", "claim_status": "claimed", "claimed_on": "2026-01-02" },
     { "import_id": "source-unique-id", "approved": true }
   ]
 }
@@ -621,6 +630,8 @@ Updatable fields:
 - `flag_color`
 - `flag_name`
 - `needs_confirmation`
+- `claim_status`
+- `claimed_on`
 
 #### To confirm
 
@@ -646,12 +657,9 @@ Guidance for MCP servers, agents and scripts that add transactions:
   `approved: false`; flags (`flag_color`) carry reward subcategories. Do not
   use either to mean "estimated", and do not use `needs_confirmation` to mean
   "please review".
-- It is independent of the receipt-claim convention: a memo that starts with
-  `TODO` followed by `:` or a space (any case), such as `TODO: Client dinner`,
-  marks a row to claim, and the claims tool rewrites it to
-  `CLAIMED - YYYY-MM-DD: Client dinner`. A row can be both. Never start a
-  memo with `TODO` to mean "check this later": that files the row as a
-  receipt to claim. Use `needs_confirmation` for estimates.
+- It is independent of [To claim](#to-claim). A row can be both. Never use
+  `claim_status` or a `TODO` memo to mean "check this later": that files the
+  row as a receipt to claim. Use `needs_confirmation` for estimates.
 
 Confirming:
 
@@ -671,6 +679,59 @@ Confirming:
 Each side of a transfer, and the linked side of a split-line transfer, keeps
 its own `needs_confirmation`, like `cleared` and flags. Split lines have no
 marker of their own; set it on the parent.
+
+#### To claim
+
+`claim_status` marks a spend to be claimed back, such as a work expense paid
+on a personal card. It is `"to_claim"` until the claim is made, `"claimed"`
+afterwards, and `null` for an ordinary row. `claimed_on` is the day it was
+claimed (`YYYY-MM-DD`) or `null`; it is only kept while the row is
+`claimed`. Both are HowMuch fields, not part of the YNAB API. The web and iOS
+apps show a To claim or Claimed tag on these rows and can list them on their
+own.
+
+- Set `claim_status: "to_claim"` when the user says a spend is to be claimed
+  or reimbursed. The claims tool lists those rows, and sets
+  `claim_status: "claimed"` with `claimed_on` once it has billed them.
+- Moving back to `"to_claim"` or `null` drops `claimed_on`. Clearing,
+  reconciling and amount edits never change the claim.
+- A transfer holds one claim, as it holds one memo: writing it on either side
+  sets both, and the claims tool lists the outflow side. The other side of a
+  transfer made from a split line keeps its own. Split lines have none; set
+  it on the parent.
+
+Memo words from older clients: before these fields existed, clients marked a
+claim in the memo. The API still accepts those words at the start of a
+transaction memo on create and update (and in a schedule's memo, on each
+occurrence it enters) and turns them into fields, removing
+them from the stored memo:
+
+| Memo starts with | Becomes |
+| --- | --- |
+| `TODO`, then `:`, a space or the end | `claim_status: "to_claim"` |
+| `CLAIMED - 2026-01-02:`, `CLAIMED:` or `CLAIMED` | `claim_status: "claimed"`, `claimed_on` the day; without a day, the day a claimed row already has, otherwise `null` |
+| `TOCHECK` | `needs_confirmation: true` |
+
+A word counts when it is in capitals, as above, or when it is followed by a
+colon in any case (`todo: Taxi`). Ordinary prose such as `Todo list app` or
+`Claimed back from Sam` is left as it is.
+
+Rows stored before these fields keep their words. An edit that sends a
+row's stored memo back unchanged (a client saving another field) leaves the
+words in place; only a new or changed memo, or a write that also sends a
+follow-up field, is converted. Clients and the claims tool therefore read a
+leading word on a row whose field is `null` as that follow-up. A memo that
+is the stored one with a `TODO` word in front (a save from a client that
+cached the row before it was marked claimed) does not reopen a claimed row,
+and words in a memo sent back exactly as stored never change a claim the
+field already holds.
+
+So `{ "memo": "TODO: Client dinner" }` stores the memo `Client dinner` with
+`claim_status: "to_claim"`. Several words can lead one memo (`TOCHECK TODO:
+Hotel`); a word later in the memo is ordinary text. A field sent in the same
+write wins over the word. Split-line memos and bulk bank imports
+(`POST /transactions/import`) are stored as sent. New clients should send
+the fields and not the words.
 
 Transfers (YNAB semantics):
 
@@ -745,7 +806,7 @@ The JSON archive (`format: "howmuch-export"`, `version: 1`) has:
 
 Passwords, sessions, API tokens and other users are never included. Because `import_snapshot` reads the `snapshot` key of its body, the archive file can be posted to it unchanged to restore the ledger into an empty plan. `import_snapshot` accepts at most 8 MiB, so when Rewards data pushes an archive past that, post `{ "snapshot": … }` with just the archive's `snapshot` instead. Preferences and Rewards cards are then restored through their own endpoints.
 
-The CSV is UTF-8 with a byte-order mark and CRLF line endings, one row per live transaction, oldest first: `Date`, `Account`, `Payee`, `Category group`, `Category`, `Memo`, `Amount`, `Cleared`, `Approved`, `Flag`, `Transfer account`, `Transaction ID`, `Split of`. A split is written as one row per line, with the parent's id in `Split of` and no parent row, so the amounts sum to the ledger. `Amount` is a decimal in the plan currency's decimal places, widened to three when a milliunit would otherwise be lost. Text cells starting with `=`, `+`, `-`, `@`, tab or carriage return get a leading `'` so spreadsheets do not run them as formulas.
+The CSV is UTF-8 with a byte-order mark and CRLF line endings, one row per live transaction, oldest first: `Date`, `Account`, `Payee`, `Category group`, `Category`, `Memo`, `Amount`, `Cleared`, `Approved`, `Flag`, `Transfer account`, `Transaction ID`, `Split of`, `To confirm` (`yes` or empty), `Claim` (`to claim`, `claimed` with its day, or empty). A split is written as one row per line, with the parent's id in `Split of` and no parent row, so the amounts sum to the ledger. `Amount` is a decimal in the plan currency's decimal places, widened to three when a milliunit would otherwise be lost. Text cells starting with `=`, `+`, `-`, `@`, tab or carriage return get a leading `'` so spreadsheets do not run them as formulas.
 
 ### Plan snapshots
 
@@ -889,6 +950,7 @@ Body:
   "memo": "optional",
   "flag_color": null,
   "needs_confirmation": false,
+  "claim_status": null,
   "subtransactions": [
     { "amount": "-8.34", "category_id": "cat-a", "memo": "optional" },
     { "amount": "-4.00", "category_id": "cat-b" }
@@ -897,7 +959,9 @@ Body:
 ```
 
 `needs_confirmation` (optional boolean) marks an estimated amount; see
-[To confirm](#to-confirm).
+[To confirm](#to-confirm). `claim_status` (optional, `"to_claim"`, `"claimed"` or `null`)
+marks a spend to claim back; see [To claim](#to-claim). The memo words
+described there apply here too.
 
 `payee_id` may be an account's `transfer_payee_id` to record a transfer, and
 `subtransactions` (optional, decimal amounts) records a split; both follow the

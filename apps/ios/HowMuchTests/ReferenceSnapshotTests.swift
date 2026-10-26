@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import HowMuch
 
@@ -60,8 +61,8 @@ private enum SnapshotFixture {
     date: String = "2026-01-02",
     amount: Int = -1230,
     approved: Bool = true
-  ) -> Transaction {
-    Transaction(
+  ) -> HowMuch.Transaction {
+    HowMuch.Transaction(
       id: id,
       date: date,
       amount: amount,
@@ -110,7 +111,7 @@ private enum SnapshotFixture {
     settings: APISettings,
     serverKnowledge: Int? = 7,
     accounts: [Account] = [account()],
-    transactions: [Transaction] = [transaction(id: "snapshot-row")],
+    transactions: [HowMuch.Transaction] = [transaction(id: "snapshot-row")],
     hasMore: Bool = false,
     nextOffset: Int? = nil,
     unapprovedCount: Int? = nil,
@@ -279,13 +280,27 @@ final class ReferenceSnapshotStoreTests: XCTestCase {
     XCTAssertEqual(SnapshotPolicy.rejection(snapshot: snapshot, settings: settings), .differentPlan)
   }
 
-  func testPolicyRejectsAnOlderSchema() {
+  func testPolicyRejectsUnsupportedSchemas() {
     let settings = SnapshotFixture.settings()
-    let snapshot = SnapshotFixture.snapshot(
-      settings: settings,
-      schemaVersion: ReferenceSnapshot.currentSchemaVersion - 1
-    )
-    XCTAssertEqual(SnapshotPolicy.rejection(snapshot: snapshot, settings: settings), .schemaMismatch)
+    for version in [2, ReferenceSnapshot.currentSchemaVersion + 1] {
+      let snapshot = SnapshotFixture.snapshot(settings: settings, schemaVersion: version)
+      XCTAssertEqual(SnapshotPolicy.rejection(snapshot: snapshot, settings: settings), .schemaMismatch)
+    }
+  }
+
+  func testSchemaThreeCompatibilityStillRequiresTheSameIdentity() {
+    let settings = SnapshotFixture.settings()
+    let snapshot = SnapshotFixture.snapshot(settings: settings, schemaVersion: 3)
+    XCTAssertNil(SnapshotPolicy.rejection(snapshot: snapshot, settings: settings))
+    var foreign = snapshot
+    foreign.connectionFingerprint = "another-connection"
+    XCTAssertEqual(SnapshotPolicy.rejection(snapshot: foreign, settings: settings), .differentConnection)
+    foreign = snapshot
+    foreign.authenticatedUserID = "another-user"
+    XCTAssertEqual(SnapshotPolicy.rejection(snapshot: foreign, settings: settings), .differentUser)
+    foreign = snapshot
+    foreign.planID = "another-plan"
+    XCTAssertEqual(SnapshotPolicy.rejection(snapshot: foreign, settings: settings), .differentPlan)
   }
 
   func testPolicyRejectsASignedOutSessionAndAnUnselectedPlan() {
@@ -384,6 +399,58 @@ final class ReferenceSnapshotLaunchTests: XCTestCase {
 
   private func fixtureSettings() -> APISettings {
     SnapshotFixture.settings(baseURL: SnapshotRefreshProtocol.fixtureBaseURL)
+  }
+
+  // An upgrade can happen offline, and adding optional claim fields does not
+  // advance the server cursor. Neither case is covered by a normal warm launch.
+  func testSchemaThreeSurvivesOfflineUpgradeThenRefreshesClaimsAtTheSameCursor() async throws {
+    let settings = fixtureSettings()
+    XCTAssertTrue(store.save(SnapshotFixture.snapshot(
+      settings: settings,
+      serverKnowledge: SnapshotRefreshProtocol.serverKnowledge,
+      transactions: [SnapshotFixture.transaction(id: SnapshotRefreshProtocol.networkTransactionID)],
+      schemaVersion: 3
+    )))
+    let storedJSON = try String(contentsOf: store.fileURL, encoding: .utf8)
+    XCTAssertFalse(storedJSON.contains("claimStatus"), "the old cache lacks the new optional fields")
+    SnapshotRefreshProtocol.goOffline()
+    let model = AppModel(outboxStore: .temporary(), settings: settings, viewPrefs: ViewPrefs(), snapshotStore: store)
+    XCTAssertEqual(model.ledgerPhase, .loaded)
+    await model.refreshAll()
+    XCTAssertEqual(model.accounts.map(\.id), ["acct-1"])
+    XCTAssertEqual(model.transactions.map(\.id), [SnapshotRefreshProtocol.networkTransactionID])
+    XCTAssertTrue(model.isProvisional)
+    XCTAssertEqual(store.load()?.schemaVersion, 3, "an offline upgrade must not delete its usable cache")
+
+    let surface = try XCTUnwrap(SnapshotSurface(
+      root: RegisterView(scope: .account("acct-1"))
+        .environment(model)
+        .environment(RootChromeState()),
+      size: CGSize(width: 390, height: 700)
+    ))
+    let visible = await surface.waitUntil(timeoutNanoseconds: 2_000_000_000) {
+      surface.accessibilityLabels().joined(separator: " | ").contains("Fixture Payee")
+    }
+    XCTAssertTrue(visible, "the old register must render offline: \(surface.accessibilityLabels())")
+    let image = XCTAttachment(image: surface.captureVisible())
+    image.name = "schema3-offline-register"
+    image.lifetime = .keepAlways
+    add(image)
+    let accessibility = XCTAttachment(string: surface.accessibilityLabels().joined(separator: " | "))
+    accessibility.name = "schema3-offline-register-accessibility"
+    accessibility.lifetime = .keepAlways
+    add(accessibility)
+    surface.detach()
+
+    SnapshotRefreshProtocol.reset()
+    await model.refreshAll()
+    let refreshed = try XCTUnwrap(model.transactions.first)
+    XCTAssertEqual(refreshed.claimStatus, "claimed", "equal cursors do not validate fields the old schema never stored")
+    XCTAssertEqual(refreshed.claimedOn, "2026-01-04")
+    XCTAssertFalse(model.isProvisional)
+    store.waitForPendingWrites()
+    XCTAssertEqual(store.load()?.schemaVersion, ReferenceSnapshot.currentSchemaVersion)
+    XCTAssertEqual(store.load()?.ledgerPage?.transactions.first?.claimStatus, "claimed")
   }
 
   /// The acceptance criterion of #176: a warm launch shows the Accounts tab
@@ -1349,6 +1416,8 @@ private final class SnapshotRefreshProtocol: URLProtocol {
     "date": "2026-01-03",
     "amount": -4560,
     "memo": null,
+    "claim_status": "claimed",
+    "claimed_on": "2026-01-04",
     "cleared": "uncleared",
     "approved": true,
     "flag_color": null,

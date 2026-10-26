@@ -500,7 +500,10 @@ final class AppModel {
     scheduledTransactions = snapshot.scheduledTransactions
     lastSyncedAccountPreferences = snapshot.accountPreferences
     serverKnowledge = snapshot.serverKnowledge
-    snapshotKnowledge = snapshot.serverKnowledge
+    // An older compatible cache can render offline, but its cursor cannot
+    // validate fields that schema never stored. Apply the first online page.
+    snapshotKnowledge = snapshot.schemaVersion == ReferenceSnapshot.currentSchemaVersion
+      ? snapshot.serverKnowledge : nil
     if let unapprovedCount = snapshot.unapprovedCount {
       serverUnapprovedCount = unapprovedCount
     }

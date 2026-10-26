@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import HowMuch
 
@@ -56,6 +57,55 @@ final class OutboxSyncTests: XCTestCase {
     await model.waitForOutboxDrain()
     XCTAssertEqual(server.writes(), [], "a row made and removed offline never reaches the server")
     XCTAssertEqual(model.outboxStorePeek(), [])
+  }
+
+  func testOfflineTransferClaimIsVisibleInBothAccountRegisters() async throws {
+    var source = row(id: "source", payee: "Transfer to B")
+    source["transfer_account_id"] = "acct-b"
+    source["transfer_transaction_id"] = "mirror"
+    var mirror = row(id: "mirror", amount: 1_000, payee: "Transfer from A")
+    mirror["account_id"] = "acct-b"
+    mirror["account_name"] = "Account B"
+    mirror["transfer_account_id"] = "acct-a"
+    mirror["transfer_transaction_id"] = "source"
+    server.seed(source)
+    server.seed(mirror)
+    let model = makeModel()
+    await load(model)
+    server.offline = true
+    var draft = TransactionDraft(transaction: try row(in: model, "source"))
+    draft.claimStatus = "to_claim"
+    try model.commit(draft)
+    await model.waitForOutboxDrain()
+    try await model.toggleTransactionCleared(try row(in: model, "mirror"))
+    await model.waitForOutboxDrain()
+    XCTAssertEqual(model.outboxStorePeek()?.count, 2, "both account changes are durable before sync")
+    XCTAssertEqual(try row(in: model, "mirror").cleared, .cleared)
+    XCTAssertEqual(server.writes(), [])
+
+    for accountID in ["acct-a", "acct-b"] {
+      let surface = try XCTUnwrap(SnapshotSurface(
+        root: RegisterView(scope: .account(accountID))
+          .environment(model)
+          .environment(RootChromeState()),
+        size: CGSize(width: 390, height: 700)
+      ))
+      let visible = await surface.waitUntil(timeoutNanoseconds: 2_000_000_000) {
+        surface.accessibilityLabels().joined(separator: " | ").contains("To claim")
+      }
+      let labels = surface.accessibilityLabels().joined(separator: " | ")
+      XCTAssertTrue(visible, "\(accountID) must render the offline claim: \(labels)")
+      let image = XCTAttachment(image: surface.captureVisible())
+      image.name = "offline-transfer-\(accountID)"
+      image.lifetime = .keepAlways
+      add(image)
+      let accessibility = XCTAttachment(string: labels)
+      accessibility.name = "offline-transfer-\(accountID)-accessibility"
+      accessibility.lifetime = .keepAlways
+      add(accessibility)
+      surface.detach()
+    }
+    XCTAssertEqual(server.writes(), [], "rendering either register must not send an offline edit")
   }
 
   func testOfflineEditsOfAnExistingRowBecomeOnePUT() async throws {
@@ -823,7 +873,7 @@ final class OutboxSyncTests: XCTestCase {
     return draft
   }
 
-  private func row(in model: AppModel, _ id: String) throws -> Transaction {
+  private func row(in model: AppModel, _ id: String) throws -> HowMuch.Transaction {
     try XCTUnwrap(
       (model.transactions + model.unapprovedTransactions).first { $0.id == id },
       "row \(id) is not on screen"
@@ -844,8 +894,8 @@ final class OutboxSyncTests: XCTestCase {
     ]
   }
 
-  private func fixtureRow(id: String, amount: Int) -> Transaction {
-    Transaction(
+  private func fixtureRow(id: String, amount: Int) -> HowMuch.Transaction {
+    HowMuch.Transaction(
       id: id, date: "2026-09-20", amount: amount, memo: nil, cleared: .uncleared, approved: true,
       flagColor: nil, flagName: nil, accountID: "acct-a", accountName: "Account A", payeeID: nil,
       payeeName: nil, categoryID: nil, categoryName: nil, transferAccountID: nil,
@@ -1197,14 +1247,17 @@ final class OutboxOverlayTests: XCTestCase {
     date: String = "2026-09-20",
     transfer: (account: String, id: String)? = nil,
     parent: String? = nil,
-    lines: [Subtransaction] = []
-  ) -> Transaction {
-    Transaction(
+    lines: [Subtransaction] = [],
+    claimStatus: String? = nil,
+    claimedOn: String? = nil
+  ) -> HowMuch.Transaction {
+    HowMuch.Transaction(
       id: id, date: date, amount: amount, memo: nil, cleared: .uncleared, approved: false,
       flagColor: nil, flagName: nil, accountID: account, accountName: account.uppercased(), payeeID: nil,
       payeeName: "P", categoryID: nil, categoryName: nil, transferAccountID: transfer?.account,
       transferTransactionID: transfer?.id, parentTransactionID: parent, matchedTransactionID: nil,
-      importID: nil, importPayeeName: nil, importPayeeNameOriginal: nil, deleted: false, subtransactions: lines
+      importID: nil, importPayeeName: nil, importPayeeNameOriginal: nil, deleted: false, subtransactions: lines,
+      claimStatus: claimStatus, claimedOn: claimedOn
     )
   }
 
@@ -1268,5 +1321,125 @@ final class OutboxOverlayTests: XCTestCase {
     )
     let result = OutboxOverlay.apply([command("s", .update(edit))], to: [source, mirror], names: .init())
     XCTAssertEqual(result.first { $0.id == "m" }?.amount, 3_000)
+  }
+
+  // The online transfer recipe cannot catch a far side left stale by the
+  // offline overlay, especially when only the claim or claimed date changes.
+  func testTransferClaimEditsAndClearingMirrorWithoutAnAmountDateOrMemoEdit() throws {
+    let cases: [(ClaimWrite, String?, String?)] = [
+      (.toClaim, "to_claim", nil),
+      (.claimed, "claimed", "2026-09-22"),
+      (.notClaimed, nil, nil),
+    ]
+    for (write, expectedStatus, expectedDate) in cases {
+      let source = row("s", transfer: ("b", "m"), claimStatus: "claimed", claimedOn: "2026-09-21")
+      let mirror = row("m", account: "b", amount: 1_000, transfer: ("a", "s"),
+                       claimStatus: "claimed", claimedOn: "2026-09-21")
+      let edit = TransactionWriteRequest(
+        accountID: "a", date: source.date, amount: source.amount, payeeID: nil, payeeName: nil,
+        categoryID: nil, memo: nil, cleared: nil, approved: false, flagColor: nil, subtransactions: [],
+        claimStatus: write, claimedOn: expectedDate
+      )
+      let result = OutboxOverlay.apply([command("s", .update(edit))], to: [source, mirror], names: .init())
+      for id in ["s", "m"] {
+        let updated = try XCTUnwrap(result.first { $0.id == id })
+        XCTAssertEqual(updated.claimStatus, expectedStatus, "\(id), \(write)")
+        XCTAssertEqual(updated.claimedOn, expectedDate, "\(id), \(write)")
+      }
+    }
+  }
+
+  func testSplitMirrorClaimRemainsIndependentOfItsParent() throws {
+    for parentID: String? in [nil, "parent"] {
+      let line = Subtransaction(
+        id: "line", transactionID: "parent", amount: -1_000, memo: nil, payeeID: nil, payeeName: nil,
+        categoryID: nil, categoryName: nil, transferAccountID: "b", transferTransactionID: "m", deleted: false
+      )
+      let parent = row("parent", lines: [line], claimStatus: "claimed", claimedOn: "2026-09-21")
+      let mirror = row("m", account: "b", amount: 1_000, transfer: ("a", "line"), parent: parentID,
+                       claimStatus: "to_claim")
+      let edit = TransactionWriteRequest(
+        accountID: "b", date: mirror.date, amount: mirror.amount, payeeID: nil, payeeName: nil,
+        categoryID: nil, memo: nil, cleared: nil, approved: false, flagColor: nil, subtransactions: [],
+        claimStatus: .notClaimed
+      )
+      let result = OutboxOverlay.apply([command("m", .update(edit))], to: [parent, mirror], names: .init())
+      XCTAssertEqual(result.first { $0.id == "parent" }, parent)
+      XCTAssertNil(try XCTUnwrap(result.first { $0.id == "m" }).claimStatus)
+    }
+  }
+
+  // A far-side status command must not hide a shared claim edit. Status is
+  // account-local; claim changes (including clearing) belong to both sides.
+  func testTransferClaimMirrorsAlongsideFarSideClearedAndApprovalCommands() throws {
+    let source = row("s", transfer: ("b", "m"), claimStatus: "claimed", claimedOn: "2026-09-21")
+    let mirror = row("m", account: "b", amount: 1_000, transfer: ("a", "s"),
+                     claimStatus: "claimed", claimedOn: "2026-09-21")
+    let cases: [(ClaimWrite, String?, String?)] = [
+      (.toClaim, "to_claim", nil), (.claimed, "claimed", "2026-09-22"), (.notClaimed, nil, nil),
+    ]
+    for (write, expectedStatus, expectedDate) in cases {
+      for claimSequence in [1, 4] {
+        let result = OutboxOverlay.apply([
+          command("m", .approve, seq: 3),
+          command("s", .update(claimEdit(source, claim: write, claimedOn: expectedDate)), seq: claimSequence),
+          command("m", .cleared(expected: .uncleared, cleared: .cleared, approve: false), seq: 2),
+        ], to: [source, mirror], names: .init())
+        for id in ["s", "m"] {
+          let updated = try XCTUnwrap(result.first { $0.id == id })
+          XCTAssertEqual(updated.claimStatus, expectedStatus, "\(id), \(write), sequence \(claimSequence)")
+          XCTAssertEqual(updated.claimedOn, expectedDate, "\(id), \(write), sequence \(claimSequence)")
+        }
+        let updatedMirror = try XCTUnwrap(result.first { $0.id == "m" })
+        XCTAssertEqual(updatedMirror.cleared, .cleared)
+        XCTAssertTrue(updatedMirror.approved)
+        let updatedSource = try XCTUnwrap(result.first { $0.id == "s" })
+        XCTAssertEqual(updatedSource.cleared, .uncleared)
+        XCTAssertFalse(updatedSource.approved)
+      }
+    }
+  }
+
+  func testCompetingTransferClaimsFollowCommandSequenceNotRowOrder() throws {
+    let source = row("s", transfer: ("b", "m"), claimStatus: "claimed", claimedOn: "2026-09-21")
+    let mirror = row("m", account: "b", amount: 1_000, transfer: ("a", "s"),
+                     claimStatus: "claimed", claimedOn: "2026-09-21")
+    for sourceFirst in [true, false] {
+      let changes = [
+        command("s", .update(claimEdit(source, claim: .toClaim)), seq: sourceFirst ? 1 : 2),
+        command("m", .update(claimEdit(mirror, claim: .claimed, claimedOn: "2026-09-23")), seq: sourceFirst ? 2 : 1),
+        // An unrelated full-body edit omits the claim; it must not restore the
+        // source's stale cached value after the mirror's explicit claim write.
+        command("s", .update(claimEdit(source, claim: nil)), seq: 3),
+        command("s", .update(claimEdit(source, claim: .notClaimed)), seq: 4),
+        // Returning to the baseline is still an explicit later write.
+        command("m", .update(claimEdit(mirror, claim: .claimed, claimedOn: "2026-09-21")), seq: 5),
+      ]
+      let competingResult: (String?, String?) = sourceFirst ? ("claimed", "2026-09-23") : ("to_claim", nil)
+      let expected: [(String?, String?)] = [
+        ("to_claim", nil), competingResult, competingResult, (nil, nil), ("claimed", "2026-09-21"),
+      ]
+      for rows in [[source, mirror], [mirror, source]] {
+        for count in 1...changes.count {
+          let result = OutboxOverlay.apply(Array(changes.prefix(count).reversed()), to: rows, names: .init())
+          for updated in result {
+            XCTAssertEqual(updated.claimStatus, expected[count - 1].0, "\(updated.id), after \(count) commands, sourceFirst \(sourceFirst)")
+            XCTAssertEqual(updated.claimedOn, expected[count - 1].1, "\(updated.id), after \(count) commands, sourceFirst \(sourceFirst)")
+          }
+        }
+      }
+    }
+  }
+
+  private func claimEdit(
+    _ transaction: HowMuch.Transaction,
+    claim: ClaimWrite?,
+    claimedOn: String? = nil
+  ) -> TransactionWriteRequest {
+    TransactionWriteRequest(
+      accountID: transaction.accountID, date: transaction.date, amount: transaction.amount,
+      payeeID: nil, payeeName: nil, categoryID: nil, memo: nil, cleared: nil, approved: false,
+      flagColor: nil, subtransactions: [], claimStatus: claim, claimedOn: claimedOn
+    )
   }
 }

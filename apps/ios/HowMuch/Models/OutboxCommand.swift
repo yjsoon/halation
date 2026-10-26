@@ -115,13 +115,20 @@ struct OutboxCommand: Codable, Equatable, Identifiable {
 }
 
 extension TransactionWriteRequest {
+  /// The claim this request carries, or failing that the one `earlier` did:
+  /// a later edit that left the chip alone must not drop an earlier claim.
+  func claim(over earlier: TransactionWriteRequest) -> (status: ClaimWrite?, claimedOn: String?) {
+    claimStatus == nil ? (earlier.claimStatus, earlier.claimedOn) : (claimStatus, claimedOn)
+  }
+
   /// A copy with the status fields swapped. The planner uses it to fold a
   /// cleared toggle or an approval into a queued create or edit.
   func replacing(
     cleared: ClearedState?? = .none,
     approved: Bool? = nil,
     importID: String?? = .none,
-    needsConfirmation: Bool?? = .none
+    needsConfirmation: Bool?? = .none,
+    claim: (status: ClaimWrite?, claimedOn: String?)? = nil
   ) -> TransactionWriteRequest {
     TransactionWriteRequest(
       accountID: accountID,
@@ -137,7 +144,9 @@ extension TransactionWriteRequest {
       subtransactions: subtransactions,
       importID: importID ?? self.importID,
       id: id,
-      needsConfirmation: needsConfirmation ?? self.needsConfirmation
+      needsConfirmation: needsConfirmation ?? self.needsConfirmation,
+      claimStatus: claim.map(\.status) ?? self.claimStatus,
+      claimedOn: claim.map(\.claimedOn) ?? self.claimedOn
     )
   }
 }

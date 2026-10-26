@@ -19,7 +19,8 @@ enum OutboxOverlay {
     guard !commands.isEmpty, !rows.isEmpty else {
       return rows
     }
-    let byRow = Dictionary(grouping: commands.sorted { $0.seq < $1.seq }, by: \.transactionID)
+    let orderedCommands = commands.sorted { $0.seq < $1.seq }
+    let byRow = Dictionary(grouping: orderedCommands, by: \.transactionID)
     var removed: Set<String> = []
     var unlinks: [SplitMirrorLink] = []
     var mirrorEdits: [String: Transaction] = [:]
@@ -69,6 +70,7 @@ enum OutboxOverlay {
         }
       }
       if current.subtransactions.isEmpty,
+         current.parentTransactionID == nil,
          let mirrorID = current.transferTransactionID,
          mirrorID == row.transferTransactionID,
          current.amount != row.amount || current.date != row.date || current.memo != row.memo {
@@ -85,6 +87,28 @@ enum OutboxOverlay {
         reordered = reordered || source.date != row.date
         return row.mirroring(source)
       }
+    }
+    // Claims are shared, unlike cleared/approved. Replay explicit writes in
+    // pair-wide sequence, even when the other side has its own commands. An
+    // omitted claim never wins over an earlier explicit write from either side.
+    let rowIndices = Dictionary(uniqueKeysWithValues: next.indices.map { (next[$0].id, $0) })
+    for command in orderedCommands {
+      guard case .update(let request) = command.kind,
+            let claim = request.claimStatus,
+            let index = rowIndices[command.transactionID] else {
+        continue
+      }
+      next[index].claimStatus = claim.storedStatus
+      next[index].claimedOn = claim == .claimed ? request.claimedOn : nil
+      let source = next[index]
+      guard source.parentTransactionID == nil, source.subtransactions.isEmpty,
+            let mirrorID = source.transferTransactionID, let mirrorIndex = rowIndices[mirrorID],
+            next[mirrorIndex].parentTransactionID == nil, next[mirrorIndex].subtransactions.isEmpty,
+            next[mirrorIndex].transferTransactionID == source.id else {
+        continue
+      }
+      next[mirrorIndex].claimStatus = source.claimStatus
+      next[mirrorIndex].claimedOn = source.claimedOn
     }
     if !removed.isEmpty {
       next.removeAll { removed.contains($0.id) }
@@ -162,14 +186,18 @@ enum OutboxOverlay {
       // Unsent means unchanged, unless the edit clears the row, which the
       // server reads as confirming.
       needsConfirmation: request.needsConfirmation
-        ?? (row.cleared == .uncleared && (request.cleared ?? .uncleared) != .uncleared ? false : row.needsConfirmation)
+        ?? (row.cleared == .uncleared && (request.cleared ?? .uncleared) != .uncleared ? false : row.needsConfirmation),
+      // Unsent means unchanged.
+      claimStatus: request.claimStatus.map(\.storedStatus) ?? row.claimStatus,
+      claimedOn: request.claimStatus.map { $0 == .claimed ? request.claimedOn : nil } ?? row.claimedOn
     )
   }
 }
 
 private extension Transaction {
   /// The far side of a whole-row transfer after its source was edited: the
-  /// opposite amount, the same date and memo.
+  /// opposite amount, the same date and memo. Claims are replayed separately
+  /// because either side may have a later explicit claim write.
   func mirroring(_ source: Transaction) -> Transaction {
     Transaction(
       id: id,
@@ -195,7 +223,9 @@ private extension Transaction {
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
       subtransactions: subtransactions,
-      needsConfirmation: needsConfirmation
+      needsConfirmation: needsConfirmation,
+      claimStatus: claimStatus,
+      claimedOn: claimedOn
     )
   }
 }

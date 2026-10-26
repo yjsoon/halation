@@ -33,6 +33,63 @@ afterEach(() => {
 });
 
 describe("YNAB-compatible API", () => {
+  test("a delayed legacy memo save preserves a claim completed before its write", async () => {
+    const repo = new LedgerRepository(db, "plan-test");
+    handler = createHandler({
+      db, repo,
+      config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "plan-test", transitionReadOnly: false },
+    });
+    await createAccount("cash", { name: "Cash", type: "checking" });
+    // Ordinary sequential E2E saves miss the gap between HTTP parsing and
+    // entering the SQLite transaction. Hold the old client's save at that gap.
+    for (const collection of [false, true]) {
+      const id = await createTransaction({ account_id: "cash", date: "2026-10-25", amount: -10000, memo: "Taxi", claim_status: "to_claim" });
+      const entered = Promise.withResolvers<void>();
+      const resume = Promise.withResolvers<void>();
+      const update = repo.updateTransaction.bind(repo);
+      const updates = repo.updateTransactions.bind(repo);
+      if (collection) {
+        repo.updateTransactions = async (...args) => {
+          entered.resolve();
+          await resume.promise;
+          return updates(...args);
+        };
+      } else {
+        let hold = true;
+        repo.updateTransaction = async (...args) => {
+          if (hold) {
+            hold = false;
+            entered.resolve();
+            await resume.promise;
+          }
+          return update(...args);
+        };
+      }
+      const stale = request(`/v1/plans/plan-test/transactions${collection ? "" : `/${id}`}`, {
+        method: "PATCH",
+        body: collection
+          ? { transactions: [{ id, memo: "TODO: Taxi", amount: -11000 }] }
+          : { transaction: { memo: "TODO: Taxi", amount: -11000 } },
+      });
+      await entered.promise;
+      let marked: Response;
+      try {
+        marked = await request(`/v1/plans/plan-test/transactions/${id}`, {
+          method: "PATCH", body: { transaction: { claim_status: "claimed", claimed_on: "2026-10-25" } },
+        });
+      } finally {
+        resume.resolve();
+      }
+      const saved = await stale;
+      repo.updateTransaction = update;
+      repo.updateTransactions = updates;
+      expect(marked!.status).toBe(200);
+      expect(saved.status).toBe(200);
+      const final = (await (await request(`/v1/plans/plan-test/transactions/${id}`)).json()).data.transaction;
+      expect(final).toMatchObject({ memo: "Taxi", amount: -11000, claim_status: "claimed", claimed_on: "2026-10-25" });
+    }
+  });
+
   test("reads mirrored scheduled transactions and payee locations, but no longer serves money movements", async () => {
     const repo = new LedgerRepository(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
@@ -1129,16 +1186,17 @@ describe("YNAB-compatible API", () => {
     const body = await response.json();
     expect(body.data.transaction_ids).toEqual([firstId, secondId]);
     expect(body.data.transactions.map((transaction: { id: string }) => transaction.id)).toEqual([firstId, secondId]);
-    expect(body.data.transactions[0]).toMatchObject({ memo: "CLAIMED: one", flag_color: "green" });
-    expect(body.data.transactions[1]).toMatchObject({ memo: "CLAIMED: two", approved: true });
+    // The claims tool's memo word becomes the claim flag; the memo keeps the rest.
+    expect(body.data.transactions[0]).toMatchObject({ memo: "one", claim_status: "claimed", claimed_on: null, flag_color: "green" });
+    expect(body.data.transactions[1]).toMatchObject({ memo: "two", claim_status: "claimed", approved: true });
     expect(body.data.server_knowledge).toBe(knowledgeBefore + 1);
 
     const alias = await request("/v1/budgets/plan-test/transactions", {
       method: "PATCH",
-      body: { transactions: [{ import_id: "bulk-import-1", account_id: "acct-1", memo: "CLAIMED: import" }] },
+      body: { transactions: [{ import_id: "bulk-import-1", account_id: "acct-1", memo: "CLAIMED - 2026-06-12: import" }] },
     });
     expect(alias.status).toBe(200);
-    expect((await alias.json()).data.transactions[0].memo).toBe("CLAIMED: import");
+    expect((await alias.json()).data.transactions[0]).toMatchObject({ memo: "import", claim_status: "claimed", claimed_on: "2026-06-12" });
   });
 
   test("collection PATCH preserves an earlier transfer edit when both legs are included", async () => {

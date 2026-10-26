@@ -13,6 +13,7 @@ export type RegisterComposeDraft = {
   inflow: string;
   flagColor: string;
   needsConfirmation: boolean;
+  toClaim: boolean;
 };
 
 export type RegisterComposeState =
@@ -22,7 +23,7 @@ export type RegisterComposeState =
 type RegisterComposeAction =
   | { type: "open"; accountId: string }
   | { type: "close" }
-  | { type: "patch"; draft: Partial<Pick<RegisterComposeDraft, "date" | "accountId" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation">> }
+  | { type: "patch"; draft: Partial<Pick<RegisterComposeDraft, "date" | "accountId" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "toClaim">> }
   | { type: "set-outflow"; value: string }
   | { type: "set-inflow"; value: string }
   | { type: "saving" }
@@ -45,6 +46,7 @@ export function emptyComposeDraft(accountId: string, date = todayIso()): Registe
     inflow: "",
     flagColor: "",
     needsConfirmation: false,
+    toClaim: false,
   };
 }
 
@@ -190,6 +192,7 @@ export function composePayload(
       memo: draft.memo.trim() || null,
       flag_color: draft.flagColor || null,
       ...(draft.needsConfirmation ? { needs_confirmation: true } : {}),
+      ...(draft.toClaim ? { claim_status: "to_claim" as const } : {}),
     },
   };
 }

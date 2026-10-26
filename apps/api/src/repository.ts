@@ -66,6 +66,7 @@ import {
 } from "./category-management";
 import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
 import { cardFlagNames, flagNameForColour } from "./rewards/flag-names";
+import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, CLAIMED_TYPE, TO_CLAIM_TYPE, claimParams, nextClaim, normaliseFollowUpEdit, normaliseFollowUpWords, transferClaim, type TransferClaim } from "./transaction-claim";
 import { CLEARED_CONFIRMS_SQL, NEEDS_CONFIRMATION_CONFLICT_SQL, NEEDS_CONFIRMATION_INSERT_SQL, NEEDS_CONFIRMATION_TYPE, needsConfirmationParam, nextNeedsConfirmation } from "./transaction-confirmation";
 import type { CreditCard } from "./rewards/types";
 import {
@@ -1010,7 +1011,7 @@ export class LedgerRepository {
         values: [planId],
       },
       {
-        sql: `SELECT id, account_id, date, amount_milli, memo, cleared, approved, flag_color, flag_name, needs_confirmation, payee_id, payee_name_snapshot, category_id,
+        sql: `SELECT id, account_id, date, amount_milli, memo, cleared, approved, flag_color, flag_name, needs_confirmation, claim_status, claimed_on, payee_id, payee_name_snapshot, category_id,
                 transfer_account_id, transfer_transaction_id, matched_transaction_id, import_id, import_payee_name, import_payee_name_original
               FROM transactions WHERE plan_id = ? AND deleted = 0 ORDER BY id`,
         values: [planId],
@@ -1192,6 +1193,7 @@ export class LedgerRepository {
         categoryName = null;
       }
 
+      const claim = claimParams(input);
       await this.db
         .query(
           `INSERT INTO transactions (
@@ -1199,9 +1201,9 @@ export class LedgerRepository {
              flag_color, flag_name, payee_id, payee_name_snapshot, category_id,
              category_name_snapshot, transfer_account_id, transfer_transaction_id,
              matched_transaction_id, import_id, import_payee_name, import_payee_name_original,
-             source_kind, source_ref, external_ynab_id, deleted, needs_confirmation, updated_at
+             source_kind, source_ref, external_ynab_id, deleted, needs_confirmation, claim_status, claimed_on, updated_at
            )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${NEEDS_CONFIRMATION_INSERT_SQL}, CURRENT_TIMESTAMP)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${NEEDS_CONFIRMATION_INSERT_SQL}, ${CLAIM_INSERT_SQL}, CURRENT_TIMESTAMP)
            ON CONFLICT(id) DO UPDATE SET
              account_id = excluded.account_id,
              date = excluded.date,
@@ -1226,6 +1228,7 @@ export class LedgerRepository {
              external_ynab_id = excluded.external_ynab_id,
              deleted = excluded.deleted,
              ${NEEDS_CONFIRMATION_CONFLICT_SQL},
+             ${CLAIM_CONFLICT_SQL},
              updated_at = CURRENT_TIMESTAMP`,
         )
         .run(
@@ -1254,7 +1257,11 @@ export class LedgerRepository {
           input.external_ynab_id ?? input.id ?? null,
           bool(input.deleted),
           needsConfirmationParam(input.needs_confirmation),
+          claim[1],
+          claim[2],
           needsConfirmationParam(input.needs_confirmation),
+          claim[0],
+          claim[0],
         );
 
       const previousSubs = await this.db
@@ -1381,6 +1388,7 @@ export class LedgerRepository {
           sourceAccountId: input.account_id,
           linkId: transactionId,
           cleared: linkedCleared,
+          claim: transferClaim(input),
         }, plan);
         await this.db
           .query("UPDATE transactions SET transfer_transaction_id = ? WHERE id = ?")
@@ -1395,6 +1403,7 @@ export class LedgerRepository {
           approved: input.approved,
           sourceAccountId: input.account_id,
           accountId: transferAccountId ?? undefined,
+          claim: transferClaim(input),
         }, plan);
       }
 
@@ -1683,6 +1692,7 @@ export class LedgerRepository {
     if (!existing) {
       throw new NotFoundError("Transaction not found");
     }
+    patch = normaliseFollowUpEdit(existing, patch);
     const existingTransaction = await this.getTransaction(planId, transactionId);
 
     if (existing.cleared === "reconciled" && patch.cleared !== undefined && patch.cleared !== "reconciled") {
@@ -1719,6 +1729,7 @@ export class LedgerRepository {
       flag_color: patch.flag_color === undefined ? existing.flag_color : patch.flag_color,
       flag_name: patch.flag_name === undefined ? existing.flag_name : patch.flag_name,
       needs_confirmation: nextNeedsConfirmation(existing, patch),
+      ...nextClaim(existing, patch),
       transfer_account_id: patch.transfer_account_id === undefined ? existing.transfer_account_id : patch.transfer_account_id,
       transfer_transaction_id:
         patch.transfer_transaction_id === undefined ? existing.transfer_transaction_id : patch.transfer_transaction_id,
@@ -1944,6 +1955,11 @@ export class LedgerRepository {
   /** Size of the to-confirm list, the same rows `?type=needs_confirmation` returns. */
   async countNeedsConfirmationTransactions(planId: string, filters: TransactionFilters = {}): Promise<UnapprovedCount> {
     return this.countTransactionsOfType(planId, filters, NEEDS_CONFIRMATION_TYPE);
+  }
+
+  /** Size of the to-claim list, the same rows `?type=to_claim` returns. */
+  async countToClaimTransactions(planId: string, filters: TransactionFilters = {}): Promise<UnapprovedCount> {
+    return this.countTransactionsOfType(planId, filters, TO_CLAIM_TYPE);
   }
 
   private async countTransactionsOfType(planId: string, filters: TransactionFilters, type: string): Promise<UnapprovedCount> {
@@ -2268,7 +2284,8 @@ export class LedgerRepository {
       ? existing.transaction
       : await this.createTransaction(
         planId,
-        await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId),
+        // A schedule's memo can carry the follow-up words, like any write.
+        normaliseFollowUpWords(await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId)),
         { autoLink: true, operationId },
       );
     const advanceKind = schedule.frequency === "never" ? "complete" : "advance";
@@ -3001,6 +3018,7 @@ export class LedgerRepository {
       cleared?: ClearedState;
       sourceAccountId: string;
       linkId: string;
+      claim?: TransferClaim;
     },
     plan: TransactionMutationPlan,
   ): Promise<string> {
@@ -3029,6 +3047,7 @@ export class LedgerRepository {
         opts.sourceAccountId,
         opts.linkId,
       );
+    if (opts.claim) await this.writeTransferClaim(planId, id, opts.claim);
     plan.accountIdsToRecalculate.add(opts.accountId);
     plan.touchedTransactionIds.add(id);
     return id;
@@ -3045,6 +3064,7 @@ export class LedgerRepository {
       approved?: boolean | null;
       sourceAccountId: string;
       accountId?: string;
+      claim?: TransferClaim;
     },
     plan: TransactionMutationPlan,
   ): Promise<void> {
@@ -3074,11 +3094,19 @@ export class LedgerRepository {
         linkedTransactionId,
         planId,
       );
+    if (opts.claim) await this.writeTransferClaim(planId, linkedTransactionId, opts.claim);
     plan.accountIdsToRecalculate.add(linked.account_id);
     if (nextAccountId !== linked.account_id) {
       plan.accountIdsToRecalculate.add(nextAccountId);
     }
     plan.touchedTransactionIds.add(linkedTransactionId);
+  }
+
+  /** The claim is the pair's, like the memo: both sides of a transfer hold it. */
+  private async writeTransferClaim(planId: string, id: string, claim: TransferClaim): Promise<void> {
+    await this.db
+      .query("UPDATE transactions SET claim_status = ?, claimed_on = ? WHERE id = ? AND plan_id = ?")
+      .run(claim.claim_status, claim.claimed_on, id, planId);
   }
 
   private async softDeleteLinkedTransaction(
@@ -3373,6 +3401,8 @@ export class LedgerRepository {
       flag_color: row.flag_color,
       flag_name: row.flag_name,
       needs_confirmation: toBoolean(row.needs_confirmation),
+      claim_status: row.claim_status ?? null,
+      claimed_on: row.claimed_on ?? null,
       account_id: row.account_id,
       account_name: displayAccountName(row.account_name),
       payee_id: row.payee_id,
@@ -3716,6 +3746,12 @@ function transactionFilterClauses(planId: string, filters: Omit<TransactionFilte
     }
     if (filters.type === NEEDS_CONFIRMATION_TYPE) {
       clauses.push("t.needs_confirmation = 1");
+    }
+    if (filters.type === TO_CLAIM_TYPE) {
+      clauses.push("t.claim_status = 'to_claim'");
+    }
+    if (filters.type === CLAIMED_TYPE) {
+      clauses.push("t.claim_status = 'claimed'");
     }
     if (filters.lastKnowledgeOfServer != null) {
       clauses.push("t.server_knowledge > ?");

@@ -10,6 +10,7 @@ import { D1MetadataRepository } from "../src/d1-metadata-repository";
 import { D1LedgerRepository } from "../src/d1-ledger-repository";
 import { LedgerRepository } from "../src/repository";
 import { D1AuthStore } from "../src/auth-store";
+import { createHandler } from "../src/http";
 import { CountingD1Database, fakeD1Binding } from "./helpers/counting-d1";
 import { newPersonalApiToken, newSession } from "../src/password-auth";
 import { ReportService } from "../src/reports";
@@ -54,7 +55,7 @@ describe("D1 foundation", () => {
 
   test("canonical schema applies cleanly with auth constraints and cascades", async () => {
     const db = sqlite();
-    for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql", "../d1-migrations/0015_rewards_tracker.sql", "../d1-migrations/0016_query_covering_indexes.sql", "../d1-migrations/0017_ynab_source_month_activity.sql", "../d1-migrations/0018_account_month_balances.sql", "../d1-migrations/0019_own_imported_ynab_schedules.sql", "../d1-migrations/0020_drop_budgeting_tables.sql", "../d1-migrations/0021_card_payment_terms.sql", "../d1-migrations/0022_transaction_needs_confirmation.sql"]) db.exec(await Bun.file(new URL(path, import.meta.url)).text());
+    for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql", "../d1-migrations/0015_rewards_tracker.sql", "../d1-migrations/0016_query_covering_indexes.sql", "../d1-migrations/0017_ynab_source_month_activity.sql", "../d1-migrations/0018_account_month_balances.sql", "../d1-migrations/0019_own_imported_ynab_schedules.sql", "../d1-migrations/0020_drop_budgeting_tables.sql", "../d1-migrations/0021_card_payment_terms.sql", "../d1-migrations/0022_transaction_needs_confirmation.sql", "../d1-migrations/0023_transaction_claim_status.sql"]) db.exec(await Bun.file(new URL(path, import.meta.url)).text());
     const objects = db.query("SELECT name,type FROM sqlite_master WHERE type IN ('table','index','trigger')").all() as Array<{name:string;type:string}>;
     const names = new Set(objects.map((row) => row.name));
     for (const name of ["plans","import_sessions","import_rows","ynab_raw_objects","scheduled_transaction_edits","scheduled_subtransaction_edits","scheduled_transaction_snapshot_assertions","account_reconciliation_assertions","users","auth_identities","sessions","personal_api_tokens","account_preferences","plan_memberships","password_credentials","auth_setup","login_rate_limits","sync_runs","sync_attempts","sync_transition_receipts","audit_events","write_state","write_commands","write_assertions","rewards_tracker_snapshots","rewards_tracker_cards","idx_sessions_user","idx_sessions_expiry","idx_personal_api_tokens_user","idx_plan_memberships_user_plan","idx_transactions_transfer_transaction_id","idx_subtransactions_transfer_transaction_id","idx_transactions_plan_live_register","idx_transactions_account_live_register","idx_transactions_account_reconciled_date","idx_payees_plan_live_name","idx_account_reconciliation_assertions_account_date","transactions_assign_ledger_sequence","accounts_transfer_payee_plan_guard"]) expect(names.has(name)).toBeTrue();
@@ -1321,6 +1322,39 @@ describe("D1 foundation", () => {
     expect(db.query("SELECT write_version FROM write_state").get()).toEqual({ write_version: 3 });
   });
 
+  test("a retried legacy memo save preserves a concurrently completed claim", async () => {
+    for (const collection of [false, true]) {
+      const db = await ledgerSqlite();
+      const seed = new LedgerRepository(db, "p");
+      await seed.createTransaction("p", { id: "claim-race", account_id: "a", date: "2026-10-25", amount: -10000, memo: "Taxi", claim_status: "to_claim" });
+      // Force a write-version conflict after planning, which sequential E2E
+      // misses. A retry must reinterpret the original memo against the new row,
+      // not reuse a to_claim patch inferred from the first snapshot.
+      const competing = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+      const repo = new D1LedgerRepository(new D1Database(fakeD1(db, { beforeWriteBatch: async () => {
+        await competing.updateTransaction("p", "claim-race", { claim_status: "claimed", claimed_on: "2026-10-25" });
+      } })), "p");
+      const handle = createHandler({
+        db, repo,
+        config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "p", transitionReadOnly: false },
+      });
+      const patch = (path: string, body: unknown) => handle(new Request(`http://howmuch.test/v1/plans/p/transactions${path}`, {
+        method: "PATCH", headers: { authorization: "Bearer test-token", "content-type": "application/json" }, body: JSON.stringify(body),
+      }));
+      const response = await patch(collection ? "" : "/claim-race", collection
+        ? { transactions: [{ id: "claim-race", memo: "TODO: Taxi", amount: -11000 }] }
+        : { transaction: { memo: "TODO: Taxi", amount: -11000 } });
+      expect(response.status).toBe(200);
+      expect(await repo.getTransaction("p", "claim-race")).toMatchObject({
+        memo: "Taxi", amount: -11000, claim_status: "claimed", claimed_on: "2026-10-25",
+      });
+      // An explicit request to reopen is still allowed; only inferred claims
+      // must defer to the new snapshot.
+      expect((await patch("/claim-race", { transaction: { memo: "TODO: Taxi", claim_status: "to_claim" } })).status).toBe(200);
+      expect(await repo.getTransaction("p", "claim-race")).toMatchObject({ memo: "Taxi", claim_status: "to_claim", claimed_on: null });
+    }
+  });
+
   test("operation receipts replay exactly, including after an ambiguous commit", async () => {
     const db = await ledgerSqlite();
     const writer = new D1TransactionRepository(new D1Database(fakeD1(db, { commitThenThrowOnce: true })));
@@ -2077,7 +2111,7 @@ function provisionTransferPayee(db: Database, accountId: string): void {
 
 async function ledgerSqlite(): Promise<Database> {
   const db = sqlite();
-  for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql", "../d1-migrations/0015_rewards_tracker.sql", "../d1-migrations/0016_query_covering_indexes.sql", "../d1-migrations/0017_ynab_source_month_activity.sql", "../d1-migrations/0018_account_month_balances.sql", "../d1-migrations/0019_own_imported_ynab_schedules.sql", "../d1-migrations/0022_transaction_needs_confirmation.sql"]) db.exec(await Bun.file(new URL(path, import.meta.url)).text());
+  for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql", "../d1-migrations/0015_rewards_tracker.sql", "../d1-migrations/0016_query_covering_indexes.sql", "../d1-migrations/0017_ynab_source_month_activity.sql", "../d1-migrations/0018_account_month_balances.sql", "../d1-migrations/0019_own_imported_ynab_schedules.sql", "../d1-migrations/0022_transaction_needs_confirmation.sql", "../d1-migrations/0023_transaction_claim_status.sql"]) db.exec(await Bun.file(new URL(path, import.meta.url)).text());
   db.run("INSERT INTO plans (id, name) VALUES ('p', 'Plan')");
   db.run("INSERT INTO accounts (id, plan_id, name) VALUES ('a', 'p', 'Cash')");
   return db;
@@ -2085,7 +2119,7 @@ async function ledgerSqlite(): Promise<Database> {
 
 function sqlite(): Database { const db = new Database(":memory:", { strict: true }); databases.push(db); return db; }
 
-function fakeD1(db: Database, faults: { commitThenThrowOnce?: boolean; commitThenThrowSql?: RegExp; beforeWriteBatch?: (db: Database) => void; maxBindings?: number; beforeRunMutation?: (sql: string) => Promise<void> } = {}): D1Binding {
+function fakeD1(db: Database, faults: { commitThenThrowOnce?: boolean; commitThenThrowSql?: RegExp; beforeWriteBatch?: (db: Database) => void | Promise<void>; maxBindings?: number; beforeRunMutation?: (sql: string) => Promise<void> } = {}): D1Binding {
   let commitThenThrow = faults.commitThenThrowOnce ?? Boolean(faults.commitThenThrowSql);
   let mutateBeforeWrite = faults.beforeWriteBatch;
   // D1 serialises atomic batches.  Keep the fake faithful while still letting
@@ -2114,7 +2148,7 @@ function fakeD1(db: Database, faults: { commitThenThrowOnce?: boolean; commitThe
       await previous;
       try {
         if (mutateBeforeWrite && statements.some((item) => /^INSERT INTO write_commands/i.test((item as Statement).sql))) {
-          const mutate = mutateBeforeWrite; mutateBeforeWrite = undefined; mutate(db);
+          const mutate = mutateBeforeWrite; mutateBeforeWrite = undefined; await mutate(db);
         }
         db.exec("BEGIN IMMEDIATE");
         try { const results = []; for (const statement of statements) results.push(await (statement as Statement).execute<Row>()); db.exec("COMMIT"); if (commitThenThrow && statements.some((item) => (faults.commitThenThrowSql ?? /^INSERT INTO write_commands/i).test((item as Statement).sql))) { commitThenThrow = false; throw new Error("ambiguous committed batch"); } return results as D1Result<Row>[]; }

@@ -209,6 +209,11 @@ struct Transaction: Codable, Identifiable, Hashable {
   /// confirm"). Optional so rows cached before the field existed still
   /// decode; read it through `isToConfirm`.
   var needsConfirmation: Bool? = nil
+  /// "To claim": `to_claim` until the claims tool bills it, then `claimed`
+  /// with the day in `claimedOn`. Nil for an ordinary row, and for rows
+  /// cached before the field existed; read it through `claim`.
+  var claimStatus: String? = nil
+  var claimedOn: String? = nil
 
   private enum CodingKeys: String, CodingKey {
     case id
@@ -235,6 +240,8 @@ struct Transaction: Codable, Identifiable, Hashable {
     case deleted
     case subtransactions
     case needsConfirmation
+    case claimStatus
+    case claimedOn
   }
 }
 
@@ -242,6 +249,17 @@ extension Transaction {
   /// True when the amount is marked as an estimate to confirm.
   var isToConfirm: Bool {
     needsConfirmation == true
+  }
+
+  /// True when the row is stored as a spend to claim back.
+  var isToClaim: Bool {
+    claimStatus == MemoClaim.toClaim.rawValue
+  }
+
+  /// The claim the row shows: the stored field, or for a row stored before
+  /// it, a claim word at the start of its memo.
+  var claim: MemoClaim? {
+    MemoClaim(status: claimStatus, memo: memo)
   }
 
   /// True when the row still needs a category: no category, not a transfer,
@@ -306,7 +324,9 @@ extension Transaction {
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
       subtransactions: subtransactions,
-      needsConfirmation: self.cleared == .uncleared && cleared != .uncleared ? false : needsConfirmation
+      needsConfirmation: self.cleared == .uncleared && cleared != .uncleared ? false : needsConfirmation,
+      claimStatus: claimStatus,
+      claimedOn: claimedOn
     )
   }
 
@@ -335,7 +355,9 @@ extension Transaction {
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
       subtransactions: subtransactions,
-      needsConfirmation: needsConfirmation
+      needsConfirmation: needsConfirmation,
+      claimStatus: claimStatus,
+      claimedOn: claimedOn
     )
   }
 
@@ -368,7 +390,9 @@ extension Transaction {
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
       subtransactions: subtransactions,
-      needsConfirmation: needsConfirmation
+      needsConfirmation: needsConfirmation,
+      claimStatus: claimStatus,
+      claimedOn: claimedOn
     )
   }
 
@@ -399,7 +423,9 @@ extension Transaction {
       importPayeeNameOriginal: importPayeeNameOriginal,
       deleted: deleted,
       subtransactions: subtransactions,
-      needsConfirmation: needsConfirmation
+      needsConfirmation: needsConfirmation,
+      claimStatus: claimStatus,
+      claimedOn: claimedOn
     )
   }
 
@@ -421,85 +447,111 @@ extension Transaction {
   }
 }
 
-/// "To claim" is a memo convention rather than a stored field, read by the
-/// separate claims tool (yjsoon/this-claimer). These patterns follow that
-/// tool's memo rule (it also skips transfer inflows, split parents whose lines
-/// carry their own TODO and rows older than its window): a memo starting with
-/// `TODO` and then `:` or whitespace, in any case, is a claim, and the tool
-/// rewrites it to `CLAIMED - YYYY-MM-DD: <description>`. Web parity:
-/// `lib/follow-up.ts`.
-enum MemoClaim: Equatable {
-  case toClaim
+/// "To claim" is the stored `claimStatus` the claims tool (yjsoon/this-claimer)
+/// reads. Older clients wrote memo words instead: `TODO:` for a claim,
+/// `CLAIMED - YYYY-MM-DD:` once claimed and `TOCHECK` for an estimate. The API
+/// turns those into fields on every write; a row stored before that still
+/// shows its claim from the memo, and editing it moves the words into the
+/// fields. Web parity: `lib/follow-up.ts`; API: `transaction-claim.ts`.
+enum MemoClaim: String, Equatable {
+  case toClaim = "to_claim"
   case claimed
 
-  private static var todo: Regex<Substring> { #/^TODO[:\s]/#.ignoresCase() }
-  private static var stripTodo: Regex<Substring> { #/^TODO[:\s]\s*/#.ignoresCase() }
-  // Simple, ASCII-only word boundaries and digits match JavaScript's `\b` and `\d`.
-  // Only the tool's own shapes ("CLAIMED - 2026-01-02: x", "CLAIMED: x" or a
-  // bare "CLAIMED"), so an ordinary memo such as "Claimed back from Sam" stays text.
-  private static var claimedWord: Regex<Substring> {
-    #/^\s*CLAIMED\b(?:\s*-\s*\d{4}-\d{2}-\d{2})?\s*(?::|$)/#
-      .ignoresCase().wordBoundaryKind(.simple).asciiOnlyWordCharacters().asciiOnlyDigits()
-  }
-  private static var stripClaimed: Regex<Substring> {
-    #/^\s*CLAIMED\b(?:\s*-\s*\d{4}-\d{2}-\d{2})?\s*:?\s*/#
-      .ignoresCase().wordBoundaryKind(.simple).asciiOnlyWordCharacters().asciiOnlyDigits()
+  /// The memo words at the start of a memo, read as the API reads them.
+  struct LegacyWords: Equatable {
+    var claim: MemoClaim?
+    var claimedOn: String?
+    var toCheck = false
+    /// The memo without the words, or the memo as it was when it had none.
+    var text: String
   }
 
-  init?(memo: String?) {
-    guard let memo, !memo.isEmpty else {
-      return nil
+  // A word counts when it is in capitals or is followed by a colon in any
+  // case, so prose such as "Todo list app" stays text. Simple, ASCII-only word
+  // boundaries and digits match JavaScript's `\b` and `\d`.
+  private static var todoWord: Regex<(Substring, Substring, Substring)> {
+    #/^\s*(TODO)(?=[:\s]|$)(:?)\s*/#.ignoresCase()
+  }
+  private static var claimedWord: Regex<(Substring, Substring, Substring?, Substring)> {
+    #/^\s*(CLAIMED)\b(?:\s*-\s*(\d{4}-\d{2}-\d{2}))?\s*(:|$)\s*/#
+      .ignoresCase().wordBoundaryKind(.simple).asciiOnlyWordCharacters().asciiOnlyDigits()
+  }
+  private static var toCheckWord: Regex<(Substring, Substring, Substring)> {
+    #/^\s*(TOCHECK)\b(:?)\s*/#
+      .ignoresCase().wordBoundaryKind(.simple).asciiOnlyWordCharacters()
+  }
+
+  /// The day when it is a real calendar date, as the API requires.
+  private static func calendarDay(_ value: String) -> String? {
+    let formatter = DateFormatter()
+    formatter.calendar = Calendar(identifier: .gregorian)
+    formatter.locale = Locale(identifier: "en_US_POSIX")
+    formatter.timeZone = TimeZone(identifier: "UTC")
+    formatter.dateFormat = "yyyy-MM-dd"
+    guard let date = formatter.date(from: value), formatter.string(from: date) == value else { return nil }
+    return value
+  }
+
+  private static func counts(_ word: Substring, colon: Substring) -> Bool {
+    word == word.uppercased() || colon == ":"
+  }
+
+  /// Reads the words leading `memo`. `withToCheck: false` reads past TOCHECK
+  /// but keeps it in the text, as the register has no mark that could clear it.
+  static func legacyWords(_ memo: String?, withToCheck: Bool = true) -> LegacyWords {
+    // A String each round, so `^` anchors at the start of what is left.
+    var text = memo ?? ""
+    var words = LegacyWords(text: memo ?? "")
+    var found = false
+    var kept = ""
+    while true {
+      if let match = text.firstMatch(of: todoWord), counts(match.1, colon: match.2) {
+        if words.claim == nil { words.claim = .toClaim }
+        text = String(text[match.0.endIndex...])
+        found = true
+        continue
+      }
+      if let match = text.firstMatch(of: claimedWord), counts(match.1, colon: match.3) {
+        if words.claim == nil {
+          words.claim = .claimed
+          words.claimedOn = match.2.map(String.init).flatMap(Self.calendarDay)
+        }
+        text = String(text[match.0.endIndex...])
+        found = true
+        continue
+      }
+      if let match = text.firstMatch(of: toCheckWord), counts(match.1, colon: match.2) {
+        if withToCheck {
+          words.toCheck = true
+          found = true
+        } else {
+          kept += match.0.trimmingCharacters(in: .whitespacesAndNewlines) + " "
+        }
+        text = String(text[match.0.endIndex...])
+        continue
+      }
+      break
     }
-    if memo.contains(Self.todo) {
-      self = .toClaim
-    } else if memo.contains(Self.claimedWord) {
-      self = .claimed
+    if found {
+      words.text = (kept + text).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    return words
+  }
+
+  /// The stored claim wins; a row with none falls back to a memo word.
+  init?(status: String?, memo: String?) {
+    if let status, let stored = MemoClaim(rawValue: status) {
+      self = stored
+    } else if let legacy = Self.legacyWords(memo, withToCheck: false).claim {
+      self = legacy
     } else {
       return nil
     }
   }
 
-  /// The memo with the claim prefix added or removed. Clients trim the memo
-  /// on save, so this reads the trimmed memo, as the editor's chip does.
-  static func memo(_ memo: String, toClaim on: Bool) -> String {
-    var text = memo.trimmingCharacters(in: .whitespacesAndNewlines)
-    if on {
-      if text.contains(todo) {
-        return memo
-      }
-      // A claimed row claimed again starts over as TODO rather than both.
-      if text.contains(claimedWord) {
-        text = text.replacing(stripClaimed, with: "", maxReplacements: 1)
-          .trimmingCharacters(in: .whitespacesAndNewlines)
-        if text.contains(todo) {
-          return text
-        }
-      }
-      // A bare "TODO" is not a claim to the claims tool; give it the colon.
-      if text.uppercased() == "TODO" {
-        text = ""
-      }
-      return text.isEmpty ? "TODO:" : "TODO: \(text)"
-    }
-    guard text.contains(todo) else {
-      return memo
-    }
-    while text.contains(todo) {
-      text = text.replacing(stripTodo, with: "", maxReplacements: 1)
-    }
-    return text.trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
-  /// The memo without its claim prefix, for a row that shows the claim as a tag.
+  /// The memo without its claim words, for a row that shows the claim as a tag.
   static func displayText(_ memo: String) -> String {
-    switch MemoClaim(memo: memo) {
-    case .toClaim?:
-      return memo.replacing(stripTodo, with: "", maxReplacements: 1).trimmingCharacters(in: .whitespacesAndNewlines)
-    case .claimed?:
-      return memo.replacing(stripClaimed, with: "", maxReplacements: 1).trimmingCharacters(in: .whitespacesAndNewlines)
-    case nil:
-      return memo
-    }
+    legacyWords(memo, withToCheck: false).text
   }
 
   var title: String {

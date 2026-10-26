@@ -63,6 +63,7 @@ export function RegisterComposeRow({
     memo?: string;
     flagColor?: string;
     needsConfirmation?: boolean;
+    toClaim?: boolean;
   }) => {
     onChange(reduceCompose(state, { type: "patch", draft }));
   };
@@ -223,10 +224,10 @@ export function RegisterComposeRow({
               <FollowUpChips
                 id="register-compose"
                 needsConfirmation={state.draft.needsConfirmation}
-                memo={state.draft.memo}
+                claimStatus={state.draft.toClaim ? "to_claim" : null}
                 disabled={busy}
                 onNeedsConfirmationChange={(needsConfirmation) => patch({ needsConfirmation })}
-                onMemoChange={(memo) => patch({ memo })}
+                onClaimStatusChange={(claimStatus) => patch({ toClaim: claimStatus === "to_claim" })}
               />
             </div>
             {state.error ? <p className="register-compose-error" role="alert">{state.error}</p> : null}
