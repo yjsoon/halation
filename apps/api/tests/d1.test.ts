@@ -10,6 +10,7 @@ import { D1MetadataRepository } from "../src/d1-metadata-repository";
 import { D1LedgerRepository } from "../src/d1-ledger-repository";
 import { LedgerRepository } from "../src/repository";
 import { D1AuthStore } from "../src/auth-store";
+import { createHandler } from "../src/http";
 import { CountingD1Database, fakeD1Binding } from "./helpers/counting-d1";
 import { newPersonalApiToken, newSession } from "../src/password-auth";
 import { ReportService } from "../src/reports";
@@ -1318,6 +1319,39 @@ describe("D1 foundation", () => {
     expect(db.query("SELECT write_version FROM write_state").get()).toEqual({ write_version: 3 });
   });
 
+  test("a retried legacy memo save preserves a concurrently completed claim", async () => {
+    for (const collection of [false, true]) {
+      const db = await ledgerSqlite();
+      const seed = new LedgerRepository(db, "p");
+      await seed.createTransaction("p", { id: "claim-race", account_id: "a", date: "2026-10-25", amount: -10000, memo: "Taxi", claim_status: "to_claim" });
+      // Force a write-version conflict after planning, which sequential E2E
+      // misses. A retry must reinterpret the original memo against the new row,
+      // not reuse a to_claim patch inferred from the first snapshot.
+      const competing = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+      const repo = new D1LedgerRepository(new D1Database(fakeD1(db, { beforeWriteBatch: async () => {
+        await competing.updateTransaction("p", "claim-race", { claim_status: "claimed", claimed_on: "2026-10-25" });
+      } })), "p");
+      const handle = createHandler({
+        db, repo,
+        config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "p", transitionReadOnly: false },
+      });
+      const patch = (path: string, body: unknown) => handle(new Request(`http://howmuch.test/v1/plans/p/transactions${path}`, {
+        method: "PATCH", headers: { authorization: "Bearer test-token", "content-type": "application/json" }, body: JSON.stringify(body),
+      }));
+      const response = await patch(collection ? "" : "/claim-race", collection
+        ? { transactions: [{ id: "claim-race", memo: "TODO: Taxi", amount: -11000 }] }
+        : { transaction: { memo: "TODO: Taxi", amount: -11000 } });
+      expect(response.status).toBe(200);
+      expect(await repo.getTransaction("p", "claim-race")).toMatchObject({
+        memo: "Taxi", amount: -11000, claim_status: "claimed", claimed_on: "2026-10-25",
+      });
+      // An explicit request to reopen is still allowed; only inferred claims
+      // must defer to the new snapshot.
+      expect((await patch("/claim-race", { transaction: { memo: "TODO: Taxi", claim_status: "to_claim" } })).status).toBe(200);
+      expect(await repo.getTransaction("p", "claim-race")).toMatchObject({ memo: "Taxi", claim_status: "to_claim", claimed_on: null });
+    }
+  });
+
   test("operation receipts replay exactly, including after an ambiguous commit", async () => {
     const db = await ledgerSqlite();
     const writer = new D1TransactionRepository(new D1Database(fakeD1(db, { commitThenThrowOnce: true })));
@@ -2082,7 +2116,7 @@ async function ledgerSqlite(): Promise<Database> {
 
 function sqlite(): Database { const db = new Database(":memory:", { strict: true }); databases.push(db); return db; }
 
-function fakeD1(db: Database, faults: { commitThenThrowOnce?: boolean; commitThenThrowSql?: RegExp; beforeWriteBatch?: (db: Database) => void; maxBindings?: number; beforeRunMutation?: (sql: string) => Promise<void> } = {}): D1Binding {
+function fakeD1(db: Database, faults: { commitThenThrowOnce?: boolean; commitThenThrowSql?: RegExp; beforeWriteBatch?: (db: Database) => void | Promise<void>; maxBindings?: number; beforeRunMutation?: (sql: string) => Promise<void> } = {}): D1Binding {
   let commitThenThrow = faults.commitThenThrowOnce ?? Boolean(faults.commitThenThrowSql);
   let mutateBeforeWrite = faults.beforeWriteBatch;
   // D1 serialises atomic batches.  Keep the fake faithful while still letting
@@ -2111,7 +2145,7 @@ function fakeD1(db: Database, faults: { commitThenThrowOnce?: boolean; commitThe
       await previous;
       try {
         if (mutateBeforeWrite && statements.some((item) => /^INSERT INTO write_commands/i.test((item as Statement).sql))) {
-          const mutate = mutateBeforeWrite; mutateBeforeWrite = undefined; mutate(db);
+          const mutate = mutateBeforeWrite; mutateBeforeWrite = undefined; await mutate(db);
         }
         db.exec("BEGIN IMMEDIATE");
         try { const results = []; for (const statement of statements) results.push(await (statement as Statement).execute<Row>()); db.exec("COMMIT"); if (commitThenThrow && statements.some((item) => (faults.commitThenThrowSql ?? /^INSERT INTO write_commands/i).test((item as Statement).sql))) { commitThenThrow = false; throw new Error("ambiguous committed batch"); } return results as D1Result<Row>[]; }

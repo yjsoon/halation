@@ -33,6 +33,63 @@ afterEach(() => {
 });
 
 describe("YNAB-compatible API", () => {
+  test("a delayed legacy memo save preserves a claim completed before its write", async () => {
+    const repo = new LedgerRepository(db, "plan-test");
+    handler = createHandler({
+      db, repo,
+      config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "plan-test", transitionReadOnly: false },
+    });
+    await createAccount("cash", { name: "Cash", type: "checking" });
+    // Ordinary sequential E2E saves miss the gap between HTTP parsing and
+    // entering the SQLite transaction. Hold the old client's save at that gap.
+    for (const collection of [false, true]) {
+      const id = await createTransaction({ account_id: "cash", date: "2026-10-25", amount: -10000, memo: "Taxi", claim_status: "to_claim" });
+      const entered = Promise.withResolvers<void>();
+      const resume = Promise.withResolvers<void>();
+      const update = repo.updateTransaction.bind(repo);
+      const updates = repo.updateTransactions.bind(repo);
+      if (collection) {
+        repo.updateTransactions = async (...args) => {
+          entered.resolve();
+          await resume.promise;
+          return updates(...args);
+        };
+      } else {
+        let hold = true;
+        repo.updateTransaction = async (...args) => {
+          if (hold) {
+            hold = false;
+            entered.resolve();
+            await resume.promise;
+          }
+          return update(...args);
+        };
+      }
+      const stale = request(`/v1/plans/plan-test/transactions${collection ? "" : `/${id}`}`, {
+        method: "PATCH",
+        body: collection
+          ? { transactions: [{ id, memo: "TODO: Taxi", amount: -11000 }] }
+          : { transaction: { memo: "TODO: Taxi", amount: -11000 } },
+      });
+      await entered.promise;
+      let marked: Response;
+      try {
+        marked = await request(`/v1/plans/plan-test/transactions/${id}`, {
+          method: "PATCH", body: { transaction: { claim_status: "claimed", claimed_on: "2026-10-25" } },
+        });
+      } finally {
+        resume.resolve();
+      }
+      const saved = await stale;
+      repo.updateTransaction = update;
+      repo.updateTransactions = updates;
+      expect(marked!.status).toBe(200);
+      expect(saved.status).toBe(200);
+      const final = (await (await request(`/v1/plans/plan-test/transactions/${id}`)).json()).data.transaction;
+      expect(final).toMatchObject({ memo: "Taxi", amount: -11000, claim_status: "claimed", claimed_on: "2026-10-25" });
+    }
+  });
+
   test("reads mirrored scheduled transactions and payee locations, but no longer serves money movements", async () => {
     const repo = new LedgerRepository(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });

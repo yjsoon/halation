@@ -66,7 +66,7 @@ import {
 } from "./category-management";
 import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
 import { cardFlagNames, flagNameForColour } from "./rewards/flag-names";
-import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, CLAIMED_TYPE, TO_CLAIM_TYPE, claimParams, nextClaim, normaliseFollowUpWords, transferClaim, type TransferClaim } from "./transaction-claim";
+import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, CLAIMED_TYPE, TO_CLAIM_TYPE, claimParams, nextClaim, normaliseFollowUpEdit, normaliseFollowUpWords, transferClaim, type TransferClaim } from "./transaction-claim";
 import { CLEARED_CONFIRMS_SQL, NEEDS_CONFIRMATION_CONFLICT_SQL, NEEDS_CONFIRMATION_INSERT_SQL, NEEDS_CONFIRMATION_TYPE, needsConfirmationParam, nextNeedsConfirmation } from "./transaction-confirmation";
 import type { CreditCard } from "./rewards/types";
 import {
@@ -1692,6 +1692,7 @@ export class LedgerRepository {
     if (!existing) {
       throw new NotFoundError("Transaction not found");
     }
+    patch = normaliseFollowUpEdit(existing, patch);
     const existingTransaction = await this.getTransaction(planId, transactionId);
 
     if (existing.cleared === "reconciled" && patch.cleared !== undefined && patch.cleared !== "reconciled") {

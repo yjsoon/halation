@@ -4,7 +4,7 @@ import { AccountPreferencesConflictError, LedgerRepository, NotFoundError, Recon
 import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
 import { assertTransactionFieldTypes, collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
-import { followUpWords, normaliseFollowUpWords } from "./transaction-claim";
+import { normaliseFollowUpWords } from "./transaction-claim";
 import { ReportService } from "./reports";
 import { type AmountFormat, amountFormatOf, isStorableMilliunits } from "@howmuch/money";
 import { decimalToMilliunits } from "./money";
@@ -573,7 +573,6 @@ async function handleV1(
     }
     if (segments.length === 4 && method === "PATCH") {
       const edits = parseTransactionUpdates(await readJson(request));
-      for (const edit of edits) await normaliseFollowUpEdit(repo, planId, () => repo.resolveTransactionLookup(planId, edit.lookup), edit.patch);
       // A bulk recolour takes the card's name for the new colour, as a single
       // edit does; otherwise the row keeps the old colour's name.
       for (const edit of edits) {
@@ -687,7 +686,6 @@ async function handleV1(
       const body = await readJson(request);
       const patch = body.transaction ?? body;
       assertTransactionFieldTypes(patch);
-      await normaliseFollowUpEdit(repo, planId, async () => transactionId, patch);
       if (Object.prototype.hasOwnProperty.call(patch, "flag_color") && !Object.prototype.hasOwnProperty.call(patch, "flag_name")) {
         // A move and a flag in one edit take the destination card's names.
         const accountId = typeof patch.account_id === "string" && patch.account_id
@@ -1699,40 +1697,4 @@ function parseAccountUsageWindow(url: URL): { days: number; since: string; until
     throw new ValidationError("until must be a valid calendar date");
   }
   return { days, since: new Date(untilMs - (days - 1) * 86_400_000).toISOString().slice(0, 10), until };
-}
-
-/**
- * Memo words in an edit become fields, unless the memo is the one already
- * stored: a row kept with its words (written before the fields) stays as it
- * is when a client saves it back unchanged with another edit. A write that
- * sets a follow-up field itself still converts the words, so the field wins.
- */
-async function normaliseFollowUpEdit(
-  repo: LedgerStore,
-  planId: string,
-  resolveId: () => string | Promise<string>,
-  patch: Record<string, any>,
-): Promise<void> {
-  if (typeof patch.memo !== "string") return;
-  const words = followUpWords(patch.memo);
-  if (words.memo === patch.memo) return;
-  const stored = await repo.getTransaction(planId, await resolveId()).catch(() => null);
-  const setsClaim = patch.claim_status !== undefined;
-  const patchMemo = patch.memo;
-  const setsField = setsClaim || patch.needs_confirmation !== undefined;
-  if (stored && stored.memo === patch.memo && !setsField) return;
-  normaliseFollowUpWords(patch);
-  // Words never move a claim the field already holds when they only echo
-  // what was stored: the stored memo plus a TODO word a client cached before
-  // it became the field (a stale draft, a queued offline save, after the
-  // claims tool marked the row), or the stored memo sent back as it is.
-  if (
-    !setsClaim && stored && (
-      (stored.claim_status === "claimed" && (stored.memo || null) === (words.memo || null) && words.claim_status === "to_claim")
-      || (stored.claim_status != null && stored.memo === patchMemo)
-    )
-  ) {
-    delete patch.claim_status;
-    delete patch.claimed_on;
-  }
 }

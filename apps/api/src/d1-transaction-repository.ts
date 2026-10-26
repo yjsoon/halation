@@ -7,7 +7,7 @@ import type { D1Database } from "./d1";
 import type { SqlValues } from "./async-sql";
 import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
 import { statement } from "./d1-guarded-command";
-import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, claimParams, nextClaim, transferClaim } from "./transaction-claim";
+import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, claimParams, nextClaim, normaliseFollowUpEdit, transferClaim } from "./transaction-claim";
 import { CLEARED_CONFIRMS_SQL, NEEDS_CONFIRMATION_CONFLICT_SQL, NEEDS_CONFIRMATION_INSERT_SQL, needsConfirmationParam, nextNeedsConfirmation } from "./transaction-confirmation";
 
 /** Fields the linked side of a split line owns and may change on its own. */
@@ -47,19 +47,20 @@ export class D1TransactionRepository {
     });
   }
 
-  async update(planId: string, transactionId: string, patch: Partial<TransactionInput>, context?: D1WriteContext): Promise<Record<string, any>> {
+  async update(planId: string, transactionId: string, input: Partial<TransactionInput>, context?: D1WriteContext): Promise<Record<string, any>> {
     const stable = identity(transactionId, context);
-    const fingerprint = requestHash(patch);
+    const fingerprint = requestHash(input);
     this.assertContext(planId, context);
     return this.write("update", planId, stable, fingerprint, context, async (snapshot) => {
+      const old = snapshot.transaction;
+      if (!old || old.deleted) throw new NotFoundError("Transaction not found");
+      if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
+      const patch = normaliseFollowUpEdit(old, input);
       if (snapshot.linkedSub) {
         // The split line owns this row's link, amount, date and memo, but not
         // its flag (a rewards flag rename restamps every row in the account)
         // or whether its amount still needs confirming or claiming back.
-        const old = snapshot.transaction;
         const fields = Object.keys(patch).filter((field) => (patch as Record<string, unknown>)[field] !== undefined);
-        if (!old || old.deleted) throw new NotFoundError("Transaction not found");
-        if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
         if (fields.length === 0 || fields.some((field) => !LINKED_SIDE_OWN_FIELDS.has(field))) {
           throw new ValidationError("This transaction is the linked side of a split line; edit the split parent");
         }
@@ -79,9 +80,6 @@ export class D1TransactionRepository {
         ];
         return makePlan(stable.commandId, snapshot.writeVersion, transactionId, planId, "update", fingerprint, context, body);
       }
-      const old = snapshot.transaction;
-      if (!old || old.deleted) throw new NotFoundError("Transaction not found");
-      if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
       if (old.cleared === "reconciled" && patch.cleared !== undefined && patch.cleared !== "reconciled") {
         throw new Error("reconciled transaction state conflict");
       }
@@ -493,4 +491,3 @@ function makePlan(commandId: string, version: number, transactionId: string, pla
   ]);
   return Object.freeze({ commandId, expectedWriteVersion: version, transactionId, statements });
 }
-

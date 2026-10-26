@@ -98,6 +98,37 @@ export function normaliseFollowUpWords<T extends Partial<TransactionInput>>(inpu
 }
 
 /**
+ * Interpret an edit against the row protected by the write's transaction or
+ * version guard. Keep the request unchanged so a stale-write retry can read
+ * its words again against the newer snapshot.
+ */
+export function normaliseFollowUpEdit(
+  stored: { memo?: unknown; claim_status?: unknown },
+  input: Partial<TransactionInput>,
+): Partial<TransactionInput> {
+  if (typeof input.memo !== "string") return input;
+  const words = followUpWords(input.memo);
+  if (words.memo === input.memo) return input;
+  const setsClaim = input.claim_status !== undefined;
+  const setsField = setsClaim || input.needs_confirmation !== undefined;
+  // Saving another field on a row kept with words leaves those words alone.
+  if (stored.memo === input.memo && !setsField) return input;
+  const patch = normaliseFollowUpWords({ ...input });
+  // An echoed stored word, or a TODO memo cached before the claim was billed,
+  // cannot move the claim that the current row already holds.
+  if (
+    !setsClaim && (
+      (stored.claim_status === "claimed" && (stored.memo || null) === (words.memo || null) && words.claim_status === "to_claim")
+      || (stored.claim_status != null && stored.memo === input.memo)
+    )
+  ) {
+    delete patch.claim_status;
+    delete patch.claimed_on;
+  }
+  return patch;
+}
+
+/**
  * The claim fields an update leaves on a row. Explicit values win; a row that
  * is not claimed has no claimed day. Clearing and reconciling never touch it.
  */
