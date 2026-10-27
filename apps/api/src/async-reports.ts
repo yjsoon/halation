@@ -174,8 +174,9 @@ export class AsyncReportService {
   }
 
   async netWorth(planId: string, filters: ReportFilters = {}): Promise<any> {
-    const from = filters.from ?? (await earliestDate(this.db, planId)) ?? todayIso();
+    let from = filters.from ?? (await earliestDate(this.db, planId)) ?? todayIso();
     const to = filters.to ?? todayIso();
+    if (filters.from == null && from > to) from = to;
     const periods = buildPeriods(from, to, filters.interval ?? "month");
     if (periods.length === 0) return { periods: [] };
 
@@ -244,8 +245,9 @@ export class AsyncReportService {
   async ageOfMoney(planId: string, filters: ReportFilters = {}): Promise<any> {
     const cacheable = ageOfMoneyCacheable(filters);
     const knowledge = cacheable ? await planKnowledge(this.db, planId) : null;
-    const from = filters.from ?? (await earliestDate(this.db, planId)) ?? todayIso();
+    let from = filters.from ?? (await earliestDate(this.db, planId)) ?? todayIso();
     const to = filters.to ?? todayIso();
+    if (filters.from == null && from > to) from = to;
     const key = reportCacheKey("age-of-money", { ...filters, from, to, interval: filters.interval ?? "month" });
 
     if (knowledge != null) {

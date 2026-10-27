@@ -1580,11 +1580,7 @@ function authorizePlan(principal: Principal, planId: string, defaultPlanId: stri
   return null;
 }
 
-/**
- * iOS used to concatenate `?expected_approved=` onto the path. `encodedPath`
- * then percent-encodes `?` as `%3F`, so the last segment is `id%3Fexpected_approved=false`
- * and a lookup of that string 404s. Split the embedded query back out.
- */
+/** Decode an opaque ID once; query-shaped ID text must never change the target. */
 function transactionItemRef(segment: string, url: URL): { transactionId: string; expectedApprovedParameter: string | null } {
   let decoded = segment;
   try {
@@ -1592,12 +1588,9 @@ function transactionItemRef(segment: string, url: URL): { transactionId: string;
   } catch {
     decoded = segment;
   }
-  const cut = decoded.indexOf("?");
-  const transactionId = cut === -1 ? decoded : decoded.slice(0, cut);
-  const embedded = cut === -1 ? new URLSearchParams() : new URLSearchParams(decoded.slice(cut + 1));
   return {
-    transactionId,
-    expectedApprovedParameter: url.searchParams.get("expected_approved") ?? embedded.get("expected_approved"),
+    transactionId: decoded,
+    expectedApprovedParameter: url.searchParams.get("expected_approved"),
   };
 }
 

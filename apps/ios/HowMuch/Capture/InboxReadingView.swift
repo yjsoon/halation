@@ -159,7 +159,7 @@ struct InboxReadingView: View {
             try Task.checkCancellation()
             if result.skippedPages > 0 {
               let skipped = result.skippedPages
-              onNotice("Skipped \(skipped) scanned \(skipped == 1 ? "page" : "pages"). Halation reads up to \(SlipPDFText.maxOCRPages) scanned pages per PDF.")
+              onNotice("Skipped \(skipped) PDF \(skipped == 1 ? "page" : "pages"). Limits per PDF: \(SlipPDFText.maxPages) pages, 1 MiB of text, and \(SlipPDFText.maxOCRPages) scanned pages.")
             }
             itemDrafts.append(contentsOf: await interpretDrafts(from: result.text))
           }

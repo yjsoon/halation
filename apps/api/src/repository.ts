@@ -240,8 +240,8 @@ export class LedgerRepository {
          SET name = ?,
              first_month = ?,
              last_month = ?,
-             date_format_json = ?,
-             currency_format_json = ?,
+             date_format_json = COALESCE(?, date_format_json),
+             currency_format_json = COALESCE(?, currency_format_json),
              flag_names_json = ?,
              external_ynab_id = ?,
              deleted = ?,
@@ -252,8 +252,8 @@ export class LedgerRepository {
         plan.name ?? existing.name,
         plan.first_month ?? existing.first_month,
         plan.last_month ?? existing.last_month,
-        JSON.stringify(settings?.date_format ?? JSON.parse(existing.date_format_json)),
-        JSON.stringify(settings?.currency_format ?? JSON.parse(existing.currency_format_json)),
+        settings?.date_format == null ? null : JSON.stringify(settings.date_format),
+        settings?.currency_format == null ? null : JSON.stringify(settings.currency_format),
         JSON.stringify(settings?.display?.flag_names ?? JSON.parse(existing.flag_names_json)),
         plan.id ?? existing.external_ynab_id ?? planId,
         bool(plan.deleted),
@@ -517,13 +517,15 @@ export class LedgerRepository {
       assignments.push("on_budget = ?");
       values.push(bool(fields.on_budget));
     }
-    await this.db
-      .query(`UPDATE accounts SET ${assignments.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?`)
-      .run(...values, accountId, planId);
-    if (fields.name !== undefined) {
-      await this.ensureTransferPayee(planId, accountId);
-    }
-    await this.touchPlan(planId);
+    await this.db.transaction(async () => {
+      await this.db
+        .query(`UPDATE accounts SET ${assignments.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?`)
+        .run(...values, accountId, planId);
+      if (fields.name !== undefined) {
+        await this.ensureTransferPayee(planId, accountId);
+      }
+      await this.touchPlan(planId);
+    })();
     return this.getAccount(planId, accountId);
   }
 

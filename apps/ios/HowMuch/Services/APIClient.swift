@@ -809,7 +809,7 @@ struct APIClient {
     }
 
     guard (200 ..< 300).contains(httpResponse.statusCode) else {
-      if httpResponse.statusCode == 404, path.hasSuffix("/account_preferences") {
+      if httpResponse.statusCode == 404, path.value.hasSuffix("/account_preferences") {
         throw APIClientError.endpointUnsupported
       }
       if let serverError = try? decoder.decode(ServerErrorEnvelope.self, from: data) {
@@ -848,7 +848,7 @@ struct APIClient {
         if httpResponse.statusCode == 404, serverError.error.name == "resource_not_found" {
           throw APIClientError.notFound(serverError.error.detail)
         }
-        if path.hasSuffix("/import_snapshot") {
+        if path.value.hasSuffix("/import_snapshot") {
           switch (httpResponse.statusCode, serverError.error.name) {
           case (409, "plan_not_empty"):
             throw APIClientError.planNotEmpty(serverError.error.detail)

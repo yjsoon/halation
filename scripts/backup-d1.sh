@@ -96,6 +96,12 @@ trap cleanup EXIT
 mkdir "$LOCK_DIR" 2>/dev/null || fail "another backup appears to be running (remove $LOCK_DIR if stale)"
 LOCK_HELD=1
 
+# Replace pre-existing sidecars rather than following symlinks or retaining
+# their permissions. The directory is now private and this run owns the lock.
+[ ! -d "$LOG_FILE" ] || fail "log destination is a directory: $LOG_FILE"
+: >"$WORK_DIR/log"
+mv -f "$WORK_DIR/log" "$LOG_FILE"
+
 echo "backup-d1: verifying Tinkertanker account and $DB_NAME ..."
 if ! run_wrangler d1 list --profile "$PROFILE" --json >"$WORK_DIR/d1-list.json" 2>>"$LOG_FILE"; then
   fail "could not list D1 databases for profile '$PROFILE' (see $LOG_FILE)"
@@ -158,9 +164,11 @@ LOCAL_TABLES="$(jq -r '.table_count' <<<"$LOCAL_ROW")"
 [ "$PROD_TABLES" = "$LOCAL_TABLES" ] \
   || fail "table count mismatch: dump=$LOCAL_TABLES live=$PROD_TABLES"
 
+[ ! -d "$DUMP" ] && [ ! -d "$DUMP.sha256" ] || fail "backup destination is a directory"
 chmod 600 "$PARTIAL"
 mv -f "$PARTIAL" "$DUMP"
-shasum -a 256 "$DUMP" >"$DUMP.sha256"
+shasum -a 256 "$DUMP" >"$WORK_DIR/checksum"
+mv -f "$WORK_DIR/checksum" "$DUMP.sha256"
 SHA="$(cut -d' ' -f1 <"$DUMP.sha256")"
 
 prune() {

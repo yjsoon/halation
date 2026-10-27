@@ -978,7 +978,7 @@ describe("YNAB-compatible API", () => {
     });
   });
 
-  test("deletes unapproved rows when expected_approved is accidentally encoded into the path", async () => {
+  test("an encoded query cannot retarget a delete to an existing transaction", async () => {
     const created = await (await request("/v1/plans/plan-test/transactions", {
       method: "POST",
       body: { transaction: { account_id: "acct-1", date: "2026-08-30", amount: -16560, payee_name: "fp*Food Panda" } },
@@ -990,10 +990,11 @@ describe("YNAB-compatible API", () => {
       `/v1/plans/plan-test/transactions/${transactionId}%3Fexpected_approved=false`,
       { method: "DELETE" },
     );
-    expect(mangled.status).toBe(200);
-    expect((await mangled.json()).data.transaction).toMatchObject({
+    expect(mangled.status).toBe(404);
+    const unchanged = await request(`/v1/plans/plan-test/transactions/${transactionId}`);
+    expect((await unchanged.json()).data.transaction).toMatchObject({
       id: transactionId,
-      deleted: true,
+      deleted: false,
       approved: false,
       payee_name: "fp*Food Panda",
     });

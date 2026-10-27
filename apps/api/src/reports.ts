@@ -189,8 +189,9 @@ export class ReportService {
   }
 
   netWorth(planId: string, filters: ReportFilters = {}): any {
-    const from = filters.from ?? earliestDate(this.db, planId) ?? todayIso();
+    let from = filters.from ?? earliestDate(this.db, planId) ?? todayIso();
     const to = filters.to ?? todayIso();
+    if (filters.from == null && from > to) from = to;
     const periods = buildPeriods(from, to, filters.interval ?? "month");
     const accounts = this.db
       .query(
@@ -238,8 +239,9 @@ export class ReportService {
   }
 
   ageOfMoney(planId: string, filters: ReportFilters = {}): any {
-    const from = filters.from ?? earliestDate(this.db, planId) ?? todayIso();
+    let from = filters.from ?? earliestDate(this.db, planId) ?? todayIso();
     const to = filters.to ?? todayIso();
+    if (filters.from == null && from > to) from = to;
     const { linesSql, where, params } = this.lineFilters(planId, filters, true);
     const rows = this.db
       .query(

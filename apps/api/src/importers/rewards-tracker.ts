@@ -150,8 +150,6 @@ export async function importRewardsTrackerExport(
         name: parsed.portable.ynab.selectedBudgetName ?? existingPlan.name,
       },
       {
-        date_format: existingSettings.date_format,
-        currency_format: existingSettings.currency_format,
         display: { flag_names: flagNames },
       },
     );
