@@ -506,12 +506,14 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
   }
 
   const cardTerms: Row[] = [];
+  const cardTermAccounts = new Set<string>();
   for (const [index, item] of list(snapshot.card_payment_terms, "card_payment_terms").entries()) {
     const path = `card_payment_terms[${index}]`;
     const input = object(item, path);
     const accountId = accountRef(input.account_id, `${path}.account_id`);
     if (!accountId) throw new SnapshotValidationError(`${path}.account_id is required`);
-    if (cardTerms.some((row) => row.account_id === accountId)) throw new SnapshotValidationError(`${path}: account ${accountId} already has card payment terms`);
+    if (cardTermAccounts.has(accountId)) throw new SnapshotValidationError(`${path}: account ${accountId} already has card payment terms`);
+    cardTermAccounts.add(accountId);
     if (!CARD_PAYMENT_ACCOUNT_KINDS.has(String(accounts.get(accountId)!.type))) {
       throw new SnapshotValidationError(`${path}.account_id must be a creditCard or lineOfCredit account`);
     }

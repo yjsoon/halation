@@ -9,7 +9,6 @@ type CliOptions = {
   planId?: string;
   planName?: string;
   dbPath: string;
-  token?: string;
   baseUrl: string;
   sinceDate?: string;
   listPlans: boolean;
@@ -24,10 +23,10 @@ if (options.help) {
   process.exit(0);
 }
 
-const token = options.token ?? Bun.env.YNAB_TOKEN;
+const token = Bun.env.YNAB_TOKEN;
 
 if (!token) {
-  console.error("YNAB token missing. Set YNAB_TOKEN in your shell or pass --token as a one-off.");
+  console.error("YNAB token missing. Set YNAB_TOKEN in your shell.");
   process.exit(1);
 }
 
@@ -89,7 +88,6 @@ function parseArgs(args: string[]): CliOptions {
       "plan-id": { type: "string" },
       "plan-name": { type: "string" },
       db: { type: "string" },
-      token: { type: "string" },
       "base-url": { type: "string" },
       "since-date": { type: "string" },
       "list-plans": { type: "boolean" },
@@ -101,7 +99,6 @@ function parseArgs(args: string[]): CliOptions {
     planId: values["plan-id"],
     planName: values["plan-name"],
     dbPath: values.db ?? Bun.env.HOWMUCH_DB_PATH ?? "data/howmuch.sqlite",
-    token: values.token,
     baseUrl: values["base-url"] ?? Bun.env.YNAB_BASE_URL ?? "https://api.ynab.com/v1",
     sinceDate: values["since-date"],
     listPlans: values["list-plans"] ?? false,
@@ -179,8 +176,8 @@ function formatCounts(counts: Record<string, number>): string {
 function printHelp(): void {
   console.log(`Usage: bun run import:ynab [options]
 
-Preferred auth:
-  Set YNAB_TOKEN in your shell instead of passing --token.
+Authentication:
+  Set YNAB_TOKEN in your shell. Tokens are not accepted as command-line arguments.
 
 Options:
   --list-plans           List YNAB plans available to the token, then exit

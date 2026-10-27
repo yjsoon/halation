@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { existsSync, mkdirSync } from "node:fs";
+import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 
 /**
@@ -16,10 +16,18 @@ export function backupSqliteDatabase(dbPath: string): string | null {
   }
 
   const backupDir = join(dirname(dbPath), "backups");
-  mkdirSync(backupDir, { recursive: true });
+  mkdirSync(backupDir, { recursive: true, mode: 0o700 });
+  const directory = lstatSync(backupDir);
+  if (!directory.isDirectory() || directory.uid !== process.getuid?.()) {
+    throw new Error("Backup directory must be a directory owned by the current user");
+  }
+  chmodSync(backupDir, 0o700);
   const extension = extname(dbPath);
   const name = basename(dbPath, extension);
   const backupPath = join(backupDir, `${name}-${timestampForFileName()}.${extension ? extension.slice(1) : "sqlite"}`);
+  // VACUUM INTO accepts an empty file. Reserve it exclusively before SQLite
+  // writes any ledger data, independently of the caller's umask.
+  closeSync(openSync(backupPath, "wx", 0o600));
   const source = new Database(dbPath, { readonly: true });
   try {
     source.run("VACUUM INTO ?", [backupPath]);
