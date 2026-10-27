@@ -100,6 +100,55 @@ test("reports reject excessive periods and malformed dates before expanding them
 // Ordinary single-user flows miss interleaved owner/editor writes and opaque
 // IDs that look like legacy query parameters. Exercise both persisted stores.
 for (const backend of ["SQLite", "D1"] as const) {
+  test(`${backend}: encoded plan IDs authorize the decoded plan only`, async () => {
+    const h = await nativeHarness(backend);
+    harnesses.push(h);
+    for (const id of ["household:2026", "household%3A2026"]) await h.repo.ensurePlan(id);
+    await h.repo.upsertAccount("household:2026", { id: "cash", name: "Intended plan" });
+    const token = sessionFor(h.db, "owner", "household:2026");
+    const response = await h.request("/v1/plans/household%3A2026/accounts", { token });
+    expect(response.status).toBe(200);
+    expect((await response.json()).data.accounts.map((account: { id: string }) => account.id)).toEqual(["cash"]);
+    expect((await h.request("/v1/plans/household%253A2026/accounts", { token })).status).toBe(404);
+    const updated = await h.request("/api/plans/household%3A2026/settings", {
+      method: "PATCH", token, body: { date_format: { format: "YYYY-MM-DD" } },
+    });
+    expect(updated.status).toBe(200);
+    expect((await h.repo.getSettings("household:2026")).date_format.format).toBe("YYYY-MM-DD");
+  });
+
+  test(`${backend}: path IDs decode once without changing the selected object or route`, async () => {
+    const h = await nativeHarness(backend);
+    harnesses.push(h);
+    const ids = ["cash:SGD", "cash%3ASGD", "cash/../other?x=1", "現金"];
+    for (const id of ids) {
+      await h.repo.upsertAccount("p", { id, name: id });
+      await h.repo.createScheduledTransaction("p", {
+        id, account_id: id, date_first: "2026-01-01", frequency: "monthly", amount: -1000,
+      });
+      await h.repo.createTransaction("p", { id, account_id: id, date: "2026-01-01", amount: -1000 });
+      await h.repo.upsertRewardsTrackerCard("p", { id, ynabAccountId: id, name: id });
+    }
+    for (const id of ids) {
+      const encoded = encodeURIComponent(id);
+      const response = await h.request(`/v1/plans/p/accounts/${encoded}`, {
+        method: "PATCH", body: { account: { name: `Changed ${id}` } },
+      });
+      expect(response.status).toBe(200);
+      expect((await response.json()).data.account.id).toBe(id);
+      expect((await h.repo.getAccount("p", id)).name).toBe(`Changed ${id}`);
+      for (const [resource, field] of [["scheduled_transactions", "scheduled_transaction"], ["transactions", "transaction"]]) {
+        const read = await h.request(`/v1/plans/p/${resource}/${encoded}`);
+        expect(read.status).toBe(200);
+        expect((await read.json()).data[field].id).toBe(id);
+      }
+      const removed = await h.request(`/api/rewards/cards/${encoded}?plan_id=p`, { method: "DELETE" });
+      expect(removed.status).toBe(200);
+      expect((await removed.json()).data.card.id).toBe(id);
+    }
+    expect((await h.request("/v1/plans/p/accounts/%ZZ")).status).toBe(400);
+  });
+
   test(`${backend}: query-shaped IDs never select another transaction`, async () => {
     const h = await nativeHarness(backend);
     harnesses.push(h);

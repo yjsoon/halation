@@ -76,7 +76,14 @@ export function createHandler(options: HandlerOptions): (request: Request) => Pr
   return async function handle(request: Request): Promise<Response> {
     try {
       const url = new URL(request.url);
-      const segments = url.pathname.split("/").filter(Boolean);
+      // Split before decoding: escaped separators belong to the opaque ID,
+      // and every lookup (including plan authorization) must decode once only.
+      let segments: string[];
+      try {
+        segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+      } catch {
+        return apiError(400, "bad_request", "Invalid path encoding");
+      }
 
       if (url.pathname === "/health") {
         return json({ ok: true });
@@ -670,7 +677,8 @@ async function handleV1(
       return json({ data: result });
     }
 
-    const { transactionId, expectedApprovedParameter } = transactionItemRef(segments[4], url);
+    const transactionId = segments[4];
+    const expectedApprovedParameter = url.searchParams.get("expected_approved");
     if (segments.length === 5 && method === "GET") {
       return json({ data: { transaction: await repo.getTransaction(planId, transactionId), server_knowledge: await repo.getServerKnowledge(planId) } });
     }
@@ -970,9 +978,7 @@ async function handleNative(
     if (isUnsafeMethod(method)) await repo.ensurePlan(targetPlanId);
 
     if (segments[2] === "accounts" && segments[4] === "config" && segments.length === 5) {
-      let accountId: string;
-      try { accountId = decodeURIComponent(segments[3]); }
-      catch { throw new ValidationError("Invalid account ID encoding"); }
+      const accountId = segments[3];
       if (method === "GET") return json({ data: await exportRewardsAccountConfig(repo, targetPlanId, accountId) });
       if (method === "PUT") {
         const card = await importRewardsAccountConfig(repo, targetPlanId, accountId, body.payload);
@@ -1578,20 +1584,6 @@ function authorizePlan(principal: Principal, planId: string, defaultPlanId: stri
     return apiError(403, "forbidden", "Plan is read-only");
   }
   return null;
-}
-
-/** Decode an opaque ID once; query-shaped ID text must never change the target. */
-function transactionItemRef(segment: string, url: URL): { transactionId: string; expectedApprovedParameter: string | null } {
-  let decoded = segment;
-  try {
-    decoded = decodeURIComponent(segment);
-  } catch {
-    decoded = segment;
-  }
-  return {
-    transactionId: decoded,
-    expectedApprovedParameter: url.searchParams.get("expected_approved"),
-  };
 }
 
 function authorizePlanAdministration(principal: Principal, planId: string): Response | null {
