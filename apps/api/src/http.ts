@@ -873,7 +873,7 @@ async function handleNative(
     }
   }
 
-  if (segments[1] === "mobile" && segments[2] === "quick-entry" && method === "POST") {
+  if (segments.length === 3 && segments[1] === "mobile" && segments[2] === "quick-entry" && method === "POST") {
     const body = await readJson(request);
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
@@ -918,7 +918,7 @@ async function handleNative(
     return json({ data: { transaction, server_knowledge: await repo.getServerKnowledge(targetPlanId) } }, 201);
   }
 
-  if (segments[1] === "import" && segments[2] === "csv" && method === "POST") {
+  if (segments.length === 3 && segments[1] === "import" && segments[2] === "csv" && method === "POST") {
     const body = await readJson(request);
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
@@ -928,7 +928,7 @@ async function handleNative(
     return json({ data: result }, 201);
   }
 
-  if (segments[1] === "import" && segments[2] === "ynab" && method === "POST") {
+  if (segments.length === 3 && segments[1] === "import" && segments[2] === "ynab" && method === "POST") {
     const body = await readJson(request);
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
@@ -943,7 +943,7 @@ async function handleNative(
     return json({ data: result }, 201);
   }
 
-  if (segments[1] === "import" && segments[2] === "rewards-tracker") {
+  if (segments.length === 3 && segments[1] === "import" && segments[2] === "rewards-tracker") {
     const denied = authorizePlan(principal, planId, defaultPlanId, method);
     if (denied) return denied;
     if (method === "GET") {

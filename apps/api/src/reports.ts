@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { assembleIncomeVsSpendingGroups } from "./income-vs-spending-groups";
+import { validateReportPeriods } from "./report-periods";
 import { buildRewardsReport } from "./rewards/build";
 import { parseAppSettings, parseCreditCards, parseRewardGroupBy } from "./rewards/parse";
 import { mapRewardTransactionRow } from "./rewards/rows";
@@ -484,6 +485,7 @@ function earliestDate(db: Database, planId: string): string | null {
 }
 
 function buildPeriods(from: string, to: string, interval: string): Array<{ label: string; end: string }> {
+  validateReportPeriods(from, to, interval);
   const periods: Array<{ label: string; end: string }> = [];
   const cursor = new Date(`${from}T00:00:00Z`);
   const end = new Date(`${to}T00:00:00Z`);

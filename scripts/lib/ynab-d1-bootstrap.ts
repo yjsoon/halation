@@ -156,9 +156,9 @@ function generateBootstrap(inputPath: string, outputPath: string, mode: "single"
       const rs = rows.get(table)!; manifest.counts[table] = { active: rs.filter(r => !("deleted" in r) || r.deleted === 0).length, deleted: rs.filter(r => r.deleted === 1).length };
     }
     if (mode === "single") {
-      mkdirSync(dirname(outputPath), { recursive: true });
-      writeFileSync(outputPath, sql, { flag: "wx" });
-      writeFileSync(`${outputPath}.manifest.json`, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
+      mkdirSync(dirname(outputPath), { recursive: true, mode: 0o700 });
+      writeFileSync(outputPath, sql, { flag: "wx", mode: 0o600 });
+      writeFileSync(`${outputPath}.manifest.json`, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx", mode: 0o600 });
       return manifest;
     }
 
@@ -182,11 +182,11 @@ function generateBootstrap(inputPath: string, outputPath: string, mode: "single"
         expected_cumulative_counts: chunks.at(-1)?.expectedCounts ?? emptyCounts(),
       },
     };
-    mkdirSync(outputPath, { recursive: false });
+    mkdirSync(outputPath, { recursive: false, mode: 0o700 });
     for (let index = 0; index < chunks.length; index++) {
-      writeFileSync(resolve(outputPath, chunkFileName(index)), chunks[index].sql, { flag: "wx" });
+      writeFileSync(resolve(outputPath, chunkFileName(index)), chunks[index].sql, { flag: "wx", mode: 0o600 });
     }
-    writeFileSync(resolve(outputPath, "manifest.json"), JSON.stringify(chunkManifest, null, 2) + "\n", { flag: "wx" });
+    writeFileSync(resolve(outputPath, "manifest.json"), JSON.stringify(chunkManifest, null, 2) + "\n", { flag: "wx", mode: 0o600 });
     return chunkManifest;
   } finally { source.close(); }
 }
@@ -213,6 +213,8 @@ function validateStatementGroups(statementGroups: string[][], expected: Map<stri
     db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0017_ynab_source_month_activity.sql", import.meta.url), "utf8"));
     db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0019_own_imported_ynab_schedules.sql", import.meta.url), "utf8"));
     db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0020_drop_budgeting_tables.sql", import.meta.url), "utf8"));
+    db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0022_transaction_needs_confirmation.sql", import.meta.url), "utf8"));
+    db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0023_transaction_claim_status.sql", import.meta.url), "utf8"));
     for (const statements of statementGroups) db.exec(statements.join("\n"));
     if ((db.query("PRAGMA foreign_key_check").all() as any[]).length) throw new Error("Generated database has foreign-key violations");
     for (const table of COPY_TABLES) {

@@ -78,6 +78,22 @@ final class CaptureConversationTests: XCTestCase {
     XCTAssertEqual(session.ownerMessageID(forDraft: lunch.id), owners[0].id)
   }
 
+  func testModelUpdatesCannotModifySavedCardsIndividuallyOrInBulk() {
+    for all in [false, true] {
+      let session = Self.session()
+      session.apply(turn: Self.addTurn("Added lunch."), mapped: [Self.mapped(amount: 12_000, payee: "Lunch")])
+      let id = session.drafts[0].id
+      session.markCommitted(ids: [id])
+      session.apply(turn: CaptureInterpretedTurn(
+        intent: .update, feedback: "Changed saved lunch.",
+        mutations: [CaptureDraftMutation(targetDraftID: id, extraction: .init(amount: "99"))],
+        query: nil, applyToAllDrafts: all), mapped: [Self.mapped(amount: 99_000, payee: "Lunch")])
+      XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 12_000)
+      XCTAssertTrue(session.messages.last?.updatedDraftIDs.isEmpty == true)
+      XCTAssertTrue(session.messages.last?.text.contains("saved") == true)
+    }
+  }
+
   func testGroupSaveMarksOnlyOwnedIncludedDraftsAndLeavesOthersEditable() {
     let session = Self.session()
     session.apply(turn: Self.addTurn("Added lunch."), mapped: [Self.mapped(amount: 12_000, payee: "Lunch")])

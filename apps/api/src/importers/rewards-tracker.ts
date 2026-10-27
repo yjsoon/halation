@@ -73,12 +73,17 @@ export function parseRewardsTrackerExport(input: unknown): ParsedRewardsTrackerE
     const entry = rule as Record<string, unknown>;
     return entry.rewardType === "points" ? { ...entry, rewardType: "miles" } : entry;
   });
+  const firstActiveRules = new Map<unknown, Record<string, unknown>>();
+  for (const rule of rules) {
+    if (rule && typeof rule === "object" && "cardId" in rule && "active" in rule && rule.active
+      && !firstActiveRules.has(rule.cardId)) {
+      firstActiveRules.set(rule.cardId, rule as Record<string, unknown>);
+    }
+  }
   const cards = raw.cards.map((card, index) => {
     const parsed = parseCard(card, index);
     if (!Object.prototype.hasOwnProperty.call(parsed, "earningRate")) {
-      const first = rules.find((rule): rule is Record<string, unknown> => Boolean(
-        rule && typeof rule === "object" && "cardId" in rule && rule.cardId === parsed.id && "active" in rule && rule.active,
-      ));
+      const first = firstActiveRules.get(parsed.id);
       parsed.earningRate = typeof first?.rewardValue === "number" ? first.rewardValue : 1;
     }
     return parsed;
@@ -146,7 +151,7 @@ export async function importRewardsTrackerExport(
       },
       {
         date_format: existingSettings.date_format,
-        currency_format: mergeCurrency(existingSettings.currency_format, parsed.portable.settings.currency),
+        currency_format: existingSettings.currency_format,
         display: { flag_names: flagNames },
       },
     );
@@ -430,12 +435,6 @@ function mergeImportedMilesValuation(
 
 function finiteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-}
-
-function mergeCurrency(existing: Record<string, unknown> | undefined, currency: unknown): Record<string, unknown> | undefined {
-  const iso = optionalString(currency);
-  if (!iso) return existing;
-  return { ...(existing ?? {}), iso_code: iso };
 }
 
 function parseCleared(value: unknown): TransactionInput["cleared"] | undefined {

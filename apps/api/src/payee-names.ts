@@ -34,7 +34,7 @@ export function payeeTokens(name: string | null | undefined): string[] {
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
     // One chain, three spellings: "7-11", "7-Eleven", "7 ELEVEN-SENGKANG".
-    .replace(/\b7\s*-?\s*(?:11|eleven)\b/g, "seveneleven")
+    .replace(/\b7\s*(?:-\s*)?(?:11|eleven)\b/g, "seveneleven")
     .replace(/['’`]/g, "")
     .split(/[^a-z0-9]+/)
     .filter(Boolean)

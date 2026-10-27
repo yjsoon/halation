@@ -63,6 +63,8 @@ fi
 run_wrangler() { ( cd "$WORKER_DIR" && "$WRANGLER" "$@" ); }
 
 mkdir -p "$BACKUP_DIR"
+[ ! -L "$BACKUP_DIR" ] && [ -O "$BACKUP_DIR" ] || fail "backup directory must be owned by the current user and not a symlink"
+chmod 700 "$BACKUP_DIR"
 LOG_FILE="$BACKUP_DIR/.backup-d1.log"
 
 # The destination must never be committed. data/ is gitignored; refuse to write
@@ -77,9 +79,10 @@ esac
 
 DATE_UTC="$(date -u +%F)"
 DUMP="$BACKUP_DIR/$DB_NAME-$DATE_UTC.sql"
-PARTIAL="$DUMP.partial"
 
-WORK_DIR="$(mktemp -d "${TMPDIR:-/tmp}/howmuch-d1-backup.XXXXXX")"
+# Keep the private export on the destination filesystem for an atomic rename.
+WORK_DIR="$(mktemp -d "$BACKUP_DIR/.backup-work.XXXXXX")"
+PARTIAL="$(mktemp "$WORK_DIR/ledger.XXXXXX")"
 LOCK_DIR="$BACKUP_DIR/.backup-d1.lock"
 LOCK_HELD=0
 cleanup() {
@@ -155,6 +158,7 @@ LOCAL_TABLES="$(jq -r '.table_count' <<<"$LOCAL_ROW")"
 [ "$PROD_TABLES" = "$LOCAL_TABLES" ] \
   || fail "table count mismatch: dump=$LOCAL_TABLES live=$PROD_TABLES"
 
+chmod 600 "$PARTIAL"
 mv -f "$PARTIAL" "$DUMP"
 shasum -a 256 "$DUMP" >"$DUMP.sha256"
 SHA="$(cut -d' ' -f1 <"$DUMP.sha256")"

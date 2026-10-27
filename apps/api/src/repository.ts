@@ -389,10 +389,11 @@ export class LedgerRepository {
         // (YNAB imports write accounts before payees). Leave it alone.
         return null;
       }
+      if (byId.plan_id !== planId) throw new ValidationError("Transfer payee belongs to another plan");
       if (byId.transfer_account_id == null) {
         await this.db
-          .query("UPDATE payees SET transfer_account_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-          .run(accountId, byId.id);
+          .query("UPDATE payees SET transfer_account_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?")
+          .run(accountId, byId.id, planId);
         byId.transfer_account_id = accountId;
       }
       payee = byId;
@@ -407,8 +408,8 @@ export class LedgerRepository {
       payee = await this.db.query("SELECT * FROM payees WHERE id = ?").get(payeeId) as Row;
     } else if (payee.name !== expectedName && String(payee.name ?? "").startsWith("Transfer : ")) {
       await this.db
-        .query("UPDATE payees SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-        .run(expectedName, payee.id);
+        .query("UPDATE payees SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?")
+        .run(expectedName, payee.id, planId);
       payee.name = expectedName;
     }
 
@@ -423,6 +424,9 @@ export class LedgerRepository {
   async upsertAccount(planId: string, account: any): Promise<void> {
     await this.ensurePlan(planId);
     await this.assertAccountIdNotInOtherPlan(planId, account.id, "Account belongs to another plan");
+    if (account.transfer_payee_id && await this.db.query("SELECT 1 FROM payees WHERE id = ? AND plan_id <> ?").get(account.transfer_payee_id, planId)) {
+      throw new ValidationError("Transfer payee belongs to another plan");
+    }
     const existing = await this.db.query("SELECT icon FROM accounts WHERE id = ?").get(account.id) as Row | null;
     const presentation = resolveAccountPresentation({
       name: account.name ?? `Account ${account.id}`,
@@ -736,7 +740,7 @@ export class LedgerRepository {
 
   async upsertPayee(planId: string, payee: any): Promise<void> {
     await this.ensurePlan(planId);
-    await this.db
+    const saved = await this.db
       .query(
         `INSERT INTO payees (id, plan_id, name, transfer_account_id, external_ynab_id, deleted, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -745,9 +749,11 @@ export class LedgerRepository {
            transfer_account_id = excluded.transfer_account_id,
            external_ynab_id = excluded.external_ynab_id,
            deleted = excluded.deleted,
-           updated_at = CURRENT_TIMESTAMP`,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE payees.plan_id = excluded.plan_id
+         RETURNING id`,
       )
-      .run(
+      .get(
         payee.id,
         planId,
         payee.name ?? `Payee ${payee.id}`,
@@ -755,6 +761,7 @@ export class LedgerRepository {
         payee.external_ynab_id ?? payee.id,
         bool(payee.deleted),
       );
+    if (!saved) throw new ValidationError("Payee belongs to another plan");
     // Same reason as `upsertAccount`: a renamed or deleted payee must not be
     // servable from a client cache that thinks knowledge has not moved.
     await this.touchPlan(planId);
@@ -807,7 +814,7 @@ export class LedgerRepository {
 
   async upsertCategoryGroup(planId: string, group: any): Promise<void> {
     await this.ensurePlan(planId);
-    await this.db
+    const saved = await this.db
       .query(
         `INSERT INTO category_groups (id, plan_id, name, hidden, internal, external_ynab_id, deleted, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -817,9 +824,11 @@ export class LedgerRepository {
            internal = excluded.internal,
            external_ynab_id = excluded.external_ynab_id,
            deleted = excluded.deleted,
-           updated_at = CURRENT_TIMESTAMP`,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE category_groups.plan_id = excluded.plan_id
+         RETURNING id`,
       )
-      .run(
+      .get(
         group.id,
         planId,
         group.name ?? `Group ${group.id}`,
@@ -828,6 +837,7 @@ export class LedgerRepository {
         group.external_ynab_id ?? group.id,
         bool(group.deleted),
       );
+    if (!saved) throw new ValidationError("Category group belongs to another plan");
   }
 
   async upsertCategory(planId: string, category: any, groupId?: string | null): Promise<void> {
@@ -2364,15 +2374,16 @@ export class LedgerRepository {
     }
 
     let occurrenceCount = 0;
+    let attemptedCount = 0;
     const skippedClosed = new Set<string>();
     const failures = new Set<string>();
 
-    while (occurrenceCount < maximum) {
+    while (attemptedCount < maximum) {
       const schedules = await this.listScheduledTransactions(planId) as EffectiveScheduledTransaction[];
       let progressed = false;
 
       for (const listed of schedules) {
-        if (occurrenceCount >= maximum) break;
+        if (attemptedCount >= maximum) break;
         if (failures.has(listed.id)) continue;
 
         try {
@@ -2387,6 +2398,7 @@ export class LedgerRepository {
             continue;
           }
 
+          attemptedCount += 1;
           const occurrence = await this.materializeScheduledOccurrence(
             planId,
             schedule.id,
@@ -3073,6 +3085,7 @@ export class LedgerRepository {
       return;
     }
     const nextAccountId = opts.accountId ?? linked.account_id;
+    await this.requireTransferTarget(planId, opts.sourceAccountId, nextAccountId);
     const payee = await this.ensureTransferPayee(planId, opts.sourceAccountId);
     await this.db
       .query(

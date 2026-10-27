@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PlanNotFoundError } from "../repository";
+import { PlanNotFoundError, ValidationError } from "../repository";
 import type { LedgerStore } from "../storage";
 import type { ClearedState, TransactionInput } from "../types";
 
@@ -386,6 +386,7 @@ function inferTransferPairs(transactions: PreparedTransaction[]): number {
   }
 
   let pairs = 0;
+  let comparisons = 0;
   for (const bucket of byAmount.values()) {
     const unmatchedPositives = new Set(bucket.positives);
     const negatives = [...bucket.negatives].sort((left, right) => left.input.date.localeCompare(right.input.date));
@@ -395,6 +396,9 @@ function inferTransferPairs(transactions: PreparedTransaction[]): number {
       let bestDistance = Number.POSITIVE_INFINITY;
 
       for (const positive of unmatchedPositives) {
+        if (++comparisons > 1_000_000) {
+          throw new ValidationError("Transfer matching exceeds the import work limit; split the export into smaller date ranges");
+        }
         if (negative.input.account_id === positive.input.account_id) {
           continue;
         }
