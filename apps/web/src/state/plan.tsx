@@ -202,6 +202,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const [authMode, setAuthMode] = useState<"checking" | SignedOutMode | "ready">("checking");
   const [bootstrapRequired, setBootstrapRequired] = useState(true);
   const [generation, setGeneration] = useState(0);
+  const cancelBootstrapRef = useRef<() => void>(() => {});
   const accountPreferencesControllerRef = useRef<{
     key: string;
     planId: string;
@@ -215,6 +216,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(() => setGeneration((number) => number + 1), []);
 
   const signOut = useCallback(async () => {
+    // Invalidate synchronously: a response received before logout can finish
+    // after it, even though the server has already revoked the session.
+    cancelBootstrapRef.current();
     await api.logout();
     accountPreferencesControllerRef.current?.controller.detach();
     accountPreferencesControllerRef.current = null;
@@ -229,6 +233,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      cancelBootstrapRef.current();
       accountPreferencesControllerRef.current?.controller.detach();
       accountPreferencesControllerRef.current = null;
       savePrefs({ planId: undefined, sessionExpiresAt: undefined });
@@ -259,6 +264,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    cancelBootstrapRef.current = () => { cancelled = true; };
     (async () => {
       try {
         // The session check, the plans list and - when a plan is remembered -

@@ -401,7 +401,6 @@ struct AddTransactionsView: View {
         chooseUnresolvedCategory: { resolvingCategoryDraftID = $0 },
         chooseTarget: { id in
           session.chooseTargetDraft(id)
-          persistCommittedCaptures(session.messages.last?.updatedDraftIDs ?? [])
         },
         inspectQuery: { inspectQueryCard = $0 },
         jumpToDraft: { id in
@@ -778,7 +777,6 @@ struct AddTransactionsView: View {
       expectedRevision: expectedRevision,
       expectedGeneration: expectedGeneration
     )
-    persistCommittedCaptures(session.messages.last?.updatedDraftIDs ?? [])
   }
 
   private func persistCommittedCaptures(_ ids: [String]) {
