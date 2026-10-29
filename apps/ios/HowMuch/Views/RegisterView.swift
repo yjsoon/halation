@@ -84,10 +84,11 @@ struct RegisterSnapshot {
 }
 
 /// A finished Load older tap: how many rows this register listed before it,
-/// in which ledger load.
+/// in which ledger load and under which filters.
 private struct OlderPageTap: Equatable {
   let listedCount: Int
   let generation: Int
+  let filterKey: String
 }
 
 private struct RegisterFilterCounts {
@@ -351,7 +352,7 @@ struct RegisterView: View {
       searchCoverageSection(snapshot)
       emptyRegisterSection(snapshot)
       olderTransactionsErrorSection
-      loadOlderTransactionsSection(snapshot, ledger: ledger)
+      loadOlderTransactionsSection(snapshot)
     }
     .listStyle(.plain)
     .listSectionSpacing(0)
@@ -891,6 +892,19 @@ struct RegisterView: View {
     ].joined(separator: "|")
   }
 
+  /// What decides which loaded rows this register lists, so Load older
+  /// feedback is only shown for the filters it was measured under.
+  private var olderPageFilterKey: String {
+    [
+      searchFetchKey,
+      unclearedOnly ? "uncleared" : "",
+      uncategorisedOnly ? "uncategorised" : "",
+      toConfirmOnly ? "confirm" : "",
+      toClaimOnly ? "claim" : "",
+      unapprovedOnly ? "unapproved-only" : "",
+    ].joined(separator: "|")
+  }
+
   @ViewBuilder
   private func searchCoverageSection(_ snapshot: RegisterSnapshot) -> some View {
     if searchQuery != nil {
@@ -1036,7 +1050,7 @@ struct RegisterView: View {
   }
 
   @ViewBuilder
-  private func loadOlderTransactionsSection(_ snapshot: RegisterSnapshot, ledger: [Transaction]) -> some View {
+  private func loadOlderTransactionsSection(_ snapshot: RegisterSnapshot) -> some View {
     if let query = searchQuery, !showingUnapprovedQueue {
       if searchPage.hasMore || searchPage.error != nil {
         Section {
@@ -1068,7 +1082,9 @@ struct RegisterView: View {
         }
       }
     } else if !showingUnapprovedQueue, !model.isFillingHorizon, model.ledgerPhase == .loaded {
-      let lastTap = olderPageTap?.generation == model.ledgerPageGeneration ? olderPageTap : nil
+      let lastTap = olderPageTap.flatMap {
+        $0.generation == model.ledgerPageGeneration && $0.filterKey == olderPageFilterKey ? $0 : nil
+      }
       if model.hasMoreTransactions {
         Section {
           VStack(spacing: 8) {
@@ -1088,7 +1104,7 @@ struct RegisterView: View {
             .accessibilityHint("Loads the next page of older transactions into this register.")
             if let lastTap, !model.isLoadingOlderTransactions, model.olderTransactionsError == nil,
                lastTap.listedCount == snapshot.transactionCount,
-               let searchedBack = ledger.last?.date {
+               let searchedBack = model.ledgerCursorOldestDate {
               Text("Nothing older here yet. Searched back to \(LedgerDate.shortDateString(fromISO: searchedBack)).")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -1116,12 +1132,24 @@ struct RegisterView: View {
   /// before it, so a page that adds nothing here can say so.
   private func loadOlderPage(listedCount: Int) {
     let generation = model.ledgerPageGeneration
+    let filterKey = olderPageFilterKey
     Task {
       await model.loadOlderTransactions()
-      olderPageTap = OlderPageTap(listedCount: listedCount, generation: generation)
+      // A refresh or filter change while the page loaded makes the count
+      // meaningless; say nothing rather than something wrong.
+      guard generation == model.ledgerPageGeneration, filterKey == olderPageFilterKey else {
+        return
+      }
+      olderPageTap = OlderPageTap(listedCount: listedCount, generation: generation, filterKey: filterKey)
+      // True whether or not the page added rows here, so it cannot
+      // contradict the note on screen.
       if model.olderTransactionsError == nil {
         AccessibilityNotification.Announcement(
-          model.hasMoreTransactions ? "Older page loaded" : "No older transactions"
+          !model.hasMoreTransactions
+            ? "No older transactions"
+            : model.ledgerCursorOldestDate.map {
+              "Searched back to \(LedgerDate.shortDateString(fromISO: $0))"
+            } ?? "Older transactions loaded"
         ).post()
       }
     }
