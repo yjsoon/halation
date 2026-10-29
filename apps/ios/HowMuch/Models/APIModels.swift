@@ -223,6 +223,10 @@ struct TransactionPage {
   let hasMore: Bool
   let nextOffset: Int?
   let serverKnowledge: Int?
+  /// The last row's date as the server sent it, before tombstones are dropped
+  /// or acknowledged writes repair `transactions`: where this page leaves the
+  /// cursor.
+  var cursorDate: String? = nil
 }
 
 struct TransactionPayload: Decodable {

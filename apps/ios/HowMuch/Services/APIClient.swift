@@ -316,7 +316,8 @@ struct APIClient {
       transactions: response.data.transactions.filter { !$0.deleted },
       hasMore: response.data.hasMore ?? false,
       nextOffset: response.data.nextOffset,
-      serverKnowledge: response.data.serverKnowledge
+      serverKnowledge: response.data.serverKnowledge,
+      cursorDate: response.data.transactions.last?.date
     )
   }
 

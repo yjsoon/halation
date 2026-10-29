@@ -224,6 +224,10 @@ export function TransactionsPage() {
     [currencyFormat, deferredSearch],
   );
   const searchVersionRef = useRef(0);
+  // The last finished "Load older transactions" click. Multi-account and
+  // category views filter plan-wide pages locally, so a page can add nothing
+  // they list; this lets the footer say so instead of looking unresponsive.
+  const [olderTap, setOlderTap] = useState<{ viewKey: string; rowCount: number } | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<Transaction | null>(null);
   const [pendingBulkDeletion, setPendingBulkDeletion] = useState<readonly Transaction[] | null>(null);
   // The confirmation renders above the register, behind the row that asked
@@ -290,6 +294,9 @@ export function TransactionsPage() {
   // claim". Like the approval queue they ignore the date window, and only one
   // of the three lists shows at a time.
   const [followUpOnly, setFollowUpOnlyState] = useState<FollowUpList | null>(null);
+  // Local filters change what is listed without reloading; a ledger reload
+  // clears the tap outright.
+  const olderTapViewKey = `${listKey}|${unapprovedOnly}|${followUpOnly ?? ""}`;
   const toConfirmOnly = followUpOnly === "needs_confirmation";
   const toClaimOnly = followUpOnly === "to_claim";
   const setUnapprovedOnly = (update: boolean | ((current: boolean) => boolean)) => {
@@ -572,6 +579,7 @@ export function TransactionsPage() {
   useEffect(() => {
     setReplacements((current) => retainInFlightPatches(current, clearedInFlightRef.current));
     setDeletedIds(new Set());
+    setOlderTap(null);
     replaceRowEdit(idleRowEdit());
     const empty = emptyApprovalSession();
     approvalSessionRef.current = empty;
@@ -708,6 +716,7 @@ export function TransactionsPage() {
     if (page.loadingMore || !page.hasMore || page.nextOffset === null) return;
     const requestedOffset = page.nextOffset;
     const requestVersion = requestVersionRef.current;
+    const tap = { viewKey: olderTapViewKey, rowCount: rows.length };
     setPage((current) => ({ ...current, loadingMore: true, error: null }));
     try {
       const older = await fetchTransactionPage(requestedOffset);
@@ -721,6 +730,9 @@ export function TransactionsPage() {
             loadingMore: false,
             error: null,
           });
+      if (requestVersion === requestVersionRef.current) {
+        setOlderTap(tap);
+      }
     } catch (error) {
       setPage((current) => requestVersion !== requestVersionRef.current || current.nextOffset !== requestedOffset
         ? current
@@ -1538,7 +1550,19 @@ export function TransactionsPage() {
         error: searchPage.error,
       })
     : `${rows.length} transactions · ${formatMoney(totals.inflow)} in · ${formatMoney(totals.outflow)} out · ${formatMoney(totals.net, { sign: true })} net`;
-  const footerMetaWithMore = filters.accountIds.length > 1 && hasMoreToLoad
+  const lastOlderTap = !registerQuery && !queueMode && page.loaded && !page.filling && !page.loadingMore && !page.error
+    && olderTap?.viewKey === olderTapViewKey
+    ? olderTap
+    : null;
+  const searchedBackTo = page.transactions.at(-1)?.date;
+  const olderTapNote = !lastOlderTap
+    ? null
+    : !page.hasMore
+      ? "No older transactions."
+      : lastOlderTap.rowCount === rows.length && searchedBackTo
+        ? `Nothing older here yet. Searched back to ${formatDate(searchedBackTo)}.`
+        : null;
+  const footerMetaWithMore = filters.accountIds.length > 1 && hasMoreToLoad && !olderTapNote
     ? `${footerMeta} · Load older entries to extend this multi-account result.`
     : footerMeta;
 
@@ -2239,7 +2263,11 @@ export function TransactionsPage() {
             <StatusPanel title={emptyMessage}>{emptyDetail}</StatusPanel>
           )}
           <div className="register-footer">
-            <span className="register-footer-meta">{footerMetaWithMore}</span>
+            <span className="register-footer-meta">
+              {footerMetaWithMore}
+              {olderTapNote && " · "}
+              <span role="status">{olderTapNote ?? ""}</span>
+            </span>
             <span className="register-hint">Double-click a cell or press Enter to edit · Esc cancels · Shift-click selects a range</span>
             {hasMoreToLoad && (
               <button

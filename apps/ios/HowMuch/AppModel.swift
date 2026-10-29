@@ -125,6 +125,10 @@ final class AppModel {
   @ObservationIgnored var cardDrainResults: [String: CardDrainResult] = [:]
   private(set) var hasMoreTransactions = false
   private(set) var nextTransactionOffset: Int?
+  /// The oldest date on the plan-wide cursor's latest page: how far back Load
+  /// older has searched. Focused-account fills and unsent edits can hold older
+  /// rows, so the loaded rows' own oldest date would overstate it.
+  private(set) var ledgerCursorOldestDate: String?
   private(set) var isLoadingOlderTransactions = false
   private(set) var isFillingHorizon = false
   /// Nested plan-wide and focused-account fills share the spinner; each push
@@ -516,6 +520,7 @@ final class AppModel {
       provisionalLedgerRowIDs = serverTransactions.map(\.id)
       hasMoreTransactions = page.hasMore && page.nextOffset != nil
       nextTransactionOffset = hasMoreTransactions ? page.nextOffset : nil
+      ledgerCursorOldestDate = page.transactions.last?.date
       lastLedgerFirstPage = page
       ledgerIsProvisional = true
       ledgerPhase = .loaded
@@ -2649,6 +2654,7 @@ final class AppModel {
     acknowledgedBalanceDeltas = []
     hasMoreTransactions = false
     nextTransactionOffset = nil
+    ledgerCursorOldestDate = nil
     isLoadingOlderTransactions = false
     isFillingHorizon = false
     horizonFillCount = 0
@@ -3122,6 +3128,7 @@ final class AppModel {
   private func applyTransactionPageCursor(_ page: TransactionPage) {
     hasMoreTransactions = page.hasMore && page.nextOffset != nil
     nextTransactionOffset = hasMoreTransactions ? page.nextOffset : nil
+    ledgerCursorOldestDate = page.cursorDate
   }
 
   private func applyOlderTransactionPage(_ page: TransactionPage) {
@@ -4474,7 +4481,8 @@ final class AppModel {
       ),
       hasMore: page.hasMore,
       nextOffset: page.nextOffset,
-      serverKnowledge: page.serverKnowledge
+      serverKnowledge: page.serverKnowledge,
+      cursorDate: page.cursorDate
     )
   }
 
