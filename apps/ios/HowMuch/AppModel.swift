@@ -3128,7 +3128,7 @@ final class AppModel {
   private func applyTransactionPageCursor(_ page: TransactionPage) {
     hasMoreTransactions = page.hasMore && page.nextOffset != nil
     nextTransactionOffset = hasMoreTransactions ? page.nextOffset : nil
-    ledgerCursorOldestDate = page.transactions.last?.date
+    ledgerCursorOldestDate = page.cursorDate
   }
 
   private func applyOlderTransactionPage(_ page: TransactionPage) {
@@ -4481,7 +4481,8 @@ final class AppModel {
       ),
       hasMore: page.hasMore,
       nextOffset: page.nextOffset,
-      serverKnowledge: page.serverKnowledge
+      serverKnowledge: page.serverKnowledge,
+      cursorDate: page.cursorDate
     )
   }
 
