@@ -224,6 +224,10 @@ export function TransactionsPage() {
     [currencyFormat, deferredSearch],
   );
   const searchVersionRef = useRef(0);
+  // The last finished "Load older transactions" click. Multi-account and
+  // category views filter plan-wide pages locally, so a page can add nothing
+  // they list; this lets the footer say so instead of looking unresponsive.
+  const [olderTap, setOlderTap] = useState<{ listKey: string; generation: number; rowCount: number } | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<Transaction | null>(null);
   const [pendingBulkDeletion, setPendingBulkDeletion] = useState<readonly Transaction[] | null>(null);
   // The confirmation renders above the register, behind the row that asked
@@ -708,6 +712,7 @@ export function TransactionsPage() {
     if (page.loadingMore || !page.hasMore || page.nextOffset === null) return;
     const requestedOffset = page.nextOffset;
     const requestVersion = requestVersionRef.current;
+    const tap = { listKey, generation: refreshGeneration, rowCount: rows.length };
     setPage((current) => ({ ...current, loadingMore: true, error: null }));
     try {
       const older = await fetchTransactionPage(requestedOffset);
@@ -721,6 +726,7 @@ export function TransactionsPage() {
             loadingMore: false,
             error: null,
           });
+      setOlderTap(tap);
     } catch (error) {
       setPage((current) => requestVersion !== requestVersionRef.current || current.nextOffset !== requestedOffset
         ? current
@@ -1538,9 +1544,23 @@ export function TransactionsPage() {
         error: searchPage.error,
       })
     : `${rows.length} transactions · ${formatMoney(totals.inflow)} in · ${formatMoney(totals.outflow)} out · ${formatMoney(totals.net, { sign: true })} net`;
-  const footerMetaWithMore = filters.accountIds.length > 1 && hasMoreToLoad
-    ? `${footerMeta} · Load older entries to extend this multi-account result.`
-    : footerMeta;
+  const lastOlderTap = !registerQuery && !queueMode && !page.loadingMore && !page.error
+    && olderTap?.listKey === listKey && olderTap.generation === refreshGeneration
+    ? olderTap
+    : null;
+  const searchedBackTo = page.transactions.at(-1)?.date;
+  const olderTapNote = !lastOlderTap
+    ? null
+    : !page.hasMore
+      ? "No older transactions."
+      : lastOlderTap.rowCount === rows.length && searchedBackTo
+        ? `Nothing older here yet. Searched back to ${formatDate(searchedBackTo)}.`
+        : null;
+  const footerMetaWithMore = [
+    footerMeta,
+    filters.accountIds.length > 1 && hasMoreToLoad && !olderTapNote ? "Load older entries to extend this multi-account result." : null,
+    olderTapNote,
+  ].filter(Boolean).join(" · ");
 
   const mutationBusy = writeLocked || Boolean(mutatingId);
   const deepLinkError = planSelectionError
@@ -2239,7 +2259,7 @@ export function TransactionsPage() {
             <StatusPanel title={emptyMessage}>{emptyDetail}</StatusPanel>
           )}
           <div className="register-footer">
-            <span className="register-footer-meta">{footerMetaWithMore}</span>
+            <span className="register-footer-meta" aria-live="polite">{footerMetaWithMore}</span>
             <span className="register-hint">Double-click a cell or press Enter to edit · Esc cancels · Shift-click selects a range</span>
             {hasMoreToLoad && (
               <button
