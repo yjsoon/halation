@@ -298,6 +298,9 @@ struct RegisterView: View {
   @State private var pendingRowAction: PendingRow?
   @SceneStorage("howmuch.register.scheduledExpanded") private var expandedScheduleAccountIDs = ""
   @State private var editingSchedule: ScheduledTransaction?
+  /// Rows picked to add up, by id; nil outside selection mode. Rows are kept
+  /// so a pick survives a search or filter that hides it.
+  @State private var selection: [String: Transaction]?
 
   init(
     scope: RegisterScope,
@@ -407,7 +410,20 @@ struct RegisterView: View {
         }
       }
       ToolbarItemGroup(placement: .topBarTrailing) {
-        registerOverflowMenu(counts)
+        if selection != nil {
+          Button("Done") {
+            withAnimation(Theme.Motion.standard) { selection = nil }
+          }
+          .accessibilityHint("Stops selecting transactions.")
+        } else {
+          registerOverflowMenu(counts)
+        }
+      }
+    }
+    .safeAreaInset(edge: .bottom) {
+      if let selection {
+        selectionBar(selection, visible: transactions)
+          .transition(.move(edge: .bottom).combined(with: .opacity))
       }
     }
     .modifier(RegisterSearchDrawer(text: $searchText, isPresented: $isSearchPresented, isShown: showsSearch))
@@ -561,6 +577,7 @@ struct RegisterView: View {
           registerFilterMenuItems(counts)
         }
         Divider()
+        selectMenuButton
         reconcileMenuButton
       } label: {
         Image(systemName: "ellipsis.circle")
@@ -573,6 +590,7 @@ struct RegisterView: View {
           registerFilterMenuItems(counts)
           Divider()
         }
+        selectMenuButton
         Button {
           isShowingReconciliation = true
         } label: {
@@ -583,16 +601,84 @@ struct RegisterView: View {
         Image(systemName: "ellipsis.circle")
       }
       .accessibilityLabel("Register actions")
-      .accessibilityHint(showsRegisterFilterMenu(counts) ? "Filters and reconcile." : "Reconcile.")
-    } else if showsRegisterFilterMenu(counts) {
+      .accessibilityHint(showsRegisterFilterMenu(counts) ? "Filters, select, and reconcile." : "Select and reconcile.")
+    } else {
       Menu {
-        registerFilterMenuItems(counts)
+        if showsRegisterFilterMenu(counts) {
+          registerFilterMenuItems(counts)
+          Divider()
+        }
+        selectMenuButton
       } label: {
-        Image(systemName: "line.3.horizontal.decrease.circle")
+        Image(systemName: "ellipsis.circle")
       }
-      .accessibilityLabel("Register filters")
-      .accessibilityHint("Review new, uncleared, uncategorised, or to-confirm transactions.")
+      .accessibilityLabel("Register actions")
+      .accessibilityHint(showsRegisterFilterMenu(counts) ? "Filters and select." : "Select transactions.")
     }
+  }
+
+  private var selectMenuButton: some View {
+    Button {
+      withAnimation(Theme.Motion.standard) { selection = [:] }
+    } label: {
+      Label("Select Transactions", systemImage: "checklist")
+    }
+    .accessibilityHint("Pick transactions to add up.")
+  }
+
+  private func toggleSelection(_ transaction: Transaction) {
+    if selection?.removeValue(forKey: transaction.id) == nil {
+      selection?[transaction.id] = transaction
+    }
+  }
+
+  /// The picked rows' count and total. A row still listed is read fresh, so a
+  /// sync that changes its amount changes the sum too.
+  private func selectionBar(_ selection: [String: Transaction], visible: [Transaction]) -> some View {
+    let listed = Dictionary(visible.map { ($0.id, $0.amount) }, uniquingKeysWith: { first, _ in first })
+    let amounts = selection.map { id, row in listed[id] ?? row.amount }
+    let total = amounts.reduce(0, +)
+    let inflow = amounts.filter { $0 > 0 }.reduce(0, +)
+    let outflow = -amounts.filter { $0 < 0 }.reduce(0, +)
+    let count = selection.count
+    return HStack(alignment: .center, spacing: 12) {
+      VStack(alignment: .leading, spacing: 2) {
+        Text(count == 0 ? "Tap transactions to add them up" : "\(count) selected")
+          .font(.subheadline.weight(.semibold))
+          .foregroundStyle(Theme.textPrimary)
+        if inflow > 0, outflow > 0 {
+          Text("In \(MoneyCodec.displayString(for: inflow, currencyFormat: model.currencyFormat)) · Out \(MoneyCodec.displayString(for: outflow, currencyFormat: model.currencyFormat))")
+            .font(.caption)
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+        }
+      }
+      Spacer(minLength: 8)
+      if count > 0 {
+        Text(MoneyCodec.signedDisplayString(for: total, currencyFormat: model.currencyFormat))
+          .font(.title3.weight(.bold))
+          .monospacedDigit()
+          .foregroundStyle(Theme.amountColour(total))
+          .rollingNumber(total)
+        Button {
+          withAnimation(Theme.Motion.standard) { self.selection = [:] }
+        } label: {
+          Image(systemName: "xmark.circle.fill")
+            .font(.title3)
+            .foregroundStyle(.tertiary)
+            .frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Clear selection")
+      }
+    }
+    .padding(.leading, 16)
+    .padding(.trailing, count > 0 ? 4 : 16)
+    .frame(minHeight: 56)
+    .ynabCard()
+    .padding(.horizontal, 12)
+    .padding(.bottom, 8)
+    .accessibilityElement(children: .contain)
   }
 
   private var reconcileMenuButton: some View {
@@ -806,12 +892,20 @@ struct RegisterView: View {
       showsAccount: showsAccount,
       currencyFormat: model.currencyFormat,
       isBusy: false,
-      onOpen: { editingTransaction = transaction },
+      onOpen: {
+        if selection != nil {
+          toggleSelection(transaction)
+        } else {
+          editingTransaction = transaction
+        }
+      },
       onChangeStatus: { changeStatus(transaction) },
-      syncStatus: model.syncStatus(forTransactionID: transaction.id)
+      syncStatus: model.syncStatus(forTransactionID: transaction.id),
+      isSelected: selection.map { $0[transaction.id] != nil }
     )
+    // Selecting turns the row into a checkbox; row actions wait until Done.
     .swipeActions(edge: .leading, allowsFullSwipe: true) {
-      if !transaction.approved {
+      if selection == nil, !transaction.approved {
         Button {
           approve(transaction)
         } label: {
@@ -819,7 +913,7 @@ struct RegisterView: View {
         }
         .tint(Theme.inflow)
       }
-      if transaction.isToConfirm {
+      if selection == nil, transaction.isToConfirm {
         Button {
           confirmAmount(transaction)
         } label: {
@@ -829,48 +923,52 @@ struct RegisterView: View {
       }
     }
     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-      Button(role: .destructive) {
-        transactionPendingDeletion = transaction
-      } label: {
-        Label("Delete", systemImage: "trash")
+      if selection == nil {
+        Button(role: .destructive) {
+          transactionPendingDeletion = transaction
+        } label: {
+          Label("Delete", systemImage: "trash")
+        }
+        .tint(Theme.cancellation)
       }
-      .tint(Theme.cancellation)
     }
     .contextMenu {
-      if !transaction.approved {
-        Button {
-          approve(transaction)
-        } label: {
-          Label("Approve", systemImage: "checkmark")
+      if selection == nil {
+        if !transaction.approved {
+          Button {
+            approve(transaction)
+          } label: {
+            Label("Approve", systemImage: "checkmark")
+          }
         }
-      }
-      if transaction.isToConfirm {
-        Button {
-          confirmAmount(transaction)
-        } label: {
-          Label("Confirm Amount", systemImage: "checkmark.seal")
+        if transaction.isToConfirm {
+          Button {
+            confirmAmount(transaction)
+          } label: {
+            Label("Confirm Amount", systemImage: "checkmark.seal")
+          }
         }
-      }
-      Button {
-        editingTransaction = transaction
-      } label: {
-        Label("Edit", systemImage: "pencil")
-      }
-      Button {
-        model.presentCapture(
-          CaptureRequest(
-            kind: .draft(TransactionDraft(duplicating: transaction)),
-            connectionFingerprint: model.settings.connectionFingerprint,
-            origin: .presetDraft
+        Button {
+          editingTransaction = transaction
+        } label: {
+          Label("Edit", systemImage: "pencil")
+        }
+        Button {
+          model.presentCapture(
+            CaptureRequest(
+              kind: .draft(TransactionDraft(duplicating: transaction)),
+              connectionFingerprint: model.settings.connectionFingerprint,
+              origin: .presetDraft
+            )
           )
-        )
-      } label: {
-        Label("Duplicate for Today", systemImage: "plus.square.on.square")
-      }
-      Button(role: .destructive) {
-        transactionPendingDeletion = transaction
-      } label: {
-        Label("Delete", systemImage: "trash")
+        } label: {
+          Label("Duplicate for Today", systemImage: "plus.square.on.square")
+        }
+        Button(role: .destructive) {
+          transactionPendingDeletion = transaction
+        } label: {
+          Label("Delete", systemImage: "trash")
+        }
       }
     }
     .registerRowChrome()
@@ -2347,11 +2445,20 @@ struct TransactionRow: View {
   let onChangeStatus: () -> Void
   /// Set while the row has changes the server has not acknowledged.
   var syncStatus: PendingRow.Status? = nil
+  /// Set in selection mode: whether this row is picked. A tap then toggles it.
+  var isSelected: Bool? = nil
 
   var body: some View {
     HStack(alignment: .center, spacing: 4) {
       Button(action: onOpen) {
         HStack(alignment: .center, spacing: 10) {
+          if let isSelected {
+            Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+              .font(.title3)
+              .foregroundStyle(isSelected ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
+              .contentTransition(.symbolEffect(.replace))
+              .accessibilityHidden(true)
+          }
           VStack(alignment: .leading, spacing: 3) {
             Text(payeeDisplay)
               .font(.body.weight(.semibold))
@@ -2383,7 +2490,8 @@ struct TransactionRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
       }
       .buttonStyle(.plain)
-      .accessibilityHint("Opens this transaction.")
+      .accessibilityAddTraits(isSelected == true ? .isSelected : [])
+      .accessibilityHint(isSelected == nil ? "Opens this transaction." : "Adds or removes this transaction from the total.")
 
       statusControl
     }
@@ -2440,7 +2548,7 @@ struct TransactionRow: View {
   @ViewBuilder
   private var statusControl: some View {
     let status = transaction.registerStatus
-    switch status.tap {
+    switch isSelected == nil ? status.tap : nil {
     case nil:
       statusIcon(status)
         .accessibilityLabel(statusAccessibilityLabel(status))
