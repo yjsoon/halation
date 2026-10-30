@@ -641,43 +641,45 @@ struct RegisterView: View {
     let inflow = amounts.filter { $0 > 0 }.reduce(0, +)
     let outflow = -amounts.filter { $0 < 0 }.reduce(0, +)
     let count = selection.count
-    return HStack(alignment: .center, spacing: 12) {
-      VStack(alignment: .leading, spacing: 2) {
+    return VStack(alignment: .leading, spacing: 0) {
+      HStack(alignment: .center, spacing: 12) {
         Text(count == 0 ? "Tap transactions to add them up" : "\(count) selected")
           .font(.subheadline.weight(.semibold))
           .foregroundStyle(Theme.textPrimary)
-        if inflow > 0, outflow > 0 {
-          Text("In \(MoneyCodec.displayString(for: inflow, currencyFormat: model.currencyFormat)) · Out \(MoneyCodec.displayString(for: outflow, currencyFormat: model.currencyFormat))")
-            .font(.caption)
+        Spacer(minLength: 8)
+        if count > 0 {
+          Text(MoneyCodec.signedDisplayString(for: total, currencyFormat: model.currencyFormat))
+            .font(.title3.weight(.bold))
             .monospacedDigit()
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
+            .foregroundStyle(Theme.amountColour(total))
+            .rollingNumber(total)
+            .fixedSize()
+          Button {
+            withAnimation(Theme.Motion.standard) { self.selection = [:] }
+          } label: {
+            Image(systemName: "xmark.circle.fill")
+              .font(.title3)
+              .foregroundStyle(.tertiary)
+              .frame(width: 44, height: 44)
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel("Clear selection")
         }
       }
-      Spacer(minLength: 8)
-      if count > 0 {
-        Text(MoneyCodec.signedDisplayString(for: total, currencyFormat: model.currencyFormat))
-          .font(.title3.weight(.bold))
+      .frame(minHeight: 56)
+      // Its own line: beside the total there is no room for both amounts.
+      if inflow > 0, outflow > 0 {
+        Text("In \(MoneyCodec.displayString(for: inflow, currencyFormat: model.currencyFormat)) · Out \(MoneyCodec.displayString(for: outflow, currencyFormat: model.currencyFormat))")
+          .font(.caption)
           .monospacedDigit()
-          .foregroundStyle(Theme.amountColour(total))
-          .rollingNumber(total)
-          .fixedSize()
-        Button {
-          withAnimation(Theme.Motion.standard) { self.selection = [:] }
-        } label: {
-          Image(systemName: "xmark.circle.fill")
-            .font(.title3)
-            .foregroundStyle(.tertiary)
-            .frame(width: 44, height: 44)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Clear selection")
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .padding(.top, -6)
+          .padding(.bottom, 10)
       }
     }
     .padding(.leading, 16)
     .padding(.trailing, count > 0 ? 4 : 16)
-    .frame(minHeight: 56)
     .ynabCard()
     .padding(.leading, 12)
     // The floating Assistant (iPhone) or Add (iPad sidebar) control sits on
