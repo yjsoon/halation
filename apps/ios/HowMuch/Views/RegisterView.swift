@@ -651,6 +651,8 @@ struct RegisterView: View {
             .font(.caption)
             .monospacedDigit()
             .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.8)
         }
       }
       Spacer(minLength: 8)
@@ -660,6 +662,7 @@ struct RegisterView: View {
           .monospacedDigit()
           .foregroundStyle(Theme.amountColour(total))
           .rollingNumber(total)
+          .fixedSize()
         Button {
           withAnimation(Theme.Motion.standard) { self.selection = [:] }
         } label: {
@@ -676,7 +679,10 @@ struct RegisterView: View {
     .padding(.trailing, count > 0 ? 4 : 16)
     .frame(minHeight: 56)
     .ynabCard()
-    .padding(.horizontal, 12)
+    .padding(.leading, 12)
+    // The floating Assistant (iPhone) or Add (iPad sidebar) control sits on
+    // the window's bottom-trailing corner, over anything there.
+    .padding(.trailing, RootChrome.compactFloatingAssistantClearance)
     .padding(.bottom, 8)
     .accessibilityElement(children: .contain)
   }
