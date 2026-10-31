@@ -29,7 +29,7 @@ Preconditions:
 
 - **Open empty.** Choose tab `Rewards`. Navigation title `Rewards`. Status is `No Reward Cards`. Buttons **Set Up Rewards** and **Import Rewards** are present.
 - **Import.** Choose `Rewards import`, or Settings → `Rewards import & export`. Choose `fixtures/rewards-tracker-export.json`. Choose `Import export`. Stored cards lists `Travel Card`.
-- **Open filled.** Return to `Rewards` if needed. Pull to refresh. A row named `Travel Card` is visible; with the as-of date on 24 May 2026 it reads `Minimum met · Resets in 8 days`.
+- **Open filled.** Return to `Rewards` if needed. Pull to refresh. A row named `Travel Card` is visible; with the as-of date on 24 May 2026 it is a slim row reading `Minimum met · <earned> earned` with `Resets in 8 days` at the right.
 - **Group by payee.** Open **Range Report** from the board's menu. Group includes `Flag`, `Payee`, `Category`, `Memo`. Choose `Payee`; the groups include `Candlenut`.
 - **HTTP match.** `control-howmuch http GET "/api/reports/rewards?plan_id=local-plan&group=payee"` returns `data.cards` with `card-travel` and `data.groups` containing Candlenut. Do not POST the import from `control-howmuch http` and call the tab verified.
 - **Proof.** Screenshot the empty tab (`artifacts/ios-rewards/empty.png`), the Travel Card tile after import (`artifacts/ios-rewards/travel-card.png`), the payee groups table (`artifacts/ios-rewards/group-payee.png`), and save the GET JSON (`artifacts/ios-rewards/report.json`).
@@ -64,7 +64,7 @@ The Sun Arc card (spec `docs/frontend/rewards-exposure-card.md`). Import `fixtur
 - **Sheet.** Long-press A and choose **Show Details** (a tap opens it in place): the card name is a wrapping heading above a 3:2 print in a 6pt border, with the hairline marker at 0.631 of the width, the half-disc sun on it, `$500.00 minimum` at the top left and a tick where the sun will rest. Then D, F, J, K and P. At AX3 the in-frame label and the tick are gone and the slip text scales. No title truncates.
 - **Register.** Accounts → Travel Card: a paper row with a 90 × 60pt print on the trailing side; at AX3 a paper row with a band.
 - **Fonts.** Names are Instrument Serif Italic, words IBM Plex Sans and figures IBM Plex Mono. A debug launch asserts every face is bundled.
-- **iPad.** Where the board uses the phone rows (Slide Over, a narrow split, accessibility sizes), rows are at most 640pt wide and centred; at regular width the Skyline window rows span the board.
+- **iPad.** Where the board uses the phone rows (Slide Over, a narrow split, a board under 760pt, accessibility sizes), rows are at most 640pt wide and centred; at regular width with a board at least 760pt wide the Skyline window rows span the board.
 - **Floating button.** Scroll to the end of the board: the floating capture and Assistant buttons cover no text. On iPad in the sidebar layout, the floating capture button covers no text either.
 - **Motion.** Record the first showing: gate cards sweep right with the sun riding the edge, cards past a minimum sweep and then rise, and no sun moves diagonally. Scroll away and back: no replay. Under Reduce Motion the faces appear in their final pose.
 - **Increase Contrast and VoiceOver.** Increase Contrast adds a row outline and a stronger marker. The accessibility dump shows one element per card, labelled with the card name and valued with the spoken string; the art is not focusable.

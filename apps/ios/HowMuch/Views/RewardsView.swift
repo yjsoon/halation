@@ -1109,15 +1109,15 @@ struct RewardFilledRow: View {
           key: memoryKey, index: index)
       }
       .coordinateSpace(.named(Self.space))
-      .clipShape(rowShape)
-      // The words are inked for the face behind them, so Smart Invert leaves them together.
-      .accessibilityIgnoresInvertColors(true)
-      .overlay { outline }
       .overlay(alignment: .topTrailing) {
         chevron(ink: titleInk(.ridge))
           .padding(.top, vertical + 6)
           .padding(.trailing, 12)
       }
+      .clipShape(rowShape)
+      // The words and chevron are inked for the face behind them, so Smart Invert leaves them together.
+      .accessibilityIgnoresInvertColors(true)
+      .overlay { outline }
     }
   }
 
@@ -1142,7 +1142,9 @@ struct RewardFilledRow: View {
     .clipShape(rowShape)
     .overlay { outline }
     .overlay(alignment: .topTrailing) {
+      // Inked for the band's sky, so Smart Invert leaves it with the art.
       chevron(ink: titleInk(.ridge))
+        .accessibilityIgnoresInvertColors(true)
         .padding(.top, 10)
         .padding(.trailing, 12)
     }
@@ -1293,6 +1295,9 @@ struct RewardFilledRow: View {
           key: memoryKey, index: index)
       }
       .coordinateSpace(.named(Self.space))
+      // The name is inked for the sky behind it, so Smart Invert leaves them together; the statement
+      // on paper inverts with the board.
+      .accessibilityIgnoresInvertColors(true)
       statement(text, stature: stature)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .background(paperFill)

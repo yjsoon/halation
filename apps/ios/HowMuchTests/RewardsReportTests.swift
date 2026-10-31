@@ -753,9 +753,10 @@ final class RewardsSnapshotTests: XCTestCase {
     for text in expected { XCTAssertTrue(read.contains(text.lowercased()), "Missing \(text): \(board.text)") }
   }
 
-  /// OCR reads the tall row's larger monospaced figure with a space after the decimal point ("$169. 20").
+  /// OCR can read the tall row's larger monospaced figure with a space either side of the decimal point
+  /// ("$169. 20", "169 .20").
   private static func joiningDecimals(_ text: String) -> String {
-    text.replacingOccurrences(of: #"(\d)\. (\d)"#, with: "$1.$2", options: .regularExpression)
+    text.replacingOccurrences(of: #"(\d) ?\. ?(\d)"#, with: "$1.$2", options: .regularExpression)
   }
 
   func testCardDetailSheetShowsTargetsTiersAndQualification() async throws {
