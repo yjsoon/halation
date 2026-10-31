@@ -387,7 +387,7 @@ final class CaptureSessionTests: XCTestCase {
       CaptureDraftItem(draft: lunch),
       CaptureDraftItem(draft: coffee),
     ])
-    session.markCommitted(ids: session.includedDrafts.map(\.id))
+    session.markCommitted(ids: [session.drafts[1].id])
     var renamed = session.drafts[1].draft
     renamed.payeeName = "Capture Rename Verify"
     let mapped = SlipMappedDraft(

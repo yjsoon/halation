@@ -42,7 +42,7 @@ One keyboard-safe dock: compact account line with **Add manually**, plus a singl
 
 ## Save
 
-Group-local Save commits only that reply’s included, unsaved draft IDs through `AppModel.commit(_ drafts:)`. Successful local enqueue reads **Saved on device** (and **Sync pending** only when an outbox row exists). No remote-success claim, no cross-group Save, no auto-dismiss. Cards in this conversation stay visible after Save. A saved card cannot be changed from the conversation: a later correction aimed at it gets **That transaction is already saved. Open it in the register to make changes.** Change saved rows in the register. There is no second Save. Delete remains unsupported. No Undo back to a recommit of the original add. Undo can restore a later field change on that card. Undo is only on the reply that owns the drafts that actually changed or were removed.
+Group-local Save commits only that reply’s included, unsaved draft IDs through `AppModel.commit(_ drafts:)`. Successful local enqueue reads **Saved on device** (and **Sync pending** only when an outbox row exists). No remote-success claim, no cross-group Save, no auto-dismiss. Cards in this conversation stay visible after Save. A saved card cannot be changed from the conversation: a later correction aimed at it gets **That transaction is already saved. Open it in the register to make changes.** Change saved rows in the register. There is no second Save. Delete remains unsupported. No Undo back to a recommit of the original add. Undo can restore a later field change on an unsaved card. Undo is only on the reply that owns the drafts that actually changed or were removed.
 
 ## Manual
 
@@ -54,7 +54,7 @@ Editing an existing conversation draft remains different: **Done** resolves arit
 
 Home stays at the root: **Today**, **New conversation**, recents. Opening a recent or new conversation pushes the shared surface. Recents use a short user-derived title, or **Message draft** when only pending text/images exist. History is scoped to endpoint, user, and plan. Discard is a confirmed local action and does not delete saved payments.
 
-Today is the local calendar day, using recorded-spending reports and excluding uncategorised on-budget transfer legs. Loading, unavailable, and zero are distinct. Query answers render once in the owning reply; scope and source sit beneath and do not repeat the detail. Legacy snapshots without `queryID` hydrate each unmatched card onto a matching assistant detail or a system result event so Inspect remains reachable. Source lists use existing matching-payment navigation. Questions cannot delete saved transactions. Field changes apply only to cards not yet saved. Local notifications for Inbox batches only; no remote push.
+Today is the local calendar day, using recorded-spending reports and excluding uncategorised on-budget transfer legs. Loading, unavailable, and zero are distinct. Query answers render once in the owning reply; scope and source sit beneath and do not repeat the detail. Legacy snapshots without `queryID` hydrate each unmatched card onto a matching assistant detail or a system result event so Inspect remains reachable. Source lists use existing matching-payment navigation. Questions cannot delete saved transactions. A field change that touches a saved card is refused as a whole; change saved rows in the register. Local notifications for Inbox batches only; no remote push.
 
 ## Apple Intelligence
 
