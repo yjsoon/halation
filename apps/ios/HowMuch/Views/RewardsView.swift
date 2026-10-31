@@ -244,6 +244,14 @@ struct RewardsView: View {
     .refreshable {
       await fetch()
     }
+    // Another plan, date or account scope is another board: nothing stays open across it.
+    .onChange(of: requestKey) { _, _ in
+      openCardID = nil
+    }
+  }
+
+  private var requestKey: String {
+    "\(model.settings.planID)|\(filter.key)"
   }
 
   /// The model holds the board's report, so the overview board (cached on
@@ -366,7 +374,7 @@ struct RewardsView: View {
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
-      .listRowInsets(EdgeInsets(top: 4, leading: 20, bottom: 0, trailing: 20))
+      .listRowInsets(EdgeInsets(top: 4, leading: rowGutter + 4, bottom: 0, trailing: rowGutter + 4))
       .listRowBackground(Color.clear)
       .listRowSeparator(.hidden)
       .accessibilityLabel("\(title), \(matching.count == 1 ? "1 card" : "\(matching.count) cards")")
@@ -384,7 +392,8 @@ struct RewardsView: View {
   private var windowWidth: CGFloat? {
     guard usesWindowRows else { return nil }
     let content = boardWidth - 2 * rowGutter
-    return min(336, max(248, (248 + (content - 776) * 0.43).rounded()))
+    // 248pt at an 820pt board (772pt of content) to 336pt at 1024 (976pt).
+    return min(336, max(248, (248 + (content - 772) * 88 / 204).rounded()))
   }
 
   /// A regular-width iPad board wide enough for a window and a readable statement beside it.
@@ -502,7 +511,7 @@ struct RewardsView: View {
         .frame(maxWidth: .infinity, minHeight: 44)
     }
     .buttonStyle(.plain)
-    .listRowInsets(EdgeInsets(top: 0, leading: 16, bottom: 0, trailing: 16))
+    .listRowInsets(EdgeInsets(top: 0, leading: rowGutter, bottom: 0, trailing: rowGutter))
     .listRowBackground(Color.clear)
     .listRowSeparator(.hidden)
     .accessibilityLabel("Summary for current periods, \(line)")
@@ -819,8 +828,20 @@ struct RewardsView: View {
     // Hiding, collapsing and filtering move rows rather than redrawing the board.
     withAnimation(Theme.Motion.standard) {
       preferencesByPlan[planID] = next
+      if let open = openCardID, !isShown(open, under: next) {
+        openCardID = nil
+      }
     }
     next.save(planID: planID)
+  }
+
+  /// Whether a card is on the board under these preferences: not hidden, not filtered out by Featured,
+  /// and not in a collapsed group.
+  private func isShown(_ cardID: String, under preferences: RewardsBoardPreferences) -> Bool {
+    guard let report = currentReport else { return false }
+    let board = RewardsBoard(report: report, preferences: preferences, currencyFormat: model.currencyFormat)
+    guard let projection = board.visible.first(where: { $0.cardID == cardID }) else { return false }
+    return !(preferences.groupsByType && preferences.collapsedGroups.contains(projection.rewardType.rawValue))
   }
 
   private func hide(_ cardID: String) {
@@ -1097,7 +1118,7 @@ struct RewardFilledRow: View {
     }
     return HStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 0) {
-        nameColumn(maxWidth: windowWidth - 2 * horizontalPadding)
+        nameColumn(maxWidth: windowWidth - 2 * horizontalPadding, singleLine: true)
           .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).maxY } action: { nameBottom = $0 }
         Spacer(minLength: 0)
       }
@@ -1240,9 +1261,9 @@ struct RewardFilledRow: View {
   }
 
   @ViewBuilder
-  private func nameColumn(maxWidth: CGFloat) -> some View {
+  private func nameColumn(maxWidth: CGFloat, singleLine: Bool = false) -> some View {
     if showsTitle {
-      titleLine(surface: .ridge)
+      titleLine(surface: .ridge, singleLine: singleLine)
         .frame(maxWidth: maxWidth > 0 ? maxWidth * 0.72 : .infinity, alignment: .leading)
     } else {
       Color.clear.frame(height: 0)
@@ -1267,7 +1288,9 @@ struct RewardFilledRow: View {
     }
   }
 
-  private func titleLine(surface: Surface) -> some View {
+  /// `singleLine` is the iPad window's name: one line, shrinking a little before it truncates at the tail,
+  /// so a narrow window does not stack the name over its sky.
+  private func titleLine(surface: Surface, singleLine: Bool = false) -> some View {
     HStack(alignment: .firstTextBaseline, spacing: 6) {
       if let icon {
         Text(icon)
@@ -1277,7 +1300,9 @@ struct RewardFilledRow: View {
       Text(projection.title)
         .font(.system(.title3, design: .serif).italic())
         .foregroundStyle(titleInk(surface))
-        .lineLimit(2)
+        .lineLimit(singleLine ? 1 : 2)
+        .minimumScaleFactor(singleLine ? 0.85 : 1)
+        .truncationMode(.tail)
     }
   }
 

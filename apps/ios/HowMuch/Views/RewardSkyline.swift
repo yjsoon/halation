@@ -406,8 +406,6 @@ struct RewardCardSlip: View {
         list.append(Target(
           id: "minimum", label: "Minimum", amount: money(minimum), state: "\(money(left)) to go", status: .pending))
       }
-    } else {
-      list.append(Target(id: "minimum", label: "Minimum", amount: nil, state: "none", status: .none))
     }
     if let month = activeMonth {
       let met = month.spend >= month.minimumSpend
@@ -424,13 +422,18 @@ struct RewardCardSlip: View {
     let maximum = calc.maximumSpend ?? 0
     if maximum > 0 {
       if calc.maximumSpendExceeded {
-        list.append(Target(id: "cap", label: "Cap", amount: money(maximum), state: "reached", status: .done))
+        let beyond = max(0, calc.totalSpend - maximum)
+        let state = beyond >= 0.005 ? "reached, \(money(beyond)) beyond" : "reached"
+        list.append(Target(id: "cap", label: "Cap", amount: money(maximum), state: state, status: .done))
       } else {
         let left = max(0, maximum - calc.countedSpend)
         list.append(Target(id: "cap", label: "Cap", amount: money(maximum), state: "\(money(left)) left", status: .open))
       }
     } else {
-      list.append(Target(id: "cap", label: "Cap", amount: nil, state: "none, keeps earning", status: .none))
+      let categoriesCap = calc.flags.contains { ($0.maximumSpend ?? 0) > 0 }
+      list.append(Target(
+        id: "cap", label: "Cap", amount: nil,
+        state: categoriesCap ? "none on the card, categories cap" : "none, keeps earning", status: .none))
     }
     return list
   }
@@ -440,6 +443,11 @@ struct RewardCardSlip: View {
       header("Targets", detail: nil)
       ForEach(targets) { target in
         targetRow(target)
+      }
+      if calc.shouldStopUsing == true {
+        Label("Consider another card", systemImage: "arrow.left.arrow.right")
+          .font(.subheadline.weight(.semibold))
+          .foregroundStyle(Theme.textPrimary)
       }
     }
   }

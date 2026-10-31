@@ -466,8 +466,8 @@ struct RewardRowText {
     switch projection.action {
     case .minimum(let remaining), .monthlyMinimum(let remaining):
       if let due = projection.deadline, due.kind == .ends, due.days >= 2, remaining > 0 {
-        let perDay = (Self.roundedUpToCent(remaining) / Double(due.days) * 100).rounded() / 100
-        pacePerDay = money(perDay)
+        // Up to the cent, so a few cents left never reads as "$0.00 a day".
+        pacePerDay = money(Self.roundedUpToCent(Self.roundedUpToCent(remaining) / Double(due.days)))
       } else {
         pacePerDay = nil
       }
@@ -489,6 +489,10 @@ struct RewardRowText {
     if let basis = projection.basis, basis.target > 0, projection.action != .range {
       let percent = Int((min(1, max(0, basis.spend / basis.target)) * 100).rounded())
       spoken.append("\(money(basis.spend)) of \(money(basis.target)), \(percent) per cent")
+      // The basis line says this on the strip; the slim row and the iPad statement leave it to the slip.
+      if case .capReached(let beyond, _) = projection.action, beyond > 0 {
+        spoken.append("\(money(beyond)) beyond cap")
+      }
     } else if let basisLine {
       spoken.append(basisLine)
     }
