@@ -109,6 +109,53 @@ await link.click();
 await page.waitForURL(/\/transactions\?/);
 check('register opened', page.url().includes('accounts=') && page.url().includes('range=all'), page.url().replace(WEB, ''));
 
+// Historical range on the stacked board: the row sums the range, the slip's targets and categories read the cutoff period.
+await page.goto(WEB + '/rewards?from=2026-05-10&to=2026-05-24');
+const rangeCard = page.locator('.rw-card', { hasText: 'Travel Card' }).first();
+await rangeCard.waitFor();
+check('range: historical range pressed', await page.getByRole('button', { name: 'Historical range' }).getAttribute('aria-pressed') === 'true');
+const rangePeriod = await rangeCard.locator('.rw-columns > div', { hasText: 'Period' }).locator('dd').textContent();
+check('range: Period column reads range', rangePeriod === 'range', rangePeriod);
+const rangeSpent = await rangeCard.locator('.rw-columns > div', { hasText: 'Spent' }).locator('dd').textContent();
+await rangeCard.getByRole('button', { name: 'Details for Travel Card' }).click();
+await page.waitForTimeout(100);
+const rangeRegion = rangeCard.getByRole('region', { name: 'Travel Card details' });
+const rangeSlip = await rangeRegion.textContent();
+check('range: slip names the range and the latest period', rangeSlip.includes('10 May to 24 May') && rangeSlip.includes('historical range') && rangeSlip.includes('For the latest card period, 1 May to 31 May'), '');
+check('range: no day rail', await rangeRegion.locator('.rw-rail').count() === 0);
+check('range: targets from the cutoff period', rangeSlip.includes('Minimum') && /met/.test(rangeSlip) && !rangeSlip.includes('to go'), '');
+check('range: categories from the cutoff period', rangeSlip.includes('in the latest card period') && rangeSlip.includes('$315.50 spent'), `row spent ${rangeSpent}`);
+await page.screenshot({ path: path.join(out, 'range-open-1440.png') });
+
+// Keyboard order: Tab from the toggle reaches the card's menu before the open slip.
+await page.goto(WEB + '/rewards?to=2026-05-24');
+await card.waitFor();
+await toggle.focus();
+await page.keyboard.press('Enter');
+await page.keyboard.press('Tab');
+check('tab: toggle then menu', await page.evaluate(() => document.activeElement?.getAttribute('aria-label')) === 'Actions for Travel Card',
+  await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent));
+
+// Day rail ends: on day 1 and day 31 the today label covers the near date, at 820 and 1440.
+for (const width of [820, 1440]) {
+  await page.setViewportSize({ width, height: 900 });
+  for (const [day, end] of [['2026-05-01', 'start'], ['2026-05-31', 'end']]) {
+    await page.goto(WEB + `/rewards?to=${day}`);
+    await card.waitFor();
+    await card.getByRole('button', { name: 'Details for Travel Card' }).click();
+    await page.waitForTimeout(150);
+    const rail = await card.locator('.rw-rail').evaluate((r, end) => {
+      const box = (s) => r.querySelector(s).getBoundingClientRect();
+      const now = box('.rw-rail-now'), date = box(`.rw-rail-${end}`);
+      const hidden = getComputedStyle(r.querySelector(`.rw-rail-${end}`)).visibility === 'hidden';
+      const touches = end === 'start' ? now.left < date.right + 8 : now.right > date.left - 8;
+      return { hidden, touches };
+    }, end);
+    check(`rail ${end} date clear of today at ${width}`, !rail.touches || rail.hidden, JSON.stringify(rail));
+  }
+}
+await page.setViewportSize({ width: 1440, height: 900 });
+
 // Phone (390): the strip, opening in place.
 await page.setViewportSize({ width: 390, height: 844 });
 await page.goto(WEB + '/rewards?to=2026-05-24');

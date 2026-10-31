@@ -216,7 +216,7 @@ export function projectRow(row: RewardsRow, asOf: string | null | undefined, isR
     // The flag is authoritative: it fires once headroom is below one block.
     const terminal = calc.should_stop_using === true || calc.has_next_spending_tier !== true;
     const cap = maximum ?? 0;
-    action = { kind: "capReached", beyond: cap > 0 ? Math.max(0, calc.total_spend - cap) : 0, terminal };
+    action = { kind: "capReached", beyond: beyondCap(calc.total_spend, cap), terminal };
     tone = terminal ? "complete" : "earning";
     if (cap > 0) basis = { spend: Math.min(calc.counted_spend, cap), target: cap };
     fill = 1;
@@ -276,7 +276,7 @@ export interface RowText {
   basisLine: string;
   exceptionLines: string[];
   /** The gate row's pace, "$5.94" for "about $5.94 a day to make it": the amount to the minimum (rounded up to
-   *  the cent) over the days left, to the nearest cent. Null without an ending deadline of two days or more. */
+   *  the cent) over the days left, rounded up to the cent. Null without an ending deadline of two days or more. */
   pacePerDay: string | null;
   accessibilityValue: string;
 }
@@ -284,6 +284,12 @@ export interface RowText {
 const VISIBLE_EXCEPTION_LIMIT = 2;
 
 const money = (value: number): string => formatMoney(Math.round(value * 1000));
+
+/** Spend past a cap, or 0 when under it or within half a cent of it (float noise never reads "$0.00 beyond cap"). */
+export function beyondCap(spend: number, cap: number | null | undefined): number {
+  const over = cap != null && cap > 0 ? spend - cap : 0;
+  return over >= 0.005 ? over : 0;
+}
 
 export function roundedUpToCent(value: number): number {
   if (!(value > 0)) return 0;
@@ -372,6 +378,8 @@ export function rowText(p: RewardRowProjection, today: string = singaporeToday()
   if (p.basis && p.basis.target > 0 && p.action.kind !== "range") {
     const percent = Math.round(clamp01(p.basis.spend / p.basis.target) * 100);
     spoken.push(`${money(p.basis.spend)} of ${money(p.basis.target)}, ${percent} per cent`);
+    // The basis line says this on the strip; the slim row and the wide ledger leave it to the slip (as iOS).
+    if (p.action.kind === "capReached" && p.action.beyond > 0) spoken.push(`${money(p.action.beyond)} beyond cap`);
   } else {
     spoken.push(basisLine);
   }

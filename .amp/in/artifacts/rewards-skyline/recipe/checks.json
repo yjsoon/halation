@@ -1,5 +1,5 @@
 {
- "web": "http://127.0.0.1:42131",
+ "web": "http://127.0.0.1:49633",
  "checks": [
   {
    "name": "owner setup",
@@ -140,6 +140,61 @@
    "name": "register opened",
    "ok": true,
    "detail": "/transactions?accounts=acct-credit&range=all"
+  },
+  {
+   "name": "range: historical range pressed",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "range: Period column reads range",
+   "ok": true,
+   "detail": "range"
+  },
+  {
+   "name": "range: slip names the range and the latest period",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "range: no day rail",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "range: targets from the cutoff period",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "range: categories from the cutoff period",
+   "ok": true,
+   "detail": "row spent $86.60"
+  },
+  {
+   "name": "tab: toggle then menu",
+   "ok": true,
+   "detail": "Actions for Travel Card"
+  },
+  {
+   "name": "rail start date clear of today at 820",
+   "ok": true,
+   "detail": "{\"hidden\":true,\"touches\":true}"
+  },
+  {
+   "name": "rail end date clear of today at 820",
+   "ok": true,
+   "detail": "{\"hidden\":true,\"touches\":true}"
+  },
+  {
+   "name": "rail start date clear of today at 1440",
+   "ok": true,
+   "detail": "{\"hidden\":true,\"touches\":true}"
+  },
+  {
+   "name": "rail end date clear of today at 1440",
+   "ok": true,
+   "detail": "{\"hidden\":true,\"touches\":true}"
   },
   {
    "name": "phone strip",

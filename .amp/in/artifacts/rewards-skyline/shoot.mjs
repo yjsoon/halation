@@ -1,7 +1,7 @@
 // Skyline Rewards board: imports the synthetic fixture into a control-howmuch stack, opens one card and
 // captures the stacked board light and dark at 390, 820, 1100 and 1440px. Usage:
 //   node shoot.mjs [outDir] [fixture] [openCardName]
-// Env: WIDTHS, MODES, LAYOUT (stacked|grid), MOTION=on, PREFIX (file name, default skyline) and PREFS, a JSON
+// Env: WIDTHS, MODES, LAYOUT (stacked|grid), MOTION=on, SELECT=1 (select the open card), PREFIX (file name, default skyline) and PREFS, a JSON
 // object merged into the board preferences (for example {"order":"manual"} or a hiddenUntil map).
 import { createRequire } from 'module';
 import fs from 'fs';
@@ -51,6 +51,11 @@ for (const mode of modes) {
     const toggle = card.getByRole('button', { name: `Details for ${openName}` });
     if (await toggle.count()) await toggle.click();
     await page.waitForTimeout(500);
+    if (process.env.SELECT) {
+      await page.getByRole('button', { name: 'Select', exact: true }).click();
+      await card.getByLabel(`Select ${openName}`).check();
+      await page.waitForTimeout(300);
+    }
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(100);
     const info = await page.evaluate(() => {

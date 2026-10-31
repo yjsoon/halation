@@ -1162,6 +1162,28 @@
   box-shadow: var(--rw-open-shadow);
 }
 
+/* Selection and the update pulse wrap the whole stacked card at every width: the strip or the window and
+   ledger, and the slip when it is open. */
+.rw-card[data-size][data-selected] {
+  box-shadow: 0 0 0 2px var(--plan-accent), 0 0 0 6px var(--plan-accent-wash);
+}
+
+.rw-card[data-size][data-selected][data-open] {
+  box-shadow: 0 0 0 2px var(--plan-accent), 0 0 0 6px var(--plan-accent-wash), var(--rw-open-shadow);
+}
+
+.rw-card[data-size][data-selected] .rw-face {
+  box-shadow: none;
+}
+
+.rw-card[data-size][data-just-updated] {
+  animation: rw-pulse-row var(--dur-pulse) var(--ease-out) 1;
+}
+
+.rw-card[data-size][data-just-updated] .rw-face {
+  animation: none;
+}
+
 .rw-row {
   position: relative;
 }
@@ -1514,12 +1536,10 @@
   translate: -100% 0;
 }
 
-/* On a short rail the today label would touch the nearer end's date: that date is in the line above. */
-@container (max-width: 440px) {
-  .rw-rail[data-near="end"] .rw-rail-end,
-  .rw-rail[data-near="start"] .rw-rail-start {
-    visibility: hidden;
-  }
+/* When the today label would touch an end's date (measured in DayRail), that date gives way: it is in the line above. */
+.rw-rail[data-cover-start] .rw-rail-start,
+.rw-rail[data-cover-end] .rw-rail-end {
+  visibility: hidden;
 }
 
 /* -- targets -- */
@@ -1571,6 +1591,11 @@
 .rw-targets [data-state="none"] .rw-target-mark {
   border-style: dashed;
   border-color: var(--ink-faint);
+}
+
+/* Spend has reached the minimum but the card holds it back (a monthly qualification or a tier): dashed, not amber. */
+.rw-targets [data-state="pending"] .rw-target-mark {
+  border-style: dashed;
 }
 
 .rw-target-label {
@@ -1849,22 +1874,6 @@
     opacity: 0.55;
   }
 
-  /* Selection and the update pulse wrap the whole row, window and ledger (and the slip when open). */
-  .rw-card[data-size][data-selected] {
-    box-shadow: 0 0 0 2px var(--plan-accent), 0 0 0 6px var(--plan-accent-wash);
-  }
-
-  .rw-card[data-size][data-selected] .rw-face {
-    box-shadow: none;
-  }
-
-  .rw-card[data-size][data-just-updated] .rw-face {
-    animation: none;
-  }
-
-  .rw-card[data-size][data-just-updated] {
-    animation: rw-pulse-row var(--dur-pulse) var(--ease-out) 1;
-  }
 
   .rw-card[data-size="noon"] .rw-ledger {
     padding-block: 8px;

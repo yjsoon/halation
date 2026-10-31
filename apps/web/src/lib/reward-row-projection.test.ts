@@ -112,6 +112,10 @@ describe("RewardRowProjectionTests: tiers and caps", () => {
     expect(t.amount).toBeNull();
     expect(t.deadline).toBe("Resets in 8 days");
     expect(t.basisLine).toBe("$2,000.00 / $2,000.00 · $80.00 earned · $150.00 beyond cap");
+    expect(t.accessibilityValue).toContain("$2,000.00 of $2,000.00, 100 per cent. $150.00 beyond cap. Resets in 8 days");
+    // Float noise past the cap is not spend beyond it.
+    expect(project({ total_spend: 2000.0000001, counted_spend: 2000, maximum_spend: 2000, maximum_spend_exceeded: true, should_stop_using: true }).action)
+      .toEqual({ kind: "capReached", beyond: 0, terminal: true });
   });
 
   test("testTopTierWithoutCardCapIsEarningAndFull", () => {

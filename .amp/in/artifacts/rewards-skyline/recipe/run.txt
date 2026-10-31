@@ -26,6 +26,17 @@ ok   view transactions href /transactions?accounts=acct-credit&range=all
 ok   Space closes 
 ok   reduced motion: no unfold transition 
 ok   register opened /transactions?accounts=acct-credit&range=all
+ok   range: historical range pressed 
+ok   range: Period column reads range range
+ok   range: slip names the range and the latest period 
+ok   range: no day rail 
+ok   range: targets from the cutoff period 
+ok   range: categories from the cutoff period row spent $86.60
+ok   tab: toggle then menu Actions for Travel Card
+ok   rail start date clear of today at 820 {"hidden":true,"touches":true}
+ok   rail end date clear of today at 820 {"hidden":true,"touches":true}
+ok   rail start date clear of today at 1440 {"hidden":true,"touches":true}
+ok   rail end date clear of today at 1440 {"hidden":true,"touches":true}
 ok   phone strip {"variant":"strip","foot":"Minimum met · 1,033 miles earnedResets in 8 days","height":84}
 ok   phone opens 
 ok   no horizontal scroll at 390 
@@ -46,4 +57,4 @@ ok   badge clear of the name at 1440 {"badgeBox":{"left":567.953125,"right":661,
 ok   hidden dims window and ledger at 1440 0.55 0.55
 ok   unhidden 
 ok   no page errors 
-48/48 checks passed
+59/59 checks passed
