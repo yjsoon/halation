@@ -709,8 +709,7 @@ final class RewardsSnapshotTests: XCTestCase {
       "Travel Fixture", "$169.20", "8 days left"]
     let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 5_000_000_000)
     attach(rendered.image, "rewards-compact-root")
-    // OCR reads the tall row's larger monospaced figure with a space after the decimal point.
-    let read = rendered.text.replacingOccurrences(of: #"(\d)\. (\d)"#, with: "$1.$2", options: .regularExpression)
+    let read = Self.joiningDecimals(rendered.text)
     for text in expected { XCTAssertTrue(read.contains(text.lowercased()), "Missing \(text): \(rendered.text)") }
     XCTAssertEqual(chrome.tab, .rewards)
     XCTAssertEqual(chrome.compactBarTab, .rewards)
@@ -733,7 +732,13 @@ final class RewardsSnapshotTests: XCTestCase {
       "$830.80 / $1,000.00", "3,323 miles earned", "$49.85 earned"]
     let board = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 5_000_000_000)
     attach(board.image, "rewards-board-filled-rows")
-    for text in expected { XCTAssertTrue(board.text.contains(text.lowercased()), "Missing \(text): \(board.text)") }
+    let read = Self.joiningDecimals(board.text)
+    for text in expected { XCTAssertTrue(read.contains(text.lowercased()), "Missing \(text): \(board.text)") }
+  }
+
+  /// OCR reads the tall row's larger monospaced figure with a space after the decimal point ("$169. 20").
+  private static func joiningDecimals(_ text: String) -> String {
+    text.replacingOccurrences(of: #"(\d)\. (\d)"#, with: "$1.$2", options: .regularExpression)
   }
 
   func testCardDetailSheetShowsTargetsTiersAndQualification() async throws {

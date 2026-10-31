@@ -1301,7 +1301,7 @@ struct RewardFilledRow: View {
         .font(.system(.title3, design: .serif).italic())
         .foregroundStyle(titleInk(surface))
         .lineLimit(singleLine ? 1 : 2)
-        .minimumScaleFactor(singleLine ? 0.85 : 1)
+        .minimumScaleFactor(singleLine ? 0.75 : 1)
         .truncationMode(.tail)
     }
   }
