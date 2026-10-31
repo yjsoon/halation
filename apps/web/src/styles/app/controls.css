@@ -111,6 +111,118 @@
   text-align: left;
 }
 
+.signin-page {
+  position: relative;
+  isolation: isolate;
+  min-height: 100svh;
+  background: var(--paper);
+}
+
+.signin-content {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  align-items: center;
+  gap: 64px;
+  width: min(100%, 1280px);
+  min-height: 100svh;
+  margin: 0 auto;
+  padding: clamp(80px, 14vh, 160px) 80px 320px;
+}
+
+.signin-brand h1 {
+  margin: 0;
+  font: italic 400 clamp(80px, 8.5vw, 120px)/1.05 var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+.signin-brand h2 {
+  margin: 16px 0 0;
+  font: italic 400 clamp(28px, 3.2vw, 44px)/1.15 var(--font-display);
+  text-wrap: balance;
+}
+
+.signin-landscape {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: clamp(480px, 50vw, 620px);
+  background: url("../../assets/signin-light.webp") right bottom / cover no-repeat;
+  /* Fade the sky into every paper look; the mask uses only the ink's alpha. */
+  mask-image: linear-gradient(to bottom, transparent, var(--ink) 35%);
+  pointer-events: none;
+}
+
+:root[data-mode="dark"] .signin-landscape {
+  background-image: url("../../assets/signin-dark.webp");
+}
+
+.signin-page .auth-form {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  gap: 16px;
+  justify-items: stretch;
+  text-align: left;
+}
+
+.signin-page .auth-form::before {
+  content: none;
+}
+
+.signin-page .auth-form input,
+.signin-page .auth-form .auth-field-note {
+  width: 100%;
+}
+
+.signin-page .auth-form input {
+  padding: 10px 12px;
+  border-color: var(--rule-control);
+  font-family: var(--font-ui);
+}
+
+.signin-page .auth-form button {
+  min-height: 44px;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.signin-page .auth-form button:disabled {
+  opacity: 1;
+  background: var(--paper-sunk);
+  border-color: var(--rule);
+  color: var(--ink-faint);
+}
+
+@media (hover: hover) {
+  .signin-page .auth-form button:enabled:hover {
+    filter: brightness(0.9);
+  }
+}
+
+.signin-page .auth-form .boot-hint {
+  margin-top: 8px;
+  max-width: none;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 800px) {
+  .signin-content {
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    gap: 40px;
+    width: min(100%, 460px);
+    padding: 48px 28px 240px;
+  }
+
+  .signin-brand h1 { font-size: 72px; }
+  .signin-brand h2 { margin-top: 8px; font-size: 28px; }
+  .signin-landscape { height: 300px; width: 100%; }
+}
+
 .filter-stack {
   min-width: 0;
 }

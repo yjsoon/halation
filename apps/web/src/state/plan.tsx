@@ -31,6 +31,7 @@ import { configureMoney } from "../lib/money";
 import type { NewAccountBody } from "../lib/new-account";
 import { parseTransactionDeepLink } from "../lib/transaction-deep-link";
 import { HalationMark } from "../components/Brand";
+import { SignInPage } from "../components/SignInPage";
 import {
   AccountPreferencesController,
   emptyAccountPreferences,
@@ -546,7 +547,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   }
 
   if (authMode === "setup" || authMode === "login") {
-    return (
+    const form = (
       <AuthForm
         mode={authMode}
         bootstrapRequired={bootstrapRequired}
@@ -560,6 +561,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         onError={setError}
       />
     );
+    return authMode === "login" ? <SignInPage>{form}</SignInPage> : form;
   }
 
   if (error) {
@@ -663,14 +665,12 @@ function AuthForm({
         }
       }}
     >
-      <HalationMark size="hero" />
-      <h1>{setup ? "Set up Halation" : "Sign in to Halation"}</h1>
-      <p>{setup ? "Create your account." : "Enter your username and password."}</p>
-      {!setup && (
-        <p className="boot-hint">
-          This is a private Halation instance. To run your own, see{" "}
-          <a href={REPOSITORY_URL}>github.com/yjsoon/howmuch</a>.
-        </p>
+      {setup && (
+        <>
+          <HalationMark size="hero" />
+          <h1>Set up Halation</h1>
+          <p>Create your account.</p>
+        </>
       )}
       <label>
         <span>Username</span>
@@ -746,6 +746,12 @@ function AuthForm({
         <p className="boot-hint">This setup token is used once and is not stored in this browser.</p>
       )}
       {error && <p className="boot-detail" role="alert">{error}</p>}
+      {!setup && (
+        <p className="boot-hint">
+          This is a private Halation instance.{" "}
+          <a href={REPOSITORY_URL}>Run your own</a>.
+        </p>
+      )}
     </form>
   );
 }
