@@ -17,6 +17,7 @@ struct HowMuchApp: App {
     WindowGroup {
       RootView()
         .environment(model)
+        .task { CardType.assertBundled() }
         .tint(Theme.accent)
     }
   }

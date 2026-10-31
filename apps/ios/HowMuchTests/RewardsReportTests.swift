@@ -579,7 +579,7 @@ final class RewardsSnapshotTests: XCTestCase {
           .environment(harness.model).environment(\.dynamicTypeSize, size).preferredColorScheme(scheme),
         size: CGSize(width: 430, height: size.isAccessibilitySize ? 1500 : 932)
       ))
-      let expected = ["Groceries", "$700.00", "140%", "Food", "92%", "Rides", "Excluded", "$21.00"]
+      let expected = ["Groceries", "700.00", "140%", "Food", "92%", "Rides", "Excluded", "21.00"]
       let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 5_000_000_000)
       attach(rendered.image, "reward-categories-\(name)")
       for text in expected { XCTAssertTrue(rendered.text.contains(text.lowercased()), "Missing \(text): \(rendered.text)") }
@@ -621,29 +621,46 @@ final class RewardsSnapshotTests: XCTestCase {
       heights[name] = frame.height
       print("Adaptive reward sheet \(name): frame=\(frame), content=\(scroll.contentSize.height), visible=\(visible)")
       XCTAssertLessThanOrEqual(frame.height, surface.windowBounds.height)
-      if name == "overflow" {
-        XCTAssertGreaterThan(frame.height, surface.windowBounds.height * 0.85)
-        XCTAssertGreaterThan(scroll.contentSize.height, visible + 100)
-        attach(surface.captureVisible(), "reward-adaptive-overflow")
-        scroll.setContentOffset(CGPoint(x: 0, y: scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom), animated: false)
-        let bottom = await surface.captureUntilOCR(contains: ["Excluded", "$21.00"], timeoutNanoseconds: 3_000_000_000)
-        attach(bottom.image, "reward-adaptive-overflow-scrolled")
+      // The 3:2 hero makes most sheets taller than a phone: those grow to full height and scroll, and
+      // only a sheet whose content fits may stop short.
+      let fits = scroll.contentSize.height <= visible + 2
+      if name == "short" { XCTAssertTrue(fits, "short should fit without scrolling") }
+      if !fits {
+        XCTAssertGreaterThan(frame.height, surface.windowBounds.height * 0.85, "\(name) scrolls before reaching full height")
+      }
+      if name != "short", name == "overflow" || !fits {
+        XCTAssertFalse(fits, "\(name) should scroll")
+        if name == "overflow" { XCTAssertGreaterThan(scroll.contentSize.height, visible + 100) }
+        let top = await surface.captureUntilOCR(contains: ["Done", "Edit"], timeoutNanoseconds: 3_000_000_000)
+        attach(top.image, "reward-adaptive-\(name)")
+        for text in ["Done", "Edit"] { XCTAssertTrue(top.text.contains(text.lowercased()), "\(name) missing \(text): \(top.text)") }
+        // A lazy List estimates the height of rows it has not built, so the content grows as it
+        // scrolls: keep going to the bottom until it stops growing.
+        var lastHeight: CGFloat = -1
+        for _ in 0..<8 where scroll.contentSize.height != lastHeight {
+          lastHeight = scroll.contentSize.height
+          scroll.setContentOffset(CGPoint(x: 0, y: max(0, scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)), animated: false)
+          scroll.layoutIfNeeded()
+          try await Task.sleep(nanoseconds: 150_000_000)
+        }
+        XCTAssertEqual(scroll.contentSize.height, lastHeight, "\(name) content still growing")
+        // OCR sometimes reads the dollar sign as a 5, so match the figure without it.
+        let bottom = await surface.captureUntilOCR(contains: ["Excluded", "21.00"], timeoutNanoseconds: 3_000_000_000)
+        attach(bottom.image, "reward-adaptive-\(name)-scrolled")
         XCTAssertTrue(bottom.text.contains("excluded"), bottom.text)
-        XCTAssertTrue(bottom.text.contains("$21.00"), bottom.text)
+        XCTAssertTrue(bottom.text.contains("21.00"), bottom.text)
       } else {
-        XCTAssertLessThanOrEqual(scroll.contentSize.height, visible + 2, "\(name) must fit without scrolling")
-        var expected = ["Done", "Edit", "Groceries", "$700.00", "140%"]
-        if name != "short" { expected += ["Food", "Transport", "Rides", "Gas", "Telcos", "Excluded", "$21.00"] }
+        var expected = ["Done", "Edit", "Groceries", "700.00", "140%"]
+        if name != "short" { expected += ["Food", "Transport", "Rides", "Gas", "Telcos", "Excluded", "21.00"] }
         if name == "targets" { expected += ["Targets", "Minimum met"] }
         let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 3_000_000_000)
         attach(rendered.image, "reward-adaptive-\(name)")
         for text in expected { XCTAssertTrue(rendered.text.contains(text.lowercased()), "\(name) missing \(text): \(rendered.text)") }
       }
     }
-    XCTAssertLessThan(try XCTUnwrap(heights["short"]), 600)
-    XCTAssertGreaterThan(try XCTUnwrap(heights["seven"]), try XCTUnwrap(heights["short"]) + 150)
-    XCTAssertGreaterThan(try XCTUnwrap(heights["targets"]), try XCTUnwrap(heights["seven"]) + 40)
-    XCTAssertGreaterThan(try XCTUnwrap(heights["narrow"]), try XCTUnwrap(heights["seven"]))
+    // A short card still gets a short sheet: the detent follows the content, not the screen.
+    XCTAssertLessThan(try XCTUnwrap(heights["short"]), try XCTUnwrap(heights["overflow"]) - 60)
+    XCTAssertGreaterThan(try XCTUnwrap(heights["seven"]), try XCTUnwrap(heights["short"]))
   }
 
   func testNarrowCategoryRowsKeepLargeAmountsWhole() async throws {

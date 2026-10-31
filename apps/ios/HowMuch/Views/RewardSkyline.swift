@@ -58,6 +58,8 @@ struct RewardPeriodRail: View {
   @State private var railWidth: CGFloat = 0
   @State private var startWidth: CGFloat = 0
   @State private var endWidth: CGFloat = 0
+  @Environment(\.legibilityWeight) private var legibilityWeight
+  private var bold: Bool { legibilityWeight == .bold }
   @State private var todayWidth: CGFloat = 0
 
   /// Leaves room for the sun at either end.
@@ -72,7 +74,7 @@ struct RewardPeriodRail: View {
         VStack(alignment: .leading, spacing: 3) {
           if let met = position.metDay, let metOn = position.metOn {
             Text("min met · \(short(metOn))")
-              .font(.caption2)
+              .font(CardType.sans(.regular, CardType.size(.caption2), relativeTo: .caption2, bold: bold))
               .foregroundStyle(Theme.rowSecondary)
               .fixedSize()
               .alignmentGuide(.leading) { centred(at: x(met), width: $0.width) }
@@ -103,7 +105,7 @@ struct RewardPeriodRail: View {
 
   private func label(_ text: String) -> some View {
     Text(text)
-      .font(.caption2)
+      .font(CardType.sans(.regular, CardType.size(.caption2), relativeTo: .caption2, bold: bold))
       .foregroundStyle(Theme.rowSecondary)
       .fixedSize()
   }
@@ -193,6 +195,8 @@ struct RewardCardSlip: View {
   var onOpenAccount: (() -> Void)?
 
   @Environment(\.displayScale) private var displayScale
+  @Environment(\.legibilityWeight) private var legibilityWeight
+  private var bold: Bool { legibilityWeight == .bold }
   @Environment(\.layoutDirection) private var layoutDirection
   @ScaledMetric(relativeTo: .subheadline) private var barWidth: CGFloat = 64
   @ScaledMetric(relativeTo: .caption) private var rateWidth: CGFloat = 40
@@ -314,7 +318,7 @@ struct RewardCardSlip: View {
 
   private func headerDetail(_ detail: String) -> Text {
     Text(detail)
-      .font(.system(.caption, design: .monospaced))
+      .font(CardType.mono(.regular, CardType.size(.caption), relativeTo: .caption, bold: bold))
       .foregroundStyle(Theme.rowSecondary)
   }
 
@@ -326,7 +330,7 @@ struct RewardCardSlip: View {
       }
       if let asOf, asOf < RewardsCalendar.today() {
         Label("Showing \(short(asOf))", systemImage: "clock.arrow.circlepath")
-          .font(.footnote)
+          .font(CardType.sans(.regular, CardType.size(.footnote), relativeTo: .footnote, bold: bold))
           .foregroundStyle(Theme.rowSecondary)
       }
     }
@@ -368,7 +372,7 @@ struct RewardCardSlip: View {
     Button(action: action) {
       HStack(spacing: 8) {
         Text("View Transactions")
-          .font(.body.weight(.medium))
+          .font(CardType.sans(.medium, CardType.size(.body), relativeTo: .body, bold: bold))
           .foregroundStyle(Theme.textPrimary)
         Spacer(minLength: 8)
         Image(systemName: "chevron.forward")
@@ -482,7 +486,7 @@ struct RewardCardSlip: View {
       }
       if calc.shouldStopUsing == true {
         Label("Consider another card", systemImage: "arrow.left.arrow.right")
-          .font(.subheadline.weight(.semibold))
+          .font(CardType.sans(.semibold, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
           .foregroundStyle(Theme.textPrimary)
       }
     }
@@ -504,17 +508,17 @@ struct RewardCardSlip: View {
       symbol = "xmark.circle"; ink = Theme.rowSecondary
     }
     let label = Text(target.label)
-      .font(.body)
+      .font(CardType.sans(.regular, CardType.size(.body), relativeTo: .body, bold: bold))
       .foregroundStyle(Theme.textPrimary)
     let amount = target.amount.map {
       Text($0)
-        .font(.system(.body, design: .monospaced).weight(.medium))
+        .font(CardType.mono(.medium, CardType.size(.body), relativeTo: .body, bold: bold))
         .foregroundStyle(Theme.textPrimary)
         .lineLimit(1)
         .fixedSize()
     }
     let state = Text(target.state)
-      .font(.subheadline.weight(target.status == .pending ? .medium : .regular))
+      .font(CardType.sans(target.status == .pending ? .medium : .regular, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
       .foregroundStyle(target.status == .pending ? urgent : Theme.rowSecondary)
     return HStack(alignment: .firstTextBaseline, spacing: 10) {
       Image(systemName: symbol)
@@ -560,10 +564,10 @@ struct RewardCardSlip: View {
     let beyond = category.cap.map { RewardRowProjection.beyondCap(spend: category.spend, cap: $0) } ?? 0
     let over = beyond > 0
     let name = Text(category.flag.name)
-      .font(.subheadline.weight(.medium))
+      .font(CardType.sans(.medium, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
       .foregroundStyle(over ? urgent : Theme.textPrimary)
     let amount = Text(money(category.spend))
-      .font(.system(.subheadline, design: .monospaced).weight(.medium))
+      .font(CardType.mono(.medium, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
       .foregroundStyle(over ? urgent : Theme.textPrimary)
     // Only the two figures are fixed, so a number never wraps; the bar gives way down to 24pt.
     let spent = amount
@@ -572,7 +576,7 @@ struct RewardCardSlip: View {
     let meter = HStack(alignment: .center, spacing: 10) {
       bar(category, over: over)
       Text(rate(category))
-        .font(.system(.caption, design: .monospaced))
+        .font(CardType.mono(.regular, CardType.size(.caption), relativeTo: .caption, bold: bold))
         .foregroundStyle(Theme.rowSecondary)
         .lineLimit(1)
         .fixedSize()
@@ -606,19 +610,19 @@ struct RewardCardSlip: View {
       }
       if over, let cap = category.cap {
         let excess = Text(money(beyond))
-          .font(.system(.caption, design: .monospaced).weight(.medium))
+          .font(CardType.mono(.medium, CardType.size(.caption), relativeTo: .caption, bold: bold))
           .foregroundStyle(urgent)
         Text("\(money(cap)) cap · \(excess) beyond")
-          .font(.caption)
+          .font(CardType.sans(.regular, CardType.size(.caption), relativeTo: .caption, bold: bold))
           .foregroundStyle(Theme.rowSecondary)
       } else if category.excluded {
         Text("Excluded from rewards")
-          .font(.caption)
+          .font(CardType.sans(.regular, CardType.size(.caption), relativeTo: .caption, bold: bold))
           .foregroundStyle(Theme.rowSecondary)
       }
       if !category.excluded, let minimum = category.flag.minimumSpend, minimum > 0 {
         Text("\(category.flag.minimumSpendMet == true ? "Minimum met" : "Minimum"): \(money(minimum))")
-          .font(.caption)
+          .font(CardType.sans(.regular, CardType.size(.caption), relativeTo: .caption, bold: bold))
           .foregroundStyle(Theme.rowSecondary)
       }
     }
