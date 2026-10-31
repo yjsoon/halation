@@ -437,7 +437,7 @@ struct RegisterView: View {
     // shifts with search and scroll and covered the bar.
     .safeAreaInset(edge: .top, spacing: 0) {
       if let selection {
-        selectionBar(selection, ledger: ledger, visible: transactions)
+        selectionBar(selection, ledger: showingUnapprovedQueue ? approvalScoped : ledger, visible: transactions)
           .transition(.move(edge: .top).combined(with: .opacity))
       }
     }
@@ -713,7 +713,7 @@ struct RegisterView: View {
             }
           }
         }
-        .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .accessibilityElement(children: .combine)
         if count > 0 {
           Button {
@@ -945,7 +945,7 @@ struct RegisterView: View {
     .buttonStyle(.plain)
     // Schedules can't be picked; while selecting they only take up space.
     .disabled(selection != nil)
-    .accessibilityHint("Opens this scheduled transaction.")
+    .accessibilityHint(selection == nil ? "Opens this scheduled transaction." : "")
     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
       if selection == nil {
         Button("Edit") {
