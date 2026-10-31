@@ -1792,9 +1792,23 @@
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--face-foot-ink);
+  }
+
+  .rw-window-foot > span {
+    min-width: 0;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
+  }
+
+  /* The "Back {date}" badge sits at the window's top right (the card's actions are over the ledger),
+     and the name leaves room for it. */
+  .rw-card[data-size] .rw-face[data-variant="strip"] > .rw-badge-pin {
+    right: 12px;
+  }
+
+  .rw-card[data-size] .rw-face[data-variant="strip"]:has(> .rw-badge-pin) .rw-face-name {
+    max-width: calc(100% - 108px);
   }
 
   .rw-card[data-size="gate"] .rw-window-foot {
@@ -1824,6 +1838,32 @@
     min-width: 0;
     padding: 12px 48px 12px 20px;
     container: ledger / inline-size;
+  }
+
+  /* Manual order adds the move buttons beside the menu: about 104px of actions at the top right. */
+  .rw-card:has(.rw-order) .rw-ledger {
+    padding-right: 116px;
+  }
+
+  .rw-card[data-size][data-hidden] .rw-ledger {
+    opacity: 0.55;
+  }
+
+  /* Selection and the update pulse wrap the whole row, window and ledger (and the slip when open). */
+  .rw-card[data-size][data-selected] {
+    box-shadow: 0 0 0 2px var(--plan-accent), 0 0 0 6px var(--plan-accent-wash);
+  }
+
+  .rw-card[data-size][data-selected] .rw-face {
+    box-shadow: none;
+  }
+
+  .rw-card[data-size][data-just-updated] .rw-face {
+    animation: none;
+  }
+
+  .rw-card[data-size][data-just-updated] {
+    animation: rw-pulse-row var(--dur-pulse) var(--ease-out) 1;
   }
 
   .rw-card[data-size="noon"] .rw-ledger {
@@ -2149,6 +2189,12 @@
 @keyframes rw-pulse {
   50% {
     box-shadow: var(--face-shadow), 0 0 0 10px var(--glow-wash-strong);
+  }
+}
+
+@keyframes rw-pulse-row {
+  50% {
+    box-shadow: 0 0 0 10px var(--glow-wash-strong);
   }
 }
 

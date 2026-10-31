@@ -1,3 +1,5 @@
+Superseded by `../rewards-skyline/RECORD.md`: the Stacked layout is now the Skyline board.
+
 # Rewards board: stacked full-width layout
 
 - Revision: the commit this folder lands in (branch `claude/project-thread-ubyyr9`), against `main` at 73e6731.

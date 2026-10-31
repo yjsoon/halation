@@ -11,8 +11,8 @@ import { formatDate, formatDateRange } from "../lib/dates";
 import { formatAmount } from "../lib/money";
 import { rewardCardAccountChoices } from "../lib/reward-card-accounts";
 import { exposure, stillExposure } from "../lib/reward-exposure";
-import { boardSummary, projectRow, rowText, type RewardRowProjection, type RowText, type Tone } from "../lib/reward-row-projection";
-import { dayMonth, periodDays, rowSize, type PeriodDays } from "../lib/reward-skyline";
+import { boardSummary, projectRow, roundedUpToCent, rowText, type RewardRowProjection, type RowText, type Tone } from "../lib/reward-row-projection";
+import { activeMonth, dayMonth, periodDays, rowSize, type MonthlyQualification, type PeriodDays } from "../lib/reward-skyline";
 import { useDismiss } from "../lib/use-dismiss";
 import { useIsPhone } from "../lib/use-is-phone";
 import { withViewTransition } from "../lib/view-transition";
@@ -912,13 +912,22 @@ function DayRail({ period }: { period: PeriodDays }) {
 }
 
 /** The figures as columns that sit at the same x on every row of a wide stacked board. */
-function LedgerColumns({ calc, period }: { calc: Row["calculation"]; period: PeriodDays | null }) {
+function LedgerColumns({ calc, period, month, range, asOf }: {
+  calc: Row["calculation"];
+  period: PeriodDays | null;
+  month: MonthlyQualification | null;
+  range: boolean;
+  asOf?: string;
+}) {
   const min = calc.minimum_spend ?? 0;
+  const monthly = month?.minimumSpend ?? calc.monthly_minimum_spend ?? 0;
   const cap = calc.maximum_spend ?? 0;
+  const ended = Boolean(asOf && calc.periods?.length && calc.periods.every((entry) => entry.end < asOf));
   return (
     <dl className="rw-columns">
       <div><dt>Spent</dt><dd>{dollars(calc.total_spend)}</dd></div>
-      <div><dt>Minimum</dt><dd data-none={min <= 0 || undefined}>{min > 0 ? dollars(min) : "none"}</dd></div>
+      <div><dt>Minimum</dt><dd data-none={(min <= 0 && monthly <= 0) || undefined}>{min > 0 ? dollars(min)
+        : monthly > 0 ? <>{dollars(monthly)}<small>/mo</small></> : "none"}</dd></div>
       <div><dt>Bonus cap</dt><dd data-none={cap <= 0 || undefined}>{cap > 0 ? dollars(cap) : "none"}</dd></div>
       <div><dt>Earned</dt><dd>{calc.reward_type === "miles"
         ? <>{Math.round(calc.reward_earned).toLocaleString("en-GB")} <small>mi</small></> : dollars(calc.reward_earned)}</dd></div>
@@ -927,13 +936,13 @@ function LedgerColumns({ calc, period }: { calc: Row["calculation"]; period: Per
         {period
           ? <dd>{period.day} <small>of {period.total} days</small>
               <span className="rw-mini-rail" aria-hidden="true" style={{ "--today": period.total <= 1 ? 1 : (period.day - 1) / (period.total - 1) } as CSSProperties} /></dd>
-          : <dd data-none>range</dd>}
+          : <dd data-none>{range ? "range" : ended ? "ended" : "none"}</dd>}
       </div>
     </dl>
   );
 }
 
-function Targets({ row, period }: { row: Row; period: PeriodDays | null }) {
+function Targets({ row, period, month }: { row: Row; period: PeriodDays | null; month: MonthlyQualification | null }) {
   const calc = row.calculation;
   const min = calc.minimum_spend ?? 0;
   const cap = calc.maximum_spend ?? 0;
@@ -943,11 +952,16 @@ function Targets({ row, period }: { row: Row; period: PeriodDays | null }) {
   if (min > 0) {
     items.push(calc.minimum_spend_met
       ? { key: "min", state: "met", label: "Minimum", amount: dollars(min), note: period?.metOn ? `met ${dayMonth(period.metOn)}` : "met" }
-      : { key: "min", state: "open", label: "Minimum", amount: dollars(min), note: `${dollars(Math.max(0, min - spend))} to go`, urgent: true });
+      : { key: "min", state: "open", label: "Minimum", amount: dollars(min), note: `${dollars(roundedUpToCent(min - spend))} to go`, urgent: true });
   }
-  if (calc.has_next_spending_tier && calc.next_spending_tier_threshold != null) {
-    const threshold = calc.next_spending_tier_threshold;
-    items.push({ key: "tier", state: "open", label: "Next tier", amount: dollars(threshold), note: `${dollars(Math.max(0, threshold - spend))} to go` });
+  if (month) {
+    const met = month.spend >= month.minimumSpend;
+    items.push({ key: "month", state: met ? "met" : "open", label: "This month", amount: dollars(month.minimumSpend),
+      note: met ? "met" : `${dollars(roundedUpToCent(month.minimumSpend - month.spend))} to go`, urgent: !met });
+  }
+  const threshold = calc.next_spending_tier_threshold;
+  if (calc.has_next_spending_tier && threshold != null && threshold > spend) {
+    items.push({ key: "tier", state: "open", label: "Next tier", amount: dollars(threshold), note: `${dollars(roundedUpToCent(threshold - spend))} to go` });
   }
   if (cap > 0) {
     const beyond = Math.max(0, spend - cap);
@@ -1030,6 +1044,7 @@ function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, index, memo
   const size = rowSize(ex?.stage);
   const pace = size === "gate" ? text.pacePerDay : null;
   const period = periodDays(calc, asOf);
+  const month = activeMonth(calc, asOf);
   const beyond = p.action.kind === "capReached" ? p.action.beyond : 0;
   const tail = size !== "noon" ? null : p.action.kind === "range" ? `${dollars(calc.total_spend)} spent` : `${earnedWords(calc)} earned`;
   const badge = hiddenUntil && (
@@ -1058,7 +1073,7 @@ function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, index, memo
             <h3 className="rw-face-name" id={`${id}-name`} data-rw="name">{row.card.name}</h3>
             {badge}
             {wide
-              ? <p className="rw-window-foot" data-rw="foot">{row.account_name}</p>
+              ? <p className="rw-window-foot" data-rw="foot"><span>{row.account_name}</span></p>
               : <div className="rw-strip-foot" data-rw="foot">
                   {headline}
                   {paceLine}
@@ -1070,7 +1085,7 @@ function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, index, memo
             <div className="rw-ledger">
               {headline}
               {paceLine}
-              <LedgerColumns calc={calc} period={period} />
+              <LedgerColumns calc={calc} period={period} month={month} range={p.action.kind === "range"} asOf={asOf} />
             </div>
           )}
           <span id={`${id}-value`} className="sr-only">{text.accessibilityValue}</span>
@@ -1094,7 +1109,7 @@ function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, index, memo
           </Link>
           <section className="rw-open-targets" aria-labelledby={`${id}-targets`}>
             <h4 id={`${id}-targets`}>Targets</h4>
-            <Targets row={row} period={period} />
+            <Targets row={row} period={period} month={month} />
           </section>
           <section className="rw-open-cats" aria-labelledby={`${id}-cats`}>
             <h4 id={`${id}-cats`}>Categories</h4>

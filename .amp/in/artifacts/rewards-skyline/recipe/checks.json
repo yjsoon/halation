@@ -1,5 +1,5 @@
 {
- "web": "http://127.0.0.1:52521",
+ "web": "http://127.0.0.1:42131",
  "checks": [
   {
    "name": "owner setup",
@@ -167,6 +167,16 @@
    "detail": ""
   },
   {
+   "name": "manual order clear of the headline at 1100",
+   "ok": true,
+   "detail": "{\"actions\":{\"left\":964,\"right\":1062,\"top\":393.328125,\"bottom\":423.328125},\"headline\":{\"left\":613,\"right\":951,\"top\":400.9375,\"bottom\":420.53125}}"
+  },
+  {
+   "name": "manual order clear of the headline at 1440",
+   "ok": true,
+   "detail": "{\"actions\":{\"left\":1304,\"right\":1402,\"top\":339.3125,\"bottom\":369.3125},\"headline\":{\"left\":693,\"right\":1291,\"top\":342.3125,\"bottom\":361.90625}}"
+  },
+  {
    "name": "payee groups",
    "ok": true,
    "detail": ""
@@ -200,6 +210,26 @@
    "name": "badge",
    "ok": true,
    "detail": ""
+  },
+  {
+   "name": "badge clear of the name at 1100",
+   "ok": true,
+   "detail": "{\"badgeBox\":{\"left\":487.953125,\"right\":581,\"top\":406.328125,\"bottom\":419.328125},\"nameBox\":{\"left\":329,\"right\":410.359375,\"top\":406.328125,\"bottom\":430.46875}}"
+  },
+  {
+   "name": "hidden dims window and ledger at 1100",
+   "ok": true,
+   "detail": "0.55 0.55"
+  },
+  {
+   "name": "badge clear of the name at 1440",
+   "ok": true,
+   "detail": "{\"badgeBox\":{\"left\":567.953125,\"right\":661,\"top\":371.15625,\"bottom\":384.15625},\"nameBox\":{\"left\":329,\"right\":410.359375,\"top\":371.15625,\"bottom\":395.296875}}"
+  },
+  {
+   "name": "hidden dims window and ledger at 1440",
+   "ok": true,
+   "detail": "0.55 0.55"
   },
   {
    "name": "unhidden",

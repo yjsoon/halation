@@ -359,7 +359,8 @@ export function rowText(p: RewardRowProjection, today: string = singaporeToday()
   let pacePerDay: string | null = null;
   if ((p.action.kind === "minimum" || p.action.kind === "monthlyMinimum") && p.action.remaining > 0
     && p.deadline?.kind === "ends" && p.deadline.days >= 2) {
-    pacePerDay = money(Math.round((roundedUpToCent(p.action.remaining) / p.deadline.days) * 100) / 100);
+    // Up to the cent, so a few cents left never reads "$0.00 a day".
+    pacePerDay = money(roundedUpToCent(roundedUpToCent(p.action.remaining) / p.deadline.days));
   }
 
   const allExceptions = p.exceptions.map(exceptionText);

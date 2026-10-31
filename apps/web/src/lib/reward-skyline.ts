@@ -41,7 +41,8 @@ export function periodDays(calc: Calculation, asOf: string | undefined): PeriodD
   const start = utcDay(period.start), end = utcDay(period.end), today = utcDay(asOf);
   if (start == null || end == null || today == null || end < start) return null;
   const total = end - start + 1;
-  const metOn = period.calculation?.minimum_met_on ?? calc.minimum_met_on ?? null;
+  // A met day only once the minimum counts as met (as iOS): a later refund can leave a stale date.
+  const metOn = calc.minimum_spend_met ? period.calculation?.minimum_met_on ?? calc.minimum_met_on ?? null : null;
   const met = metOn ? utcDay(metOn) : null;
   return {
     start: period.start,
@@ -51,6 +52,14 @@ export function periodDays(calc: Calculation, asOf: string | undefined): PeriodD
     metDay: met != null && met >= start && met <= end ? met - start + 1 : null,
     metOn: met != null && met >= start && met <= end ? metOn : null,
   };
+}
+
+export type MonthlyQualification = NonNullable<Calculation["monthly_qualifications"]>[number];
+
+/** The monthly-minimum month holding the as-of day, if the card has a monthly minimum. */
+export function activeMonth(calc: Calculation, asOf: string | undefined): MonthlyQualification | null {
+  if (!asOf) return null;
+  return calc.monthly_qualifications?.find((month) => month.start <= asOf && asOf <= month.end) ?? null;
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

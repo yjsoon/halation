@@ -1,0 +1,49 @@
+ok   owner setup 200
+ok   sign in 200
+ok   title Rewards · Halation
+ok   card periods pressed 
+ok   add card 
+ok   masthead sky drawn 
+ok   import lists Travel Card 
+ok   date face 
+ok   today enabled 
+ok   miles group 
+ok   stage rest, noon row {"stage":"rest","size":"noon","h":"1","v":"0","window":360,"headline":"Minimum metResets in 8 days","columns":["Spent=$315.50","Minimum=$200.00","Bonus cap=none","Earned=1,033 mi","Period=24 of 31 days"]}
+ok   pose inline 1 0
+ok   window 360px at 1440 360
+ok   headline Minimum metResets in 8 days
+ok   columns Spent=$315.50 | Minimum=$200.00 | Bonus cap=none | Earned=1,033 mi | Period=24 of 31 days
+ok   qualifying spend above zero $315.50
+ok   slip folded and hidden at first 
+ok   Enter opens 
+ok   region visible 
+ok   slip period 
+ok   slip targets 
+ok   slip categories 
+ok   open surface #EBEBE6 rgb(235, 235, 230)
+ok   more holds the full-period meter 
+ok   view transactions href /transactions?accounts=acct-credit&range=all
+ok   Space closes 
+ok   reduced motion: no unfold transition 
+ok   register opened /transactions?accounts=acct-credit&range=all
+ok   phone strip {"variant":"strip","foot":"Minimum met · 1,033 miles earnedResets in 8 days","height":84}
+ok   phone opens 
+ok   no horizontal scroll at 390 
+ok   grid faces 
+ok   stacked again 
+ok   manual order clear of the headline at 1100 {"actions":{"left":964,"right":1062,"top":393.328125,"bottom":423.328125},"headline":{"left":613,"right":951,"top":400.9375,"bottom":420.53125}}
+ok   manual order clear of the headline at 1440 {"actions":{"left":1304,"right":1402,"top":339.3125,"bottom":369.3125},"headline":{"left":693,"right":1291,"top":342.3125,"bottom":361.90625}}
+ok   payee groups 
+ok   card menu items Edit cardView transactionsHideOn this deviceHide until next periodNo upcoming period boundary in this report
+ok   batch applied 
+ok   http: earning rate 1.5 1.5
+ok   http: Candlenut group 
+ok   hidden 
+ok   badge 
+ok   badge clear of the name at 1100 {"badgeBox":{"left":487.953125,"right":581,"top":406.328125,"bottom":419.328125},"nameBox":{"left":329,"right":410.359375,"top":406.328125,"bottom":430.46875}}
+ok   hidden dims window and ledger at 1100 0.55 0.55
+ok   badge clear of the name at 1440 {"badgeBox":{"left":567.953125,"right":661,"top":371.15625,"bottom":384.15625},"nameBox":{"left":329,"right":410.359375,"top":371.15625,"bottom":395.296875}}
+ok   hidden dims window and ledger at 1440 0.55 0.55
+ok   unhidden 
+ok   no page errors 
+48/48 checks passed

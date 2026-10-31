@@ -133,6 +133,24 @@ await page.waitForTimeout(400);
 check('stacked again', await page.locator('.rw-card[data-size]').count() === 1);
 await page.keyboard.press('Escape');
 
+// Manual order: the move buttons join the menu over the ledger, clear of the headline and deadline.
+const clear = (a, b) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+const rect = (loc) => loc.evaluate((e) => { const r = e.getBoundingClientRect(); return { left: r.left, right: r.right, top: r.top, bottom: r.bottom }; });
+await page.getByRole('button', { name: /^Arrange/ }).click();
+await page.getByRole('radio', { name: 'Manual' }).check();
+await page.keyboard.press('Escape');
+await page.waitForTimeout(300);
+for (const width of [1100, 1440]) {
+  await page.setViewportSize({ width, height: 900 });
+  await page.waitForTimeout(200);
+  const actions = await rect(card.locator('.rw-card-actions'));
+  const headline = await rect(card.locator('.rw-ledger .rw-headline'));
+  check(`manual order clear of the headline at ${width}`, await card.locator('.rw-order').count() === 1 && clear(actions, headline), JSON.stringify({ actions, headline }));
+}
+await page.getByRole('button', { name: /^Arrange/ }).click();
+await page.getByRole('radio', { name: 'Name' }).check();
+await page.keyboard.press('Escape');
+
 // Report grouping: Payee lists Candlenut.
 await page.getByRole('group', { name: 'Report grouping' }).getByRole('button', { name: 'Payee' }).click();
 await page.waitForSelector('text=By payee');
@@ -172,6 +190,17 @@ check('hidden', true);
 await page.getByRole('button', { name: 'Show hidden cards' }).click();
 await page.waitForSelector('.rw-badge');
 check('badge', (await page.locator('.rw-badge').first().textContent()).startsWith('Back'));
+for (const width of [1100, 1440]) {
+  await page.setViewportSize({ width, height: 900 });
+  await page.waitForTimeout(200);
+  const hiddenCard = page.locator('.rw-card', { hasText: 'Travel Card' }).first();
+  const badgeBox = await rect(hiddenCard.locator('.rw-badge-pin'));
+  const nameBox = await rect(hiddenCard.locator('.rw-face-name'));
+  const dim = await hiddenCard.evaluate((c) => [getComputedStyle(c.querySelector('.rw-face')).opacity, getComputedStyle(c.querySelector('.rw-ledger')).opacity]);
+  check(`badge clear of the name at ${width}`, clear(badgeBox, nameBox), JSON.stringify({ badgeBox, nameBox }));
+  check(`hidden dims window and ledger at ${width}`, dim.every((o) => parseFloat(o) < 1), dim.join(' '));
+}
+await page.setViewportSize({ width: 1440, height: 900 });
 await page.getByRole('button', { name: 'Actions for Travel Card' }).click();
 await page.getByRole('button', { name: 'Unhide' }).click();
 check('unhidden', await page.locator('.rw-badge').count() === 0);

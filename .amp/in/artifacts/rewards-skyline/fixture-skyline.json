@@ -109,6 +109,23 @@
    },
    "featured": false,
    "earningRate": 1.5
+  },
+  {
+   "id": "c-month",
+   "name": "Monthly Gate 5555",
+   "issuer": "Sample",
+   "type": "cashback",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false,
+   "earningRate": 1.5,
+   "rewardPeriod": {
+    "monthCount": 3,
+    "anchorDate": "2026-05-01",
+    "monthlyMinimumSpend": 400
+   }
   }
  ],
  "rules": [],

@@ -1,6 +1,8 @@
 // Skyline Rewards board: imports the synthetic fixture into a control-howmuch stack, opens one card and
 // captures the stacked board light and dark at 390, 820, 1100 and 1440px. Usage:
 //   node shoot.mjs [outDir] [fixture] [openCardName]
+// Env: WIDTHS, MODES, LAYOUT (stacked|grid), MOTION=on, PREFIX (file name, default skyline) and PREFS, a JSON
+// object merged into the board preferences (for example {"order":"manual"} or a hiddenUntil map).
 import { createRequire } from 'module';
 import fs from 'fs';
 import path from 'path';
@@ -38,9 +40,9 @@ for (const mode of modes) {
   for (const w of widths) {
     await page.setViewportSize({ width: w, height: 1000 });
     await page.goto(WEB + '/rewards?to=2026-05-24');
-    await page.evaluate((layout) => {
-      localStorage.setItem('howmuch:rewards:local-plan', JSON.stringify({ layout, grouped: true, order: 'name' }));
-    }, process.env.LAYOUT ?? 'stacked');
+    await page.evaluate(([layout, prefs]) => {
+      localStorage.setItem('howmuch:rewards:local-plan', JSON.stringify({ layout, grouped: true, order: 'name', ...prefs }));
+    }, [process.env.LAYOUT ?? 'stacked', JSON.parse(process.env.PREFS ?? '{}')]);
     await page.emulateMedia({ colorScheme: mode });
     await page.reload();
     await page.waitForSelector('.rw-card');
@@ -57,11 +59,11 @@ for (const mode of modes) {
       return { mode: document.documentElement.dataset.mode, scrollW: document.documentElement.scrollWidth, clientW: document.documentElement.clientWidth, cards };
     });
     results.push({ width: w, ...info });
-    const file = path.join(out, `skyline-${w}-${mode}.png`);
+    const file = path.join(out, `${process.env.PREFIX ?? 'skyline'}-${w}-${mode}.png`);
     await page.screenshot({ path: file, fullPage: true });
     console.log('wrote', file, info.mode, 'overflow', info.scrollW > info.clientW);
   }
 }
-fs.writeFileSync(path.join(out, 'layout.json'), JSON.stringify({ results, errors }, null, 1));
+fs.writeFileSync(path.join(out, `${process.env.PREFIX ? process.env.PREFIX + '-' : ''}layout.json`), JSON.stringify({ results, errors }, null, 1));
 if (errors.length) console.log('errors', errors);
 await browser.close();
