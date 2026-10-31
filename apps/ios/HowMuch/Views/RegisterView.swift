@@ -367,10 +367,12 @@ struct RegisterView: View {
     .environment(\.defaultMinListHeaderHeight, 0)
     .scrollContentBackground(.hidden)
     .background(Theme.canvas)
-    .navigationTitle(title)
+    // While selecting, Select All and Done take the bar and the card says
+    // what is going on; a title between them got clipped.
+    .navigationTitle(selection == nil ? title : "")
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
-      if let account = scopedAccount {
+      if selection == nil, let account = scopedAccount {
         ToolbarItem(placement: .principal) {
           Button {
             editingAccount = account
