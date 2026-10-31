@@ -411,7 +411,8 @@ struct RewardsView: View {
 
   private func toggle(_ cardID: String) {
     let next = openCardID == cardID ? nil : cardID
-    withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : Theme.Motion.unfold) {
+    // Reduce Motion: the card opens and closes in place, with nothing sliding.
+    withAnimation(reduceMotion ? nil : Theme.Motion.unfold) {
       openCardID = next
     }
   }

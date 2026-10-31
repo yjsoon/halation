@@ -294,7 +294,7 @@ struct RewardRowProjection: Equatable {
       // The flag is authoritative: it fires once headroom is below one block.
       let terminal = calc.shouldStopUsing == true || calc.hasNextSpendingTier != true
       let maximum = calc.maximumSpend ?? 0
-      action = .capReached(beyond: maximum > 0 ? max(0, calc.totalSpend - maximum) : 0, terminal: terminal)
+      action = .capReached(beyond: maximum > 0 ? beyondCap(spend: calc.totalSpend, cap: maximum) : 0, terminal: terminal)
       tone = terminal ? .complete : .earning
       if maximum > 0 {
         basis = Basis(spend: min(calc.countedSpend, maximum), target: maximum)
@@ -353,6 +353,13 @@ struct RewardRowProjection: Equatable {
 
     return build(action, tone, basis: basis, fill: fill, deadline: due, exceptions: exceptions,
       missedMinimumPeriod: failedMonth.map { $0.start...$0.end })
+  }
+
+  /// Spend past a cap, or 0 under half a cent, so a cap met exactly (which can sum to 50.00000000000001)
+  /// never shows or speaks "$0.00 beyond".
+  static func beyondCap(spend: Double, cap: Double) -> Double {
+    let beyond = spend - cap
+    return beyond >= 0.005 ? beyond : 0
   }
 
   /// A plain amount for the picture: finite and positive, else 0.

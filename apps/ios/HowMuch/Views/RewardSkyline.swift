@@ -56,6 +56,9 @@ struct RewardPeriodRail: View {
   var style: Style = .full
 
   @State private var railWidth: CGFloat = 0
+  @State private var startWidth: CGFloat = 0
+  @State private var endWidth: CGFloat = 0
+  @State private var todayWidth: CGFloat = 0
 
   /// Leaves room for the sun at either end.
   private static let inset: CGFloat = 6
@@ -75,16 +78,20 @@ struct RewardPeriodRail: View {
               .alignmentGuide(.leading) { centred(at: x(met), width: $0.width) }
           }
           rail(height: 16, ticks: position.length <= 62)
+          // Every label is measured, and an end date is hidden only when it would touch today's label,
+          // so the clearance follows the text size.
           ZStack(alignment: .topLeading) {
             let today = x(position.day)
-            if today > 72 {
-              label(short(position.start))
-            }
-            if today < railWidth - 72 {
-              label(short(position.end))
-                .alignmentGuide(.leading) { $0.width - railWidth }
-            }
+            let todayLeft = -centred(at: today, width: todayWidth)
+            label(short(position.start))
+              .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { startWidth = $0 }
+              .opacity(todayLeft >= startWidth + 6 ? 1 : 0)
+            label(short(position.end))
+              .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { endWidth = $0 }
+              .alignmentGuide(.leading) { $0.width - railWidth }
+              .opacity(todayLeft + todayWidth + 6 <= railWidth - endWidth ? 1 : 0)
             label("today · \(position.day)")
+              .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { todayWidth = $0 }
               .alignmentGuide(.leading) { centred(at: today, width: $0.width) }
           }
         }
@@ -186,6 +193,7 @@ struct RewardCardSlip: View {
   var onOpenAccount: (() -> Void)?
 
   @Environment(\.displayScale) private var displayScale
+  @Environment(\.layoutDirection) private var layoutDirection
   @ScaledMetric(relativeTo: .subheadline) private var barWidth: CGFloat = 64
   @ScaledMetric(relativeTo: .caption) private var rateWidth: CGFloat = 40
 
@@ -401,6 +409,15 @@ struct RewardCardSlip: View {
       if calc.minimumSpendMet {
         let met = projection.period?.metOn.map { "met \(short($0))" } ?? "met"
         list.append(Target(id: "minimum", label: "Minimum", amount: money(minimum), state: met, status: .met))
+      } else if calc.totalSpend >= minimum {
+        // Spend has reached the figure but the server still withholds rewards: say why, without the amber.
+        let state: String
+        switch calc.qualificationStatus {
+        case "pending"?: state = "reached, needs this month's minimum"
+        case "failed"?: state = "reached, a month was missed"
+        default: state = "reached"
+        }
+        list.append(Target(id: "minimum", label: "Minimum", amount: money(minimum), state: state, status: .open))
       } else {
         let left = RewardRowText.roundedUpToCent(minimum - calc.totalSpend)
         list.append(Target(
@@ -422,8 +439,8 @@ struct RewardCardSlip: View {
     let maximum = calc.maximumSpend ?? 0
     if maximum > 0 {
       if calc.maximumSpendExceeded {
-        let beyond = max(0, calc.totalSpend - maximum)
-        let state = beyond >= 0.005 ? "reached, \(money(beyond)) beyond" : "reached"
+        let beyond = RewardRowProjection.beyondCap(spend: calc.totalSpend, cap: maximum)
+        let state = beyond > 0 ? "reached, \(money(beyond)) beyond" : "reached"
         list.append(Target(id: "cap", label: "Cap", amount: money(maximum), state: state, status: .done))
       } else {
         let left = max(0, maximum - calc.countedSpend)
@@ -512,25 +529,31 @@ struct RewardCardSlip: View {
   }
 
   private func categoryRow(_ category: RewardCategoryUsage) -> some View {
-    let beyond = category.cap.map { category.spend - $0 } ?? 0
-    let over = beyond >= 0.005
+    let beyond = category.cap.map { RewardRowProjection.beyondCap(spend: category.spend, cap: $0) } ?? 0
+    let over = beyond > 0
     let name = Text(category.flag.name)
       .font(.subheadline.weight(.medium))
       .foregroundStyle(over ? urgent : Theme.textPrimary)
     let amount = Text(money(category.spend))
       .font(.system(.subheadline, design: .monospaced).weight(.medium))
       .foregroundStyle(over ? urgent : Theme.textPrimary)
-    let figures = HStack(alignment: .center, spacing: 10) {
-      amount
-        .lineLimit(1)
+    // Only the two figures are fixed, so a number never wraps; the bar gives way down to 24pt.
+    let spent = amount
+      .lineLimit(1)
+      .fixedSize()
+    let meter = HStack(alignment: .center, spacing: 10) {
       bar(category, over: over)
       Text(rate(category))
         .font(.system(.caption, design: .monospaced))
         .foregroundStyle(Theme.rowSecondary)
         .lineLimit(1)
+        .fixedSize()
         .frame(minWidth: rateWidth, alignment: .trailing)
     }
-    .fixedSize(horizontal: true, vertical: false)
+    let figures = HStack(alignment: .center, spacing: 10) {
+      spent
+      meter
+    }
     return VStack(alignment: .leading, spacing: 3) {
       ViewThatFits(in: .horizontal) {
         HStack(alignment: .center, spacing: 10) {
@@ -538,11 +561,19 @@ struct RewardCardSlip: View {
             .lineLimit(1)
             .frame(maxWidth: .infinity, alignment: .leading)
           figures
+            .layoutPriority(1)
         }
         VStack(alignment: .leading, spacing: 4) {
           name
             .fixedSize(horizontal: false, vertical: true)
           figures
+        }
+        // Accessibility sizes: the amount on its own line, the bar and rate under it.
+        VStack(alignment: .leading, spacing: 4) {
+          name
+            .fixedSize(horizontal: false, vertical: true)
+          spent
+          meter
         }
       }
       if over, let cap = category.cap {
@@ -571,14 +602,15 @@ struct RewardCardSlip: View {
   private func bar(_ category: RewardCategoryUsage, over: Bool) -> some View {
     let fill = category.excluded ? 0 : category.fill
     let colour = over ? urgent : (Theme.flagColour(named: category.flag.flagColor) ?? Theme.accent)
-    return ZStack(alignment: .leading) {
+    return ZStack {
       Capsule()
         .fill(Theme.rowSecondary.opacity(0.2))
-      Capsule()
+      LeadingFill(fraction: fill, rightToLeft: layoutDirection == .rightToLeft)
         .fill(colour)
-        .frame(width: barWidth * CGFloat(fill))
     }
-    .frame(width: barWidth, height: 6)
+    .clipShape(Capsule())
+    .frame(minWidth: 24, idealWidth: barWidth, maxWidth: barWidth)
+    .frame(height: 6)
     .accessibilityHidden(true)
   }
 
