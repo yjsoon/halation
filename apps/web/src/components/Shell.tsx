@@ -287,8 +287,14 @@ export function Shell() {
         <div className="account-list">
           <div className="account-list-head">
             <span className="account-list-title">Accounts</span>
-            <button type="button" className="account-organiser-entry" onClick={(event) => openOrganiser(event.currentTarget)}>Organise</button>
+            <div className="account-list-actions">
+              <NavLink to="/accounts/new" className="account-organiser-entry" aria-label="New account">+ New</NavLink>
+              <button type="button" className="account-organiser-entry" onClick={(event) => openOrganiser(event.currentTarget)}>Organise</button>
+            </div>
           </div>
+          {accounts.length === 0 && (
+            <p className="account-list-empty">No accounts yet. <NavLink to="/accounts/new">Add your first account</NavLink> to start recording.</p>
+          )}
           {collections.length > 0 && (
             <div className="account-list-band">
               <AccountGroupSections groups={collections} selectedAccountId={selectedAccount?.id} onChangeIcon={updateAccountIcon} collapsed={collapsedGroups} onToggle={toggleGroup} />

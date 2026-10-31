@@ -230,7 +230,7 @@ export class D1MetadataRepository {
           [commandId, planId, accountId, statementDate, snapshot.priorReconciledBalance, snapshot.projectedReconciledBalance, candidateIdsJson],
         ),
         statement(
-          "UPDATE transactions SET cleared='reconciled',updated_at=CURRENT_TIMESTAMP WHERE plan_id=? AND account_id=? AND deleted=0 AND cleared='cleared' AND date<=?",
+          "UPDATE transactions SET cleared='reconciled',needs_confirmation=0,updated_at=CURRENT_TIMESTAMP WHERE plan_id=? AND account_id=? AND deleted=0 AND cleared='cleared' AND date<=?",
           [planId, accountId, statementDate],
         ),
         statement(
@@ -363,6 +363,19 @@ export class D1MetadataRepository {
     await this.run(kind, planId, resourceId, payload, context, [
       assertion(commandId, "metadata_plan_exists", planId, planId),
       ynabMirrorGuard(commandId, planId),
+      ...statements.map((planned) => statement(planned.sql, planned.values as unknown[])),
+    ]);
+  }
+
+  /**
+   * One guarded batch for a plan-level command that, unlike the native
+   * category and snapshot commands, is allowed on a YNAB-sourced plan (card
+   * payment terms are Halation's own data on every plan).
+   */
+  async applyPlanCommand(kind: string, planId: string, resourceId: string, payload: unknown, statements: readonly PlannedSql[], context?: D1WriteContext): Promise<void> {
+    const commandId = this.id(context);
+    await this.run(kind, planId, resourceId, payload, context, [
+      assertion(commandId, "metadata_plan_exists", planId, planId),
       ...statements.map((planned) => statement(planned.sql, planned.values as unknown[])),
     ]);
   }

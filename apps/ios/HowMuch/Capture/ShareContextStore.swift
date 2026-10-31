@@ -13,6 +13,9 @@ struct ShareContext: Codable, Equatable, Sendable {
   var lastUsedOpenAccountID: String?
   var accounts: [ShareAccount]
   var writtenAt: Date
+  /// The AI provider that reads shared text, or nil when it is read on this
+  /// phone. Lets the share sheet say where the text goes before Send.
+  var readerName: String? = nil
 
   var openAccounts: [ShareAccount] {
     accounts.filter { !$0.isClosed }

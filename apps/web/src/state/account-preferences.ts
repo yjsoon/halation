@@ -83,10 +83,6 @@ export function customAccountGroupNameError(
   return null;
 }
 
-export function toggleFavouriteAccount(preferences: AccountPreferences, accountId: string): AccountPreferences {
-  return setFavouriteAccount(preferences, accountId, !preferences.favourite_account_ids.includes(accountId));
-}
-
 export function setFavouriteAccount(
   preferences: AccountPreferences,
   accountId: string,

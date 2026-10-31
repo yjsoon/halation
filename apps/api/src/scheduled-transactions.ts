@@ -1,3 +1,4 @@
+import { isStorableMilliunits, sumMilliunits } from "@howmuch/money";
 import { createId } from "./ids";
 import type { ClearedState, ScheduledSubtransactionInput, ScheduledTransactionInput } from "./types";
 
@@ -72,7 +73,7 @@ export function scheduledTransactionMutation(
     throw new ScheduledTransactionValidationError(`frequency must be one of: ${SCHEDULE_FREQUENCIES.join(", ")}`);
   }
   if (next.date_next < next.date_first) throw new ScheduledTransactionValidationError("date_next cannot precede date_first");
-  if (!Number.isSafeInteger(next.amount)) throw new ScheduledTransactionValidationError("amount must be integer milliunits");
+  if (!isStorableMilliunits(next.amount)) throw new ScheduledTransactionValidationError("amount must be integer milliunits within ±1e15");
   for (const field of ["payee_id", "category_id", "transfer_account_id", "memo", "flag_color"] as const) {
     if (next[field] !== undefined && next[field] !== null && typeof next[field] !== "string") {
       throw new ScheduledTransactionValidationError(`${field} must be a string or null`);
@@ -91,7 +92,7 @@ export function scheduledTransactionMutation(
   }
   if (subtransactions.length === 1) throw new ScheduledTransactionValidationError("split schedules need at least two subtransactions");
   if (subtransactions.length > 0) {
-    const sum = subtransactions.reduce((total, subtransaction) => total + subtransaction.amount, 0);
+    const sum = sumMilliunits(subtransactions.map((subtransaction) => subtransaction.amount));
     if (sum !== next.amount) throw new ScheduledTransactionValidationError(`subtransactions must sum to the scheduled amount (lines total ${sum}, schedule is ${next.amount})`);
     if (next.category_id != null) throw new ScheduledTransactionValidationError("split schedules cannot have a parent category_id");
   }
@@ -155,7 +156,7 @@ function normaliseSubtransaction(
   const id = typeof input.id === "string" && input.id.trim()
     ? input.id
     : idSeed ? `scheduled_sub_${hashSeed(`${idSeed}:${index}`)}` : createId("scheduled_sub");
-  if (!Number.isSafeInteger(input.amount)) throw new ScheduledTransactionValidationError("subtransaction amounts must be integer milliunits");
+  if (!isStorableMilliunits(input.amount)) throw new ScheduledTransactionValidationError("subtransaction amounts must be integer milliunits within ±1e15");
   for (const field of ["payee_id", "category_id", "transfer_account_id", "memo"] as const) {
     if (input[field] !== undefined && input[field] !== null && typeof input[field] !== "string") {
       throw new ScheduledTransactionValidationError(`subtransaction ${field} must be a string or null`);

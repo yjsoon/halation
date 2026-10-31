@@ -45,6 +45,8 @@ struct ScheduledSubtransactionDraft {
   var categoryID: String?
   var transferAccountID: String?
   var memo: String
+  /// The stored amount of a loaded line, kept while its text is untouched.
+  private var loadedAmount: Int?
 
   init(
     id: String? = nil,
@@ -64,6 +66,7 @@ struct ScheduledSubtransactionDraft {
 
   init(subtransaction: ScheduledSubtransaction) {
     id = subtransaction.id
+    loadedAmount = subtransaction.amount
     amountText = MoneyCodec.editableString(for: subtransaction.amount)
     payeeID = subtransaction.payeeID
     categoryID = subtransaction.categoryID
@@ -72,7 +75,17 @@ struct ScheduledSubtransactionDraft {
   }
 
   var amount: Int? {
-    MoneyCodec.milliunits(fromTyped: amountText)
+    amount(decimalDigits: nil)
+  }
+
+  /// The typed amount, checked against the plan currency's decimal places.
+  /// A loaded line left untouched keeps its stored amount, even one saved
+  /// with more decimals than the currency now allows.
+  func amount(decimalDigits: Int?) -> Int? {
+    if let loadedAmount, amountText == MoneyCodec.editableString(for: loadedAmount) {
+      return loadedAmount
+    }
+    return MoneyCodec.milliunits(fromTyped: amountText, decimalDigits: decimalDigits)
   }
 
   func writeRequest() -> ScheduledSubtransactionWriteRequest? {
@@ -106,6 +119,11 @@ struct ScheduledTransactionDraft {
   var flag: FlagColour = .none
   /// Split allocations are editable; imported IDs are retained.
   var subtransactions: [ScheduledSubtransactionDraft] = []
+  /// The plan currency's decimal places, set by the editor once the plan is
+  /// known. Typed amounts with a finer fraction are invalid.
+  var decimalDigits: Int?
+  /// The loaded schedule's amount, kept while its text is untouched.
+  private var loadedMagnitude: Int?
 
   init(schedule: ScheduledTransaction? = nil) {
     saveOperationSeed = UUID().uuidString
@@ -118,6 +136,7 @@ struct ScheduledTransactionDraft {
     dateNext = Date(isoDateString: schedule.dateNext) ?? dateFirst
     frequency = ScheduleFrequency(rawValue: schedule.frequency) ?? .monthly
     direction = schedule.amount < 0 ? .outflow : .inflow
+    loadedMagnitude = abs(schedule.amount)
     amountText = MoneyCodec.editableString(for: abs(schedule.amount))
     payeeID = schedule.payeeID
     // A split parent cannot also be a transfer. Do not offer or preserve that
@@ -133,14 +152,15 @@ struct ScheduledTransactionDraft {
 
   var signedAmount: Int? {
     if isSplit {
-      var total = 0
-      for line in subtransactions {
-        guard let amount = line.amount else { return nil }
-        total += amount
-      }
+      let amounts = subtransactions.compactMap { $0.amount(decimalDigits: decimalDigits) }
+      guard amounts.count == subtransactions.count,
+            let total = amounts.checkedSum(),
+            total.magnitude <= MoneyCodec.storableAmountCap.magnitude
+      else { return nil }
       return total
     }
-    guard let amount = MoneyCodec.milliunits(fromTyped: amountText) else {
+    let untouched = loadedMagnitude.flatMap { amountText == MoneyCodec.editableString(for: $0) ? $0 : nil }
+    guard let amount = untouched ?? MoneyCodec.milliunits(fromTyped: amountText, decimalDigits: decimalDigits) else {
       return nil
     }
     return direction == .outflow ? -amount : amount
@@ -155,8 +175,12 @@ struct ScheduledTransactionDraft {
     guard subtransactions.count >= 2 else {
       return "A split schedule needs at least two lines."
     }
-    guard subtransactions.allSatisfy({ $0.amount != nil }) else {
-      return "Enter a signed amount for every split line."
+    let amounts = subtransactions.compactMap { $0.amount(decimalDigits: decimalDigits) }
+    guard amounts.count == subtransactions.count else {
+      return "Enter a valid signed amount for every split line."
+    }
+    guard let total = amounts.checkedSum(), total.magnitude <= MoneyCodec.storableAmountCap.magnitude else {
+      return "The split total is too large."
     }
     return nil
   }
@@ -485,6 +509,7 @@ struct ScheduledTransactionEditorView: View {
         enterNow()
       }
       .task(id: model.settings.planID) {
+        draft.decimalDigits = model.currencyFormat?.decimalDigits
         if draft.accountID.isEmpty {
           draft.accountID = model.lastUsedAccountID.flatMap { id in model.openAccounts.contains(where: { $0.id == id }) ? id : nil }
             ?? model.openAccounts.first?.id
@@ -590,7 +615,7 @@ struct ScheduledTransactionEditorView: View {
   }
 
   private func splitLineAmountLabel(_ line: ScheduledSubtransactionDraft) -> String {
-    guard let amount = line.amount else { return "Enter amount" }
+    guard let amount = line.amount(decimalDigits: draft.decimalDigits) else { return "Enter amount" }
     return MoneyCodec.signedDisplayString(for: amount, currencyFormat: model.currencyFormat)
   }
 }
@@ -611,7 +636,7 @@ private struct ScheduledSplitLineEditor: View {
         Text("Use a minus sign for an outflow and a positive amount for an inflow.")
           .font(.footnote)
           .foregroundStyle(.secondary)
-        if line.amount == nil {
+        if line.amount(decimalDigits: model.currencyFormat?.decimalDigits) == nil {
           Text("Enter a valid signed amount.")
             .font(.footnote)
             .foregroundStyle(Theme.outflow)

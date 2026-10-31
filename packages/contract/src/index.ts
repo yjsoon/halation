@@ -38,6 +38,20 @@ export interface Transaction {
   approved: boolean;
   flag_color: string | null;
   flag_name: string | null;
+  /**
+   * The amount is an estimate still to be checked against the statement, such
+   * as a foreign-currency charge entered at an estimated rate. Clearing or
+   * reconciling the row confirms it. The API always sends it; it is optional
+   * here because rows cached before the field existed lack it.
+   */
+  needs_confirmation?: boolean;
+  /**
+   * Whether the spend is to be claimed back (`to_claim`) or has been claimed
+   * (`claimed`, with the day in `claimed_on`). Null when it is not a claim.
+   * Optional here because rows cached before the field existed lack it.
+   */
+  claim_status?: "to_claim" | "claimed" | null;
+  claimed_on?: string | null;
   account_id: string;
   account_name: string | null;
   payee_id: string | null;
@@ -134,6 +148,109 @@ export interface AccountReconciliationPreview {
   projected_reconciled_balance: number;
   candidate_transaction_ids: string[];
   candidate_transaction_count: number;
+  server_knowledge: number;
+}
+
+/**
+ * A card's payment terms (`creditCard` or `lineOfCredit` accounts only).
+ * Amounts are integer milliunits; `statement_day` 29 to 31 is clamped to the
+ * month's last day.
+ */
+export interface CardPaymentTerms {
+  account_id: string;
+  statement_day: number;
+  due_gap_days: number;
+  due_weekend_rule: "next" | "previous";
+  default_funding_account_id: string | null;
+  default_amount_rule: "statement" | "minimum" | "fixed";
+  default_amount_milli: number | null;
+  minimum_floor_milli: number;
+  minimum_rate_bp: number;
+  pay_days_before_due: number;
+  lead_days: number;
+  delivery_hour: number;
+  enabled: boolean;
+  /**
+   * When the card's terms were first saved (ISO 8601, UTC), set by the
+   * server and kept across later PUTs. A due date before this day is never
+   * reported overdue.
+   */
+  created_at: string;
+}
+
+/**
+ * PUT body fields: `statement_day` is required, everything else defaults.
+ * `created_at` may be sent back and is ignored.
+ */
+export type CardPaymentTermsInput = Pick<CardPaymentTerms, "statement_day"> & Partial<Omit<CardPaymentTerms, "statement_day">>;
+
+/**
+ * How a cycle is covered. Covered (no reminders needed): `paid`, `posted`,
+ * `scheduled`, `settled`. Not covered: `partial`, `overdue`, `unscheduled`.
+ *
+ * - `paid`: approved or cleared transfers into the card in the payment window
+ *   add up to at least `minimum_due`.
+ * - `posted`: the same, counting unapproved, uncleared transfers too
+ *   (typically a materialised schedule waiting for approval).
+ * - `scheduled`: a schedule into the card has an occurrence in the window.
+ * - `settled`: nothing is owed on the card now (`current_balance <= 0`), for
+ *   example after a payment recorded as a plain inflow.
+ * - `partial`: transfers in the window, but less than `minimum_due`.
+ *   `remaining_amount` is `statement_balance - paid_amount`, floored at 0.
+ * - `overdue`: a due date has passed with a positive statement balance and no
+ *   payment of at least the minimum. `since` is the missed due date: this
+ *   cycle's, or the previous cycle's when that one is carried over (see
+ *   `previous_unpaid`). `paid_amount` is what was paid in this cycle's window.
+ * - `unscheduled`: nothing yet.
+ */
+export type CardPaymentCoverage =
+  | { state: "unscheduled" }
+  | { state: "scheduled"; scheduled_transaction_id: string; pay_date: string; amount: number; funding_account_id: string }
+  | { state: "posted"; transaction_id: string; approved: boolean; amount: number; date: string }
+  | { state: "paid"; transaction_id: string; amount: number; date: string }
+  | { state: "partial"; transaction_id: string; date: string; paid_amount: number; remaining_amount: number }
+  | { state: "settled" }
+  | { state: "overdue"; since: string; paid_amount: number };
+
+/** The previous statement, when it went past its due date unpaid. */
+export interface CardPaymentPreviousUnpaid {
+  statement_date: string;
+  due_date: string;
+  statement_balance: number;
+  minimum_due: number;
+}
+
+export interface CardPaymentCycle {
+  account_id: string;
+  cycle: "current" | "next";
+  statement_date: string;
+  due_date: string;
+  /** Due date minus `pay_days_before_due` working days. */
+  last_safe_pay_date: string;
+  /** Suggested pay day inside the window: the last safe day, or `as_of` once that has passed or while overdue. */
+  default_pay_date: string;
+  /** First day (inclusive) a payment counts for this cycle. */
+  window_start: string;
+  /** Last day (inclusive) a payment counts for this cycle: the later of the next statement date and the due date. */
+  window_end: string;
+  /**
+   * Amount owed at the end of the statement date, recorded so far; positive
+   * means owed, zero or negative means nothing due. For the next cycle it is a
+   * projection that nets off scheduled payments not yet entered.
+   */
+  statement_balance: number;
+  minimum_due: number;
+  /** Amount owed now (the account balance negated), positive means owed. */
+  current_balance: number;
+  coverage: CardPaymentCoverage;
+  /** Current cycle only: the previous statement went unpaid past its due date and this cycle is not paid or posted. Otherwise null. */
+  previous_unpaid: CardPaymentPreviousUnpaid | null;
+}
+
+export interface CardPaymentsView {
+  as_of: string;
+  /** The current and next cycle of every enabled card, ordered by due date. */
+  cycles: CardPaymentCycle[];
   server_knowledge: number;
 }
 

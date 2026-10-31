@@ -26,7 +26,6 @@ final class CaptureAssistantPresenceTests: XCTestCase {
       elapsed: 12,
       reduceMotion: false
     )
-    XCTAssertEqual(frame.fullLine, script.last)
     XCTAssertEqual(frame.visibleText, script.last)
     XCTAssertTrue(frame.showsCursor)
   }

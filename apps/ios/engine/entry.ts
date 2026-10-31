@@ -115,6 +115,7 @@ async function configure(configJson: string): Promise<void> {
     apiToken: config.apiToken,
     defaultPlanId: config.defaultPlanId,
     transitionReadOnly: false,
+    timeZone: config.timeZone,
   };
   const database = new D1Database(binding);
   const repo = new D1LedgerRepository(database, config.defaultPlanId);

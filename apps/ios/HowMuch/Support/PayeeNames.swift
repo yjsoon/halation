@@ -93,15 +93,6 @@ enum PayeeNames {
     word.count >= 5 && !word.contains { "aeiouy".contains($0) }
   }
 
-  /// Short stem of the first merchant word, for a substring search wide enough
-  /// to catch other spellings ("grabfood" searches "grab", finding "Grab" too).
-  static func searchStem(_ tokens: [String]) -> String? {
-    guard let first = tokens.first else {
-      return nil
-    }
-    return String(first.prefix(4))
-  }
-
   /// How closely two payee names' merchant words match, from 0 to 1. Symmetric:
   /// the average of how well each name's words are covered by the other's.
   static func similarity(_ a: [String], _ b: [String]) -> Double {

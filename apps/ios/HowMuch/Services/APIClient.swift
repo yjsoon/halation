@@ -67,6 +67,48 @@ enum ExportEverythingFormat {
   case transactionsCSV
 }
 
+/// Route literals supply separators; interpolated IDs are always one opaque segment.
+private struct RequestPath: ExpressibleByStringInterpolation {
+  let value: String
+  let valid: Bool
+
+  init(stringLiteral value: String) {
+    self.value = value
+    valid = true
+  }
+
+  init(stringInterpolation: StringInterpolation) {
+    value = stringInterpolation.value
+    valid = stringInterpolation.valid
+  }
+
+  static func encode(_ segment: String) -> String? {
+    guard !segment.isEmpty, segment != ".", segment != ".." else { return nil }
+    return segment.addingPercentEncoding(withAllowedCharacters: CharacterSet(
+      charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()"
+    ))
+  }
+
+  struct StringInterpolation: StringInterpolationProtocol {
+    var value = ""
+    var valid = true
+
+    init(literalCapacity: Int, interpolationCount: Int) {
+      value.reserveCapacity(literalCapacity)
+    }
+
+    mutating func appendLiteral(_ literal: String) { value += literal }
+
+    mutating func appendInterpolation(_ id: String) {
+      guard let encoded = RequestPath.encode(id) else {
+        valid = false
+        return
+      }
+      value += encoded
+    }
+  }
+}
+
 struct APIClient {
   let settings: APISettings
   static let transactionPageSize = 100
@@ -264,7 +306,7 @@ struct APIClient {
     if let q, !q.isEmpty {
       queryItems.append(URLQueryItem(name: "q", value: q))
     }
-    let path = accountID.map { "/v1/plans/\(planID)/accounts/\($0)/transactions" }
+    let path = accountID.map { id -> RequestPath in "/v1/plans/\(planID)/accounts/\(id)/transactions" }
       ?? "/v1/plans/\(planID)/transactions"
     let response: APIEnvelope<TransactionsPayload> = try await request(
       path: path,
@@ -274,7 +316,8 @@ struct APIClient {
       transactions: response.data.transactions.filter { !$0.deleted },
       hasMore: response.data.hasMore ?? false,
       nextOffset: response.data.nextOffset,
-      serverKnowledge: response.data.serverKnowledge
+      serverKnowledge: response.data.serverKnowledge,
+      cursorDate: response.data.transactions.last?.date
     )
   }
 
@@ -320,7 +363,7 @@ struct APIClient {
   /// One bounded server-side count, so launch no longer waits on a full walk of
   /// the queue just to label the inbox.
   func fetchUnapprovedCount(planID: String, accountID: String? = nil) async throws -> Int {
-    let path = accountID.map { "/v1/plans/\(planID)/accounts/\($0)/transactions/unapproved_count" }
+    let path = accountID.map { id -> RequestPath in "/v1/plans/\(planID)/accounts/\(id)/transactions/unapproved_count" }
       ?? "/v1/plans/\(planID)/transactions/unapproved_count"
     let response: APIEnvelope<UnapprovedCountPayload> = try await request(path: path)
     return response.data.count
@@ -374,6 +417,43 @@ struct APIClient {
       method: "POST",
       headers: ["Idempotency-Key": idempotencyKey],
       body: ScheduledOccurrenceRequest(occurrenceDate: occurrenceDate, date: enteredDate)
+    )
+    return response.data
+  }
+
+  /// Every card's payment terms. Local mode answers from the on-device engine.
+  func fetchCardPaymentTerms(planID: String) async throws -> [CardPaymentTerms] {
+    let response: APIEnvelope<CardPaymentTermsListPayload> = try await request(
+      path: "/v1/plans/\(planID)/card_payment_terms"
+    )
+    return response.data.cardPaymentTerms
+  }
+
+  /// PUT replaces the whole row: send every field.
+  func putCardPaymentTerms(planID: String, terms: CardPaymentTerms, idempotencyKey: String) async throws -> CardPaymentTerms {
+    let response: APIEnvelope<CardPaymentTermsPayload> = try await request(
+      path: "/v1/plans/\(planID)/accounts/\(terms.accountID)/card_payment_terms",
+      method: "PUT",
+      headers: ["Idempotency-Key": idempotencyKey],
+      body: CardPaymentTermsWriteEnvelope(cardPaymentTerms: terms)
+    )
+    return response.data.cardPaymentTerms
+  }
+
+  func deleteCardPaymentTerms(planID: String, accountID: String, idempotencyKey: String) async throws {
+    let _: APIEnvelope<CardPaymentTermsPayload> = try await request(
+      path: "/v1/plans/\(planID)/accounts/\(accountID)/card_payment_terms",
+      method: "DELETE",
+      headers: ["Idempotency-Key": idempotencyKey]
+    )
+  }
+
+  /// The current and next cycle of every card with terms, as of the
+  /// device's local today, so the phone and its reminders agree on the day.
+  func fetchCardPayments(planID: String, asOf: String = Date.now.isoDateString) async throws -> CardPaymentsPayload {
+    let response: APIEnvelope<CardPaymentsPayload> = try await request(
+      path: "/v1/plans/\(planID)/card_payments",
+      queryItems: [URLQueryItem(name: "as_of", value: asOf)]
     )
     return response.data
   }
@@ -446,16 +526,21 @@ struct APIClient {
     )
   }
 
+  /// `includeClosedAccounts` keeps a closed account's history in the series:
+  /// without it, paying off a card and closing it reads as a drop in net
+  /// worth, because the card's past balances vanish while the payment stays.
   func fetchNetWorth(
     planID: String,
     from: String?,
     to: String?,
     interval: ReportInterval,
-    accountIDs: [String] = []
+    accountIDs: [String] = [],
+    includeClosedAccounts: Bool = false
   ) async throws -> NetWorthReport {
     try await report(
       path: "/api/reports/net-worth", planID: planID, from: from, to: to,
-      interval: interval.rawValue, accountIDs: accountIDs
+      interval: interval.rawValue, accountIDs: accountIDs,
+      extraQueryItems: includeClosedAccounts ? [URLQueryItem(name: "include_closed_accounts", value: "true")] : []
     )
   }
 
@@ -611,14 +696,15 @@ struct APIClient {
   }
 
   private func report<Payload: Decodable>(
-    path: String,
+    path: RequestPath,
     planID: String,
     from: String?,
     to: String?,
     interval: String?,
     accountIDs: [String] = [],
     categoryIDs: [String] = [],
-    group: String? = nil
+    group: String? = nil,
+    extraQueryItems: [URLQueryItem] = []
   ) async throws -> Payload {
     // plan_id is mandatory on every report call: without it the API silently
     // answers for its configured default plan.
@@ -641,13 +727,14 @@ struct APIClient {
     if let group {
       queryItems.append(URLQueryItem(name: "group", value: group))
     }
+    queryItems.append(contentsOf: extraQueryItems)
 
     let response: APIEnvelope<Payload> = try await request(path: path, queryItems: queryItems)
     return response.data
   }
 
   private func request<Payload: Decodable>(
-    path: String,
+    path: RequestPath,
     queryItems: [URLQueryItem] = [],
     method: String = "GET",
     headers: [String: String] = [:]
@@ -656,7 +743,7 @@ struct APIClient {
   }
 
   private func request<Payload: Decodable, Body: Encodable>(
-    path: String,
+    path: RequestPath,
     queryItems: [URLQueryItem] = [],
     method: String = "GET",
     headers: [String: String] = [:],
@@ -666,7 +753,7 @@ struct APIClient {
   }
 
   private func executeRequest<Payload: Decodable>(
-    path: String,
+    path: RequestPath,
     appendedPathSegments: [String] = [],
     queryItems: [URLQueryItem] = [],
     method: String = "GET",
@@ -691,7 +778,7 @@ struct APIClient {
   /// Sends one request and maps a failure status to `APIClientError`.
   /// Returns a successful response's body undecoded.
   private func executeRawRequest(
-    path: String,
+    path: RequestPath,
     appendedPathSegments: [String] = [],
     queryItems: [URLQueryItem] = [],
     method: String = "GET",
@@ -723,7 +810,7 @@ struct APIClient {
     }
 
     guard (200 ..< 300).contains(httpResponse.statusCode) else {
-      if httpResponse.statusCode == 404, path.hasSuffix("/account_preferences") {
+      if httpResponse.statusCode == 404, path.value.hasSuffix("/account_preferences") {
         throw APIClientError.endpointUnsupported
       }
       if let serverError = try? decoder.decode(ServerErrorEnvelope.self, from: data) {
@@ -762,7 +849,7 @@ struct APIClient {
         if httpResponse.statusCode == 404, serverError.error.name == "resource_not_found" {
           throw APIClientError.notFound(serverError.error.detail)
         }
-        if path.hasSuffix("/import_snapshot") {
+        if path.value.hasSuffix("/import_snapshot") {
           switch (httpResponse.statusCode, serverError.error.name) {
           case (409, "plan_not_empty"):
             throw APIClientError.planNotEmpty(serverError.error.detail)
@@ -834,20 +921,20 @@ struct APIClient {
     return (result.body, response)
   }
 
-  private func makeURL(path: String, appendedPathSegments: [String], queryItems: [URLQueryItem]) throws -> URL {
-    guard let baseURL = settings.baseURL,
+  private func makeURL(path: RequestPath, appendedPathSegments: [String], queryItems: [URLQueryItem]) throws -> URL {
+    guard path.valid, let baseURL = settings.baseURL,
           var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
     else {
       throw APIClientError.invalidBaseURL
     }
 
     let suffix = try appendedPathSegments.map { segment in
-      guard let encoded = Self.encodeOpaqueIDSegment(segment) else {
+      guard let encoded = RequestPath.encode(segment) else {
         throw APIClientError.invalidBaseURL
       }
       return "/" + encoded
     }.joined()
-    let requestPath = Self.encodedPath(path) + suffix
+    let requestPath = path.value + suffix
     let basePath = components.percentEncodedPath.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     components.percentEncodedPath = basePath.isEmpty ? requestPath : "/\(basePath)\(requestPath)"
     components.queryItems = queryItems.isEmpty ? nil : queryItems
@@ -860,25 +947,6 @@ struct APIClient {
       throw APIClientError.invalidBaseURL
     }
     return url
-  }
-
-  private static let encodeURIComponentAllowed = CharacterSet(
-    charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_.!~*'()"
-  )
-
-  private static func encodeOpaqueIDSegment(_ segment: String) -> String? {
-    segment.addingPercentEncoding(withAllowedCharacters: encodeURIComponentAllowed)
-  }
-
-  /// Encodes path segments only. Put query in `queryItems`, not in `path` —
-  /// `?` is not url-path-allowed, so it becomes `%3F` and the server 404s.
-  private static func encodedPath(_ path: String) -> String {
-    let trimmed = path.hasPrefix("/") ? String(path.dropFirst()) : path
-    let segments = trimmed.split(separator: "/", omittingEmptySubsequences: false).map { segment in
-      segment.addingPercentEncoding(withAllowedCharacters: CharacterSet.urlPathAllowed.subtracting(CharacterSet(charactersIn: "/")))
-        ?? String(segment)
-    }
-    return "/" + segments.joined(separator: "/")
   }
 
   private var decoder: JSONDecoder {
@@ -939,6 +1007,16 @@ extension APIClient {
     )
   }
 
+  /// Clears only the "To confirm" marker. A folded approval follows as the
+  /// batch approve.
+  func outboxConfirm(planID: String, transactionID: String) async throws -> OutboxReply {
+    try await outboxSend(
+      path: "/v1/plans/\(planID)/transactions/\(transactionID)",
+      method: "PATCH",
+      body: try encoder.encode(ConfirmEnvelope(transaction: .init(needsConfirmation: false)))
+    )
+  }
+
   func outboxApprove(planID: String, transactionIDs: [String]) async throws -> OutboxReply {
     try await outboxSend(
       path: "/v1/plans/\(planID)/transactions",
@@ -959,6 +1037,27 @@ extension APIClient {
       method: "DELETE",
       queryItems: queryItems
     )
+  }
+
+  /// Creates a card payment schedule, returning the status rather than
+  /// throwing, so a queued Scheduled tap can tell a passing server error
+  /// (retry) from a refusal (drop and say so).
+  func cardScheduleCreate(
+    planID: String,
+    idempotencyKey: String,
+    body: CardScheduleWriteBody
+  ) async throws -> OutboxReply {
+    try await outboxSend(
+      path: "/v1/plans/\(planID)/scheduled_transactions",
+      method: "POST",
+      headers: ["Idempotency-Key": idempotencyKey],
+      body: try encoder.encode(CardScheduleWriteEnvelope(scheduledTransaction: body))
+    )
+  }
+
+  /// The schedule in a single-schedule reply, or nil when the body is not one.
+  func outboxScheduledTransaction(in reply: OutboxReply) -> ScheduledTransaction? {
+    (try? decoder.decode(APIEnvelope<ScheduledTransactionPayload>.self, from: reply.data))?.data.scheduledTransaction
   }
 
   func outboxFetch(planID: String, transactionID: String) async throws -> OutboxReply {
@@ -1029,15 +1128,19 @@ extension APIClient {
   }
 
   private func outboxSend(
-    path: String,
+    path: RequestPath,
     method: String,
     queryItems: [URLQueryItem] = [],
+    headers: [String: String] = [:],
     body: Data? = nil
   ) async throws -> OutboxReply {
     let url = try makeURL(path: path, appendedPathSegments: [], queryItems: queryItems)
     var request = URLRequest(url: url)
     request.httpMethod = method
     request.setValue("application/json", forHTTPHeaderField: "Accept")
+    for (name, value) in headers {
+      request.setValue(value, forHTTPHeaderField: name)
+    }
     let token = settings.sessionToken.trimmingCharacters(in: .whitespacesAndNewlines)
     if !token.isEmpty {
       request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")

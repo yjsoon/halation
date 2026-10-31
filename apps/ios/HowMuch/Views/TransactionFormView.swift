@@ -1,3 +1,4 @@
+import Accessibility
 import SwiftUI
 
 struct AmountKeypadEngine: Equatable {
@@ -11,8 +12,14 @@ struct AmountKeypadEngine: Equatable {
   private var pendingOp: Op?
   /// False right after an operator, before the second operand is typed.
   private var isTypingEntry = true
+  /// The stored amount the keypad opened with, returned unchanged by
+  /// `commitValue()` until a key is pressed: a memo edit must never rewrite
+  /// the amount, whatever its size or precision.
+  private var seed: Int?
+  /// The plan currency's smallest unit, from the last digit typed.
+  private var unit = 10
 
-  private static let cap = 999_999_999_990
+  private static let cap = MoneyCodec.typedAmountCap
 
   /// What the amount header shows; matches a desk calculator's display.
   var display: Int {
@@ -20,7 +27,11 @@ struct AmountKeypadEngine: Equatable {
   }
 
   mutating func setValue(_ milliunits: Int) {
-    entry = max(0, milliunits)
+    // A stored amount can pass the keypad's cap (a dong balance) and must
+    // round-trip untouched; only past what the server stores is it clamped,
+    // which keeps the next digit or operator from overflowing.
+    entry = min(max(0, milliunits), MoneyCodec.storableAmountCap)
+    seed = max(0, milliunits)
     accumulator = nil
     pendingOp = nil
     isTypingEntry = true
@@ -39,15 +50,19 @@ struct AmountKeypadEngine: Equatable {
 
   /// Digits shift in from the right in the plan currency's smallest unit.
   mutating func tapDigit(_ digit: Int, fractionDigits: Int = 2) {
+    seed = nil
     if !isTypingEntry {
       entry = 0
       isTypingEntry = true
     }
-    let next = entry * 10 + digit * Self.digitUnit(fractionDigits: fractionDigits)
-    entry = min(next, Self.cap)
+    unit = Self.digitUnit(fractionDigits: fractionDigits)
+    let next = entry * 10 + digit * unit
+    // A whole number of the currency's smallest unit: no fractional yen.
+    entry = min(next, Self.cap - Self.cap % unit)
   }
 
   mutating func tapBackspace(fractionDigits: Int = 2) {
+    seed = nil
     if !isTypingEntry {
       cancelPendingOperation()
     }
@@ -60,6 +75,7 @@ struct AmountKeypadEngine: Equatable {
   }
 
   mutating func tapOperator(_ op: Op) {
+    seed = nil
     if isTypingEntry, accumulator != nil {
       evaluate()
     }
@@ -78,6 +94,9 @@ struct AmountKeypadEngine: Equatable {
 
   /// Resolves any pending arithmetic and returns the final value.
   mutating func commitValue() -> Int {
+    if let seed {
+      return seed
+    }
     tapEquals()
     return entry
   }
@@ -97,8 +116,11 @@ struct AmountKeypadEngine: Equatable {
     guard let acc = accumulator, let op = pendingOp else {
       return
     }
+    // Operands may be a stored amount past the typing cap (a dong balance),
+    // so the result stops where the server does, in whole minor units.
     let result = op == .add ? acc + entry : acc - entry
-    entry = min(max(0, result), Self.cap)
+    let limit = MoneyCodec.storableAmountCap - MoneyCodec.storableAmountCap % unit
+    entry = min(max(0, result), limit)
     accumulator = nil
     pendingOp = nil
     isTypingEntry = true
@@ -164,6 +186,7 @@ enum TransactionFormRowID {
   static let memo = "transaction-form.row.memo"
   static let split = "transaction-form.row.split"
   static let cleared = "transaction-form.row.cleared"
+  static let followUp = "transaction-form.row.follow-up"
 }
 
 struct TransactionFormView: View {
@@ -174,6 +197,8 @@ struct TransactionFormView: View {
   @State private var isKeypadVisible: Bool
   @State private var errorMessage: String?
   @State private var isConfirmingDelete = false
+  /// Set when turning Cleared on also turned To confirm off.
+  @State private var confirmationDroppedByClearing = false
   /// Looked up when Delete is tapped, not in the alert's message builder, which
   /// runs with every body pass (each keypad tap included).
   @State private var deleteDetail: String?
@@ -285,7 +310,8 @@ struct TransactionFormView: View {
               case .save:
                 save()
               }
-            }
+            },
+            onKey: announceKeypadAmount
           )
           .transition(.move(edge: .bottom))
         }
@@ -316,6 +342,10 @@ struct TransactionFormView: View {
           }
           ToolbarItem(placement: .confirmationAction) {
             Button("Done") {
+              if let message = splitValidationMessage {
+                errorMessage = message
+                return
+              }
               draft.amountMagnitudeMilli = keypad.commitValue()
               onPersist?(draft)
               dismiss()
@@ -479,6 +509,11 @@ struct TransactionFormView: View {
           // every keypad tap, so typed input must update instantly.
       }
       .buttonStyle(.plain)
+      .accessibilityLabel("Amount")
+      .accessibilityValue(amountDisplay)
+      // A split's total is not typed here, so it reads as text, not a button.
+      .accessibilityRemoveTraits(draft.isSplit ? .isButton : [])
+      .accessibilityHint(draft.isSplit ? "The total of the split lines." : isKeypadVisible ? "" : "Opens the keypad.")
     }
     .frame(maxWidth: .infinity)
     .padding(.vertical, 16)
@@ -502,6 +537,14 @@ struct TransactionFormView: View {
     }
     let magnitude = isKeypadVisible ? keypad.display : draft.amountMagnitudeMilli
     return draft.direction == .outflow ? -magnitude : magnitude
+  }
+
+  /// VoiceOver hears the key, not the header, so each key reads the amount
+  /// back. Unsigned: an outflow's minus sign would make the Plus key sound
+  /// like Minus, and the direction toggle already says which way it goes.
+  private func announceKeypadAmount() {
+    let text = MoneyCodec.displayString(for: keypad.display, currencyFormat: model.currencyFormat)
+    AccessibilityNotification.Announcement(text).post()
   }
 
   private var amountDisplay: String {
@@ -735,8 +778,91 @@ struct TransactionFormView: View {
       }
       CardDivider()
       clearedRow
+      CardDivider()
+      followUpRow
     }
     .ynabCard()
+    .onChange(of: draft.isCleared) { wasCleared, isCleared in
+      // Clearing means the amount was checked against the statement. Turning
+      // Cleared back off before saving puts the marker back. A row that was
+      // already cleared with the marker kept it on purpose.
+      let loadedUncleared = (draft.loadedCleared ?? .uncleared) == .uncleared
+      if isCleared, !wasCleared, loadedUncleared, draft.needsConfirmation {
+        draft.needsConfirmation = false
+        confirmationDroppedByClearing = true
+      } else if !isCleared, wasCleared, confirmationDroppedByClearing {
+        draft.needsConfirmation = true
+        confirmationDroppedByClearing = false
+      }
+    }
+  }
+
+  /// Two independent follow-ups as chips, both stored on the row. A claimed
+  /// row shows the day; turning To claim on files it to claim again.
+  private var followUpRow: some View {
+    FormCardRow(
+      icon: draft.needsConfirmation ? "circle.dashed.inset.filled" : "circle.dashed",
+      iconColor: draft.needsConfirmation ? Theme.toConfirm : Color.secondary,
+      rowIdentifier: TransactionFormRowID.followUp
+    ) {
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 8) {
+          Text("Follow-up")
+            .foregroundStyle(Theme.textPrimary)
+            .fixedSize()
+          Spacer(minLength: 8)
+          followUpChips
+        }
+        VStack(alignment: .leading, spacing: 8) {
+          Text("Follow-up")
+            .foregroundStyle(Theme.textPrimary)
+          followUpChips
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+    }
+  }
+
+  private var followUpChips: some View {
+    HStack(spacing: 8) {
+      FollowUpChip(
+        title: "To confirm",
+        glyph: .text("≈"),
+        tint: Theme.toConfirm,
+        isOn: Binding(
+          get: { draft.needsConfirmation },
+          set: {
+            draft.needsConfirmation = $0
+            confirmationDroppedByClearing = false
+          }
+        )
+      )
+      .accessibilityHint("Marks the amount as an estimate to check against the statement.")
+      FollowUpChip(
+        title: "To claim",
+        glyph: .symbol("doc.text"),
+        tint: Theme.toClaim,
+        isOn: Binding(
+          get: { draft.isToClaim },
+          set: { draft.isToClaim = $0 }
+        )
+      )
+      .accessibilityHint("Marks a spend to claim back. The claims tool lists it until it is claimed.")
+      if draft.claimStatus == MemoClaim.claimed.rawValue {
+        Text(Self.claimedLabel(draft.claimedOn))
+          .font(.footnote)
+          .foregroundStyle(.secondary)
+          .fixedSize()
+      }
+    }
+  }
+
+  /// "Claimed 2 Jan 2026", or "Claimed" when the day is not known.
+  static func claimedLabel(_ isoDay: String?) -> String {
+    guard let isoDay, let day = Date(isoDateString: isoDay) else {
+      return "Claimed"
+    }
+    return "Claimed \(day.formatted(.dateTime.day().month(.abbreviated).year()))"
   }
 
   private var splitToggleRow: some View {
@@ -811,7 +937,7 @@ struct TransactionFormView: View {
         Text("Enter a signed amount on every line. Transfers pair with the selected account when saved.")
           .font(.footnote)
           .foregroundStyle(.secondary)
-        if let message = draft.splitValidationMessage {
+        if let message = splitValidationMessage {
           Text(message)
             .font(.footnote)
             .foregroundStyle(Theme.outflow)
@@ -836,8 +962,17 @@ struct TransactionFormView: View {
     return "Uncategorised"
   }
 
+  /// Split lines checked against the plan currency's decimal places.
+  private var splitValidationMessage: String? {
+    draft.splitValidationMessage(decimalDigits: model.currencyFormat?.decimalDigits)
+  }
+
+  private var canSave: Bool {
+    draft.canSave && splitValidationMessage == nil
+  }
+
   private func splitLineAmountLabel(_ line: TransactionSubtransactionDraft) -> String {
-    guard let amount = line.amount else { return "Enter amount" }
+    guard let amount = line.amount(decimalDigits: model.currencyFormat?.decimalDigits) else { return "Enter amount" }
     return MoneyCodec.displayString(for: amount, currencyFormat: model.currencyFormat)
   }
 
@@ -971,16 +1106,16 @@ struct TransactionFormView: View {
     }
     .buttonStyle(.glassProminent)
     .tint(Theme.accent)
-    .disabled(!draft.canSave || hasCommitted)
-    .opacity(draft.canSave ? 1 : 0.5)
+    .disabled(!canSave || hasCommitted)
+    .opacity(canSave ? 1 : 0.5)
   }
 
   private func save() {
     guard !hasCommitted else {
       return
     }
-    guard draft.splitValidationMessage == nil else {
-      errorMessage = draft.splitValidationMessage
+    guard splitValidationMessage == nil else {
+      errorMessage = splitValidationMessage
       return
     }
     draft.amountMagnitudeMilli = keypad.commitValue()
@@ -1050,7 +1185,7 @@ private struct TransactionSplitLineEditor: View {
         Text("Use − for spending and + for income. The parent amount is the sum of all lines.")
           .font(.footnote)
           .foregroundStyle(.secondary)
-        if line.amount == nil {
+        if line.amount(decimalDigits: model.currencyFormat?.decimalDigits) == nil {
           Text("Enter a valid signed amount.")
             .font(.footnote)
             .foregroundStyle(Theme.outflow)
@@ -1289,6 +1424,8 @@ struct CalculatorKeypad: View {
   @Binding var engine: AmountKeypadEngine
   let primaryAction: KeypadPrimaryAction
   let onPrimary: () -> Void
+  /// Runs after every key but the primary one.
+  var onKey: () -> Void = {}
 
   @State private var digitHapticTrigger = 0
   @State private var symbolHapticTrigger = 0
@@ -1384,7 +1521,10 @@ struct CalculatorKeypad: View {
   }
 
   private func key(action: @escaping () -> Void, @ViewBuilder label: () -> some View) -> some View {
-    Button(action: action) {
+    Button {
+      action()
+      onKey()
+    } label: {
       label()
         .frame(maxWidth: .infinity)
         .frame(height: 52)

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import type { Account, CategoryGroup, Payee } from "../api/types";
 import { CategorySelect } from "./CategorySelect";
 import { FlagPicker } from "./FlagTag";
+import { FollowUpChips } from "./FollowUpChips";
 import { splitCategoryGroups } from "../lib/categories";
 import {
   canonicalPayeeName,
@@ -11,10 +12,12 @@ import {
   type RegisterComposeState,
 } from "../lib/register-compose";
 import { payeeListEntries } from "../lib/register-row-edit";
+import { PayeeCombobox } from "./PayeeCombobox";
 
 export function RegisterComposeRow({
   state,
   accounts,
+  transferAccounts,
   lockedAccount,
   payees,
   categoryGroups,
@@ -27,6 +30,8 @@ export function RegisterComposeRow({
 }: {
   state: Extract<RegisterComposeState, { status: "open" }>;
   accounts: Account[];
+  /** Every account, not just the ones in view: any of them can take a transfer. */
+  transferAccounts: Account[];
   lockedAccount: Account | null;
   payees: Payee[];
   categoryGroups: CategoryGroup[];
@@ -41,6 +46,10 @@ export function RegisterComposeRow({
   const orderedGroups = useMemo(() => splitCategoryGroups(categoryGroups), [categoryGroups]);
   const transfer = findTransferPayee(payees, state.draft.payeeName);
   const busy = state.saving || disabled;
+  const payeeEntries = useMemo(
+    () => payeeListEntries(payees, transferAccounts, state.draft.accountId),
+    [payees, transferAccounts, state.draft.accountId],
+  );
 
   useEffect(() => {
     dateRef.current?.focus();
@@ -53,6 +62,8 @@ export function RegisterComposeRow({
     categoryId?: string;
     memo?: string;
     flagColor?: string;
+    needsConfirmation?: boolean;
+    toClaim?: boolean;
   }) => {
     onChange(reduceCompose(state, { type: "patch", draft }));
   };
@@ -116,40 +127,20 @@ export function RegisterComposeRow({
         </td>
         <td>
           <label className="sr-only" htmlFor="register-compose-payee">Payee</label>
-          <input
+          <PayeeCombobox
             id="register-compose-payee"
-            type="text"
-            name="payee"
-            list="register-compose-payees"
             value={state.draft.payeeName}
-            onChange={(event) => patch({ payeeName: event.target.value })}
-            onBlur={() => {
+            entries={payeeEntries}
+            disabled={busy}
+            required
+            onChange={(payeeName) => patch({ payeeName })}
+            onCommitName={() => {
               const snapped = canonicalPayeeName(payees, state.draft.payeeName);
               if (snapped !== state.draft.payeeName) {
                 patch({ payeeName: snapped });
               }
             }}
-            placeholder="Payee"
-            autoComplete="off"
-            disabled={busy}
-            required
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") {
-                return;
-              }
-              event.stopPropagation();
-              if (event.nativeEvent.isComposing || event.keyCode === 229) {
-                return;
-              }
-            }}
           />
-          <datalist id="register-compose-payees">
-            {payeeListEntries(payees, accounts, state.draft.accountId).map((entry) => (
-              <option key={entry.id} value={entry.value}>
-                {entry.label}
-              </option>
-            ))}
-          </datalist>
         </td>
         <td>
           {transfer ? (
@@ -219,14 +210,24 @@ export function RegisterComposeRow({
       <tr className="register-compose-actions-row">
         <td colSpan={9}>
           <div className="register-compose-actions">
-            <div className="register-compose-flags">
-              <span className="field-label" id="register-compose-flag-label">Flag</span>
-              <FlagPicker
-                labelledBy="register-compose-flag-label"
-                value={state.draft.flagColor}
-                onChange={(flagColor) => patch({ flagColor })}
+            <div className="register-compose-meta">
+              <div className="register-compose-flags">
+                <span className="field-label" id="register-compose-flag-label">Flag</span>
+                <FlagPicker
+                  labelledBy="register-compose-flag-label"
+                  value={state.draft.flagColor}
+                  onChange={(flagColor) => patch({ flagColor })}
+                  disabled={busy}
+                  names={flagNames}
+                />
+              </div>
+              <FollowUpChips
+                id="register-compose"
+                needsConfirmation={state.draft.needsConfirmation}
+                claimStatus={state.draft.toClaim ? "to_claim" : null}
                 disabled={busy}
-                names={flagNames}
+                onNeedsConfirmationChange={(needsConfirmation) => patch({ needsConfirmation })}
+                onClaimStatusChange={(claimStatus) => patch({ toClaim: claimStatus === "to_claim" })}
               />
             </div>
             {state.error ? <p className="register-compose-error" role="alert">{state.error}</p> : null}

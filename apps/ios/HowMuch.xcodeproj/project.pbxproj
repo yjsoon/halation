@@ -35,6 +35,7 @@
 		A10000000000000000000024 /* Formatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* Formatting.swift */; };
 		C10000000000000000000011 /* IncomeVsSpendingMaths.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000010 /* IncomeVsSpendingMaths.swift */; };
 		C10000000000000000000013 /* IncomeVsSpendingPeriodDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000012 /* IncomeVsSpendingPeriodDetailView.swift */; };
+		C1000000000000000000F0A1 /* ChartSpeechTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1000000000000000000F0A0 /* ChartSpeechTests.swift */; };
 		C10000000000000000000021 /* IncomeVsSpendingMathsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C10000000000000000000020 /* IncomeVsSpendingMathsTests.swift */; };
 		A10000000000000000000027 /* RegisterHorizon.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000017 /* RegisterHorizon.swift */; };
 		A1000000000000000000002C /* RegisterCurrent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001C /* RegisterCurrent.swift */; };
@@ -68,6 +69,8 @@
 		D10000000000000000000004 /* RewardExposure.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000003 /* RewardExposure.swift */; };
 		A50000000000000000000033 /* RewardDraftPeriod.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000032 /* RewardDraftPeriod.swift */; };
 		A1000000000000000000002A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000001A /* Assets.xcassets */; };
+		A100000000000000000000F1 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000F0 /* PrivacyInfo.xcprivacy */; };
+		A30000000000000000000031 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000030 /* PrivacyInfo.xcprivacy */; };
 		A10000000000000000000092 /* EmojiKit in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000091 /* EmojiKit */; };
 		A20000000000000000000011 /* CaptureRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000010 /* CaptureRequest.swift */; };
 		A20000000000000000000013 /* CaptureRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000012 /* CaptureRouter.swift */; };
@@ -161,9 +164,18 @@
 		D5000000000000000000000A /* IntakeSkillTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50000000000000000000009 /* IntakeSkillTests.swift */; };
 		D20000000000000000000012 /* PayeeNamesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000011 /* PayeeNamesTests.swift */; };
 		D20000000000000000000014 /* IntakeLineParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000013 /* IntakeLineParser.swift */; };
+		D60000000000000000000002 /* IntakeRemoteReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D60000000000000000000001 /* IntakeRemoteReader.swift */; };
 		D20000000000000000000A01 /* IntakeTransferReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000A02 /* IntakeTransferReader.swift */; };
 		D20000000000000000000016 /* IntakeLineParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000015 /* IntakeLineParserTests.swift */; };
 		D20000000000000000000A03 /* IntakeTransferReaderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20000000000000000000A04 /* IntakeTransferReaderTests.swift */; };
+		E10000000000000000000002 /* CardPaymentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000001 /* CardPaymentModels.swift */; };
+		E10000000000000000000004 /* CardPaymentPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000003 /* CardPaymentPlanner.swift */; };
+		E10000000000000000000006 /* CardPaymentNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000005 /* CardPaymentNotifier.swift */; };
+		E10000000000000000000008 /* AppModel+CardPayments.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000007 /* AppModel+CardPayments.swift */; };
+		E1000000000000000000000A /* PaymentsDueBand.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10000000000000000000009 /* PaymentsDueBand.swift */; };
+		E1000000000000000000000C /* CardPaymentScheduleSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000000000000000000000B /* CardPaymentScheduleSheet.swift */; };
+		E1000000000000000000000E /* CardPaymentTermsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000000000000000000000D /* CardPaymentTermsSheet.swift */; };
+		E10000000000000000000010 /* RemindersSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000000000000000000000F /* RemindersSettingsSection.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -260,6 +272,7 @@
 		A10000000000000000000014 /* Formatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatting.swift; sourceTree = "<group>"; };
 		C10000000000000000000010 /* IncomeVsSpendingMaths.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomeVsSpendingMaths.swift; sourceTree = "<group>"; };
 		C10000000000000000000012 /* IncomeVsSpendingPeriodDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomeVsSpendingPeriodDetailView.swift; sourceTree = "<group>"; };
+		C1000000000000000000F0A0 /* ChartSpeechTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartSpeechTests.swift; sourceTree = "<group>"; };
 		C10000000000000000000020 /* IncomeVsSpendingMathsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IncomeVsSpendingMathsTests.swift; sourceTree = "<group>"; };
 		A10000000000000000000017 /* RegisterHorizon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterHorizon.swift; sourceTree = "<group>"; };
 		A1000000000000000000001C /* RegisterCurrent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RegisterCurrent.swift; sourceTree = "<group>"; };
@@ -289,6 +302,8 @@
 		A50000000000000000000032 /* RewardDraftPeriod.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardDraftPeriod.swift; sourceTree = "<group>"; };
 		A1000000000000000000001A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1000000000000000000001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A100000000000000000000F0 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		A30000000000000000000030 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B10000000000000000000010 /* LocalEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalEngine.swift; sourceTree = "<group>"; };
 		B100000000000000000000F0 /* PlanSettingsSeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanSettingsSeed.swift; sourceTree = "<group>"; };
 		B100000000000000000000F2 /* PlanSettingsSeedTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanSettingsSeedTests.swift; sourceTree = "<group>"; };
@@ -322,9 +337,18 @@
 		D50000000000000000000009 /* IntakeSkillTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeSkillTests.swift; sourceTree = "<group>"; };
 		D20000000000000000000011 /* PayeeNamesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PayeeNamesTests.swift; sourceTree = "<group>"; };
 		D20000000000000000000013 /* IntakeLineParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeLineParser.swift; sourceTree = "<group>"; };
+		D60000000000000000000001 /* IntakeRemoteReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeRemoteReader.swift; sourceTree = "<group>"; };
 		D20000000000000000000A02 /* IntakeTransferReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeTransferReader.swift; sourceTree = "<group>"; };
 		D20000000000000000000015 /* IntakeLineParserTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeLineParserTests.swift; sourceTree = "<group>"; };
 		D20000000000000000000A04 /* IntakeTransferReaderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeTransferReaderTests.swift; sourceTree = "<group>"; };
+		E10000000000000000000001 /* CardPaymentModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPaymentModels.swift; sourceTree = "<group>"; };
+		E10000000000000000000003 /* CardPaymentPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPaymentPlanner.swift; sourceTree = "<group>"; };
+		E10000000000000000000005 /* CardPaymentNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPaymentNotifier.swift; sourceTree = "<group>"; };
+		E10000000000000000000007 /* AppModel+CardPayments.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppModel+CardPayments.swift"; sourceTree = "<group>"; };
+		E10000000000000000000009 /* PaymentsDueBand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentsDueBand.swift; sourceTree = "<group>"; };
+		E1000000000000000000000B /* CardPaymentScheduleSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPaymentScheduleSheet.swift; sourceTree = "<group>"; };
+		E1000000000000000000000D /* CardPaymentTermsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardPaymentTermsSheet.swift; sourceTree = "<group>"; };
+		E1000000000000000000000F /* RemindersSettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemindersSettingsSection.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXContainerItemProxy section */
@@ -401,7 +425,9 @@
 				A10000000000000000000011 /* AppModel.swift */,
 				A1000000000000000000001A /* Assets.xcassets */,
 				A1000000000000000000001B /* Info.plist */,
+				A100000000000000000000F0 /* PrivacyInfo.xcprivacy */,
 				A20000000000000000000014 /* Capture */,
+				E10000000000000000000000 /* Payments */,
 				B1000000000000000000000A /* Engine */,
 				A20000000000000000000032 /* Intents */,
 				A10000000000000000000005 /* Models */,
@@ -536,6 +562,7 @@
 				D20000000000000000000009 /* IntakeCoordinator.swift */,
 				D50000000000000000000001 /* IntakeSkill.swift */,
 				D20000000000000000000013 /* IntakeLineParser.swift */,
+				D60000000000000000000001 /* IntakeRemoteReader.swift */,
 				D20000000000000000000A02 /* IntakeTransferReader.swift */,
 				A20000000000000000000094 /* InboxReadingView.swift */,
 				A20000000000000000000096 /* IntelligenceAura.swift */,
@@ -587,6 +614,7 @@
 				A200000000000000000000A2 /* ScreenshotOfferTests.swift */,
 				A200000000000000000000B0 /* RegisterSnapshotTests.swift */,
 				A200000000000000000000B2 /* RegisterQueryTests.swift */,
+				C1000000000000000000F0A0 /* ChartSpeechTests.swift */,
 				C10000000000000000000020 /* IncomeVsSpendingMathsTests.swift */,
 				A200000000000000000000C2 /* RegisterApprovalTests.swift */,
 				A200000000000000000000C4 /* APISettingsTests.swift */,
@@ -620,6 +648,7 @@
 				A30000000000000000000023 /* ShareItemLoader.swift */,
 				A30000000000000000000004 /* Info.plist */,
 				A30000000000000000000005 /* HowMuchShare.entitlements */,
+				A30000000000000000000030 /* PrivacyInfo.xcprivacy */,
 			);
 			path = HowMuchShare;
 			sourceTree = "<group>";
@@ -634,6 +663,21 @@
 				B10000000000000000000016 /* migrations */,
 			);
 			path = Engine;
+			sourceTree = "<group>";
+		};
+		E10000000000000000000000 /* Payments */ = {
+			isa = PBXGroup;
+			children = (
+				E10000000000000000000001 /* CardPaymentModels.swift */,
+				E10000000000000000000003 /* CardPaymentPlanner.swift */,
+				E10000000000000000000005 /* CardPaymentNotifier.swift */,
+				E10000000000000000000007 /* AppModel+CardPayments.swift */,
+				E10000000000000000000009 /* PaymentsDueBand.swift */,
+				E1000000000000000000000B /* CardPaymentScheduleSheet.swift */,
+				E1000000000000000000000D /* CardPaymentTermsSheet.swift */,
+				E1000000000000000000000F /* RemindersSettingsSection.swift */,
+			);
+			path = Payments;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -746,6 +790,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A1000000000000000000002A /* Assets.xcassets in Resources */,
+				A100000000000000000000F1 /* PrivacyInfo.xcprivacy in Resources */,
 				A60000000000000000000017 /* AIModels.json in Resources */,
 				B10000000000000000000015 /* howmuch-engine.js in Resources */,
 				B10000000000000000000017 /* migrations in Resources */,
@@ -756,6 +801,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A30000000000000000000031 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -766,6 +812,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E10000000000000000000002 /* CardPaymentModels.swift in Sources */,
+				E10000000000000000000004 /* CardPaymentPlanner.swift in Sources */,
+				E10000000000000000000006 /* CardPaymentNotifier.swift in Sources */,
+				E10000000000000000000008 /* AppModel+CardPayments.swift in Sources */,
+				E1000000000000000000000A /* PaymentsDueBand.swift in Sources */,
+				E1000000000000000000000C /* CardPaymentScheduleSheet.swift in Sources */,
+				E1000000000000000000000E /* CardPaymentTermsSheet.swift in Sources */,
+				E10000000000000000000010 /* RemindersSettingsSection.swift in Sources */,
 				A10000000000000000000021 /* AppModel.swift in Sources */,
 				A10000000000000000000022 /* APIModels.swift in Sources */,
 				A10000000000000000000C41 /* TransactionWriteModels.swift in Sources */,
@@ -853,6 +907,7 @@
 				D2000000000000000000000A /* IntakeCoordinator.swift in Sources */,
 				D50000000000000000000002 /* IntakeSkill.swift in Sources */,
 				D20000000000000000000014 /* IntakeLineParser.swift in Sources */,
+				D60000000000000000000002 /* IntakeRemoteReader.swift in Sources */,
 				D20000000000000000000A01 /* IntakeTransferReader.swift in Sources */,
 				D20000000000000000000006 /* PayeeNames.swift in Sources */,
 				D2000000000000000000000C /* IntakeInboxBand.swift in Sources */,
@@ -897,6 +952,7 @@
 				A200000000000000000000A3 /* ScreenshotOfferTests.swift in Sources */,
 				A200000000000000000000B1 /* RegisterSnapshotTests.swift in Sources */,
 				A200000000000000000000B3 /* RegisterQueryTests.swift in Sources */,
+				C1000000000000000000F0A1 /* ChartSpeechTests.swift in Sources */,
 				C10000000000000000000021 /* IncomeVsSpendingMathsTests.swift in Sources */,
 				A200000000000000000000C3 /* RegisterApprovalTests.swift in Sources */,
 				A200000000000000000000C5 /* APISettingsTests.swift in Sources */,
@@ -1005,7 +1061,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = HowMuch/HowMuch.entitlements;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = PQ6U5ESLN2;
 				DEVELOPMENT_ASSET_PATHS = "\"\"";
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1036,7 +1092,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CODE_SIGN_ENTITLEMENTS = HowMuch/HowMuch.entitlements;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = PQ6U5ESLN2;
 				DEVELOPMENT_ASSET_PATHS = "\"\"";
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1066,7 +1122,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = PQ6U5ESLN2;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
@@ -1091,7 +1147,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = PQ6U5ESLN2;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
@@ -1116,7 +1172,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HowMuchShare/HowMuchShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = PQ6U5ESLN2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = HowMuchShare/Info.plist;
@@ -1143,7 +1199,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = HowMuchShare/HowMuchShare.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 15;
+				CURRENT_PROJECT_VERSION = 17;
 				DEVELOPMENT_TEAM = PQ6U5ESLN2;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = HowMuchShare/Info.plist;

@@ -4,6 +4,8 @@ struct ReflectView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.scenePhase) private var scenePhase
+  @State private var isOnScreen = false
 
   var body: some View {
     ScrollView {
@@ -21,13 +23,7 @@ struct ReflectView: View {
               .foregroundStyle(Theme.rowSecondary)
           }
           // Full width above the grid so it leads on iPad too.
-          if let pace = monthToDate {
-            ReflectCard(icon: "calendar", title: "Month to Date") {
-              SpendingBreakdownDetailView()
-            } content: {
-              MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
-            }
-          }
+          monthCard
 
           // Two columns on a regular-width iPad, in a Grid so each row's
           // cards share the taller one's height instead of floating at
@@ -35,17 +31,16 @@ struct ReflectView: View {
           if horizontalSizeClass == .regular {
             Grid(horizontalSpacing: 12, verticalSpacing: 12) {
               GridRow {
-                spendingCard
                 incomeCard
+                netWorthCard
               }
               GridRow {
-                netWorthCard
                 ageCard
+                  .gridCellColumns(2)
               }
             }
           } else {
             VStack(spacing: 12) {
-              spendingCard
               incomeCard
               netWorthCard
               ageCard
@@ -58,7 +53,7 @@ struct ReflectView: View {
       .animation(Theme.Motion.arrive, value: model.reportsPhase)
     }
     .background(Theme.canvas)
-    .navigationTitle("Reflect")
+    .navigationTitle("Insights")
     .navigationBarTitleDisplayMode(.large)
     .toolbar {
       ToolbarItem(placement: .topBarTrailing) {
@@ -67,20 +62,37 @@ struct ReflectView: View {
     }
     // Reports are not fetched on launch (#180). This runs when Reflect
     // appears and whenever a local write marks them stale; the model skips the
-    // fetch when neither the plan cursor nor this device's writes have moved.
+    // fetch when neither the plan cursor nor this device's writes have moved,
+    // unless the reports are from an earlier day or a few minutes old.
     .task(id: model.reportsRefreshGeneration) {
       await model.refreshReportsIfNeeded()
     }
     .refreshable {
       await model.refresh(slices: TabRefresh.reflect, quiet: false, force: true)
     }
+    // Keep the daily summary current: the policy treats reports from an
+    // earlier day, or more than a few minutes old, as stale, so check again
+    // when the app comes back to Reflect and when the day turns.
+    .onAppear { isOnScreen = true }
+    .onDisappear { isOnScreen = false }
+    .onChange(of: scenePhase) { _, phase in
+      guard phase == .active, isOnScreen else { return }
+      Task { await model.refreshReportsIfNeeded() }
+    }
+    .task {
+      for await _ in NotificationCenter.default.notifications(named: .NSCalendarDayChanged) {
+        await model.refreshReportsIfNeeded()
+      }
+    }
   }
 
-  private var spendingCard: some View {
-    ReflectCard(icon: "chart.pie.fill", title: "Spending Breakdown") {
+  /// Month to date and the spending breakdown in one card: both are this
+  /// month's spending and open the same detail screen, so the total shows once.
+  private var monthCard: some View {
+    ReflectCard(icon: "calendar", title: "Month to Date") {
       SpendingBreakdownDetailView()
     } content: {
-      spendingContent
+      monthContent
     }
   }
 
@@ -113,86 +125,143 @@ struct ReflectView: View {
   }
 
   @ViewBuilder
-  private var spendingContent: some View {
+  private var monthContent: some View {
     if let report = model.spendingBreakdown {
       let split = ReflectMaths.split(report.groups)
-      let rows = model.includeQuietSpending ? split.primary + split.quiet : split.primary
-      let total = rows.reduce(0) { $0 + abs($1.amount) }
-      VStack(alignment: .leading, spacing: 12) {
-        Text(Date.now.monthYearLabel)
-          .font(.subheadline)
-          .foregroundStyle(.secondary)
-        Text(MoneyCodec.displayString(for: total, currencyFormat: model.currencyFormat))
-          .font(.title.weight(.medium))
-          .monospacedDigit()
-          .foregroundStyle(Theme.textPrimary)
-          .rollingNumber(total)
-
-        if !rows.isEmpty {
-          StackedShareBar(segments: ReflectMaths.shareSegments(rows, limit: 5))
-
-          HStack {
-            Text("Top Categories")
-            Spacer()
-            Text("Spent")
-          }
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
-
-          VStack(spacing: 8) {
-            ForEach(rows.prefix(5).enumerated(), id: \.element.id) { index, group in
-              HStack(spacing: 8) {
-                Circle()
-                  .fill(Theme.chartColour(index))
-                  .frame(width: 8, height: 8)
-                Text(group.categoryName)
-                  .font(.subheadline)
-                  .foregroundStyle(Theme.textPrimary)
-                  .lineLimit(1)
-                Spacer()
-                Text(MoneyCodec.displayString(for: abs(group.amount), currencyFormat: model.currencyFormat))
-                  .font(.subheadline)
-                  .monospacedDigit()
-                  .foregroundStyle(Theme.textPrimary)
-              }
+      let rows = model.includeQuietSpending
+        ? (split.primary + split.quiet).sorted { abs($0.amount) > abs($1.amount) }
+        : split.primary
+      if let pace = monthToDate {
+        let stacked = VStack(alignment: .leading, spacing: 16) {
+          MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
+          Divider()
+          categories(rows)
+        }
+        if horizontalSizeClass == .regular, !dynamicTypeSize.isAccessibilitySize {
+          // Side by side only when the card itself is wide enough: a regular
+          // window can still be narrow beside the iPad sidebar.
+          ViewThatFits(in: .horizontal) {
+            HStack(alignment: .top, spacing: 24) {
+              MonthToDateSummary(pace: pace, currencyFormat: model.currencyFormat)
+                .frame(minWidth: 300)
+              Divider()
+              categories(rows)
+                .frame(minWidth: 300)
             }
-            if rows.count > 5 {
-              let remainder = rows.dropFirst(5).reduce(0) { $0 + abs($1.amount) }
-              HStack(spacing: 8) {
-                Circle()
-                  .fill(Color.secondary.opacity(0.4))
-                  .frame(width: 8, height: 8)
-                Text("All Others")
-                  .font(.subheadline)
-                  .foregroundStyle(.secondary)
-                Spacer()
-                Text(MoneyCodec.displayString(for: remainder, currencyFormat: model.currencyFormat))
-                  .font(.subheadline)
-                  .monospacedDigit()
-                  .foregroundStyle(.secondary)
-              }
-            }
+            // Size to the taller column so the divider runs its full height.
+            .fixedSize(horizontal: false, vertical: true)
+            stacked
           }
         } else {
-          Text("No spending recorded this month.")
+          stacked
+        }
+      } else {
+        // No daily figures for this month: the app stayed open past month
+        // end, say. Show the breakdown with its own total, labelled with the
+        // month it was fetched for rather than the new one.
+        let total = rows.map { abs($0.amount) }.saturatingSum()
+        VStack(alignment: .leading, spacing: 12) {
+          Text(model.dailySpending.flatMap { Date(isoDateString: $0.monthStart)?.monthYearLabel } ?? Date.now.monthYearLabel)
             .font(.subheadline)
             .foregroundStyle(.secondary)
+          Text(MoneyCodec.displayString(for: total, currencyFormat: model.currencyFormat))
+            .font(.title.weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(Theme.textPrimary)
+            .rollingNumber(total)
+          categories(rows)
         }
       }
     }
   }
 
   @ViewBuilder
-  private var netWorthContent: some View {
-    if let report = model.netWorth, let latest = report.periods.last {
-      let assets = latest.accounts.map(\.balance).filter { $0 > 0 }.reduce(0, +)
-      let debts = latest.accounts.map(\.balance).filter { $0 < 0 }.reduce(0, +)
+  private func categories(_ rows: [SpendingBreakdownGroup]) -> some View {
+    if !rows.isEmpty {
       VStack(alignment: .leading, spacing: 12) {
-        Text(MoneyCodec.displayString(for: latest.netWorth, currencyFormat: model.currencyFormat))
-          .font(.title.weight(.medium))
-          .monospacedDigit()
-          .foregroundStyle(Theme.textPrimary)
-          .rollingNumber(latest.netWorth)
+        StackedShareBar(segments: ReflectMaths.shareSegments(rows, limit: 5))
+
+        HStack {
+          Text("Top Categories")
+          Spacer()
+          Text("Spent")
+        }
+        .font(.caption.weight(.semibold))
+        .foregroundStyle(.secondary)
+        .accessibilityHidden(true)
+
+        VStack(spacing: 8) {
+          ForEach(rows.prefix(5).enumerated(), id: \.element.id) { index, group in
+            HStack(spacing: 8) {
+              Circle()
+                .fill(Theme.chartColour(index))
+                .frame(width: 8, height: 8)
+              Text(group.categoryName)
+                .font(.subheadline)
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(1)
+              Spacer()
+              Text(MoneyCodec.displayString(for: abs(group.amount), currencyFormat: model.currencyFormat))
+                .font(.subheadline)
+                .monospacedDigit()
+                .foregroundStyle(Theme.textPrimary)
+            }
+          }
+          if rows.count > 5 {
+            let remainder = rows.dropFirst(5).map { abs($0.amount) }.saturatingSum()
+            HStack(spacing: 8) {
+              Circle()
+                .fill(Color.secondary.opacity(0.4))
+                .frame(width: 8, height: 8)
+              Text("All Others")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+              Spacer()
+              Text(MoneyCodec.displayString(for: remainder, currencyFormat: model.currencyFormat))
+                .font(.subheadline)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+            }
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+    } else {
+      Text("No spending recorded this month.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  @ViewBuilder
+  private var netWorthContent: some View {
+    if let report = model.netWorth, let latest = report.periods.last, latest.accounts.isEmpty {
+      Text("No accounts yet.")
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    } else if let report = model.netWorth, let latest = report.periods.last {
+      let groups = NetWorthMaths.groups(latest.accounts)
+      let assets = groups.first { $0.kind == .assets }?.total ?? 0
+      let debts = groups.first { $0.kind == .debts }?.total ?? 0
+      let previous = report.periods.dropLast().last
+      let change = previous.flatMap { NetWorthMaths.change(from: $0.netWorth, to: latest.netWorth) }
+      VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(MoneyCodec.displayString(for: latest.netWorth, currencyFormat: model.currencyFormat))
+            .font(.title.weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(Theme.textPrimary)
+            .rollingNumber(latest.netWorth)
+          if let previous, let change {
+            Text("\(MoneyCodec.signedDisplayString(for: change, currencyFormat: model.currencyFormat)) since \(LedgerDate.shortDateString(fromISO: previous.endDate))")
+              .font(.caption)
+              .monospacedDigit()
+              .foregroundStyle(Theme.signedReportColour(change))
+              .rollingNumber(change)
+          }
+        }
 
         HStack {
           Text("Assets")
@@ -213,10 +282,15 @@ struct ReflectView: View {
         }
         .font(.subheadline)
 
-        ColumnChart(
-          values: report.periods.map { Double($0.netWorth) },
-          labels: LedgerDate.periodAxisLabels(report.periods.map(\.period))
-        )
+        if report.periods.count > 1 {
+          TrendChart(
+            values: report.periods.map { Double($0.netWorth) },
+            labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+            voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+            axisLabel: { NetWorthMaths.axisLabel($0, step: $1, currencyFormat: model.currencyFormat) },
+            minimumSpan: 1000
+          )
+        }
       }
     }
   }
@@ -225,26 +299,35 @@ struct ReflectView: View {
   private var incomeContent: some View {
     if let report = model.incomeVsSpending {
       let now = Date.now
-      let year = Calendar.current.component(.year, from: now)
       let monthKey = IncomeVsSpendingMaths.currentMonthKey(from: now)
-      let monthNet = report.periods.first { $0.period == monthKey }?.net ?? 0
+      let month = report.periods.first { $0.period == monthKey }
       let monthActive = IncomeVsSpendingMaths.hasActivity(periods: report.periods, matching: monthKey)
-      let yearNet = IncomeVsSpendingMaths.yearToDateNet(periods: report.periods, year: year)
-      let yearActive = IncomeVsSpendingMaths.hasActivity(periods: report.periods, matching: String(year))
       VStack(alignment: .leading, spacing: 12) {
-        headlinePair(
+        monthNetHeadline(
           monthName: IncomeVsSpendingMaths.monthName(from: now),
-          monthNet: monthNet,
-          monthActive: monthActive,
-          year: year,
-          yearNet: yearNet,
-          yearActive: yearActive
+          month: month,
+          hasActivity: monthActive
         )
 
-        if !report.periods.isEmpty {
+        // Zero-filled over the twelve months the model asked for, so a month
+        // with no lines keeps its place on the axis.
+        let monthStart = now.startOfMonth()
+        let windowStart = LedgerDate.gregorian.date(byAdding: .month, value: -11, to: monthStart) ?? monthStart
+        let rows = IncomeVsSpendingMaths.zeroFill(
+          periods: report.periods,
+          interval: .month,
+          from: windowStart.isoDateString,
+          to: now.isoDateString
+        )
+        if !rows.isEmpty {
           PairedColumnChart(
-            pairs: report.periods.map { (Double($0.income), Double(abs($0.spending))) },
-            labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+            pairs: rows.map { (Double($0.income), Double(abs($0.spending))) },
+            labels: LedgerDate.periodAxisLabels(rows.map(\.period)),
+            voice: .money(
+              "Income and spending",
+              periods: rows.map(\.period),
+              currencyFormat: model.currencyFormat
+            ),
             height: 90
           )
         }
@@ -257,41 +340,11 @@ struct ReflectView: View {
     }
   }
 
-  @ViewBuilder
-  private func headlinePair(
-    monthName: String,
-    monthNet: Int,
-    monthActive: Bool,
-    year: Int,
-    yearNet: Int,
-    yearActive: Bool
-  ) -> some View {
-    let stacked = dynamicTypeSize.isAccessibilitySize
-    let pair = (monthName, monthNet, monthActive, year, yearNet, yearActive)
-    Group {
-      if stacked {
-        VStack(alignment: .leading, spacing: 12) {
-          headlineStat(label: "Net in \(pair.0)", net: pair.1, hasActivity: pair.2)
-          headlineStat(label: "Net in \(pair.3) so far", net: pair.4, hasActivity: pair.5)
-        }
-      } else {
-        ViewThatFits(in: .horizontal) {
-          HStack(alignment: .top, spacing: 12) {
-            headlineStat(label: "Net in \(pair.0)", net: pair.1, hasActivity: pair.2)
-            headlineStat(label: "Net in \(pair.3) so far", net: pair.4, hasActivity: pair.5)
-          }
-          VStack(alignment: .leading, spacing: 12) {
-            headlineStat(label: "Net in \(pair.0)", net: pair.1, hasActivity: pair.2)
-            headlineStat(label: "Net in \(pair.3) so far", net: pair.4, hasActivity: pair.5)
-          }
-        }
-      }
-    }
-  }
-
-  private func headlineStat(label: String, net: Int, hasActivity: Bool) -> some View {
-    VStack(alignment: .leading, spacing: 2) {
-      Text(label)
+  /// This month's net. Its income and spending are in the columns below.
+  private func monthNetHeadline(monthName: String, month: IncomeVsSpendingPeriod?, hasActivity: Bool) -> some View {
+    let net = month?.net ?? 0
+    return VStack(alignment: .leading, spacing: 2) {
+      Text("Net in \(monthName)")
         .font(.caption)
         .foregroundStyle(.secondary)
       Text(MoneyCodec.signedDisplayString(for: net, currencyFormat: model.currencyFormat))
@@ -311,7 +364,8 @@ struct ReflectView: View {
   @ViewBuilder
   private var ageContent: some View {
     if let report = model.ageOfMoney {
-      let ages = report.periods.compactMap(\.ageOfMoneyDays)
+      let measured = report.periods.filter { $0.ageOfMoneyDays != nil }
+      let ages = measured.compactMap(\.ageOfMoneyDays)
       VStack(alignment: .leading, spacing: 12) {
         if let latest = ages.last {
           Text(ReflectMaths.daysLabel(Int(latest.rounded()), capitalised: true))
@@ -325,7 +379,11 @@ struct ReflectView: View {
             .foregroundStyle(.secondary)
         }
         if ages.count > 1 {
-          Sparkline(values: ages, colour: Theme.inflow)
+          Sparkline(
+            values: ages,
+            voice: .days("Age of money", periods: measured.map(\.period)),
+            colour: Theme.inflow
+          )
         }
       }
     }
@@ -416,6 +474,27 @@ struct SpendingGroupSection: Identifiable {
   var rows: [SpendingBreakdownGroup]
 }
 
+extension ChartVoice {
+  /// A chart of amounts in milliunits, one per report period key.
+  static func money(_ name: String, periods: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
+    money(name, periodNames: periods.map(LedgerDate.spokenPeriodLabel), currencyFormat: currencyFormat)
+  }
+
+  /// The same, with the spoken period names already chosen.
+  static func money(_ name: String, periodNames: [String], currencyFormat: CurrencyFormat?) -> ChartVoice {
+    ChartVoice(name: name, unit: "Amount", periodNames: periodNames) {
+      MoneyCodec.displayString(for: NetWorthMaths.milliunits($0), currencyFormat: currencyFormat)
+    }
+  }
+
+  /// A chart of age of money in days, one per report period key.
+  static func days(_ name: String, periods: [String]) -> ChartVoice {
+    ChartVoice(name: name, unit: "Days", periodNames: periods.map(LedgerDate.spokenPeriodLabel)) {
+      ReflectMaths.daysLabel(Int($0.rounded()))
+    }
+  }
+}
+
 enum ReflectMaths {
   /// "1 day" / "12 days", or "1 Day" / "12 Days" for headlines.
   static func daysLabel(_ days: Int, capitalised: Bool = false) -> String {
@@ -481,17 +560,18 @@ struct MonthToDate: Equatable {
   /// Spending on each day from the 1st to today, in milliunits.
   let daily: [Int]
 
-  init?(_ spending: DailySpending, includeQuiet: Bool, now: Date, calendar: Calendar = .current) {
+  init?(_ spending: DailySpending, includeQuiet: Bool, now: Date, calendar: Calendar = LedgerDate.gregorian) {
     // The app can stay open into a new month without a refetch; last
-    // month's days would read as nothing spent, so show no card until then.
+    // month's days would read as nothing spent, so the card drops the
+    // summary and shows only the fetched month's breakdown until then.
     guard spending.monthStart == now.startOfMonth(calendar: calendar).isoDateString,
           let days = calendar.range(of: .day, in: .month, for: now)?.count
     else { return nil }
     let all = Self.byDate(spending.all)
     let quiet = includeQuiet ? [:] : spending.quiet.map(Self.byDate) ?? [:]
     // Walk the same dates the overview requested, from this calendar's month
-    // start, and key them as the server does (ISO dates). The device calendar
-    // need not be Gregorian, so its day numbers are not ISO day numbers.
+    // start, and key them as the server does (ISO dates). The month is the
+    // Gregorian one the overview fetched, whatever calendar the device uses.
     var amounts: [Int] = []
     var date = now.startOfMonth(calendar: calendar)
     while date <= now, amounts.count < days {
@@ -511,7 +591,7 @@ struct MonthToDate: Equatable {
   }
 
   var today: Int { daily.last ?? 0 }
-  var total: Int { daily.reduce(0, +) }
+  var total: Int { daily.saturatingSum() }
 
   /// Running total at the end of each day so far.
   var cumulative: [Int] {
@@ -535,8 +615,9 @@ struct MonthToDate: Equatable {
   }
 }
 
-/// The month-to-date card's body: the month so far as a cumulative line with
-/// a dashed run to month end at the current daily average.
+/// The month-to-date card's body, in the shape of a daily summary: day of
+/// the month, today, the month so far, the daily average then and yesterday,
+/// and where the month ends at that pace.
 struct MonthToDateSummary: View {
   let pace: MonthToDate
   let currencyFormat: CurrencyFormat?
@@ -548,157 +629,114 @@ struct MonthToDateSummary: View {
     MoneyCodec.displayString(for: milliunits, currencyFormat: currencyFormat)
   }
 
-  private var monthName: String { now.formatted(.dateTime.month(.wide)) }
+  private var monthName: String { IncomeVsSpendingMaths.monthName(from: now) }
 
-  private var monthEndLabel: String {
-    now.endOfMonth().formatted(.dateTime.day().month(.abbreviated))
-  }
+  /// Values move under their labels from xxLarge text, where a label and
+  /// its value no longer fit side by side on a phone.
+  private var stacksValues: Bool { dynamicTypeSize >= .xxLarge }
+
+  /// Keeps the icon column even as text grows.
+  @ScaledMetric(relativeTo: .subheadline) private var iconWidth: CGFloat = 24
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      HStack(alignment: .center, spacing: 12) {
-        VStack(alignment: .leading, spacing: 2) {
-          Text("Spent in \(monthName)")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Text(money(pace.total))
-            .font(.title.weight(.medium))
-            .monospacedDigit()
-            .foregroundStyle(Theme.textPrimary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.6)
-            .rollingNumber(pace.total)
-        }
-        Spacer(minLength: 0)
-        MonthProgressRing(day: pace.day, daysInMonth: pace.daysInMonth)
+    VStack(alignment: .leading, spacing: 10) {
+      line("calendar.day.timeline.leading", "Day \(pace.day) of \(pace.daysInMonth)", nil)
+      line("sun.max", "Spent today", money(pace.today))
+      line("banknote", "Spent this month", money(pace.total), rolling: pace.total)
+      line("chart.bar", "Daily average", "\(money(pace.average))/day")
+      if let yesterday = pace.yesterdayAverage {
+        line(trendSymbol(yesterday), "Yesterday's average", "\(money(yesterday))/day")
       }
+      line("target", "Month projection", money(pace.projection))
 
+      // The month so far as a running total, dashed on to the projection.
       MonthToDateChart(pace: pace)
-        .frame(height: dynamicTypeSize.isAccessibilitySize ? 80 : 96)
-        .accessibilityHidden(true)
-
-      stats
+        .frame(height: stacksValues ? 72 : 60)
+        .padding(.top, 4)
     }
     .accessibilityElement(children: .ignore)
     .accessibilityLabel(accessibilitySummary)
   }
 
+  /// Which way the average moved since yesterday.
+  private func trendSymbol(_ yesterday: Int) -> String {
+    if pace.average > yesterday { return "chart.line.uptrend.xyaxis" }
+    if pace.average < yesterday { return "chart.line.downtrend.xyaxis" }
+    return "chart.line.flattrend.xyaxis"
+  }
+
+  /// One summary line; `rolling` marks the month total, which is emphasised
+  /// and rolls when it changes.
   @ViewBuilder
-  private var stats: some View {
-    if dynamicTypeSize.isAccessibilitySize {
-      VStack(alignment: .leading, spacing: 10) { statColumns }
-    } else {
-      ViewThatFits(in: .horizontal) {
-        HStack(alignment: .top, spacing: 12) { statColumns }
-        VStack(alignment: .leading, spacing: 10) { statColumns }
-      }
-    }
-  }
-
-  @ViewBuilder
-  private var statColumns: some View {
-    stat("Today", money(pace.today))
-    stat("Per day", money(pace.average)) {
-      averageChange
-    }
-    stat("On track for", money(pace.projection)) {
-      Text("by \(monthEndLabel)")
-        .font(.caption)
-        .foregroundStyle(.secondary)
-    }
-  }
-
-  @ViewBuilder
-  private var averageChange: some View {
-    if let yesterday = pace.yesterdayAverage {
-      let delta = pace.average - yesterday
-      if delta == 0 {
-        Text("Same as yesterday")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-      } else {
-        HStack(spacing: 3) {
-          Image(systemName: delta > 0 ? "arrow.up.right" : "arrow.down.right")
-            .font(.caption2.weight(.semibold))
-            .foregroundStyle(delta > 0 ? Theme.outflow : Theme.inflow)
-          Text("\(money(abs(delta))) on yesterday")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .monospacedDigit()
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
-        }
-      }
-    }
-  }
-
-  private func stat(_ label: String, _ value: String) -> some View {
-    stat(label, value) { EmptyView() }
-  }
-
-  private func stat(_ label: String, _ value: String, @ViewBuilder detail: () -> some View) -> some View {
-    VStack(alignment: .leading, spacing: 2) {
+  private func line(_ symbol: String, _ label: String, _ value: String?, rolling: Int? = nil) -> some View {
+    let labelText = HStack(alignment: .firstTextBaseline, spacing: 8) {
+      Image(systemName: symbol)
+        // One icon size down the column, even beside the larger total.
+        .font(.subheadline)
+        .foregroundStyle(Theme.accent)
+        .frame(width: iconWidth)
+        .accessibilityHidden(true)
       Text(label)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      Text(value)
-        .font(.subheadline.weight(.medium))
+        .foregroundStyle(value == nil ? Theme.textPrimary : .secondary)
+        // One line where the value sits beside it; free to wrap once
+        // large text stacks the value underneath.
+        .lineLimit(stacksValues ? nil : 1)
+        .minimumScaleFactor(0.8)
+        .fixedSize(horizontal: false, vertical: stacksValues)
+    }
+    let valueText = value.map {
+      Text($0)
+        .fontWeight(rolling == nil ? .regular : .semibold)
         .monospacedDigit()
         .foregroundStyle(Theme.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(0.7)
-      detail()
     }
+    let valueView = Group {
+      if let rolling {
+        valueText.rollingNumber(rolling)
+      } else {
+        valueText
+      }
+    }
+    Group {
+      if stacksValues {
+        VStack(alignment: .leading, spacing: 2) {
+          labelText
+          // Under the label text, not the icon.
+          valueView
+            .padding(.leading, iconWidth + 8)
+        }
+      } else {
+        HStack(alignment: .firstTextBaseline) {
+          labelText
+          Spacer(minLength: 8)
+          valueView
+        }
+      }
+    }
+    .font(rolling == nil ? .subheadline : .body)
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private var accessibilitySummary: String {
     var parts = [
       "Day \(pace.day) of \(pace.daysInMonth)",
-      "Spent \(money(pace.total)) in \(monthName), \(money(pace.today)) today",
+      "Spent \(money(pace.today)) today, \(money(pace.total)) in \(monthName)",
       "Averaging \(money(pace.average)) a day",
     ]
-    if let yesterday = pace.yesterdayAverage, yesterday != pace.average {
-      let delta = pace.average - yesterday
-      parts.append("\(delta > 0 ? "up" : "down") \(money(abs(delta))) on yesterday")
+    if let yesterday = pace.yesterdayAverage {
+      let direction = pace.average > yesterday ? "Up from" : pace.average < yesterday ? "Down from" : "The same as"
+      parts.append("\(direction) \(money(yesterday)) a day yesterday")
     }
-    parts.append("On track for \(money(pace.projection)) by \(monthEndLabel)")
+    parts.append("Month projection \(money(pace.projection))")
     return parts.joined(separator: ". ")
   }
 }
 
-/// A ring that fills as the month goes by, with today's date in the middle.
-private struct MonthProgressRing: View {
-  let day: Int
-  let daysInMonth: Int
-
-  @ScaledMetric(relativeTo: .body) private var diameter: CGFloat = 46
-
-  var body: some View {
-    ZStack {
-      Circle()
-        .stroke(Theme.surfaceMuted, lineWidth: 4)
-      Circle()
-        .trim(from: 0, to: CGFloat(day) / CGFloat(max(daysInMonth, 1)))
-        .stroke(Theme.accent, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-        .rotationEffect(.degrees(-90))
-      VStack(spacing: -2) {
-        Text("\(day)")
-          .font(.subheadline.weight(.medium))
-          .monospacedDigit()
-          .foregroundStyle(Theme.textPrimary)
-        Text("of \(daysInMonth)")
-          .font(.caption2)
-          .foregroundStyle(.secondary)
-      }
-    }
-    .frame(width: diameter, height: diameter)
-  }
-}
-
 /// Cumulative spend to today, then a dashed line to month end at the
-/// current daily average. Three x ticks (the 1st, today, month end) and the
-/// two labelled amounts carry the scale.
+/// current daily average. Three x ticks (the 1st, today, month end) carry
+/// the scale; the summary lines above give the amounts.
 private struct MonthToDateChart: View {
   let pace: MonthToDate
 
@@ -812,6 +850,8 @@ private struct MonthToDateChart: View {
   private func axisLabel(_ text: String) -> some View {
     Text(text)
       .font(.caption2)
+      // The label band is a fixed height.
+      .dynamicTypeSize(...DynamicTypeSize.xLarge)
       .foregroundStyle(.secondary)
       .monospacedDigit()
       .fixedSize()

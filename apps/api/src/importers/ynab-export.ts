@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PlanNotFoundError } from "../repository";
+import { PlanNotFoundError, ValidationError } from "../repository";
 import type { LedgerStore } from "../storage";
 import type { ClearedState, TransactionInput } from "../types";
 
@@ -66,33 +66,6 @@ export async function importYnabExport(
   let failed = 0;
 
   try {
-    // The export carries no currency or flag names, so these defaults only seed
-    // a new plan; an existing plan keeps its own settings and named flags.
-    const months = planRows.map((row) => normaliseMonth(row.Month)).filter(Boolean) as string[];
-    await repo.upsertPlan(
-      options.planId,
-      {
-        id: options.planId,
-        name: options.planName ?? (planExists ? undefined : "YNAB Web Export"),
-        first_month: months.length > 0 ? months.sort()[0] : undefined,
-        last_month: months.length > 0 ? months.sort()[months.length - 1] : undefined,
-      },
-      planExists ? undefined : {
-        date_format: { format: dateFormat === "mdy" ? "MM/DD/YYYY" : dateFormat === "ymd" ? "YYYY-MM-DD" : "DD/MM/YYYY" },
-        currency_format: {
-          iso_code: "SGD",
-          example_format: "$123,456.78",
-          decimal_digits: 2,
-          decimal_separator: ".",
-          symbol_first: true,
-          group_separator: ",",
-          currency_symbol: "$",
-          display_symbol: true,
-        },
-        display: { flag_names: {} },
-      },
-    );
-
     const upsertRowCategory = async (row: CsvRow) => {
       const category = categoryFromRow(options.planId, row);
       if (!category) {
@@ -117,10 +90,6 @@ export async function importYnabExport(
       return category;
     };
 
-    for (const row of planRows) {
-      await upsertRowCategory(row);
-    }
-
     for (const [index, row] of registerRows.entries()) {
       try {
         const accountName = clean(row.Account);
@@ -130,13 +99,7 @@ export async function importYnabExport(
 
         const accountId = stableId("ynab-export-account", accountName);
         accountIds.add(accountId);
-        await repo.upsertAccount(options.planId, {
-          id: accountId,
-          name: accountName,
-          external_ynab_id: accountId,
-        });
-
-        const category = await upsertRowCategory(row);
+        const category = categoryFromRow(options.planId, row);
 
         const payeeName = clean(row.Payee) || null;
         if (payeeName) {
@@ -177,6 +140,38 @@ export async function importYnabExport(
 
     const transferPayees = markTransferPayees(preparedTransactions);
     const transferPairs = inferTransferPairs(preparedTransactions);
+
+    // Finish bounded planning before changing existing ledger metadata. A
+    // work-limit refusal must not reset account balances or rename a plan.
+    const months = planRows.map((row) => normaliseMonth(row.Month)).filter(Boolean) as string[];
+    await repo.upsertPlan(
+      options.planId,
+      {
+        id: options.planId,
+        name: options.planName ?? (planExists ? undefined : "YNAB Web Export"),
+        first_month: months.length > 0 ? months.sort()[0] : undefined,
+        last_month: months.length > 0 ? months.sort()[months.length - 1] : undefined,
+      },
+      planExists ? undefined : {
+        date_format: { format: dateFormat === "mdy" ? "MM/DD/YYYY" : dateFormat === "ymd" ? "YYYY-MM-DD" : "DD/MM/YYYY" },
+        currency_format: {
+          iso_code: "SGD", example_format: "$123,456.78", decimal_digits: 2,
+          decimal_separator: ".", symbol_first: true, group_separator: ",",
+          currency_symbol: "$", display_symbol: true,
+        },
+        display: { flag_names: {} },
+      },
+    );
+    for (const row of planRows) await upsertRowCategory(row);
+    // All transfer accounts must exist before either side is inserted.
+    for (const prepared of preparedTransactions) {
+      await repo.upsertAccount(options.planId, {
+        id: prepared.input.account_id,
+        name: clean(prepared.row.Account),
+        external_ynab_id: prepared.input.account_id,
+      });
+      await upsertRowCategory(prepared.row);
+    }
 
     for (const prepared of preparedTransactions) {
       try {
@@ -386,6 +381,7 @@ function inferTransferPairs(transactions: PreparedTransaction[]): number {
   }
 
   let pairs = 0;
+  let comparisons = 0;
   for (const bucket of byAmount.values()) {
     const unmatchedPositives = new Set(bucket.positives);
     const negatives = [...bucket.negatives].sort((left, right) => left.input.date.localeCompare(right.input.date));
@@ -395,6 +391,9 @@ function inferTransferPairs(transactions: PreparedTransaction[]): number {
       let bestDistance = Number.POSITIVE_INFINITY;
 
       for (const positive of unmatchedPositives) {
+        if (++comparisons > 1_000_000) {
+          throw new ValidationError("Transfer matching exceeds the import work limit; split the export into smaller date ranges");
+        }
         if (negative.input.account_id === positive.input.account_id) {
           continue;
         }

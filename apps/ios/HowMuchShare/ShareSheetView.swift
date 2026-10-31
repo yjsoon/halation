@@ -388,7 +388,7 @@ struct ShareSheetView: View {
         action: { Task { await model.send() } }
       )
       .accessibilityLabel(model.sendAccessibilityLabel)
-      footnote("Reads on this phone", "Nothing is saved without your review")
+      footnote(readerLine, "Nothing it finds is saved without your review")
     } else {
       panel {
         VStack(alignment: .leading, spacing: 6) {
@@ -407,7 +407,7 @@ struct ShareSheetView: View {
         enabled: model.canSaveForLater,
         action: { Task { await model.saveForLater() } }
       )
-      footnote("Reads on this phone", "Nothing is saved without your review")
+      footnote("Read after you sign in", "Nothing it finds is saved without your review")
     }
   }
 
@@ -618,6 +618,11 @@ struct ShareSheetView: View {
       )
     }
     .disabled(!enabled)
+  }
+
+  /// Where the shared text is read, per the app's AI provider setting.
+  private var readerLine: String {
+    model.context?.readerName.map { "Text is read by \($0)" } ?? "Reads on this phone"
   }
 
   private func footnote(_ first: String, _ second: String) -> some View {

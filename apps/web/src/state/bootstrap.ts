@@ -12,7 +12,11 @@ interface BootstrapSessionStatus {
   user: { id: string } | null;
   setup_required: boolean;
   bootstrap_required: boolean;
+  setup_blocked?: boolean;
 }
+
+/** Which signed-out screen to show. */
+export type SignedOutMode = "setup" | "setup-blocked" | "login";
 
 interface PlanRef {
   id: string;
@@ -41,11 +45,11 @@ interface BootstrapRequestPlan {
 }
 
 type SessionDecision =
-  | { kind: "signed-out"; mode: "setup" | "login" }
+  | { kind: "signed-out"; mode: SignedOutMode }
   | { kind: "signed-in"; userId: string };
 
 type BootstrapDecision =
-  | { kind: "signed-out"; mode: "setup" | "login" }
+  | { kind: "signed-out"; mode: SignedOutMode }
   | { kind: "no-plans" }
   | { kind: "ready"; userId: string; planId: string; keepSpeculative: boolean; requestedPlanRejected: boolean };
 
@@ -67,7 +71,7 @@ export function planBootstrapRequests(
 }
 
 /** The remembered plan if it is still readable, else the first one listed. */
-export function choosePlanId(plans: readonly PlanRef[], hint: string | null): string | null {
+function choosePlanId(plans: readonly PlanRef[], hint: string | null): string | null {
   if (hint && plans.some((plan) => plan.id === hint)) {
     return hint;
   }
@@ -75,7 +79,7 @@ export function choosePlanId(plans: readonly PlanRef[], hint: string | null): st
 }
 
 /** A URL request wins only after the authenticated plan list confirms access. */
-export function chooseRequestedPlanId(
+function chooseRequestedPlanId(
   plans: readonly PlanRef[],
   hint: string | null,
   requestedPlanId: string | null,
@@ -97,7 +101,14 @@ export function chooseRequestedPlanId(
 export function decideSession(status: BootstrapSessionStatus): SessionDecision {
   return status.user
     ? { kind: "signed-in", userId: status.user.id }
-    : { kind: "signed-out", mode: status.setup_required ? "setup" : "login" };
+    : { kind: "signed-out", mode: signedOutMode(status) };
+}
+
+function signedOutMode(status: BootstrapSessionStatus): SignedOutMode {
+  if (!status.setup_required) {
+    return "login";
+  }
+  return status.setup_blocked ? "setup-blocked" : "setup";
 }
 
 /**

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CATEGORY_SUGGESTION_BATCH, type CategorySuggestion, type CategorySuggestionRequestItem } from "../lib/category-suggestions";
 import type { LocalePlanSeed } from "../lib/locale-plan-seed";
+import type { NewAccountBody } from "../lib/new-account";
 import type { TransactionBulkOutcome, TransactionBulkResult, TransactionBulkStatus, TransactionPage, UnapprovedCount } from "@howmuch/contract";
 import type {
   Account,
@@ -10,6 +11,9 @@ import type {
   AccountReconciliationResult,
   AccountUsageSnapshot,
   AgeOfMoneyReport,
+  CardPaymentTerms,
+  CardPaymentTermsInput,
+  CardPaymentsView,
   CategoryGroup,
   CreditCard,
   IncomeVsSpendingReport,
@@ -37,6 +41,15 @@ export class ApiError extends Error {
   ) {
     super(message);
   }
+}
+
+/**
+ * The message for a failed response that carried no Halation error detail,
+ * such as a platform error page. Over HTTP/2 `statusText` is empty, so the
+ * status alone would read as a bare number.
+ */
+function httpFailureMessage(response: Response): string {
+  return `The server could not complete the request (HTTP ${response.status}).`;
 }
 
 export const TRANSACTION_WRITE_BATCH = 100;
@@ -249,7 +262,7 @@ async function request<T>(path: string, init?: RequestInit, options?: ApiRequest
         onUnauthorized?.();
       }
       const detail = (body && typeof body === "object" && "error" in body ? (body as { error?: Record<string, unknown> }).error : undefined) as (ReconciliationMismatchDetail & { detail?: string }) | undefined;
-      const message = detail?.detail ?? `${response.status} ${response.statusText}`;
+      const message = detail?.detail ?? httpFailureMessage(response);
       throw new ApiError(message, response.status, typeof detail?.name === "string" ? detail.name : undefined, detail);
     }
     if (!body || typeof body !== "object" || !("data" in body)) {
@@ -283,7 +296,7 @@ async function downloadFile(path: string, fallbackName: string): Promise<Downloa
     } catch {
       detail = undefined;
     }
-    throw new ApiError(detail ?? `${response.status} ${response.statusText}`, response.status);
+    throw new ApiError(detail ?? httpFailureMessage(response), response.status);
   }
   const named = /filename="([^"]+)"/.exec(response.headers.get("content-disposition") ?? "")?.[1];
   return { blob: await response.blob(), filename: named ?? fallbackName };
@@ -330,11 +343,15 @@ interface AuthUser {
 interface AuthStatus {
   setup_required: boolean;
   bootstrap_required: boolean;
+  /** Setup would be refused because the server has no setup token. */
+  setup_blocked?: boolean;
   user: AuthUser | null;
   /** Unix seconds; null when nothing here holds a browser session. */
   session_expires_at?: number | null;
   /** Plan id to this user's role there. Present only for a signed-in session. */
   roles?: Record<string, "owner" | "editor" | "viewer">;
+  /** True when the server sends new transactions to TypeSafe for a category. Absent on older servers. */
+  categoriser_enabled?: boolean;
 }
 
 /** What the setup and login endpoints return for a cookie session. */
@@ -416,6 +433,11 @@ export const api = {
     }).then((d) => d.settings),
   accounts: (planId: string, options?: ApiRequestOptions) =>
     request<{ accounts: Account[]; server_knowledge: number }>(planUrl(planId, "accounts"), undefined, options),
+  createAccount: (planId: string, account: NewAccountBody) =>
+    request<{ account: Account; server_knowledge: number }>(planUrl(planId, "accounts"), {
+      method: "POST",
+      body: JSON.stringify({ account }),
+    }).then((data) => data.account),
   updateAccountIcon: (planId: string, accountId: string, icon: string) =>
     request<{ account: Account; server_knowledge: number }>(planUrl(planId, "accounts", accountId), {
       method: "PATCH",
@@ -468,6 +490,27 @@ export const api = {
       planUrl(planId, "scheduled_transactions", scheduledTransactionId, "materialize"),
       { method: "POST", headers: { "idempotency-key": idempotencyKey }, body: JSON.stringify({ occurrence_date: occurrenceDate, date }) },
     ),
+  /** Every card's payment terms in the plan. */
+  cardPaymentTerms: (planId: string, options?: ApiRequestOptions) =>
+    request<{ card_payment_terms: CardPaymentTerms[]; server_knowledge: number }>(planUrl(planId, "card_payment_terms"), undefined, options),
+  /** One card's terms; rejects with a 404 `ApiError` when the card has none. */
+  accountCardPaymentTerms: (planId: string, accountId: string) =>
+    request<{ card_payment_terms: CardPaymentTerms; server_knowledge: number }>(planUrl(planId, "accounts", accountId, "card_payment_terms"))
+      .then((data) => data.card_payment_terms),
+  /** Replaces a card's terms. Omitted optional fields take their defaults. */
+  putCardPaymentTerms: (planId: string, accountId: string, terms: CardPaymentTermsInput, idempotencyKey: string) =>
+    request<{ card_payment_terms: CardPaymentTerms; server_knowledge: number }>(
+      planUrl(planId, "accounts", accountId, "card_payment_terms"),
+      { method: "PUT", headers: { "idempotency-key": idempotencyKey }, body: JSON.stringify({ card_payment_terms: terms }) },
+    ).then((data) => data.card_payment_terms),
+  deleteCardPaymentTerms: (planId: string, accountId: string, idempotencyKey: string) =>
+    request<{ card_payment_terms: CardPaymentTerms; server_knowledge: number }>(
+      planUrl(planId, "accounts", accountId, "card_payment_terms"),
+      { method: "DELETE", headers: { "idempotency-key": idempotencyKey } },
+    ).then((data) => data.card_payment_terms),
+  /** Current and next cycle per enabled card. `asOf` defaults to today in the server's plan time zone. */
+  cardPayments: (planId: string, asOf?: string, options?: ApiRequestOptions) =>
+    request<CardPaymentsView>(`${planUrl(planId, "card_payments")}${query({ as_of: asOf })}`, undefined, options),
   accountReconciliation: (planId: string, accountId: string, statementDate: string) =>
     request<AccountReconciliationPreview>(
       `${planUrl(planId, "accounts", accountId, "reconciliation")}${query({ statement_date: statementDate })}`,
@@ -481,7 +524,7 @@ export const api = {
         body: JSON.stringify({ statement_date: statementDate, statement_balance: statementBalance }),
       },
     ),
-  transactions: (planId: string, params: { since_date?: string; until_date?: string; type?: "unapproved"; limit?: number; offset?: number; q?: string }) =>
+  transactions: (planId: string, params: { since_date?: string; until_date?: string; type?: "unapproved" | "needs_confirmation" | "to_claim"; limit?: number; offset?: number; q?: string }) =>
     request<TransactionPage>(
       `${planUrl(planId, "transactions")}${query(params)}`,
     ),
@@ -489,7 +532,7 @@ export const api = {
     request<{ transaction: Transaction }>(
       planUrl(planId, "transactions", transactionId),
     ).then((data) => data.transaction),
-  accountTransactions: (planId: string, accountId: string, params: { since_date?: string; until_date?: string; type?: "unapproved"; limit?: number; offset?: number; q?: string }) =>
+  accountTransactions: (planId: string, accountId: string, params: { since_date?: string; until_date?: string; type?: "unapproved" | "needs_confirmation" | "to_claim"; limit?: number; offset?: number; q?: string }) =>
     request<TransactionPage>(
       `${planUrl(planId, "accounts", accountId, "transactions")}${query(params)}`,
     ),

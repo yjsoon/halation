@@ -1,6 +1,15 @@
 import Foundation
 
 enum MoneyCodec {
+  /// The largest magnitude typed digit by digit on the amount keypad:
+  /// 999,999,999.99. Its + and − stop at `storableAmountCap`.
+  static let typedAmountCap = 999_999_999_990
+
+  /// The largest magnitude the server stores, in milliunits: one trillion
+  /// units, as `MAX_AMOUNT_MILLIUNITS` in packages/money. Typed fields stop
+  /// here, so a dong or rupiah balance past the keypad's cap still fits.
+  static let storableAmountCap = 1_000_000_000_000_000
+
   static func milliunits(from input: String) -> Int? {
     let raw = input.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "[$,\\s]", with: "", options: .regularExpression)
     guard !raw.isEmpty else {
@@ -16,6 +25,12 @@ enum MoneyCodec {
 
     let wholePart = String(parts.first ?? "0")
     let fractionalPart = parts.count == 2 ? String(parts[1]) : ""
+    // Only one leading sign. `Int` would accept a second one, reading "--5"
+    // as 5 and "1.-5" as 0.95.
+    let isDigits = { (part: String) in part.allSatisfy { $0.isASCII && $0.isNumber } }
+    guard isDigits(wholePart), isDigits(fractionalPart), !(wholePart + fractionalPart).isEmpty else {
+      return nil
+    }
     // Milliunits are the storage precision. Reject extra digits rather than
     // silently rounding or truncating a split allocation on save.
     guard fractionalPart.count <= 3 else {
@@ -50,17 +65,38 @@ enum MoneyCodec {
   /// twelve and a half, not 1,250. A comma is read as the decimal point only
   /// there, and only when the entry has one comma and no full stop; anything
   /// else reads exactly as `milliunits(from:)`.
+  ///
+  /// Typed amounts stop at `storableAmountCap`. With `decimalDigits` (the plan
+  /// currency's), digits past the currency's minor unit must be zeros, so a
+  /// yen amount cannot carry a fraction.
   static func milliunits(
     fromTyped input: String,
+    decimalDigits: Int? = nil,
     decimalSeparator: String? = Locale.current.decimalSeparator
   ) -> Int? {
-    guard decimalSeparator == ",",
-          !input.contains("."),
-          input.filter({ $0 == "," }).count == 1
+    let usesDecimalComma = decimalSeparator == ","
+      && !input.contains(".")
+      && input.filter({ $0 == "," }).count == 1
+    guard
+      let value = milliunits(from: usesDecimalComma ? input.replacingOccurrences(of: ",", with: ".") : input),
+      value.magnitude <= storableAmountCap.magnitude
     else {
-      return milliunits(from: input)
+      return nil
     }
-    return milliunits(from: input.replacingOccurrences(of: ",", with: "."))
+    if let decimalDigits, value % minorUnit(decimalDigits: decimalDigits) != 0 {
+      return nil
+    }
+    return value
+  }
+
+  /// Milliunits in the currency's smallest unit: 10 for cents, 1,000 for a
+  /// currency without a minor unit such as the yen.
+  static func minorUnit(decimalDigits: Int) -> Int {
+    var unit = 1
+    for _ in 0..<(3 - min(max(decimalDigits, 0), 3)) {
+      unit *= 10
+    }
+    return unit
   }
 
   static func editableString(for milliunits: Int) -> String {
@@ -87,10 +123,14 @@ enum MoneyCodec {
       options: .regularExpression
     )
     raw = raw.replacingOccurrences(of: ",", with: "")
-    guard let match = raw.range(of: #"-?(?:\d+(?:\.\d+)?|\.\d+)"#, options: .regularExpression) else {
+    guard let match = raw.range(of: #"-?(?:\d+(?:\.\d+)?|\.\d+)"#, options: .regularExpression),
+          let value = milliunits(from: String(raw[match])),
+          value.magnitude <= storableAmountCap.magnitude
+    else {
       return nil
     }
-    return milliunits(from: String(raw[match]))
+    // A card number read off a receipt is not an amount.
+    return value
   }
 
   static func milliunits(from value: Decimal) -> Int? {
@@ -154,6 +194,9 @@ enum MoneyCodec {
     }
     formatter.minimumFractionDigits = currencyFormat?.decimalDigits ?? 2
     formatter.maximumFractionDigits = currencyFormat?.decimalDigits ?? 2
+    // Ties round away from zero, as the web shows them and as a new capture
+    // is saved (`TransactionDraft.roundedToMinorUnit`): $12.345 reads $12.35.
+    formatter.roundingMode = .halfUp
     formatter.currencySymbol = showsSymbol
       ? (currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$")
       : ""
@@ -178,6 +221,83 @@ enum MoneyCodec {
   static func signedDisplayString(for milliunits: Int, currencyFormat: CurrencyFormat?) -> String {
     let base = displayString(for: milliunits, currencyFormat: currencyFormat)
     return milliunits > 0 ? "+\(base)" : base
+  }
+
+  /// Short money for a chart's value axis: "$579k", "$1.2M", "-$850". Keeps
+  /// the plan's symbol on its side. `resolution` is the smallest difference
+  /// the axis has to tell apart (its tick step), so two ticks never read the
+  /// same: at a step of $200, 564,246 and 564,046 are "$564.2k" and "$564.0k".
+  static func compactDisplayString(
+    for milliunits: Int,
+    resolution: Int = 0,
+    currencyFormat: CurrencyFormat?
+  ) -> String {
+    let units = abs(Double(milliunits)) / 1000
+    let steps: [(limit: Double, divisor: Double, suffix: String)] = [
+      (1_000_000_000, 1_000_000_000, "B"),
+      (1_000_000, 1_000_000, "M"),
+      (1_000, 1_000, "k"),
+    ]
+    let step = steps.first { units >= $0.limit }
+    let divisor = step?.divisor ?? 1
+    let scaled = units / divisor
+    let fineness = Double(abs(resolution)) / 1000 / divisor
+    var digits = 0
+    if fineness > 0 {
+      digits = max(0, Int(ceil(-log10(fineness))))
+    } else if step != nil, scaled < 10 {
+      // No step given: one decimal under ten ("1.2M"), none above ("579k").
+      digits = 1
+    }
+    // Three decimals cover the smallest axis step a chart asks for.
+    digits = min(digits, 3)
+    let factor = pow(10, Double(digits))
+    let rounded = (scaled * factor).rounded() / factor
+
+    var number: String
+    if let step, rounded >= 1000, let next = steps.first(where: { $0.divisor == step.divisor * 1000 }) {
+      // A value that rounds up to the next step reads as that step, not "1000k".
+      number = "1" + next.suffix
+    } else {
+      number = String(format: "%.\(digits)f", rounded)
+      if let separator = currencyFormat?.decimalSeparator, separator != "." {
+        number = number.replacingOccurrences(of: ".", with: separator)
+      }
+      number += step?.suffix ?? ""
+    }
+    let showsSymbol = currencyFormat?.displaySymbol ?? true
+    let symbol = showsSymbol ? (currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$") : ""
+    let symbolFirst = currencyFormat?.symbolFirst ?? true
+    let body = symbolFirst ? symbol + number : number + symbol
+    return milliunits < 0 && rounded > 0 ? "-" + body : body
+  }
+}
+
+/// Milliunit sums. The server stores amounts up to 1e15 milliunits each, so
+/// plain `+` over a few thousand of them passes Int64 and traps.
+extension Sequence where Element == Int {
+  /// The sum, or nil when it would overflow.
+  func checkedSum() -> Int? {
+    var total = 0
+    for value in self {
+      let next = total.addingReportingOverflow(value)
+      guard !next.overflow else {
+        return nil
+      }
+      total = next.partialValue
+    }
+    return total
+  }
+
+  /// The sum for display, clamped to the Int range instead of trapping.
+  func saturatingSum() -> Int {
+    reduce(0) { total, value in
+      let next = total.addingReportingOverflow(value)
+      guard next.overflow else {
+        return next.partialValue
+      }
+      return value < 0 ? Int.min : Int.max
+    }
   }
 }
 
@@ -214,6 +334,22 @@ enum LedgerDate {
     return display.string(from: date)
   }
 
+  /// "30 Sep 2026" from an ISO date, for a date inside a sentence.
+  static func shortDateString(fromISO isoDate: String) -> String {
+    guard let date = parser.date(from: isoDate) else {
+      return isoDate
+    }
+    return shortDisplay.string(from: date)
+  }
+
+  /// "23 Oct" from an ISO date, for a day the surrounding text already dates.
+  static func dayMonthString(fromISO isoDate: String) -> String {
+    guard let date = parser.date(from: isoDate) else {
+      return isoDate
+    }
+    return dayMonthDisplay.string(from: date)
+  }
+
   /// Human label for a report period key: `2026-06-10`, `2026-W23`, `2026-06`, or `2026`.
   static func periodLabel(_ raw: String) -> String {
     let parts = raw.split(separator: "-")
@@ -224,9 +360,18 @@ enum LedgerDate {
       return "Week \(parts[1].dropFirst()), \(parts[0])"
     }
     if parts.count == 2, let month = Int(parts[1]), (1 ... 12).contains(month) {
-      return "\(Calendar.current.monthSymbols[month - 1]) \(parts[0])"
+      return "\(gregorian.monthSymbols[month - 1]) \(parts[0])"
     }
     return raw
+  }
+
+  /// `periodLabel` with a dated day in place of "Today" or "Yesterday", so it
+  /// reads in a sentence: "Highest: £90, Tue 21 Oct 2026", not "…, Today".
+  static func spokenPeriodLabel(_ raw: String) -> String {
+    if raw.split(separator: "-").count == 3, let date = parser.date(from: raw) {
+      return display.string(from: date)
+    }
+    return periodLabel(raw)
   }
 
   /// Compact label for a report chart's horizontal axis.
@@ -239,7 +384,7 @@ enum LedgerDate {
       return String(parts[1])
     }
     if parts.count == 2, let month = Int(parts[1]), (1 ... 12).contains(month) {
-      return Calendar.current.shortMonthSymbols[month - 1]
+      return gregorian.shortMonthSymbols[month - 1]
     }
     return raw
   }
@@ -254,7 +399,7 @@ enum LedgerDate {
       return raws.map(periodAxisLabel)
     }
     return months.enumerated().map { index, item in
-      let short = Calendar.current.shortMonthSymbols[item.month - 1]
+      let short = gregorian.shortMonthSymbols[item.month - 1]
       if index == 0 || item.month == 1 {
         return "\(short) \(String(item.year).suffix(2))"
       }
@@ -282,12 +427,36 @@ enum LedgerDate {
 
   private static let display: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = gregorian
     formatter.dateFormat = "EEE d MMM yyyy"
+    return formatter
+  }()
+
+  /// Period keys are Gregorian, so month names come from a Gregorian calendar
+  /// in the device's language, whatever calendar the device otherwise uses.
+  static let gregorian: Calendar = {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = .current
+    return calendar
+  }()
+
+  private static let shortDisplay: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.calendar = gregorian
+    formatter.dateFormat = "d MMM yyyy"
+    return formatter
+  }()
+
+  private static let dayMonthDisplay: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.calendar = gregorian
+    formatter.dateFormat = "d MMM"
     return formatter
   }()
 
   private static let axisDayDisplay: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = gregorian
     formatter.dateFormat = "d MMM"
     return formatter
   }()
@@ -305,11 +474,13 @@ extension Date {
     self = parsed
   }
 
-  func startOfMonth(calendar: Calendar = .current) -> Date {
+  /// Months default to the Gregorian calendar: period keys, labels and the
+  /// server's windows are all Gregorian, whatever calendar the device uses.
+  func startOfMonth(calendar: Calendar = LedgerDate.gregorian) -> Date {
     calendar.date(from: calendar.dateComponents([.year, .month], from: self)) ?? self
   }
 
-  func endOfMonth(calendar: Calendar = .current) -> Date {
+  func endOfMonth(calendar: Calendar = LedgerDate.gregorian) -> Date {
     guard
       let nextMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth(calendar: calendar)),
       let lastDay = calendar.date(byAdding: .day, value: -1, to: nextMonth)
@@ -331,12 +502,14 @@ extension Date {
 
   private static let monthYearFormatter: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = LedgerDate.gregorian
     formatter.dateFormat = "MMMM yyyy"
     return formatter
   }()
 
   private static let compactDateFormatter: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = LedgerDate.gregorian
     formatter.dateFormat = "d MMM yyyy"
     return formatter
   }()

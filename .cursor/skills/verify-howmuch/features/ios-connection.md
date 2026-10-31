@@ -14,7 +14,7 @@ iOS talks to HowMuch over a stored Server URL and a Keychain session. First-owne
 ## How to get to it (user POV)
 
 - First launch of HowMuch in Simulator (Connection is forced until authenticated).
-- Choose **More** (ellipsis) on Accounts, Rewards, or Reflect, then **Settings**.
+- Choose **More** (ellipsis) on Accounts, Rewards, or Insights, then **Settings**.
 - Signed in, the sheet is titled **Settings**. **Change server or account** opens Connection.
 - After **Sign out**, Connection is the whole UI again.
 
@@ -31,6 +31,7 @@ Preconditions:
 - **Setup required.** With `setup_required: true`, Connection heading is `Connection`. Header `Setup required`. Copy includes that the site does not have an account yet. There is no `Setup token` field. Button `Open HowMuch Setup in Browser` may be present; do not use it as the verify path. Finish setup on `{web_url}` instead ([First-owner setup](./first-owner-setup.md)). Choose `Retry Setup Check`. Setup section goes away.
 - **Sign in.** Server `{api_url}`. Username `verifier`. Password `howmuch-verify-15`. Choose `Sign in`. Footer `Signed in successfully.` Then Accounts. Navigation title `Accounts`. Everyday Account, Rainy Day Saver, and Travel Card are listed.
 - **HTTP match.** `control-howmuch http GET /api/auth/status` has `setup_required: false`. `control-howmuch http GET /v1/plans` includes `local-plan` / `HowMuch Demo`.
+- **Automatic categories.** Against the default stack (no `TYPESAFE_API_KEY`), Settings has no `Automatic categories` section. Against an API launched with `TYPESAFE_API_KEY` set to any value, the section (`server-categoriser-notice`) names TypeSafe after sign-in, and **Connect to a server** from local mode shows it on the upload confirmation and on the "already has records" step.
 - **Sign out.** Settings → `Sign out`, then confirm `Sign out`. Ledger tabs are gone. Sign in is offered again.
 - **Proof.** Screenshot Connection with Server set to the verify URL (`artifacts/ios-connection/connection.png`) and Accounts after sign-in (`artifacts/ios-connection/accounts.png`). HowMuch identity visible. Server host is `127.0.0.1`, never production (`howmuch.tk.sg` or the legacy `howmuch.soon.sg`).
 

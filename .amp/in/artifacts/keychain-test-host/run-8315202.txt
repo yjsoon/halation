@@ -1,0 +1,105 @@
+Verification run complete for yjsoon/howmuch @ 8315202a8a74e4aac57e6c06532c7c92b499e8d3. All 71 selected tests passed. No commits/pushes/PRs, no real signing, no Speedflight, no repo files modified.
+
+xcodebuild -version (default Xcode, /Applications/Xcode.app — DEVELOPER_DIR not needed):
+Xcode 26.6
+Build version 17F113
+
+Simulator: iPhone 17, UDID E0224A22-F874-4B8C-83FB-EB084492C493
+Runtime: iOS 27.0 (27.0 - 24A434) - com.apple.CoreSimulator.SimRuntime.iOS-27-0
+(Built with iphonesimulator26.5 SDK; wrapper pinned the booted iOS 27.0 iPhone 17.)
+
+Git revision: 8315202a8a74e4aac57e6c06532c7c92b499e8d3 (branch claude/project-thread-d2jap1)
+
+Overall result:
+** TEST BUILD SUCCEEDED ** (build-for-testing exit=0, 173s)
+** TEST EXECUTE SUCCEEDED ** (test-without-building exit=0, 13s)
+Executed 71 tests, with 0 failures (0 unexpected) in 1.312 (1.339) seconds
+Counts: executed=71, failed=0, skipped=0
+
+Every 'Test Case ... passed/failed/skipped' line (71 total, all passed):
+Test Case '-[HowMuchTests.APISettingsTests testCustomEndpointAndItsSessionArePreserved]' passed (0.046 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testExistingServerSessionStaysOnTheServer]' passed (0.012 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLegacyHostedDefaultFollowsProduction]' passed (0.007 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLegacyHostedSessionMovesWithTheHost]' passed (0.013 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanIDAdoptsTheDatabasePlanWhenItsKeyIsLost]' passed (0.004 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanRecoveryAdoptsTheOnlyPlanOnTheDevice]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanRecoveryCreatesAPlanWhenTheDeviceHasNoneOrSeveral]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanRecoveryPrefersTheSavedPlan]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalServerOnTheDefaultPortIsKept]' passed (0.007 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalSettingsRestoreAClearedUserID]' passed (0.013 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalSettingsRoundTripAndKeepTheirPlan]' passed (0.007 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testSettingsSavedBeforeLocalModeDecodeAsServer]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testSignedOutServerInstallReturnsToConnectionNotWelcome]' passed (0.005 seconds).
+Test Case '-[HowMuchTests.CaptureAITests testKeychainCanReplaceAndDeleteOnlyItsOwnCredential]' passed (0.008 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testAccountScopeAndDirectionAreEnforced]' passed (0.014 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testAccountWindowIsClampedWhenTheFileIsRead]' passed (0.004 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testAddingARuleReplacesTheSameMatchAndActionKindButNotOtherKinds]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testAllAccountsChoiceIsNotBoundToTheAccountAndAMixedBatchDefaultsToThePayee]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testAlsoNoticedCountsOnlyRulesThatFiredAndWereLeftAlone]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testAnAllAccountsRuleReplacesOlderAccountRulesForTheSameTokenAndFamilyButNotTheOtherWayRound]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testAnExistingRuleOnlyBlocksTheSuggestionItCovers]' passed (0.004 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testAnUnperformableTransferDoesNotSuppressTheOthers]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testAnUnreadableEnabledAccountOrPayeeValueNeverBroadensOrReEnablesARule]' passed (0.004 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testCategoryRuleLeavesACategoryTheReaderSetAlone]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testCategoryRuleNeverTurnsAnAlreadyInRowIntoAFix]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testChangingAFieldARuleSetCountsAsAnOverrideAndOtherEditsDoNot]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testClearAllMemoryRemovesRulesAndSuppressionsButKeepsTheOwnersInstructions]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testDisabledRuleNeverAppliesAndTheNextEnabledRuleDoes]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testEqualSpecificityGoesToTheNewestRule]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testFlagRuleFiresAlongsideACategoryRule]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testGrabRuleDoesNotHitGrabFoodAndGrabFoodRuleDoesNotHitGrab]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testMatcherUsesTheAccountsOwnWindowForItsLines]' passed (0.002 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testMoreSpecificRuleWinsAndLessSpecificOnesNeverFireUnderIt]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testMultiWordTokenNeedsTheWordsTogetherAndInOrder]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testNoCategoryRuleIsOfferedForARowWhoseCategoryTheReaderSet]' passed (0.000 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testNothingIsOfferedForADismissedOrAlreadyKnownRule]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testNothingIsOfferedTwiceForOneBatch]' passed (0.002 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testNothingIsOfferedWithoutAPayeeOrCategoryCorrection]' passed (0.000 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testOffersAtMostOneRuleAndPrefersTheCategoryCorrectionSeenMostOften]' passed (0.002 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testPayeeTokenThatCleansToNothingNeverMatches]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testPromptGuidanceCombinesGlobalAndAccountNotesWithinTheCap]' passed (0.000 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testRecordingCountsHitsOverridesAndFlagsARuleOverriddenTwice]' passed (0.000 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testRenameAndCategoryRulesBothFireButEachFamilyTakesItsBestRule]' passed (0.000 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testRenameChangesThePayeeAndDropsTheStalePayeeID]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testRenameRuleDoesNotTurnAnAlreadyInRowIntoAFixOrAPossibleDuplicate]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testRuleNamingADeletedCategoryIsSkippedAndTheNextOneApplies]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testRulesApplyToNewRowsAndFlagsCapTheirConfidence]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testRulesThisBuildCannotReadSurviveASave]' passed (0.003 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testRuleWithNoConditionsNeverMatches]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testSkillFileWithUnknownRuleActionScopeAndSignLoadsAndKeepsTheRest]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testSkippingAFamilyLeavesThatFieldToTheOwner]' passed (0.002 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testStoreRoundTripsAtomicallyAndRefusesToOverwriteAFileItCannotRead]' passed (0.010 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testTheTokenComesFromTheReadersOwnPayeeNotTheRenamedOne]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testTokenMatchesWholeWordsOfNoisyBankDescriptors]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testTransferOverrideIsTheOwnerUndoingTheTransfer]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testTransferRuleKeepsTheCategoryWhenTheOtherAccountIsOffBudget]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testTransferRuleNeverTargetsTheLinesOwnAccountAClosedAccountOrAMissingTransferPayee]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testTransferRuleSetsTheTransferAndClearsTheCategoryBetweenOnBudgetAccounts]' passed (0.000 seconds).
+Test Case '-[HowMuchTests.IntakeSkillTests testTransferRuleSuppressesCategoryAndRenameRules]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.ServerConnectionFlowTests testAnEditorCannotUpload]' passed (0.268 seconds).
+Test Case '-[HowMuchTests.ServerConnectionFlowTests testAnEmptyServerReceivesTheLedgerAndTheDeviceKeepsIt]' passed (0.129 seconds).
+Test Case '-[HowMuchTests.ServerConnectionFlowTests testAnUploadThatLandsAfterLeavingIsIgnored]' passed (0.114 seconds).
+Test Case '-[HowMuchTests.ServerConnectionFlowTests testAServerWithRecordsIsNeverUploadedTo]' passed (0.131 seconds).
+Test Case '-[HowMuchTests.ServerConnectionFlowTests testAYNABPlanRefusesTheUploadWithoutARetry]' passed (0.111 seconds).
+Test Case '-[HowMuchTests.ServerConnectionFlowTests testForgettingTheServerSessionLeavesLocalModeAlone]' passed (0.012 seconds).
+Test Case '-[HowMuchTests.ServerConnectionFlowTests testRecordsAddedDuringTheFlowLeadToTheChoice]' passed (0.121 seconds).
+Test Case '-[HowMuchTests.ServerConnectionFlowTests testSwitchingToTheServerAndBackPersists]' passed (0.092 seconds).
+Test Case '-[HowMuchTests.ServerConnectionFlowTests testUploadConfirmationNamesTheAuthenticatedServerDespiteDraftChanges]' passed (0.130 seconds).
+Test Case '-[HowMuchTests.ServerConnectionRulesTests testALeftFlowCanNeverBeAdopted]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.ServerConnectionRulesTests testTombstonesDoNotCount]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.ServerConnectionRulesTests testUnsentChangesForThisServerBlockSwitchingBack]' passed (0.002 seconds).
+
+Failure messages: none.
+Lines containing 'no usable Keychain' or '-34018': none (the real Keychain test passed under ad-hoc simulated entitlements).
+Compiler errors: none. (One pre-existing warning only: Components.swift:1147:36 main actor-isolated 'shared' from nonisolated context.)
+
+codesign -dv --verbose=2 on build/xcode/DerivedData-simulator/Build/Products/Debug-iphonesimulator/HowMuch.app:
+Executable=/Users/devin/repos/howmuch/build/xcode/DerivedData-simulator/Build/Products/Debug-iphonesimulator/HowMuch.app/HowMuch
+Identifier=sg.soon.howmuch
+Format=app bundle with Mach-O thin (arm64)
+CodeDirectory v=20400 size=79432 flags=0x2(adhoc) hashes=2472+7 location=embedded
+Signature=adhoc
+Info.plist entries=34
+TeamIdentifier=not set
+Sealed Resources version=2 rules=10 files=103
+Internal requirements count=0 size=12

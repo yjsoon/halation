@@ -227,7 +227,7 @@ final class CaptureSnapshotTests: XCTestCase {
         "the old in-row chat bubble must be gone"
       )
       XCTAssertNil(surface.addTransactionsManualAction(), "Add has no tap-and-hold or extra VoiceOver action")
-      for label in ["Accounts", "Rewards", "Reflect"] {
+      for label in ["Accounts", "Rewards", "Insights"] {
         guard let destination = surface.firstControl(label: label) else {
           XCTFail("root tab missing \(label)")
           continue
@@ -689,10 +689,10 @@ final class CaptureSnapshotTests: XCTestCase {
     attachImage(surface.captureVisible(), name: "transaction-memo-keyboard")
 
     let amount = try XCTUnwrap(
-      surface.firstControl(labelContains: "0.00")
-        ?? surface.firstControl(labelContains: "$0"),
+      surface.firstControl(label: "Amount"),
       "amount header missing: \(surface.accessibilityLabels())"
     )
+    XCTAssertTrue(amount.object.accessibilityValue?.contains("0.00") == true)
     XCTAssertTrue(surface.activate(amount))
     let restored = await surface.waitUntil {
       surface.calculatorKeypadDigitOne() != nil && !memo.isFirstResponder
@@ -986,7 +986,7 @@ final class CaptureSnapshotTests: XCTestCase {
           phase: nil,
           elapsed: 12,
           reduceMotion: false
-        ).fullLine
+        ).visibleText
         let word = line.split { !$0.isLetter }.map(String.init).first { $0.count >= 4 } ?? line
         needles = [word]
       }
@@ -1474,7 +1474,8 @@ final class CaptureSnapshotTests: XCTestCase {
       }
       XCTAssertTrue(surface.activate(edit))
       _ = await surface.captureUntilOCR(contains: ["Edit draft"])
-      guard let amount = surface.firstControl(labelContains: "12.00") else {
+      guard let amount = surface.firstControl(label: "Amount"),
+            amount.object.accessibilityValue?.contains("12.00") == true else {
         return XCTFail("draft editor must expose its amount")
       }
       XCTAssertTrue(surface.activate(amount))
@@ -1529,11 +1530,11 @@ final class CaptureSnapshotTests: XCTestCase {
     let draftIDsBefore = session.drafts.map(\.id)
     let attachmentCount = session.attachments.count
     XCTAssertFalse(session.isBusy)
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: draftIDsBefore))
 
     let token = session.beginTurn()
     XCTAssertTrue(session.isBusy)
-    XCTAssertFalse(session.canSaveIncluded)
+    XCTAssertFalse(session.canSaveGroup(ids: draftIDsBefore))
     XCTAssertEqual(token.generation, session.generation)
 
     guard await openManualForm(on: surface) else { return }
@@ -1544,13 +1545,13 @@ final class CaptureSnapshotTests: XCTestCase {
     XCTAssertEqual(session.drafts.map(\.id), draftIDsBefore)
     XCTAssertEqual(session.attachments.count, attachmentCount)
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 12_000)
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: draftIDsBefore))
 
     var manual = session.drafts[0].draft
     manual.amountMagnitudeMilli = 50
     session.applyManualEdit(manual, id: session.drafts[0].id)
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 50)
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: draftIDsBefore))
 
     var lateDraft = TransactionDraft()
     lateDraft.payeeName = "Coffee"
@@ -1584,7 +1585,7 @@ final class CaptureSnapshotTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 50)
     XCTAssertEqual(session.drafts[0].draft.payeeName, "Lunch")
     XCTAssertEqual(session.composerText, composerBefore)
-    XCTAssertTrue(session.canSaveIncluded)
+    XCTAssertTrue(session.canSaveGroup(ids: draftIDsBefore))
   }
 
   func testManualTransitionDuringIngestionPreservesGeneration() async {

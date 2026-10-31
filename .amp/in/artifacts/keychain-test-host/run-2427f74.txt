@@ -1,0 +1,110 @@
+Verification run complete for yjsoon/howmuch#165 @ 2427f74623dd6ca9f4b739b430924d8507f968a2. Read-only; no commits/pushes/PRs/signing.
+
+**Key finding:** `-only-testing:HowMuchTests/ServerConnectionTests` matched **zero tests** — no class by that name exists. `apps/ios/HowMuchTests/ServerConnectionTests.swift` contains `ServerConnectionRulesTests` and `ServerConnectionFlowTests`. xcodebuild silently skipped the filter; only 14 tests ran overall (13 APISettings + 1 CaptureAI), all passed.
+
+**Xcode** (default, has iOS 26.5 SDK — no DEVELOPER_DIR needed):
+```
+Xcode 26.6
+Build version 17F113
+```
+
+**Simulator:** iPhone 17, UDID E0224A22-F874-4B8C-83FB-EB084492C493, runtime `com.apple.CoreSimulator.SimRuntime.iOS-27-0` (built with iphonesimulator26.5 SDK, ran on iOS 27.0 sim).
+
+**Overall result:** `** TEST EXECUTE SUCCEEDED **` — Executed 14 tests, 0 failures in 0.115s. No 'skipped' lines.
+
+**Per-test results (all passed):**
+```
+APISettingsTests testCustomEndpointAndItsSessionArePreserved          passed (0.042s)
+APISettingsTests testExistingServerSessionStaysOnTheServer            passed (0.012s)
+APISettingsTests testLegacyHostedDefaultFollowsProduction             passed (0.007s)
+APISettingsTests testLegacyHostedSessionMovesWithTheHost              passed (0.012s)
+APISettingsTests testLocalPlanIDAdoptsTheDatabasePlanWhenItsKeyIsLost passed (0.003s)
+APISettingsTests testLocalPlanRecoveryAdoptsTheOnlyPlanOnTheDevice    passed (0.001s)
+APISettingsTests testLocalPlanRecoveryCreatesAPlanWhenTheDeviceHasNoneOrSeveral passed (0.001s)
+APISettingsTests testLocalPlanRecoveryPrefersTheSavedPlan             passed (0.002s)
+APISettingsTests testLocalServerOnTheDefaultPortIsKept                passed (0.011s)
+APISettingsTests testLocalSettingsRestoreAClearedUserID               passed (0.008s)
+APISettingsTests testLocalSettingsRoundTripAndKeepTheirPlan           passed (0.007s)
+APISettingsTests testSettingsSavedBeforeLocalModeDecodeAsServer       passed (0.001s)
+APISettingsTests testSignedOutServerInstallReturnsToConnectionNotWelcome passed (0.003s)
+CaptureAITests   testKeychainCanReplaceAndDeleteOnlyItsOwnCredential  passed (0.007s)
+```
+
+**'no usable Keychain' / '-34018':** no matching lines in the log (grep found none).
+
+**codesign -dv --verbose=2** on `build/xcode/DerivedData-simulator/Build/Products/Debug-iphonesimulator/HowMuch.app`:
+```
+Executable=.../HowMuch.app/HowMuch
+Identifier=sg.soon.howmuch
+Format=app bundle with Mach-O thin (arm64)
+CodeDirectory v=20400 size=79752 flags=0x2(adhoc) hashes=2482+7 location=embedded
+Signature=adhoc
+Info.plist entries=34
+TeamIdentifier=not set
+Sealed Resources version=2 rules=10 files=103
+Internal requirements count=0 size=12
+```
+**codesign -d --entitlements -:** `<?xml version="1.0" ...><plist version="1.0"><dict></dict></plist>` — empty entitlements dict, and the Keychain test still passed.
+
+**Last ~60 lines of the test log** (`build/xcode/logs/xcodebuild-test-without-building-20261021-060122.log`):
+```
+2026-10-21 06:01:33.808958-0700 HowMuch[3051:29581] [XPCErrors] non-launching port is incompatible with service identifier "com.apple.PointerUI.pointeruid.default-service"
+2026-10-21 06:01:33.812367-0700 HowMuch[3051:29581] [API] cannot add handler to 0 from 0 - dropping
+2026-10-21 06:01:33.812718-0700 HowMuch[3051:29581] [API] cannot add handler to 0 from 0 - dropping
+2026-10-21 06:01:33.813432-0700 HowMuch[3051:29581] [API] cannot add handler to 0 from 0 - dropping
+2026-10-21 06:01:33.813537-0700 HowMuch[3051:29581] [API] cannot add handler to 0 from 0 - dropping
+Test Suite 'Selected tests' started at 2026-10-21 06:01:34.721.
+Test Suite 'HowMuchTests.xctest' started at 2026-10-21 06:01:34.722.
+Test Suite 'APISettingsTests' started at 2026-10-21 06:01:34.722.
+Test Case '-[HowMuchTests.APISettingsTests testCustomEndpointAndItsSessionArePreserved]' started.
+Test Case '-[HowMuchTests.APISettingsTests testCustomEndpointAndItsSessionArePreserved]' passed (0.042 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testExistingServerSessionStaysOnTheServer]' started.
+Test Case '-[HowMuchTests.APISettingsTests testExistingServerSessionStaysOnTheServer]' passed (0.012 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLegacyHostedDefaultFollowsProduction]' started.
+Test Case '-[HowMuchTests.APISettingsTests testLegacyHostedDefaultFollowsProduction]' passed (0.007 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLegacyHostedSessionMovesWithTheHost]' started.
+Test Case '-[HowMuchTests.APISettingsTests testLegacyHostedSessionMovesWithTheHost]' passed (0.012 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanIDAdoptsTheDatabasePlanWhenItsKeyIsLost]' started.
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanIDAdoptsTheDatabasePlanWhenItsKeyIsLost]' passed (0.003 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanRecoveryAdoptsTheOnlyPlanOnTheDevice]' started.
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanRecoveryAdoptsTheOnlyPlanOnTheDevice]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanRecoveryCreatesAPlanWhenTheDeviceHasNoneOrSeveral]' started.
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanRecoveryCreatesAPlanWhenTheDeviceHasNoneOrSeveral]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanRecoveryPrefersTheSavedPlan]' started.
+Test Case '-[HowMuchTests.APISettingsTests testLocalPlanRecoveryPrefersTheSavedPlan]' passed (0.002 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalServerOnTheDefaultPortIsKept]' started.
+Test Case '-[HowMuchTests.APISettingsTests testLocalServerOnTheDefaultPortIsKept]' passed (0.011 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalSettingsRestoreAClearedUserID]' started.
+Test Case '-[HowMuchTests.APISettingsTests testLocalSettingsRestoreAClearedUserID]' passed (0.008 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testLocalSettingsRoundTripAndKeepTheirPlan]' started.
+Test Case '-[HowMuchTests.APISettingsTests testLocalSettingsRoundTripAndKeepTheirPlan]' passed (0.007 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testSettingsSavedBeforeLocalModeDecodeAsServer]' started.
+Test Case '-[HowMuchTests.APISettingsTests testSettingsSavedBeforeLocalModeDecodeAsServer]' passed (0.001 seconds).
+Test Case '-[HowMuchTests.APISettingsTests testSignedOutServerInstallReturnsToConnectionNotWelcome]' started.
+Test Case '-[HowMuchTests.APISettingsTests testSignedOutServerInstallReturnsToConnectionNotWelcome]' passed (0.003 seconds).
+Test Suite 'APISettingsTests' passed at 2026-10-21 06:01:34.836.
+	 Executed 13 tests, with 0 failures (0 unexpected) in 0.109 (0.114) seconds
+Test Suite 'CaptureAITests' started at 2026-10-21 06:01:34.836.
+Test Case '-[HowMuchTests.CaptureAITests testKeychainCanReplaceAndDeleteOnlyItsOwnCredential]' started.
+Test Case '-[HowMuchTests.CaptureAITests testKeychainCanReplaceAndDeleteOnlyItsOwnCredential]' passed (0.007 seconds).
+Test Suite 'CaptureAITests' passed at 2026-10-21 06:01:34.843.
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.007 (0.007) seconds
+Test Suite 'HowMuchTests.xctest' passed at 2026-10-21 06:01:34.843.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.115 (0.122) seconds
+Test Suite 'Selected tests' passed at 2026-10-21 06:01:34.843.
+	 Executed 14 tests, with 0 failures (0 unexpected) in 0.115 (0.123) seconds
+2026-10-21 06:01:35.130 xcodebuild[3031:29142] [MT] IDETestOperationsObserverDebug: 11.212 elapsed -- Testing started completed.
+2026-10-21 06:01:35.130 xcodebuild[3031:29142] [MT] IDETestOperationsObserverDebug: 0.000 sec, +0.000 sec -- start
+2026-10-21 06:01:35.130 xcodebuild[3031:29142] [MT] IDETestOperationsObserverDebug: 11.212 sec, +11.212 sec -- end
+
+Test session results, code coverage, and logs:
+	/Users/devin/repos/howmuch-verify/build/xcode/DerivedData-simulator/Logs/Test/Test-HowMuch-2026.10.21_06-01-23--0700.xcresult
+
+** TEST EXECUTE SUCCEEDED **
+
+Testing started
+=== end 2026-10-21T06:01:35-0700 elapsed=13s exit=0 ===
+=== memory_pressure=1 swap=total = 0.00M  used = 0.00M  free = 0.00M  (encrypted) ===
+```
+
+Fresh run confirmed: `runner: build-for-testing finished … exit=0` and "products match this worktree" preceded test-without-building. Full tee'd log at `/Users/devin/howmuch-test-run.log` on this machine.

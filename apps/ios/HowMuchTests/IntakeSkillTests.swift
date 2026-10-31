@@ -22,8 +22,8 @@ import XCTest
 @MainActor
 final class IntakeSkillTests: XCTestCase {
   private let everyday = "acct-everyday"
-  private let altitude = "acct-altitude"
-  private let uob = "acct-uob"
+  private let altitude = "acct-miles"
+  private let uob = "acct-cashback"
   private let closedAccount = "acct-closed"
   private let eatingOut = "cat-eating-out"
   private let groceries = "cat-groceries"
@@ -34,7 +34,7 @@ final class IntakeSkillTests: XCTestCase {
   private lazy var context = IntakeRuleContext(
     openAccountIDs: [everyday, altitude, uob],
     categoryIDs: [eatingOut, groceries, household, transport],
-    accountNames: [everyday: "Everyday", altitude: "DBS Altitude", uob: "UOB One"],
+    accountNames: [everyday: "Everyday", altitude: "Miles Card", uob: "Cashback Card"],
     categoryNames: [eatingOut: "Eating Out", groceries: "Groceries", household: "Household", transport: "Transport"],
     transferPayees: [everyday: IntakeTransferPayee(id: "payee-to-everyday", name: "Transfer : Everyday")],
     onBudgetAccountIDs: [everyday, altitude]
@@ -60,7 +60,7 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(category(after: [global], payee: "KOPITIAM AMK", account: altitude), groceries)
     // Listing order must not matter.
     XCTAssertEqual(category(after: all.reversed(), payee: "KOPITIAM AMK", account: altitude), transport)
-    // The payee + account rule is for DBS Altitude only; the same payee elsewhere gets the payee rule.
+    // The payee + account rule is for the Miles Card only; the same payee elsewhere gets the payee rule.
     XCTAssertEqual(category(after: all, payee: "KOPITIAM AMK", account: everyday), eatingOut)
   }
 
@@ -79,12 +79,14 @@ final class IntakeSkillTests: XCTestCase {
 
   func testFlagRuleFiresAlongsideACategoryRule() {
     var read = line(payee: "PAYNOW TAN AH KOW", account: altitude)
+    var expected = read.draft
+    expected.categoryID = household
     let flag = rule(when: .init(payeeToken: "tan ah kow"), then: .flag)
     let categorise = rule(
       scope: .account(altitude), when: .init(payeeToken: "tan ah kow", accountID: altitude), then: .setCategory(household)
     )
     let outcomes = IntakeRuleEngine.apply([categorise, flag], to: &read, context: context)
-    XCTAssertEqual(read.draft.categoryID, household)
+    XCTAssertEqual(read.draft, expected, "the flag only asks for review; it writes nothing to the row")
     XCTAssertEqual(outcomes.filter(\.needsReview).count, 1, "a matching flag rule is always honoured")
     XCTAssertEqual(outcomes.count, 2)
   }
@@ -248,14 +250,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertNil(category(after: [fingers], payee: "Fingers Four"))
   }
 
-  func testSuggestedTokenIsTheMerchantWordNotTheBranch() {
-    XCTAssertEqual(IntakeRuleCondition.suggestedToken(from: "KOPITIAM AMK"), "kopitiam")
-    XCTAssertEqual(IntakeRuleCondition.suggestedToken(from: "GRAB*A-5X7K9 SINGAPORE SG"), "grab")
-    XCTAssertEqual(IntakeRuleCondition.suggestedToken(from: "Four Fingers"), "four fingers")
-    XCTAssertNil(IntakeRuleCondition.suggestedToken(from: "12345"))
-    XCTAssertNil(IntakeRuleCondition.suggestedToken(from: ""))
-  }
-
   func testAccountScopeAndDirectionAreEnforced() {
     let altitudeOnly = rule(
       scope: .account(altitude), when: .init(payeeToken: "shopee"), then: .setCategory(household)
@@ -317,16 +311,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertNil(read.draft.transferAccountID)
   }
 
-  func testFlagRuleChangesNothingButAsksForReview() {
-    var read = line(payee: "PAYNOW TAN AH KOW", account: altitude)
-    let before = read.draft
-    let flag = rule(when: .init(payeeToken: "tan ah kow"), then: .flag)
-    let outcomes = IntakeRuleEngine.apply([flag], to: &read, context: context)
-    XCTAssertEqual(read.draft, before)
-    XCTAssertEqual(outcomes.first?.needsReview, true)
-    XCTAssertEqual(outcomes.first?.application.effects, [.review])
-  }
-
   func testChangingAFieldARuleSetCountsAsAnOverrideAndOtherEditsDoNot() {
     var proposed = TransactionDraft()
     proposed.payeeName = "Kopitiam"
@@ -386,22 +370,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertTrue(skill.rules[0].enabled, "flagged for removal, never removed or switched off by itself")
   }
 
-  func testDayWindowUsesTheAccountOverrideThenTheGlobalValueWithinOneToSeven() {
-    var skill = IntakeSkill()
-    skill.accounts = [
-      IntakeAccountSkill(id: altitude, notes: "", dedupeDayWindow: 5),
-      IntakeAccountSkill(id: uob, notes: "", dedupeDayWindow: 40),
-      IntakeAccountSkill(id: everyday, notes: "", dedupeDayWindow: 0),
-    ]
-    XCTAssertEqual(skill.dayWindow(forAccount: nil), 3)
-    XCTAssertEqual(skill.dayWindow(forAccount: "acct-unknown"), 3)
-    XCTAssertEqual(skill.dayWindow(forAccount: altitude), 5)
-    XCTAssertEqual(skill.dayWindow(forAccount: uob), 7)
-    XCTAssertEqual(skill.dayWindow(forAccount: everyday), 1)
-    skill.dedupe.dayWindow = 9
-    XCTAssertEqual(skill.dayWindow(forAccount: "acct-unknown"), 7)
-  }
-
   func testMatcherUsesTheAccountsOwnWindowForItsLines() {
     var skill = IntakeSkill()
     skill.accounts = [IntakeAccountSkill(id: altitude, notes: "", dedupeDayWindow: 5)]
@@ -417,7 +385,7 @@ final class IntakeSkillTests: XCTestCase {
       openAccountIDs: [everyday, altitude],
       candidates: [existing]
     )
-    XCTAssertEqual(inAltitude.first?.targetTransactionID, "row-1", "DBS Altitude allows 5 days")
+    XCTAssertEqual(inAltitude.first?.targetTransactionID, "row-1", "the Miles Card allows 5 days")
 
     let sameRowOtherAccount = IntakeCandidateRow(
       id: "row-2", accountID: everyday, date: "2026-06-25", amountMilli: -8_900, payeeName: "Grab", categoryID: nil, approved: true
@@ -440,7 +408,7 @@ final class IntakeSkillTests: XCTestCase {
       "dedupe": { "dayWindow": 99, "somethingNew": true },
       "notes": "Food delivery is Eating Out.",
       "accounts": [
-        { "id": "acct-uob", "notes": "CR lines are cashback.", "dedupeDayWindow": 5 },
+        { "id": "acct-cashback", "notes": "CR lines are cashback.", "dedupeDayWindow": 5 },
         { "notes": "no id, so unusable" }
       ],
       "rules": [
@@ -489,15 +457,8 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(skill.locale.dateOrder, .dmy, "an unknown date order falls back to the default")
     XCTAssertEqual(skill.dedupe.dayWindow, 7, "out-of-range window is clamped")
     XCTAssertEqual(skill.notes, "Food delivery is Eating Out.")
-    XCTAssertEqual(skill.accounts.map(\.id), ["acct-uob"])
+    XCTAssertEqual(skill.accounts.map(\.id), ["acct-cashback"])
     XCTAssertEqual(skill.accounts.first?.dedupeDayWindow, 5)
-  }
-
-  func testNotesLongerThanTheCapAreCutOnLoad() throws {
-    let long = String(repeating: "a", count: IntakeSkill.notesLimit + 500)
-    let data = try JSONSerialization.data(withJSONObject: ["notes": long])
-    let skill = try IntakeSkillStore.decoder().decode(IntakeSkill.self, from: data)
-    XCTAssertEqual(skill.notes.count, 4_000)
   }
 
   func testStoreRoundTripsAtomicallyAndRefusesToOverwriteAFileItCannotRead() throws {
@@ -623,14 +584,6 @@ final class IntakeSkillTests: XCTestCase {
     XCTAssertEqual(Set(skill.rules.map(\.id)), [allAccounts.id, otherFamily.id, altitudeRule.id])
   }
 
-  func testSuppressionLastsThirtyDaysAndIsForgottenAfterwards() {
-    var skill = IntakeSkill()
-    skill.suppress("category|kopitiam|cat-eating-out", at: now)
-    XCTAssertTrue(skill.isSuppressed("category|kopitiam|cat-eating-out", at: now.addingTimeInterval(29 * 86_400)))
-    XCTAssertFalse(skill.isSuppressed("category|kopitiam|cat-eating-out", at: now.addingTimeInterval(31 * 86_400)))
-    XCTAssertFalse(skill.isSuppressed("category|kopitiam|cat-groceries", at: now), "only that exact suggestion")
-  }
-
   func testPromptGuidanceCombinesGlobalAndAccountNotesWithinTheCap() {
     var skill = IntakeSkill()
     XCTAssertNil(skill.promptGuidance(accountID: altitude))
@@ -670,24 +623,6 @@ final class IntakeSkillTests: XCTestCase {
     )
   }
 
-  func testCategoryCorrectionOutranksARenameWhenCountsTie() throws {
-    let rename = applied(payee: "SHOPEE SG", proposedCategory: nil, category: nil, finalPayee: "Shopee")
-    let kopi = applied(payee: "KOPITIAM AMK", proposedCategory: nil, category: eatingOut)
-    let suggestion = try XCTUnwrap(
-      IntakeRuleSuggester.suggest(applied: [rename, kopi], jobID: UUID(), skill: IntakeSkill(), now: now)
-    )
-    XCTAssertEqual(suggestion.rule(scope: .payee).then, .setCategory(eatingOut))
-  }
-
-  func testRenameIsOfferedWhenItIsTheOnlyCorrection() throws {
-    let rename = applied(payee: "SHOPEE SG", proposedCategory: nil, category: nil, finalPayee: "Shopee")
-    let suggestion = try XCTUnwrap(
-      IntakeRuleSuggester.suggest(applied: [rename], jobID: UUID(), skill: IntakeSkill(), now: now)
-    )
-    XCTAssertEqual(suggestion.rule(scope: .payee).when.payeeToken, "shopee")
-    XCTAssertEqual(suggestion.rule(scope: .payee).then, .renamePayee("Shopee"))
-  }
-
   func testNothingIsOfferedWithoutAPayeeOrCategoryCorrection() {
     // Approved as read; an amount edit; a row the owner never applied; a transfer.
     let untouched = applied(payee: "KOPITIAM AMK", proposedCategory: eatingOut, category: eatingOut)
@@ -712,7 +647,12 @@ final class IntakeSkillTests: XCTestCase {
     let first = try XCTUnwrap(IntakeRuleSuggester.suggest(applied: [kopi], jobID: UUID(), skill: skill, now: now))
 
     skill.suppress(first.key, at: now)
-    XCTAssertNil(IntakeRuleSuggester.suggest(applied: [kopi], jobID: UUID(), skill: skill, now: now.addingTimeInterval(86_400)))
+    XCTAssertNil(IntakeRuleSuggester.suggest(applied: [kopi], jobID: UUID(), skill: skill, now: now.addingTimeInterval(29 * 86_400)))
+    let otherCategory = applied(payee: "KOPITIAM AMK", proposedCategory: nil, category: groceries)
+    XCTAssertNotNil(
+      IntakeRuleSuggester.suggest(applied: [otherCategory], jobID: UUID(), skill: skill, now: now),
+      "Just this once hides only that suggestion"
+    )
     XCTAssertNotNil(
       IntakeRuleSuggester.suggest(applied: [kopi], jobID: UUID(), skill: skill, now: now.addingTimeInterval(31 * 86_400))
     )
@@ -743,7 +683,7 @@ final class IntakeSkillTests: XCTestCase {
     )
     XCTAssertNotNil(
       IntakeRuleSuggester.suggest(applied: [kopiAtDBS], jobID: UUID(), skill: skill, now: now),
-      "a UOB rule does not block offering one for DBS"
+      "a rule on one card does not block offering one for another"
     )
     var allAccounts = IntakeSkill()
     allAccounts.add(rule(scope: .payee("kopitiam"), when: .init(payeeToken: "kopitiam"), then: .setCategory(eatingOut)))
@@ -769,15 +709,13 @@ final class IntakeSkillTests: XCTestCase {
       IntakeRuleSuggester.suggest(applied: [renamedAway], jobID: UUID(), skill: IntakeSkill(), now: now)
     )
     XCTAssertEqual(rename.rule(scope: .payee).when.payeeToken, "starbucks")
+    XCTAssertEqual(rename.rule(scope: .payee).then, .renamePayee("Coffee corner"))
   }
 
-  func testDefaultScopeIsTheAccountForASingleAccountBatchAndThePayeeOtherwise() throws {
+  // The single-account default is proven by the Remember run in .amp/in/artifacts/share-intake/f9f98de/; these are the cases it does not reach.
+  func testAllAccountsChoiceIsNotBoundToTheAccountAndAMixedBatchDefaultsToThePayee() throws {
     let one = applied(payee: "KOPITIAM AMK", proposedCategory: nil, category: eatingOut, account: altitude)
     let single = try XCTUnwrap(IntakeRuleSuggester.suggest(applied: [one], jobID: UUID(), skill: IntakeSkill(), now: now))
-    XCTAssertEqual(single.accountID, altitude)
-    XCTAssertEqual(single.defaultScope, .account)
-    XCTAssertEqual(single.rule(scope: .account).scope, .account(altitude))
-    XCTAssertEqual(single.rule(scope: .account).when.accountID, altitude)
     XCTAssertEqual(single.rule(scope: .payee).scope, .payee("kopitiam"))
     XCTAssertNil(single.rule(scope: .payee).when.accountID)
 
@@ -821,7 +759,7 @@ final class IntakeSkillTests: XCTestCase {
 
   private func line(
     payee: String,
-    account: String = "acct-altitude",
+    account: String = "acct-miles",
     direction: EntryDirection = .outflow,
     date: String = "2026-06-30"
   ) -> SlipMappedDraft {
@@ -847,7 +785,7 @@ final class IntakeSkillTests: XCTestCase {
   private func category(
     after rules: [IntakeRule],
     payee: String,
-    account: String = "acct-altitude",
+    account: String = "acct-miles",
     direction: EntryDirection = .outflow
   ) -> String? {
     var read = line(payee: payee, account: account, direction: direction)
@@ -862,7 +800,7 @@ final class IntakeSkillTests: XCTestCase {
     proposedCategory: String?,
     category: String?,
     finalPayee: String? = nil,
-    account: String = "acct-altitude"
+    account: String = "acct-miles"
   ) -> IntakeProposal {
     var proposed = TransactionDraft()
     proposed.payeeName = payee

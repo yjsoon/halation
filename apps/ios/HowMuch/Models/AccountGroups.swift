@@ -236,7 +236,7 @@ struct AccountListGroup: Identifiable, Equatable {
   }
 
   var total: Int {
-    accounts.reduce(0) { $0 + $1.balance }
+    accounts.map(\.balance).saturatingSum()
   }
 
   func matching(_ search: String) -> AccountListGroup? {

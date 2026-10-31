@@ -5,7 +5,7 @@ import type { QuickEntrySplitLine, Transaction } from "../api/types";
 import { CategorySelect } from "../components/CategorySelect";
 import { splitCategoryGroups } from "../lib/categories";
 import { formatDate, todayIso, yesterdayIso } from "../lib/dates";
-import { formatMilliunitsInput, formatMoney, parseMilliunits } from "../lib/money";
+import { formatMoney, parseMilliunits } from "../lib/money";
 import { resolvePostingAccountId } from "../lib/register-compose";
 import { usePlan } from "../state/plan";
 import { StatusPanel } from "../components/StatusPanel";
@@ -127,7 +127,7 @@ export function QuickEntryPage() {
       const subtransactions: QuickEntrySplitLine[] | undefined =
         !isTransfer && isSplit
           ? splitLines.map((line) => ({
-              amount: formatMilliunitsInput((direction === "income" ? 1 : -1) * (parseMilliunits(line.amount) ?? 0)),
+              amount_milli: (direction === "income" ? 1 : -1) * (parseMilliunits(line.amount) ?? 0),
               category_id: line.categoryId || null,
               memo: line.memo.trim() || null,
             }))
@@ -136,7 +136,7 @@ export function QuickEntryPage() {
         client_id: clientIdRef.current,
         account_id: selectedAccount,
         date,
-        amount: formatMilliunitsInput(signedAmount),
+        amount_milli: signedAmount,
         payee_id: isTransfer ? (selectedTarget?.transfer_payee_id ?? null) : null,
         payee_name: isTransfer ? null : payeeName.trim(),
         category_id: isTransfer || isSplit ? null : categoryId || null,
@@ -187,7 +187,7 @@ export function QuickEntryPage() {
 
       {!openAccounts.length ? (
         <StatusPanel error title="No open accounts available.">
-          Add an account before using quick entry.
+          <Link to="/accounts/new?then=add">Add an account</Link> before using quick entry.
         </StatusPanel>
       ) : (
         <form onSubmit={submit} className="quick-entry-form">

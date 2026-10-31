@@ -327,10 +327,6 @@ final class CaptureSession: Identifiable {
     admitted = true
   }
 
-  var saveableDrafts: [TransactionDraft] {
-    includedDrafts.map(\.draft)
-  }
-
   var currentDrafts: [CaptureDraftItem] {
     drafts.filter { !$0.committed }
   }
@@ -364,19 +360,6 @@ final class CaptureSession: Identifiable {
 
   var isWaitingOnAttachmentOCR: Bool {
     attachments.contains { $0.isReading && !$0.data.isEmpty }
-  }
-
-  var canSaveIncluded: Bool {
-    !includedDrafts.isEmpty
-      && admitted
-      && !hasUnresolvedAmbiguity
-      && !isBusy
-      && !isIngesting
-      && !isSaving
-      && pendingTargetDraftIDs.isEmpty
-      && pendingQuery == nil
-      && pendingUpdateTurn == nil
-      && includedDrafts.allSatisfy { $0.draft.canSave }
   }
 
   var persistableAttachments: [CaptureAttachment] {
@@ -500,35 +483,6 @@ final class CaptureSession: Identifiable {
     touch()
   }
 
-  @discardableResult
-  func appendManualDraft(_ draft: TransactionDraft) -> CaptureDraftItem {
-    var fresh = draft
-    fresh.importID = UUID().uuidString.lowercased()
-    var item = CaptureDraftItem(draft: fresh)
-    item.hasManualEdits = true
-    item.accountWasExplicit = !fresh.accountID.isEmpty
-    item.categoryWasExplicit = fresh.categoryID != nil
-    drafts.append(item)
-    selectedManualDraftID = item.id
-    if !item.draft.accountID.isEmpty {
-      selectedAccountID = item.draft.accountID
-    }
-    messages.append(CaptureMessage(kind: .system, text: "Entered manually", ownedDraftIDs: [item.id]))
-    touch()
-    return item
-  }
-
-  func upsertManualDraft(_ draft: TransactionDraft) {
-    if let identity = draft.importID, let index = drafts.firstIndex(where: { $0.id == identity }) {
-      guard !drafts[index].committed else {
-        return
-      }
-      applyManualEdit(draft, id: identity)
-      return
-    }
-    _ = appendManualDraft(draft)
-  }
-
   func ownUnownedDrafts(as text: String) {
     let unowned = drafts.filter { ownerMessageID(forDraft: $0.id) == nil }
     guard !unowned.isEmpty else {
@@ -543,10 +497,6 @@ final class CaptureSession: Identifiable {
       return false
     }
     return !Set(last.affectedDraftIDs).isDisjoint(with: ownedIDs)
-  }
-
-  func canUndoDraft(_ id: String) -> Bool {
-    canUndo(ownedIDs: [id])
   }
 
   func applyManualEdit(_ draft: TransactionDraft, id: String) {
@@ -1022,10 +972,6 @@ final class CaptureSession: Identifiable {
     finishReply(text: message, state: .failed, replyID: frozenTurn?.replyMessageID)
   }
 
-  func markCommittedIncluded() {
-    markCommitted(ids: includedDrafts.map(\.id))
-  }
-
   func markCommitted(ids: [String]) {
     let accepted = Set(ids)
     for index in drafts.indices where accepted.contains(drafts[index].id) {
@@ -1064,7 +1010,7 @@ final class CaptureSession: Identifiable {
     if !pendingTargetDraftIDs.isEmpty {
       return "Choose which transaction to change before saving."
     }
-    if hasUnresolvedAmbiguity || pendingQuery != nil {
+    if hasUnresolvedAmbiguity {
       return "Choose an account or category before saving."
     }
     return "Enter an amount and pick an account."
@@ -1316,6 +1262,14 @@ final class CaptureSession: Identifiable {
     turn: CaptureInterpretedTurn,
     changes: [CaptureMappedChange]
   ) -> PreparedUpdates? {
+    let targetsSavedCard = drafts.contains { item in
+      item.committed && (turn.applyToAllDrafts || changes.contains { change in
+        change.targetDraftID == item.id || (change.targetDraftID == nil && drafts.count == 1)
+      })
+    }
+    if targetsSavedCard {
+      return .clarification("That transaction is already saved. Open it in the register to make changes.", shouldHold: false)
+    }
     if turn.applyToAllDrafts {
       var assignments: [(index: Int, change: CaptureMappedChange)] = []
       var splitWarning: String?

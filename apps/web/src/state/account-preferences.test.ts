@@ -13,7 +13,7 @@ import {
   renameCustomAccountGroup,
   setAccountGroupSort,
   setAccountInCustomGroup,
-  toggleFavouriteAccount,
+  setFavouriteAccount,
 } from "./account-preferences";
 
 function snapshot(accountPreferences: AccountPreferences, revision: number): AccountPreferencesSnapshot {
@@ -25,7 +25,7 @@ function snapshot(accountPreferences: AccountPreferences, revision: number): Acc
 
 describe("account preference editing", () => {
   test("edits favourites, custom groups, membership, group order, and manual account order", () => {
-    let preferences = toggleFavouriteAccount(emptyAccountPreferences(), "cash");
+    let preferences = setFavouriteAccount(emptyAccountPreferences(), "cash", true);
     preferences = addCustomAccountGroup(preferences, "custom-travel", " Travel ");
     preferences = addCustomAccountGroup(preferences, "custom-shared", "Shared");
     preferences = setAccountInCustomGroup(preferences, "custom-travel", "cash", true);
@@ -130,7 +130,7 @@ describe("AccountPreferencesController", () => {
       },
     });
 
-    controller.update((preferences) => toggleFavouriteAccount(preferences, "cash"));
+    controller.update((preferences) => setFavouriteAccount(preferences, "cash", true));
     await started;
     controller.detach();
     releaseWrite();
@@ -167,9 +167,9 @@ describe("AccountPreferencesController", () => {
       },
     });
 
-    controller.update((preferences) => toggleFavouriteAccount(preferences, "cash"));
+    controller.update((preferences) => setFavouriteAccount(preferences, "cash", true));
     await started;
-    controller.update((preferences) => toggleFavouriteAccount(preferences, "card"));
+    controller.update((preferences) => setFavouriteAccount(preferences, "card", true));
     expect(controller.state.preferences.favourite_account_ids).toEqual(["cash", "card"]);
     releaseFirstWrite();
     await controller.settled();
@@ -196,7 +196,7 @@ describe("AccountPreferencesController", () => {
       },
     });
 
-    controller.update((preferences) => toggleFavouriteAccount(preferences, "cash"));
+    controller.update((preferences) => setFavouriteAccount(preferences, "cash", true));
     await controller.settled();
     expect(controller.state).toMatchObject({ phase: "error", revision: 4 });
     expect(controller.state.preferences.favourite_account_ids).toEqual(["cash"]);
@@ -216,7 +216,7 @@ describe("AccountPreferencesController", () => {
       },
     });
 
-    controller.update((preferences) => toggleFavouriteAccount(preferences, "cash"));
+    controller.update((preferences) => setFavouriteAccount(preferences, "cash", true));
     await controller.settled();
 
     expect(controller.state).toMatchObject({ phase: "unsupported", revision: 0 });

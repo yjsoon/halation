@@ -62,6 +62,7 @@ Keep implementation details out of the map. Name only user paths, stable handles
 - [Rewards import](./rewards-tracker-import.md) covers uploading a Rewards Tracker settings export and replaying it without duplicates.
 - [Rewards](./rewards.md) covers the Rewards board, now a top-level Primary navigation item: Travel Card tiles, All-range spend, flags, grouping, and **Add card**.
 - [Rewards card edit](./rewards-card-edit.md) covers `/rewards/new`, `/rewards/:cardId`, Save card, Delete card, and hiding a capped tile.
+- [Add account](./add-account.md) covers the empty-ledger prompts and creating an account at `/accounts/new`.
 - [Organise accounts](./organise-accounts.md) covers favourites, a custom group, and the sidebar after close.
 
 iOS (Simulator + same API). Specs in `docs/frontend/intake-ui.md` and `docs/frontend/app-intents.md`.
@@ -74,7 +75,5 @@ iOS (Simulator + same API). Specs in `docs/frontend/intake-ui.md` and `docs/fron
 - [iOS edit account](./ios-edit-account.md) covers changing an account’s name, type, and icon from Accounts or the register.
 - [iOS capture](./ios-capture.md) covers the existing Add Transaction sheet, keypad Save, Duplicate for Today, and the Add Expense Quick Action. After #98 those doors share one sheet.
 - [iOS capture typed replies](./ios-capture-typed-replies.md) covers the conversational Add Transactions waiting typewriter and the finished-reply typewriter on a successful parse (#153). Darwin / Xcode only. Both sub-features are proven; on-device Foundation Models on HowMuch Verification still fail.
-- [iOS intake compose](./ios-intake-compose.md) covers the typed/pasted compose field, `N == 1` prefill, ambiguous ochre chips, and Apple Intelligence off (#99 / #102). Skip until the field exists.
-- [iOS intake review list](./ios-intake-review-list.md) covers two spends in one sentence opening **{N} Transactions** (#103). Skip until that sheet exists.
 - [iOS App Intents](./ios-app-intents.md) covers structured Shortcuts **Add Transaction** landing on the sheet without auto-save (#101). Skip until Shortcuts lists the intent.
 - [iOS share and screenshots](./ios-share-and-screenshots.md) covers the share extension inbox and the Accounts screenshot offer (#104 / #106). Skip until those surfaces exist.

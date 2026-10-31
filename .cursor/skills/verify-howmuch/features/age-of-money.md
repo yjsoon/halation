@@ -35,5 +35,5 @@ Preconditions:
 - A clipped window (This month, leftover spending dates) makes the age look empty or distorted. The page defaults to all history on purpose.
 - Category filters are ignored. The page does not show a category control.
 - Unmatched spending is income-less outflow from before the first inflow. A diagnostic note appears only when that total is above zero.
-- Heading, nav link and document title all read `Money age`; the route is still `/age-of-money` and the History column still says `Age of money`. iOS still says Age of Money under Reflect.
+- Heading, nav link and document title all read `Money age`; the route is still `/age-of-money` and the History column still says `Age of money`. iOS still says Age of Money under Insights.
 - On a viewport ≤720px the filter rail sits behind **Filters ▾**. Open it before choosing `This month` or `All`.

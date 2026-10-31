@@ -15,7 +15,6 @@ import {
   rowId,
   sameRow,
   sessionRowGone,
-  transferOptionLabel,
   writableFocus,
   type RegisterRowDraft,
   type RegisterRowEditAction,
@@ -109,6 +108,8 @@ const shopDraft: RegisterRowDraft = {
   outflow: "3.40",
   inflow: "",
   flagColor: "",
+  needsConfirmation: false,
+  claimStatus: null,
 };
 
 describe("sameRow and rowId", () => {
@@ -303,6 +304,22 @@ describe("planRowCommit", () => {
     expect(planRowCommit(row, shopDraft, payees)).toEqual({ kind: "unchanged" });
     expect(planRowCommit(row, { ...shopDraft, payeeName: "  shop  ", memo: " coffee " }, payees)).toEqual({
       kind: "unchanged",
+    });
+  });
+
+  // Rows saved before amounts were held to the currency's minor unit (12.345
+  // in a cents plan) prefill text that no longer parses; a memo-only edit
+  // must not be refused for an amount the user never touched.
+  test("keeps an untouched sub-cent amount and patches the rest", () => {
+    const row = posted(txn({ amount: -12_345 }));
+    const begun = beginRowEdit(row, "memo", { writeLocked: false, mutatingId: null } as RowEditContext);
+    expect(begun.kind).toBe("begin");
+    if (begun.kind !== "begin" || begun.action.type !== "begin") return;
+    expect(begun.action.draft.outflow).toBe("12.345");
+    expect(planRowCommit(row, { ...begun.action.draft, memo: "tea" }, payees)).toEqual({
+      kind: "patch",
+      transactionId: "txn-1",
+      input: { memo: "tea" },
     });
   });
 
@@ -735,12 +752,11 @@ describe("payeeListEntries", () => {
   const self = payee("p-self", "Transfer : Everyday Account", "acct");
   const listed = [shop, coffee, transfer, self];
 
-  test("labels transfer options from account names and keeps payee.name as the value", () => {
-    expect(transferOptionLabel("Rainy Day Saver")).toBe("Transfer to Rainy Day Saver");
+  test("names transfer options by account and keeps payee.name as the value", () => {
     expect(payeeListEntries(listed, [everyday, saver], "acct")).toEqual([
       { id: "p-shop", value: "Shop" },
       { id: "p-coffee", value: "Coffee" },
-      { id: "p-xfer", value: "Transfer : Rainy Day Saver", label: "Transfer to Rainy Day Saver" },
+      { id: "p-xfer", value: "Transfer : Rainy Day Saver", transferAccount: "Rainy Day Saver", transferAccountIcon: "🏦" },
     ]);
   });
 
@@ -770,7 +786,14 @@ describe("parseAmountEntry", () => {
   test("parses a plain decimal through parseMilliunits", () => {
     expect(parseAmountEntry("3.40")).toBe(3400);
     expect(parseAmountEntry("0")).toBe(0);
-    expect(parseAmountEntry("1.135")).toBe(1135);
+    expect(parseAmountEntry("1.13")).toBe(1130);
+    expect(parseAmountEntry("1.135")).toBeNull();
+  });
+
+  test("refuses a sum past the storage cap", () => {
+    expect(parseAmountEntry("1000000000000")).toBe(1_000_000_000_000_000);
+    expect(parseAmountEntry("1000000000000+0.01")).toBeNull();
+    expect(parseAmountEntry("999999999999*999999")).toBeNull();
   });
 
   test("adds and subtracts in exact milliunits", () => {
@@ -779,10 +802,19 @@ describe("parseAmountEntry", () => {
     expect(parseAmountEntry("5-2")).toBe(3000);
   });
 
-  test("divides and multiplies with half-away-from-zero milliunit rounding", () => {
+  test("divides and multiplies with half-away-from-zero rounding to the minor unit", () => {
     expect(parseAmountEntry("12/4")).toBe(3000);
     expect(parseAmountEntry("2*3")).toBe(6000);
-    expect(parseAmountEntry("20/3")).toBe(6667);
+    expect(parseAmountEntry("20/3")).toBe(6670);
+    expect(parseAmountEntry("10/3")).toBe(3330);
+    expect(parseAmountEntry("0.05/2")).toBe(30);
+    try {
+      configureMoney({ iso_code: "JPY", example_format: "123,456", decimal_digits: 0, decimal_separator: ".", symbol_first: true, group_separator: ",", currency_symbol: "¥", display_symbol: true });
+      expect(parseAmountEntry("1000/3")).toBe(333_000);
+      expect(parseAmountEntry("1000/3*2")).toBe(667_000);
+    } finally {
+      configureMoney(undefined);
+    }
   });
 
   test("honours multiplication precedence and parentheses", () => {
@@ -880,7 +912,8 @@ describe("amounts in a zero-decimal comma plan", () => {
   test("reads a typed sum number by number", () => {
     try {
       configureMoney(format);
-      expect(parseAmountEntry("1,234+1")).toBe(2_234);
+      expect(parseAmountEntry("1.234+1")).toBe(1_235_000);
+      expect(parseAmountEntry("1,234+1")).toBeNull();
     } finally {
       configureMoney(undefined);
     }

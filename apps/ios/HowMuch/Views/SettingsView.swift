@@ -195,6 +195,9 @@ struct SettingsView: View {
   @State private var testResult: TestResult?
   @State private var isTesting = false
   @State private var setupState: SetupState = .idle
+  /// Whether the server checked by `checkSetupStatus` sends new transactions
+  /// to TypeSafe for a category. False until that server says so.
+  @State private var categoriserEnabled = false
   @State private var planState: PlanState = .idle
   @State private var planRequestID = UUID()
   @State private var isEditingConnection = false
@@ -298,6 +301,7 @@ struct SettingsView: View {
     }
     .onChange(of: draft.baseURLString) {
       setupState = .idle
+      categoriserEnabled = false
       testResult = nil
       planState = .idle
       planRequestID = UUID()
@@ -333,6 +337,7 @@ struct SettingsView: View {
     Section {
       NavigationLink {
         CaptureAISettingsView(settings: model.captureAI)
+          .onDisappear { model.publishShareContext() }
       } label: {
         LabeledContent {
           Text(model.captureAI.displayName)
@@ -351,6 +356,13 @@ struct SettingsView: View {
   }
 
   private static let clipboardImagesFooter = "Offers only the image currently on your clipboard. iOS may ask for paste permission. Images are checked on this device, and your Photos library is never read."
+
+  @ViewBuilder
+  private var categoriserSection: some View {
+    if categoriserEnabled {
+      CategoriserNoticeSection()
+    }
+  }
 
   private var captureSection: some View {
     Section {
@@ -391,6 +403,7 @@ struct SettingsView: View {
       }
       assistantSection
       captureSection
+      RemindersSettingsSection()
       DataSection()
     }
     .navigationTitle("Settings")
@@ -447,8 +460,10 @@ struct SettingsView: View {
       } footer: {
         planFooter
       }
+      categoriserSection
       assistantSection
       captureSection
+      RemindersSettingsSection()
       DataSection(isSelectionSaved: exportSelectionSaved)
       if let localArchive {
         LocalArchiveSection(archive: localArchive)
@@ -561,6 +576,8 @@ struct SettingsView: View {
         }
       }
       .disabled(isTesting)
+
+      categoriserSection
 
       if setupState == .required {
         SetupRequiredSection(setupURL: draft.browserSetupURL) {
@@ -739,7 +756,7 @@ struct SettingsView: View {
         // out. Such a session is logged out, never attached to the draft.
         guard attempts.current == attemptID,
               draft.trimmedBaseURL == attempt.trimmedBaseURL, draft.username == attempt.username else {
-          if case .signedIn(let orphan) = outcome {
+          if case .signedIn(let orphan, _) = outcome {
             try? await APIClient(settings: orphan).logout()
           }
           if attempts.current == attemptID {
@@ -747,13 +764,14 @@ struct SettingsView: View {
           }
           return
         }
-        guard case .signedIn(let signedIn) = outcome else {
+        guard case .signedIn(let signedIn, let categoriser) = outcome else {
           setupState = .required
           testResult = .failure("Finish setup in the website before signing in.")
           isTesting = false
           return
         }
         setupState = .ready
+        categoriserEnabled = categoriser
         if let previous = formSession, previous.sessionToken != saved.sessionToken {
           Task { try? await APIClient(settings: previous).logout() }
         }
@@ -825,9 +843,11 @@ struct SettingsView: View {
   private func checkSetupStatus() {
     guard draft.isConfigured else {
       setupState = .idle
+      categoriserEnabled = false
       return
     }
     setupState = .checking
+    categoriserEnabled = false
     let checkedBaseURL = draft.trimmedBaseURL
     var statusSettings = draft
     statusSettings.sessionToken = ""
@@ -839,6 +859,7 @@ struct SettingsView: View {
           return
         }
         setupState = status.setupRequired ? .required : .ready
+        categoriserEnabled = status.categoriserEnabled == true
       } catch {
         guard draft.trimmedBaseURL == checkedBaseURL else {
           return

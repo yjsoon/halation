@@ -15,6 +15,8 @@ import type { ScheduledOccurrenceResult } from "@howmuch/contract";
 
 export type ClearedState = "cleared" | "uncleared" | "reconciled";
 
+export type ClaimStatus = "to_claim" | "claimed";
+
 export type TransactionInput = {
   id?: string;
   account_id: string;
@@ -29,6 +31,9 @@ export type TransactionInput = {
   approved?: boolean | null;
   flag_color?: string | null;
   flag_name?: string | null;
+  needs_confirmation?: boolean | null;
+  claim_status?: ClaimStatus | null;
+  claimed_on?: string | null;
   transfer_account_id?: string | null;
   transfer_transaction_id?: string | null;
   matched_transaction_id?: string | null;

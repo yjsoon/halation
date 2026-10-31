@@ -25,7 +25,9 @@ The first owner is created once with `POST /api/auth/setup`, authorized by `HOWM
 
 Signed-in browser users manage long-lived personal credentials at `GET`/`POST /api/auth/personal-tokens` and `DELETE /api/auth/personal-tokens/{id}`. Creation returns the `hm_pat_…` bearer value once; Halation stores only its SHA-256 fingerprint. Personal tokens inherit the user's current plan memberships, remain valid until revoked, and cannot create or manage other tokens. Management requires the secure browser session and same-origin checks; the global integration token and native bearer sessions are not accepted.
 
-`GET /api/auth/status` also returns `roles` (plan id to `owner`, `editor` or `viewer`) when the caller holds a user session. Clients use it to show owner-only controls; the server enforces the role on every write regardless.
+`GET /api/auth/status` reports `setup_required` (no owner exists yet), `bootstrap_required` (setup needs the `HOWMUCH_API_TOKEN` bearer) and `setup_blocked` (setup is still needed but this server would refuse it because it has no `HOWMUCH_API_TOKEN`; the Worker always refuses setup without one). It also returns `roles` (plan id to `owner`, `editor` or `viewer`) when the caller holds a user session. Clients use it to show owner-only controls; the server enforces the role on every write regardless.
+
+It also returns `categoriser_enabled`: `true` when the server has a `TYPESAFE_API_KEY`, so new transactions are sent to TypeSafe for a category (see [Automatic categorisation on create](#category-suggestions-jev)). It needs no session; the iOS app reads it when signing in, before switching to the server. Servers older than this field omit it, so clients treat a missing value as unknown, not as `false`.
 
 ### Changing your password
 
@@ -285,6 +287,100 @@ Materialised transactions use deterministic occurrence IDs and immutable receipt
 
 Production invokes a separate, private automatic materialiser at `16:05 UTC` each day (`00:05 Asia/Singapore`). It is not the owner bulk route: each invocation is capped at 25 occurrences, takes one stable-order due occurrence per schedule before starting another round, re-reads the schedule before entry, and continues past an invalid schedule. Its count-only Worker log reports occurrence, closed-skip, failure, and remaining-work counts; no schedule or transaction payloads are logged. A retry uses deterministic daily and per-occurrence seeds and never duplicates already committed rows. Preview has no cron, so it remains an explicit verification environment. The Worker cron is Halation-only and never reads a YNAB token or starts a YNAB sync.
 
+### Card payment terms and payments due
+
+A card's payment terms say when its statement is generated and how long until payment is due. Terms belong to the plan, so every member and local mode see the same ones, and they travel in [plan snapshots](#plan-snapshots). Only `creditCard` and `lineOfCredit` accounts can have terms.
+
+- `GET /v1/plans/{plan_id}/card_payment_terms` lists every card's terms: `{ "card_payment_terms": [ … ], "server_knowledge": 41 }`.
+- `GET /v1/plans/{plan_id}/accounts/{account_id}/card_payment_terms` returns one card's terms as `{ "card_payment_terms": { … }, "server_knowledge": 41 }`, or `404` when the card has none.
+- `PUT /v1/plans/{plan_id}/accounts/{account_id}/card_payment_terms` replaces them.
+- `DELETE /v1/plans/{plan_id}/accounts/{account_id}/card_payment_terms` removes them and returns the removed terms, or `404` when there were none.
+
+Reads are open to owners, editors and viewers; writes need an owner or editor, and the default-plan API token (which local mode uses) is accepted for both. The PUT body is:
+
+```json
+{
+  "card_payment_terms": {
+    "statement_day": 3,
+    "due_gap_days": 25,
+    "due_weekend_rule": "next",
+    "default_funding_account_id": "acct_everyday",
+    "default_amount_rule": "statement",
+    "default_amount_milli": null,
+    "minimum_floor_milli": 50000,
+    "minimum_rate_bp": 300,
+    "pay_days_before_due": 2,
+    "lead_days": 7,
+    "delivery_hour": 8,
+    "enabled": true
+  }
+}
+```
+
+| Field | Rule | Default |
+|---|---|---|
+| `statement_day` | required, 1 to 31; a day past the month's end means its last day | |
+| `due_gap_days` | 1 to 60 calendar days from statement date to due date | 25 |
+| `due_weekend_rule` | `next` or `previous`: which way a due date on a Saturday or Sunday moves | `next` |
+| `default_funding_account_id` | a live account in the same plan other than the card, or `null` | `null` |
+| `default_amount_rule` | `statement`, `minimum` or `fixed` | `statement` |
+| `default_amount_milli` | positive milliunits or `null`; required when the rule is `fixed` | `null` |
+| `minimum_floor_milli` | 0 or more milliunits | 50000 |
+| `minimum_rate_bp` | 0 to 10000 basis points of the statement balance | 300 |
+| `pay_days_before_due` | 0 to 10 working days | 2 |
+| `lead_days` | 0 to 30 days before the due date for the main reminder | 7 |
+| `delivery_hour` | 0 to 23, the phone's local hour for reminders | 8 |
+| `enabled` | `true` or `false` | `true` |
+
+Responses also carry `created_at`, when the card's terms were first saved (ISO 8601, UTC, for example `"2026-10-18T12:01:48Z"`). The server sets it on the first PUT and keeps it on later ones; a PUT body may send it back and it is ignored.
+
+PUT replaces the whole row: an omitted field takes its default, not its stored value. `account_id` may be sent and must match the path. Unknown fields, a missing or deleted card (`404`), a non-card account, or a funding account outside the plan return `400`. Send an `Idempotency-Key` (the schedule rules above apply): an exact retry replays, and reusing the key for a different request returns `409 conflict`. Every write moves `server_knowledge`. D1 writes are guarded batches that re-check the card and funding account inside the batch.
+
+`GET /v1/plans/{plan_id}/card_payments?as_of=2026-10-18` returns the derived view. `as_of` is optional and defaults to today in the plan's time zone (`HOWMUCH_TIME_ZONE` on the Worker and the Bun server, falling back to the host's zone on Bun; the configured zone in local mode). Viewers may read it. Nothing is stored; every number is computed by `apps/api/src/card-payments.ts`.
+
+```json
+{
+  "data": {
+    "as_of": "2026-10-18",
+    "cycles": [
+      {
+        "account_id": "acct_card_a",
+        "cycle": "current",
+        "statement_date": "2026-10-03",
+        "due_date": "2026-10-28",
+        "last_safe_pay_date": "2026-10-26",
+        "default_pay_date": "2026-10-26",
+        "window_start": "2026-10-04",
+        "window_end": "2026-11-03",
+        "statement_balance": 1234560,
+        "minimum_due": 50000,
+        "current_balance": 1400000,
+        "coverage": { "state": "unscheduled" },
+        "previous_unpaid": null
+      }
+    ],
+    "server_knowledge": 41
+  }
+}
+```
+
+`cycles` holds the current and the next cycle of every enabled card whose account is live, open and still a card, ordered by due date. The rules:
+
+- **Payment window.** Windows follow each other without gaps or overlap. A cycle's window ends on the later of its next statement date and its own due date (`window_end`), and the next cycle's window starts the day after (`window_start`). A payment dated on a statement day therefore pays the previous statement, and when the gap is longer than the month (statement day 1, gap 28 in February) the cycle keeps its window until its due date.
+- **Cycle.** The current cycle is the one with the latest statement date on or before `as_of`, unless the cycle before it is not yet past its due date, in which case that earlier cycle stays current until its due date. `next` is the cycle after the current one.
+- **Dates.** `due_date` is the statement date plus `due_gap_days`, moved to the next (or previous) working day if it lands on a weekend. Saturdays and Sundays are the only non-working days for now; public holidays are not applied yet. `last_safe_pay_date` is `pay_days_before_due` working days before the due date. `default_pay_date` is the last safe day, or `as_of` once that has passed or while the cycle is overdue, always kept inside the window.
+- **Amounts** are positive when owed. `statement_balance` is what the register says was owed at the end of the statement date (opening balance plus live rows dated on or before it, negated), so it is an estimate to check against the real statement. For the next cycle it is a projection: what has been recorded so far, less payments still waiting as schedules into the card dated on or before its statement date. Zero or negative means nothing is due. `minimum_due` is the higher of `minimum_floor_milli` and `minimum_rate_bp` of the statement balance (rounded up to a cent), capped at the statement balance, and `0` when nothing is due. `current_balance` is the amount owed now (the account balance negated).
+- **Coverage.** A payment is a transfer into the card dated in the window. The states, best first:
+  - `paid` `{ transaction_id, amount, date }`: approved or cleared payments add up to at least `minimum_due` (`amount` is their sum, `transaction_id` and `date` the latest).
+  - `posted` `{ transaction_id, approved: false, amount, date }`: counting unapproved, uncleared payments too, they reach `minimum_due` (typically a materialised schedule waiting for approval).
+  - `scheduled` `{ scheduled_transaction_id, pay_date, amount, funding_account_id }`: a schedule moving money into the card (a `never` one-off or any recurrence, split schedules excluded) has an occurrence in the window; `pay_date` is the first one.
+  - `settled` `{}`: nothing is owed on the card now (`current_balance` is zero or less), for example after a payment entered as a plain inflow rather than a transfer. It replaces `partial`, `overdue` and `unscheduled`. Payees are never used to guess payments.
+  - `overdue` `{ since, paid_amount }`: a due date on or after the day the terms were created has passed with a positive statement balance and no payment reaching the minimum. `since` is the missed due date and `paid_amount` what was paid in this cycle's window. When the previous statement is overdue and the current cycle is not paid, posted or settled, the current cycle carries it: `previous_unpaid` is `{ statement_date, due_date, statement_balance, minimum_due }` of that statement, and an otherwise uncovered current cycle is `overdue` with `since` set to the previous due date. A current cycle that is `scheduled` keeps that state and still reports `previous_unpaid`. For this carry-over decision only, every inflow into the card counts, not just transfers: the previous statement is not carried when inflows (transfers or plain positive amounts, never judged by payee) dated in its window reach its minimum, and the carry clears once inflows in the current window, dated after the previous due date, reach the previous `minimum_due` (a late payment). The previous cycle's own coverage rules are unchanged.
+  - `partial` `{ transaction_id, date, paid_amount, remaining_amount }`: payments in the window, but less than `minimum_due`, before the due date. `remaining_amount` is `statement_balance - paid_amount`, floored at zero.
+  - `unscheduled` `{}`: nothing yet.
+
+  `paid`, `posted`, `scheduled` and `settled` count as covered; `partial`, `overdue` and `unscheduled` do not, so reminders continue. A due date before the terms were created (in the plan's time zone) is never overdue, so setting up a card does not report old statements as missed. `previous_unpaid` is always `null` on the next cycle.
+
 ### Imported read-only collections
 
 `GET /v1/plans/{plan_id}/payee_locations` returns exact objects from the imported YNAB mirror. It has no Halation mutation endpoint yet.
@@ -299,7 +395,9 @@ Supported query parameters:
 
 - `since_date`
 - `until_date`
-- `type`
+- `type`: `unapproved`, `approved`, `uncategorized`, `needs_confirmation`
+  (rows whose amount is still to be confirmed; see [To confirm](#to-confirm)),
+  `to_claim` or `claimed` (see [To claim](#to-claim))
 - `last_knowledge_of_server`
 - `limit` — whole number from 1 to 250; defaults to 100
 - `offset` — zero-based whole-number offset; defaults to 0
@@ -344,6 +442,23 @@ The count and `server_knowledge` are read in one batch, so the number is always
 labelled with the knowledge value it was counted at. Clients show the "New"
 badge from this and load the queue rows only when the approval flow is opened,
 instead of paging the whole queue before the register is usable.
+
+To-confirm count:
+
+`GET /v1/plans/{plan_id}/transactions/needs_confirmation_count`
+
+`GET /v1/plans/{plan_id}/accounts/{account_id}/transactions/needs_confirmation_count`
+
+Same shape and rules as the unapproved count, over the rows
+`?type=needs_confirmation` lists.
+
+To-claim count:
+
+`GET /v1/plans/{plan_id}/transactions/to_claim_count`
+
+`GET /v1/plans/{plan_id}/accounts/{account_id}/transactions/to_claim_count`
+
+Same shape and rules again, over the rows `?type=to_claim` lists.
 
 Bulk import:
 
@@ -409,7 +524,7 @@ Collection update:
 ```json
 {
   "transactions": [
-    { "id": "txn-1", "memo": "CLAIMED" },
+    { "id": "txn-1", "claim_status": "claimed", "claimed_on": "2026-01-02" },
     { "import_id": "source-unique-id", "approved": true }
   ]
 }
@@ -514,6 +629,109 @@ Updatable fields:
 - `approved`
 - `flag_color`
 - `flag_name`
+- `needs_confirmation`
+- `claim_status`
+- `claimed_on`
+
+#### To confirm
+
+`needs_confirmation` is a boolean on every transaction. `true` means the
+amount in the plan currency is an estimate that still has to be checked
+against the statement. It is HowMuch's own field, not part of the YNAB API:
+YNAB clients can ignore it, and an omitted or `null` value on create means
+`false`. The web and iOS apps show these rows with an amber ≈ before the
+amount and list them under "to confirm".
+
+Guidance for MCP servers, agents and scripts that add transactions:
+
+- Set `needs_confirmation: true` when you cannot know the exact amount the
+  account will be charged. Typical cases: a foreign-currency purchase
+  converted at an estimated rate, a hold or pre-authorisation (hotels, fuel,
+  car hire), a bill whose tip, service charge or surcharge is still pending,
+  and an amount read from a photo or email you are not sure of.
+- Leave it `false` (or omit it) when the amount is exact, for example a
+  plan-currency card purchase or a figure copied from the statement itself.
+- Put what you do know in the memo so the user can check it later, such as
+  `JPY 4,900 at ~0.0086`. There are no separate foreign-amount fields.
+- It is not a review flag. A row the user has not looked at yet is
+  `approved: false`; flags (`flag_color`) carry reward subcategories. Do not
+  use either to mean "estimated", and do not use `needs_confirmation` to mean
+  "please review".
+- It is independent of [To claim](#to-claim). A row can be both. Never use
+  `claim_status` or a `TODO` memo to mean "check this later": that files the
+  row as a receipt to claim. Use `needs_confirmation` for estimates.
+
+Confirming:
+
+- Set it back with a plain update, for example
+  `PATCH /v1/plans/{plan_id}/transactions/{transaction_id}` with
+  `{ "transaction": { "needs_confirmation": false } }`, usually together with
+  the corrected `amount`.
+- Clearing confirms. Moving a row from `uncleared` to `cleared` or
+  `reconciled` (the cleared toggle, the bulk cleared command, or an update
+  that sets `cleared`) sets `needs_confirmation` to `false`, because ticking
+  a row off against the statement is the check. An update that sets
+  `needs_confirmation` explicitly keeps that value. Reconciling an account
+  also confirms every row it reconciles.
+- Editing the amount alone keeps the marker, so an early correction to a
+  better estimate does not hide the row.
+
+Each side of a transfer, and the linked side of a split-line transfer, keeps
+its own `needs_confirmation`, like `cleared` and flags. Split lines have no
+marker of their own; set it on the parent.
+
+#### To claim
+
+`claim_status` marks a spend to be claimed back, such as a work expense paid
+on a personal card. It is `"to_claim"` until the claim is made, `"claimed"`
+afterwards, and `null` for an ordinary row. `claimed_on` is the day it was
+claimed (`YYYY-MM-DD`) or `null`; it is only kept while the row is
+`claimed`. Both are HowMuch fields, not part of the YNAB API. The web and iOS
+apps show a To claim or Claimed tag on these rows and can list them on their
+own.
+
+- Set `claim_status: "to_claim"` when the user says a spend is to be claimed
+  or reimbursed. The claims tool lists those rows, and sets
+  `claim_status: "claimed"` with `claimed_on` once it has billed them.
+- Moving back to `"to_claim"` or `null` drops `claimed_on`. Clearing,
+  reconciling and amount edits never change the claim.
+- A transfer holds one claim, as it holds one memo: writing it on either side
+  sets both, and the claims tool lists the outflow side. The other side of a
+  transfer made from a split line keeps its own. Split lines have none; set
+  it on the parent.
+
+Memo words from older clients: before these fields existed, clients marked a
+claim in the memo. The API still accepts those words at the start of a
+transaction memo on create and update (and in a schedule's memo, on each
+occurrence it enters) and turns them into fields, removing
+them from the stored memo:
+
+| Memo starts with | Becomes |
+| --- | --- |
+| `TODO`, then `:`, a space or the end | `claim_status: "to_claim"` |
+| `CLAIMED - 2026-01-02:`, `CLAIMED:` or `CLAIMED` | `claim_status: "claimed"`, `claimed_on` the day; without a day, the day a claimed row already has, otherwise `null` |
+| `TOCHECK` | `needs_confirmation: true` |
+
+A word counts when it is in capitals, as above, or when it is followed by a
+colon in any case (`todo: Taxi`). Ordinary prose such as `Todo list app` or
+`Claimed back from Sam` is left as it is.
+
+Rows stored before these fields keep their words. An edit that sends a
+row's stored memo back unchanged (a client saving another field) leaves the
+words in place; only a new or changed memo, or a write that also sends a
+follow-up field, is converted. Clients and the claims tool therefore read a
+leading word on a row whose field is `null` as that follow-up. A memo that
+is the stored one with a `TODO` word in front (a save from a client that
+cached the row before it was marked claimed) does not reopen a claimed row,
+and words in a memo sent back exactly as stored never change a claim the
+field already holds.
+
+So `{ "memo": "TODO: Client dinner" }` stores the memo `Client dinner` with
+`claim_status: "to_claim"`. Several words can lead one memo (`TOCHECK TODO:
+Hotel`); a word later in the memo is ordinary text. A field sent in the same
+write wins over the word. Split-line memos and bulk bank imports
+(`POST /transactions/import`) are stored as sent. New clients should send
+the fields and not the words.
 
 Transfers (YNAB semantics):
 
@@ -528,7 +746,7 @@ Transfers (YNAB semantics):
   Changing the payee to a regular payee deletes the mirrored side; changing it
   to a different transfer payee moves the mirrored side to the new account.
 - Deleting either side deletes both.
-- `cleared` and flags stay per-side.
+- `cleared`, flags and `needs_confirmation` stay per-side.
 
 Splits:
 
@@ -588,7 +806,7 @@ The JSON archive (`format: "howmuch-export"`, `version: 1`) has:
 
 Passwords, sessions, API tokens and other users are never included. Because `import_snapshot` reads the `snapshot` key of its body, the archive file can be posted to it unchanged to restore the ledger into an empty plan. `import_snapshot` accepts at most 8 MiB, so when Rewards data pushes an archive past that, post `{ "snapshot": … }` with just the archive's `snapshot` instead. Preferences and Rewards cards are then restored through their own endpoints.
 
-The CSV is UTF-8 with a byte-order mark and CRLF line endings, one row per live transaction, oldest first: `Date`, `Account`, `Payee`, `Category group`, `Category`, `Memo`, `Amount`, `Cleared`, `Approved`, `Flag`, `Transfer account`, `Transaction ID`, `Split of`. A split is written as one row per line, with the parent's id in `Split of` and no parent row, so the amounts sum to the ledger. `Amount` is a decimal in the plan currency's decimal places, widened to three when a milliunit would otherwise be lost. Text cells starting with `=`, `+`, `-`, `@`, tab or carriage return get a leading `'` so spreadsheets do not run them as formulas.
+The CSV is UTF-8 with a byte-order mark and CRLF line endings, one row per live transaction, oldest first: `Date`, `Account`, `Payee`, `Category group`, `Category`, `Memo`, `Amount`, `Cleared`, `Approved`, `Flag`, `Transfer account`, `Transaction ID`, `Split of`, `To confirm` (`yes` or empty), `Claim` (`to claim`, `claimed` with its day, or empty). A split is written as one row per line, with the parent's id in `Split of` and no parent row, so the amounts sum to the ledger. `Amount` is a decimal in the plan currency's decimal places, widened to three when a milliunit would otherwise be lost. Text cells starting with `=`, `+`, `-`, `@`, tab or carriage return get a leading `'` so spreadsheets do not run them as formulas.
 
 ### Plan snapshots
 
@@ -618,6 +836,7 @@ Snapshot format, version 1. Every section is an array and may be omitted. Amount
 - `accounts`: `id`, `name`, `icon`, `type`, `on_budget`, `closed`, `opening_balance`, `transfer_payee_id`
 - `transactions`: `id`, `account_id`, `date`, `amount`, `memo`, `cleared`, `approved`, `flag_color`, `flag_name`, `payee_id`, `payee_name`, `category_id`, `transfer_account_id`, `transfer_transaction_id`, `matched_transaction_id`, `import_id`, `import_payee_name`, `import_payee_name_original`, `subtransactions` (`id`, `amount`, `memo`, `payee_id`, `payee_name`, `category_id`, `transfer_account_id`, `transfer_transaction_id`)
 - `scheduled_transactions`: `id`, `account_id`, `date_first`, `date_next`, `frequency`, `amount`, `memo`, `flag_color`, `payee_id`, `category_id`, `transfer_account_id`, `subtransactions` (`id`, `amount`, `memo`, `payee_id`, `category_id`, `transfer_account_id`)
+- `card_payment_terms`: the [card payment terms](#card-payment-terms-and-payments-due) fields, one entry per card account. Each `account_id` must be a `creditCard` or `lineOfCredit` account in the snapshot and `default_funding_account_id`, when set, another account in the snapshot; the field rules of the PUT apply. `created_at` is exported and, when present on import, kept (any `YYYY-MM-DDTHH:MM:SSZ` value); without it the import time is used. Export writes this section only when the plan has terms, so a snapshot without card terms is still accepted by a server that predates the section; terms for a deleted card are left out and a deleted funding account is exported as `null`.
 
 `payee_name` (optional, at most 500 characters) is the free-text payee of a row or split line that has no payee row. Export sets it only when `payee_id` is null; import ignores it when `payee_id` is set and takes the name from that payee, as reads do. It was added without a version bump: the parser rejects unknown top-level sections but not unknown fields inside a row, so a server that predates it accepts a snapshot carrying it and simply drops the name, as before.
 
@@ -730,6 +949,8 @@ Body:
   "category_id": null,
   "memo": "optional",
   "flag_color": null,
+  "needs_confirmation": false,
+  "claim_status": null,
   "subtransactions": [
     { "amount": "-8.34", "category_id": "cat-a", "memo": "optional" },
     { "amount": "-4.00", "category_id": "cat-b" }
@@ -737,9 +958,23 @@ Body:
 }
 ```
 
+`needs_confirmation` (optional boolean) marks an estimated amount; see
+[To confirm](#to-confirm). `claim_status` (optional, `"to_claim"`, `"claimed"` or `null`)
+marks a spend to claim back; see [To claim](#to-claim). The memo words
+described there apply here too.
+
 `payee_id` may be an account's `transfer_payee_id` to record a transfer, and
 `subtransactions` (optional, decimal amounts) records a split; both follow the
 `/v1` transfer and split semantics above.
+
+Each `amount` may instead be sent as `amount_milli` (integer milliunits), which
+the web app does. A JSON number `amount` is read with a plain dot and no
+grouping (`1.234` is 1.234, then held to the currency's decimal places). A
+string `amount` is read with the plan's `currency_format`:
+in a comma-decimal plan `"12,50"` is 12.50 and `"1.234"` is 1,234. Anything the
+server cannot read exactly is a 400: hex or exponent spellings, malformed
+grouping, digits beyond the currency's `decimal_digits`, and any amount beyond
+±1,000,000,000,000 units (±10^15 milliunits), the cap on every amount write.
 
 Returns a normal YNAB-compatible transaction envelope.
 
@@ -824,6 +1059,10 @@ Accepts rows shaped like:
   ]
 }
 ```
+
+Amounts are read with the plan's `currency_format`, by the same rules as quick
+entry. A row whose amount cannot be read exactly is recorded as failed rather
+than stored as a guess.
 
 ### Category suggestions (Jev)
 

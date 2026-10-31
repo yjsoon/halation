@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { existsSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, readFileSync, writeFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { openDatabase } from "../apps/api/src/db";
@@ -76,6 +76,8 @@ function migratedTarget(): Database {
   target.exec(readFileSync(new URL("../apps/api/d1-migrations/0017_ynab_source_month_activity.sql", import.meta.url), "utf8"));
   target.exec(readFileSync(new URL("../apps/api/d1-migrations/0019_own_imported_ynab_schedules.sql", import.meta.url), "utf8"));
   target.exec(readFileSync(new URL("../apps/api/d1-migrations/0020_drop_budgeting_tables.sql", import.meta.url), "utf8"));
+  target.exec(readFileSync(new URL("../apps/api/d1-migrations/0022_transaction_needs_confirmation.sql", import.meta.url), "utf8"));
+  target.exec(readFileSync(new URL("../apps/api/d1-migrations/0023_transaction_claim_status.sql", import.meta.url), "utf8"));
   return target;
 }
 
@@ -130,6 +132,7 @@ describe("offline YNAB D1 bootstrap", () => {
       const source = fixture(dir), output = join(dir, "bootstrap.sql");
       const manifest = generateYnabD1Bootstrap(source, output);
       const sql = readFileSync(output, "utf8");
+      expect(statSync(output).mode & 0o777).toBe(0o600);
       expect(sql.startsWith("INSERT INTO write_state(singleton,write_version) SELECT 1,0 WHERE")).toBeTrue();
       expect(firstStatements(sql, 1)).toContain("UNION ALL SELECT 1,0 WHERE");
       expect(sql).not.toContain("BEGIN"); expect(sql).not.toContain("COMMIT");
@@ -185,10 +188,12 @@ describe("offline YNAB D1 bootstrap", () => {
     try {
       const source = chunkFixture(dir), output = join(dir, "chunks");
       const manifest = generateYnabD1BootstrapChunks(source, output);
+      expect(statSync(output).mode & 0o777).toBe(0o700);
       expect(manifest.format).toBe("howmuch-d1-bootstrap-chunks-v1");
       expect(manifest.chunks.length).toBeGreaterThan(1);
       expect(manifest.logical_data.statement_count).toBeGreaterThan(400);
       for (const chunk of manifest.chunks) {
+        expect(statSync(join(output, chunk.file)).mode & 0o777).toBe(0o600);
         expect(chunk.statement_count).toBeLessThanOrEqual(400);
         expect(chunk.byte_count).toBeLessThanOrEqual(2 * 1024 * 1024);
         expect(readFileSync(join(output, chunk.file), "utf8")).toMatch(/^INSERT INTO write_state\(singleton,write_version\) SELECT 1,0 WHERE/);

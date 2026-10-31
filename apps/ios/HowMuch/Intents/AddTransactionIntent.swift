@@ -73,7 +73,7 @@ struct AddTransactionIntent: AppIntent {
       )
       CaptureRouter.shared.enqueue(request)
       return .result()
-    } catch AddTransactionIntentBuilder.Error.tooManyFractionDigits {
+    } catch AddTransactionIntentBuilder.Error.tooManyFractionDigits, AddTransactionIntentBuilder.Error.amountTooLarge {
       throw $amount.needsValueError()
     }
   }
@@ -142,6 +142,7 @@ enum IntentFlag: String, CaseIterable {
 enum AddTransactionIntentBuilder {
   enum Error: Swift.Error {
     case tooManyFractionDigits
+    case amountTooLarge
   }
 
   struct PayeeInput: Equatable {
@@ -259,6 +260,9 @@ enum AddTransactionIntentBuilder {
     if let amount {
       guard let milli = MoneyCodec.milliunits(from: amount) else {
         throw Error.tooManyFractionDigits
+      }
+      guard milli.magnitude <= MoneyCodec.storableAmountCap.magnitude else {
+        throw Error.amountTooLarge
       }
       draft.amountMagnitudeMilli = milli
     }

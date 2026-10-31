@@ -136,6 +136,7 @@ struct AddTransactionsView: View {
       }
       .sheet(isPresented: $showingAISettings) {
         NavigationStack { CaptureAISettingsView(settings: model.captureAI) }
+          .onDisappear { model.publishShareContext() }
           .blocksCapturePresentation()
       }
       .sheet(isPresented: $creatingManual) {
@@ -400,7 +401,6 @@ struct AddTransactionsView: View {
         chooseUnresolvedCategory: { resolvingCategoryDraftID = $0 },
         chooseTarget: { id in
           session.chooseTargetDraft(id)
-          persistCommittedCaptures(session.messages.last?.updatedDraftIDs ?? [])
         },
         inspectQuery: { inspectQueryCard = $0 },
         jumpToDraft: { id in
@@ -777,7 +777,6 @@ struct AddTransactionsView: View {
       expectedRevision: expectedRevision,
       expectedGeneration: expectedGeneration
     )
-    persistCommittedCaptures(session.messages.last?.updatedDraftIDs ?? [])
   }
 
   private func persistCommittedCaptures(_ ids: [String]) {
@@ -933,7 +932,7 @@ struct AddTransactionsView: View {
         includeQuiet: model.includeQuietSpending || resolution.categoryWasExplicit,
         merchant: resolution.spec.merchant
       )
-      let total = sourceAll.filter { $0.amount < 0 }.reduce(0) { $0 + abs($1.amount) }
+      let total = sourceAll.filter { $0.amount < 0 }.map { abs($0.amount) }.saturatingSum()
       return LedgerQueryResult(
         title: "Payments to \(resolution.spec.merchant)",
         detail: "\(sourceAll.count) recorded payments from \(resolution.from) to \(resolution.to) · \(resolution.accountLabel)",

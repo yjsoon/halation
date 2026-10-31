@@ -1,5 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { ApiError, api, BulkApprovalError, useApi } from "../api/client";
 import type {
   AccountReconciliationPreview,
@@ -13,9 +13,11 @@ import { colourNamesByAccount, ledgerFlagNames, namedFlagLabel } from "../lib/re
 import { FilterRail } from "../components/FilterRail";
 import { FlagTag } from "../components/FlagTag";
 import { CategorySelect } from "../components/CategorySelect";
+import { CardTermsDialog } from "../components/CardTermsDialog";
 import { CategorySuggestionReview } from "../components/CategorySuggestionReview";
 import { RegisterComposeRow } from "../components/RegisterComposeRow";
 import { RegisterEditableRow, type RowEditSurface } from "../components/RegisterEditableRow";
+import { isCardAccount } from "../lib/card-payments";
 import { splitCategoryGroups, UNCATEGORISED_CATEGORY_ID } from "../lib/categories";
 import { appliedReviewItems, reviewRows, suggestionRequestItems, suggestionTargets, type SuggestionReviewRow } from "../lib/category-suggestions";
 import { formatDate, todayIso, trailingMonthsRange } from "../lib/dates";
@@ -34,7 +36,8 @@ import {
   rowLooksApproved,
 } from "../lib/register-approval";
 import { useUnapprovedCount } from "../state/use-unapproved-count";
-import { fetchUnapprovedQueue } from "../lib/unapproved-queue";
+import { fetchTransactionQueue, fetchUnapprovedQueue } from "../lib/unapproved-queue";
+import { ClaimGlyph } from "../components/FollowUpChips";
 import { resolvedSinceCount, showsUnapprovedBadge, unapprovedBadgeCount, unapprovedBadgeLabel } from "../lib/unapproved-badge";
 import {
   closedCompose,
@@ -85,6 +88,7 @@ import { currentCacheEpoch, readSlot, shouldUseCache, writeSlot } from "../state
 import { useCachedApi } from "../state/use-cached-api";
 import { StatusPanel } from "../components/StatusPanel";
 import { ClearedStatus } from "../components/ClearedStatus";
+import { confirmedMessage } from "../lib/follow-up";
 import { RegisterScheduledDisclosure } from "../components/RegisterScheduledDisclosure";
 
 function hasUncategorisedLine(txn: Transaction): boolean {
@@ -220,6 +224,10 @@ export function TransactionsPage() {
     [currencyFormat, deferredSearch],
   );
   const searchVersionRef = useRef(0);
+  // The last finished "Load older transactions" click. Multi-account and
+  // category views filter plan-wide pages locally, so a page can add nothing
+  // they list; this lets the footer say so instead of looking unresponsive.
+  const [olderTap, setOlderTap] = useState<{ viewKey: string; rowCount: number } | null>(null);
   const [pendingDeletion, setPendingDeletion] = useState<Transaction | null>(null);
   const [pendingBulkDeletion, setPendingBulkDeletion] = useState<readonly Transaction[] | null>(null);
   // The confirmation renders above the register, behind the row that asked
@@ -255,6 +263,7 @@ export function TransactionsPage() {
   useConfirmationFocus(suggestionReview !== null, suggestionHeadingRef, () =>
     suggestButtonRef.current?.isConnected ? suggestButtonRef.current : selectAllFallback());
   const [reconcileDraft, setReconcileDraft] = useState<ReconcileDraft | null>(null);
+  const [cardTermsOpen, setCardTermsOpen] = useState(false);
   const reconcileFirstFieldRef = useRef<HTMLSelectElement>(null);
   useConfirmationFocus(reconcileDraft?.operationSeed, reconcileFirstFieldRef, () => addTransactionRef.current);
   const [reconciliationPreviewGeneration, setReconciliationPreviewGeneration] = useState(0);
@@ -280,7 +289,32 @@ export function TransactionsPage() {
     }
   }, [bloomIds, page.filling, page.loading, page.transactions]);
   const [mutatingId, setMutatingId] = useState<string | null>(null);
-  const [unapprovedOnly, setUnapprovedOnly] = useState(false);
+  const [unapprovedOnly, setUnapprovedOnlyState] = useState(false);
+  // Follow-up lists: "to confirm" (rows whose amount is an estimate) and "to
+  // claim". Like the approval queue they ignore the date window, and only one
+  // of the three lists shows at a time.
+  const [followUpOnly, setFollowUpOnlyState] = useState<FollowUpList | null>(null);
+  // Local filters change what is listed without reloading; a ledger reload
+  // clears the tap outright.
+  const olderTapViewKey = `${listKey}|${unapprovedOnly}|${followUpOnly ?? ""}`;
+  const toConfirmOnly = followUpOnly === "needs_confirmation";
+  const toClaimOnly = followUpOnly === "to_claim";
+  const setUnapprovedOnly = (update: boolean | ((current: boolean) => boolean)) => {
+    setUnapprovedOnlyState((current) => {
+      const next = typeof update === "function" ? update(current) : update;
+      if (next) setFollowUpOnlyState(null);
+      return next;
+    });
+  };
+  const toggleFollowUpOnly = (list: FollowUpList) => {
+    setFollowUpOnlyState((current) => {
+      const next = current === list ? null : list;
+      if (next) setUnapprovedOnlyState(false);
+      return next;
+    });
+  };
+  /** Any queue: the date window, search paging and schedules step aside. */
+  const queueMode = unapprovedOnly || followUpOnly !== null;
   const [selection, setSelection] = useState(() => emptySelection(listKey));
   const [replacements, setReplacements] = useState<ReadonlyMap<string, Transaction>>(() => new Map());
   const [clearedOverlays, setClearedOverlays] = useState<ReadonlyMap<string, Transaction["cleared"]>>(() => new Map());
@@ -387,6 +421,13 @@ export function TransactionsPage() {
       ? fetchUnapprovedQueue(planId, selectedAccountId, { since_date: filters.from, until_date: fetchUntilDate })
       : Promise.resolve(null),
   );
+  // Always loaded: the lists are short, and their lengths are the "to confirm"
+  // and "to claim" pills.
+  const followUpKey = { planId, selectedAccountId, refreshGeneration, validatedKnowledge, cacheEpoch };
+  const confirmationQueue = useFollowUpQueue(followUpKey, "needs_confirmation");
+  const claimQueue = useFollowUpQueue(followUpKey, "to_claim");
+  const confirmationRows = confirmationQueue.rows;
+  const claimRows = claimQueue.rows;
   const reconciliationPreviewInput = reconcileDraft?.reviewReady && reconcileDraft.accountId && reconcileDraft.statementDate
     ? { accountId: reconcileDraft.accountId, statementDate: reconcileDraft.statementDate }
     : null;
@@ -538,6 +579,7 @@ export function TransactionsPage() {
   useEffect(() => {
     setReplacements((current) => retainInFlightPatches(current, clearedInFlightRef.current));
     setDeletedIds(new Set());
+    setOlderTap(null);
     replaceRowEdit(idleRowEdit());
     const empty = emptyApprovalSession();
     approvalSessionRef.current = empty;
@@ -576,7 +618,7 @@ export function TransactionsPage() {
 
   useEffect(() => {
     const q = registerQuery?.raw;
-    if (!q || unapprovedOnly) {
+    if (!q || queueMode) {
       searchVersionRef.current += 1;
       setSearchPage({
         query: "",
@@ -636,10 +678,10 @@ export function TransactionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [fetchUntilDate, filters.from, planId, registerQuery?.raw, selectedAccountId, unapprovedOnly, refreshGeneration]);
+  }, [fetchUntilDate, filters.from, planId, registerQuery?.raw, selectedAccountId, queueMode, refreshGeneration]);
 
   const loadOlder = async () => {
-    if (registerQuery && !unapprovedOnly) {
+    if (registerQuery && !queueMode) {
       if (searchPage.loadingMore || !searchPage.hasMore || searchPage.nextOffset === null) {
         return;
       }
@@ -674,6 +716,7 @@ export function TransactionsPage() {
     if (page.loadingMore || !page.hasMore || page.nextOffset === null) return;
     const requestedOffset = page.nextOffset;
     const requestVersion = requestVersionRef.current;
+    const tap = { viewKey: olderTapViewKey, rowCount: rows.length };
     setPage((current) => ({ ...current, loadingMore: true, error: null }));
     try {
       const older = await fetchTransactionPage(requestedOffset);
@@ -687,6 +730,9 @@ export function TransactionsPage() {
             loadingMore: false,
             error: null,
           });
+      if (requestVersion === requestVersionRef.current) {
+        setOlderTap(tap);
+      }
     } catch (error) {
       setPage((current) => requestVersion !== requestVersionRef.current || current.nextOffset !== requestedOffset
         ? current
@@ -698,7 +744,8 @@ export function TransactionsPage() {
     if (mutationLockRef.current || (transaction.cleared !== "uncleared" && transaction.cleared !== "cleared")) return false;
     if (clearedInFlightRef.current.has(transaction.id)) return false;
     const cleared = transaction.cleared === "cleared" ? "uncleared" : "cleared";
-    const overlay = { ...transaction, cleared };
+    // Clearing an uncleared row confirms its amount on the server too.
+    const overlay = { ...transaction, cleared, ...(cleared === "cleared" ? { needs_confirmation: false } : {}) };
     clearedInFlightRef.current.add(transaction.id);
     setClearedOverlays((current) => new Map(current).set(transaction.id, cleared));
     setReplacements((current) => new Map(current).set(transaction.id, overlay));
@@ -725,6 +772,27 @@ export function TransactionsPage() {
       return false;
     } finally {
       clearedInFlightRef.current.delete(transaction.id);
+      setMutatingId((current) => (current === transaction.id ? null : current));
+    }
+  };
+
+  /** Accepts an estimated amount as it stands. */
+  const confirmAmount = async (transaction: Transaction): Promise<void> => {
+    if (mutationLockRef.current || transaction.needs_confirmation !== true) return;
+    setReplacements((current) => new Map(current).set(transaction.id, { ...transaction, needs_confirmation: false }));
+    setMutatingId(transaction.id);
+    setMutationError(null);
+    setMutationSuccess(null);
+    try {
+      const updated = await api.updateTransaction(planId, transaction.id, { needs_confirmation: false });
+      setReplacements((current) => new Map(current).set(updated.id, updated));
+      setDeepLinkedTransaction((current) => applyDeepLinkedTransactionMutation(current, updated.id, updated));
+      setMutationSuccess(confirmedMessage(updated.payee_name ?? transaction.payee_name));
+      reload();
+    } catch (cause) {
+      setReplacements((current) => new Map(current).set(transaction.id, transaction));
+      setMutationError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
       setMutatingId((current) => (current === transaction.id ? null : current));
     }
   };
@@ -958,7 +1026,7 @@ export function TransactionsPage() {
       return;
     }
     if (statementBalance === null) {
-      setMutationError("Enter the exact statement balance with no more than three decimal places.");
+      setMutationError("Enter the exact statement balance, with no more decimal places than the currency uses.");
       return;
     }
     setMutationError(null);
@@ -971,7 +1039,7 @@ export function TransactionsPage() {
     if (!reconcileDraft) return;
     const statementBalance = parseMilliunits(reconcileDraft.statementBalance);
     if (statementBalance === null) {
-      setMutationError("Enter the exact statement balance with no more than three decimal places.");
+      setMutationError("Enter the exact statement balance, with no more decimal places than the currency uses.");
       return;
     }
     const preview = reconciliationPreviewData;
@@ -1034,6 +1102,26 @@ export function TransactionsPage() {
       ),
     [approvalQueue.data, approvalSession, clearedOverlays, deletedIds, replacements],
   );
+  const patchedConfirmationQueue = useMemo(
+    () => applyClearedOverlays(applyRegisterPatches(confirmationRows ?? [], replacements, deletedIds), clearedOverlays),
+    [clearedOverlays, confirmationRows, deletedIds, replacements],
+  );
+  const toConfirmCount = useMemo(
+    () => patchedConfirmationQueue.filter(
+      (txn) => !txn.deleted && txn.needs_confirmation === true && registerAccountIds.has(txn.account_id),
+    ).length,
+    [patchedConfirmationQueue, registerAccountIds],
+  );
+  const patchedClaimQueue = useMemo(
+    () => applyClearedOverlays(applyRegisterPatches(claimRows ?? [], replacements, deletedIds), clearedOverlays),
+    [claimRows, clearedOverlays, deletedIds, replacements],
+  );
+  const toClaimCount = useMemo(
+    () => patchedClaimQueue.filter(
+      (txn) => !txn.deleted && txn.claim_status === "to_claim" && registerAccountIds.has(txn.account_id),
+    ).length,
+    [patchedClaimQueue, registerAccountIds],
+  );
   const patchedPage = useMemo(
     () =>
       applyClearedOverlays(
@@ -1056,11 +1144,11 @@ export function TransactionsPage() {
   );
   const inScope = useMemo(
     () =>
-      (unapprovedOnly ? patchedQueue : patchedPage)
+      (unapprovedOnly ? patchedQueue : toConfirmOnly ? patchedConfirmationQueue : toClaimOnly ? patchedClaimQueue : patchedPage)
         .filter((txn) => !txn.deleted)
         .filter((txn) => registerAccountIds.has(txn.account_id))
-        .filter((txn) => unapprovedOnly || dateInRegisterWindow(txn.date, filters.from, filters.to, today)),
-    [filters.from, filters.to, patchedPage, patchedQueue, registerAccountIds, today, unapprovedOnly],
+        .filter((txn) => queueMode || dateInRegisterWindow(txn.date, filters.from, filters.to, today)),
+    [filters.from, filters.to, patchedClaimQueue, patchedConfirmationQueue, patchedPage, patchedQueue, queueMode, registerAccountIds, today, toClaimOnly, toConfirmOnly, unapprovedOnly],
   );
 
   const uncategorisedCount = useMemo(() => inScope.filter(hasUncategorisedLine).length, [inScope]);
@@ -1109,6 +1197,7 @@ export function TransactionsPage() {
     const outflowOnly = flow === "outflow" || wantsUncategorised;
     return inScope
       .filter((txn) => !unapprovedOnly || !txn.approved)
+      .filter((txn) => matchesFollowUp(txn, followUpOnly))
       .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
@@ -1125,7 +1214,7 @@ export function TransactionsPage() {
         return wantsUncategorised && hasUncategorisedLine(txn);
       })
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
-  }, [categoryIds, filters.categoryIds.length, flow, inScope, unapprovedOnly, wantsUncategorised]);
+  }, [categoryIds, filters.categoryIds.length, flow, followUpOnly, inScope, unapprovedOnly, wantsUncategorised]);
 
   const deepLinkKey = deepLink.kind === "valid" && deepLink.link.planId === planId
     ? `${planId}:${deepLink.link.transactionId}:${deepLink.link.subtransactionId ?? ""}`
@@ -1156,8 +1245,9 @@ export function TransactionsPage() {
     return rows
       .filter((txn) => !txn.deleted)
       .filter((txn) => registerAccountIds.has(txn.account_id))
-      .filter((txn) => unapprovedOnly || dateInRegisterWindow(txn.date, filters.from, filters.to, today))
+      .filter((txn) => queueMode || dateInRegisterWindow(txn.date, filters.from, filters.to, today))
       .filter((txn) => !unapprovedOnly || !txn.approved)
+      .filter((txn) => matchesFollowUp(txn, followUpOnly))
       .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
@@ -1182,7 +1272,7 @@ export function TransactionsPage() {
     if (!registerQuery) {
       return scopedRows;
     }
-    if (unapprovedOnly) {
+    if (queueMode) {
       return localMatches;
     }
     return mergeSearchRows(localMatches, applyRowFilters(patchedSearch));
@@ -1199,6 +1289,8 @@ export function TransactionsPage() {
     registerQuery,
     scopedRows,
     today,
+    queueMode,
+    followUpOnly,
     unapprovedOnly,
     wantsUncategorised,
   ]);
@@ -1211,7 +1303,7 @@ export function TransactionsPage() {
     [deepLinkedTransactionId, matchedRows, today],
   );
   const visibleSchedules = useMemo(() => {
-    if (unapprovedOnly) {
+    if (queueMode) {
       return [];
     }
     const query = registerQuery;
@@ -1233,16 +1325,18 @@ export function TransactionsPage() {
       const payeeName = schedule.payee_name ?? (schedule.payee_id ? payees.data?.find((payee) => payee.id === schedule.payee_id)?.name : undefined);
       return matchesRegisterQuery(query, fieldsFromSchedule(schedule, { accountName, payeeName }));
     });
-  }, [accounts, categoryIds, filters.categoryIds.length, payees.data, registerAccountIds, registerQuery, schedules.data, unapprovedOnly, wantsUncategorised]);
+  }, [accounts, categoryIds, filters.categoryIds.length, payees.data, registerAccountIds, registerQuery, schedules.data, queueMode, wantsUncategorised]);
   const scheduledDisclosureCount = postedFutureRows.length + visibleSchedules.length;
   const showScheduledDisclosure = scheduledDisclosureCount > 0 || Boolean(schedules.error);
 
+  const confirmationRowsPending = (toConfirmOnly && confirmationRows === null) || (toClaimOnly && claimRows === null);
   useEffect(() => {
+    if (confirmationRowsPending) return;
     const present = new Set(scopedRows.map((txn) => txn.id));
     if (sessionRowGone(rowEdit, present)) {
       replaceRowEdit(idleRowEdit());
     }
-  }, [rowEdit, scopedRows]);
+  }, [confirmationRowsPending, rowEdit, scopedRows]);
 
   const eligibleIds = useMemo(
     () => eligibleApprovalIds(matchedRows, approvalSession),
@@ -1444,9 +1538,9 @@ export function TransactionsPage() {
     [rows],
   );
 
-  const hasMoreToLoad = ((registerQuery && !unapprovedOnly) ? searchPage.hasMore : page.hasMore)
+  const hasMoreToLoad = ((registerQuery && !queueMode) ? searchPage.hasMore : page.hasMore)
     && !page.filling
-    && !unapprovedOnly;
+    && !queueMode;
   const footerMeta = registerQuery
     ? searchStatusCopy({
         shown: rows.length,
@@ -1456,16 +1550,22 @@ export function TransactionsPage() {
         error: searchPage.error,
       })
     : `${rows.length} transactions · ${formatMoney(totals.inflow)} in · ${formatMoney(totals.outflow)} out · ${formatMoney(totals.net, { sign: true })} net`;
-  const footerMetaWithMore = filters.accountIds.length > 1 && hasMoreToLoad
+  const lastOlderTap = !registerQuery && !queueMode && page.loaded && !page.filling && !page.loadingMore && !page.error
+    && olderTap?.viewKey === olderTapViewKey
+    ? olderTap
+    : null;
+  const searchedBackTo = page.transactions.at(-1)?.date;
+  const olderTapNote = !lastOlderTap
+    ? null
+    : !page.hasMore
+      ? "No older transactions."
+      : lastOlderTap.rowCount === rows.length && searchedBackTo
+        ? `Nothing older here yet. Searched back to ${formatDate(searchedBackTo)}.`
+        : null;
+  const footerMetaWithMore = filters.accountIds.length > 1 && hasMoreToLoad && !olderTapNote
     ? `${footerMeta} · Load older entries to extend this multi-account result.`
     : footerMeta;
 
-  const emptyMessage =
-    page.loaded && page.transactions.length === 0
-      ? filters.from || filters.to ? "No transactions in this date range." : "No transactions yet."
-      : deferredSearch.trim()
-        ? "No transactions match this search."
-        : "No transactions match these filters.";
   const mutationBusy = writeLocked || Boolean(mutatingId);
   const deepLinkError = planSelectionError
     ?? (deepLink.kind === "invalid" ? deepLink.message : deepLinkedTransaction.error);
@@ -1503,6 +1603,27 @@ export function TransactionsPage() {
     [visibleAccounts],
   );
   const canCompose = Boolean(lockedComposeAccount || composeAccounts.length);
+  // A new ledger has nothing to filter, so it needs a way forward rather
+  // than advice about date ranges and search terms.
+  const noAccounts = accounts.length === 0;
+  const noOpenAccounts = !accounts.some((account) => !account.closed);
+  const emptyLedger = page.loaded && page.transactions.length === 0 && !filters.from && !filters.to;
+  const emptyMessage = noAccounts
+    ? "Add your first account"
+    : noOpenAccounts && emptyLedger
+      ? "All your accounts are closed"
+      : page.loaded && page.transactions.length === 0
+      ? filters.from || filters.to ? "No transactions in this date range." : "No transactions yet."
+      : deferredSearch.trim()
+        ? "No transactions match this search."
+        : "No transactions match these filters.";
+  const emptyDetail = noAccounts
+    ? <>Transactions belong to an account. <Link to="/accounts/new">Create one</Link> with its current balance, then add transactions to it.</>
+    : noOpenAccounts && emptyLedger
+      ? <>New transactions need an open account. <Link to="/accounts/new">Create one</Link> to keep recording.</>
+      : emptyLedger && !deferredSearch.trim() && canCompose
+        ? "Choose + Add transaction to record the first one."
+        : "Try widening the date range, clearing filters, or shortening the search term.";
   const reconciliationBusy = mutationBusy;
   const reviewedStatementBalance = reconcileDraft ? parseMilliunits(reconcileDraft.statementBalance) : null;
   const reconciliationPreviewData = reconciliationPreview.data
@@ -1556,7 +1677,12 @@ export function TransactionsPage() {
             className="register-add-link"
             onClick={openCompose}
             disabled={!canCompose || mutationBusy}
-            title={!canCompose && selectedAccount?.closed ? "This account is closed" : undefined}
+            title={!canCompose
+              ? selectedAccount?.closed ? "This account is closed"
+                : noAccounts ? "Add an account first"
+                : noOpenAccounts ? "All accounts are closed. Add an open account first."
+                : undefined
+              : undefined}
           >
             + Add transaction
           </button>
@@ -1568,6 +1694,22 @@ export function TransactionsPage() {
           >
             Reconcile
           </button>
+          {selectedAccount && isCardAccount(selectedAccount) && !selectedAccount.closed && (
+            <button
+              type="button"
+              className="register-add-link register-secondary-action"
+              onClick={() => setCardTermsOpen(true)}
+            >
+              Payment reminders
+            </button>
+          )}
+          {cardTermsOpen && selectedAccount && (
+            <CardTermsDialog
+              accountId={selectedAccount.id}
+              onClose={() => setCardTermsOpen(false)}
+              onSaved={(message) => { setMutationError(null); setMutationSuccess(message); }}
+            />
+          )}
         </div>
         <div className="headline-row">
           {showsUnapprovedBadge(unapprovedCount, unapprovedOnly, Boolean(unapprovedCountQuery.error)) && (
@@ -1591,6 +1733,28 @@ export function TransactionsPage() {
               {eligibleIds.some((id) => approvalSession.pending.has(id))
                 ? "Approving…"
                 : approveAllLabel(eligibleIds.length)}
+            </button>
+          )}
+          {(toConfirmCount > 0 || toConfirmOnly) && (
+            <button
+              type="button"
+              className={toConfirmOnly ? "confirm-pill confirm-pill-active" : "confirm-pill"}
+              onClick={() => toggleFollowUpOnly("needs_confirmation")}
+              aria-pressed={toConfirmOnly}
+            >
+              <span className="confirm-pill-glyph" aria-hidden="true">≈</span>
+              {toConfirmOnly ? "Showing to confirm · clear" : `${toConfirmCount} to confirm`}
+            </button>
+          )}
+          {(toClaimCount > 0 || toClaimOnly) && (
+            <button
+              type="button"
+              className={toClaimOnly ? "claim-pill claim-pill-active" : "claim-pill"}
+              onClick={() => toggleFollowUpOnly("to_claim")}
+              aria-pressed={toClaimOnly}
+            >
+              <ClaimGlyph />
+              {toClaimOnly ? "Showing to claim · clear" : `${toClaimCount} to claim`}
             </button>
           )}
           {uncategorisedCount > 0 && !wantsUncategorised && (
@@ -1660,7 +1824,7 @@ export function TransactionsPage() {
             className="register-bulk-action"
             onClick={() => void suggestCategories(selectedRows)}
             disabled={mutationBusy || suggesting || suggestionTargets(selectedRows).length === 0}
-            title="Ask Jev to suggest a category for each selected transaction. You review before anything changes."
+            title="Send the selected transactions to TypeSafe's Jev model for a suggested category each. You review before anything changes."
           >
             {suggesting ? "Suggesting…" : "Suggest categories"}
           </button>
@@ -1769,7 +1933,7 @@ export function TransactionsPage() {
                   disabled={reconciliationBusy}
                   required
                 />
-                <span className="field-note">Enter the exact balance shown on the statement, using up to three decimal places.</span>
+                <span className="field-note">Enter the exact balance shown on the statement.</span>
               </label>
             </div>
 
@@ -1917,6 +2081,18 @@ export function TransactionsPage() {
       {unapprovedOnly && approvalQueue.data === null && approvalQueue.loading && !approvalQueue.error && (
         <StatusPanel title="Loading transactions awaiting approval..." />
       )}
+      {toConfirmOnly && confirmationRows === null && !confirmationQueue.error && (
+        <StatusPanel title="Loading transactions to confirm..." />
+      )}
+      {toConfirmOnly && confirmationQueue.error && (
+        <StatusPanel title="Could not load transactions to confirm." error>{confirmationQueue.error}</StatusPanel>
+      )}
+      {toClaimOnly && claimRows === null && !claimQueue.error && (
+        <StatusPanel title="Loading transactions to claim..." />
+      )}
+      {toClaimOnly && claimQueue.error && (
+        <StatusPanel title="Could not load transactions to claim." error>{claimQueue.error}</StatusPanel>
+      )}
 
       {registerLoaded && (
         <section className="report-section">
@@ -1954,6 +2130,7 @@ export function TransactionsPage() {
                     <RegisterComposeRow
                       state={compose}
                       accounts={composeAccounts}
+                      transferAccounts={accounts}
                       lockedAccount={lockedComposeAccount}
                       payees={payees.data ?? []}
                       categoryGroups={categoryGroups}
@@ -2001,6 +2178,8 @@ export function TransactionsPage() {
                           )}
                           payeeExtra={<FlagTag colour={txn.flag_color} name={namedFlagLabel(colourNamesByAccountId.get(txn.account_id), txn.flag_color, txn.flag_name)} />}
                           flagNames={ledgerFlagNames(colourNamesByAccountId.get(txn.account_id) ?? {})}
+                          onConfirm={() => void confirmAmount(txn)}
+                          confirming={writeLocked || mutatingId === txn.id}
                         />,
                         ...(txn.subtransactions ?? []).map((sub) => (
                           <RegisterEditableRow
@@ -2055,6 +2234,8 @@ export function TransactionsPage() {
                       )}
                       payeeExtra={<FlagTag colour={txn.flag_color} name={namedFlagLabel(colourNamesByAccountId.get(txn.account_id), txn.flag_color, txn.flag_name)} />}
                       flagNames={ledgerFlagNames(colourNamesByAccountId.get(txn.account_id) ?? {})}
+                      onConfirm={() => void confirmAmount(txn)}
+                      confirming={writeLocked || mutatingId === txn.id}
                       targeted={deepLink.kind === "valid" && deepLink.link.subtransactionId === null && txn.id === deepLinkedTransactionId}
                     />,
                     ...(txn.subtransactions ?? []).map((sub) => (
@@ -2071,20 +2252,22 @@ export function TransactionsPage() {
                   ])}
                 </tbody>
               </table>
-              {rows.length === 0 && !page.filling && compose.status !== "open" && !showScheduledDisclosure && (
+              {rows.length === 0 && !page.filling && !confirmationRowsPending && compose.status !== "open" && !showScheduledDisclosure && (
                 <div className="register-empty-state">
                   <p className="status-title">{emptyMessage}</p>
-                  <p className="status-detail">Try widening the date range, clearing filters, or shortening the search term.</p>
+                  <p className="status-detail">{emptyDetail}</p>
                 </div>
               )}
             </div>
           ) : page.filling ? null : (
-            <StatusPanel title={emptyMessage}>
-              Try widening the date range, clearing filters, or shortening the search term.
-            </StatusPanel>
+            <StatusPanel title={emptyMessage}>{emptyDetail}</StatusPanel>
           )}
           <div className="register-footer">
-            <span className="register-footer-meta">{footerMetaWithMore}</span>
+            <span className="register-footer-meta">
+              {footerMetaWithMore}
+              {olderTapNote && " · "}
+              <span role="status">{olderTapNote ?? ""}</span>
+            </span>
             <span className="register-hint">Double-click a cell or press Enter to edit · Esc cancels · Shift-click selects a range</span>
             {hasMoreToLoad && (
               <button
@@ -2137,4 +2320,35 @@ function reconciliationSuccess(result: AccountReconciliationResult): string {
   const accountName = result.account?.name ?? "account";
   const count = result.reconciled_transaction_count;
   return `${accountName} reconciled through ${formatDate(result.statement_date)}. ${count} cleared transaction${count === 1 ? "" : "s"} matched ${formatMoney(result.statement_balance)}.`;
+}
+
+type FollowUpList = "needs_confirmation" | "to_claim";
+
+function matchesFollowUp(txn: Transaction, list: FollowUpList | null): boolean {
+  if (list === "needs_confirmation") return txn.needs_confirmation === true;
+  if (list === "to_claim") return txn.claim_status === "to_claim";
+  return true;
+}
+
+/**
+ * One follow-up list, read whole. Every write changes the queue's key, so its
+ * data is briefly null while it reloads. The last rows for the same scope stay
+ * meanwhile, so the pill and the filtered list do not blank out (and an open
+ * row edit is not dropped).
+ */
+function useFollowUpQueue(
+  key: { planId: string; selectedAccountId: string | null; refreshGeneration: number; validatedKnowledge: unknown; cacheEpoch: unknown },
+  type: FollowUpList,
+): { rows: Transaction[] | null; error: string | null } {
+  const queue = useApi<Transaction[]>(
+    JSON.stringify({ ...key, followUpQueue: type }),
+    () => fetchTransactionQueue(key.planId, key.selectedAccountId, {}, type),
+  );
+  const scope = `${key.planId}:${key.selectedAccountId ?? ""}`;
+  const last = useRef<{ scope: string; rows: Transaction[] } | null>(null);
+  if (queue.data) last.current = { scope, rows: queue.data };
+  return {
+    rows: queue.data ?? (last.current?.scope === scope ? last.current.rows : null),
+    error: queue.error,
+  };
 }

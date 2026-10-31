@@ -12,6 +12,34 @@ final class RegisterQueryTests: XCTestCase {
     currencySymbol: "$"
   )
 
+  /// Rows stored before the claim field read their memo words as the API's
+  /// `transaction-claim.ts` does (docs/api-contract.md, "To claim").
+  func testLegacyMemoWordsFollowTheAPIRule() {
+    let todo = MemoClaim.legacyWords("TODO: Client dinner")
+    XCTAssertEqual(todo.claim, .toClaim)
+    XCTAssertEqual(todo.text, "Client dinner")
+    XCTAssertEqual(MemoClaim.legacyWords("todo: Client dinner").claim, .toClaim)
+    XCTAssertEqual(MemoClaim.legacyWords("TODO").claim, .toClaim)
+    let claimed = MemoClaim.legacyWords("CLAIMED - 2026-01-02: Notebooks")
+    XCTAssertEqual(claimed.claim, .claimed)
+    XCTAssertEqual(claimed.claimedOn, "2026-01-02")
+    XCTAssertEqual(claimed.text, "Notebooks")
+    let both = MemoClaim.legacyWords("TOCHECK TODO: Hotel deposit")
+    XCTAssertEqual(both.claim, .toClaim)
+    XCTAssertTrue(both.toCheck)
+    XCTAssertEqual(both.text, "Hotel deposit")
+    // Prose stays text: mixed case without a colon, a word later on, or a
+    // longer word.
+    for prose in ["Todo list app", "todo", "Claimed back from Sam", "Client dinner TODO", "TODOs", "Tocheck later"] {
+      let words = MemoClaim.legacyWords(prose)
+      XCTAssertNil(words.claim, prose)
+      XCTAssertFalse(words.toCheck, prose)
+      XCTAssertEqual(words.text, prose)
+    }
+    XCTAssertEqual(MemoClaim(status: "claimed", memo: "TODO: Taxi"), .claimed)
+    XCTAssertNil(MemoClaim(status: nil, memo: "TOCHECK Taxi"))
+  }
+
   func testParsesTypedMoneyPrecision() {
     XCTAssertEqual(RegisterQuery.parse("142", currencyFormat: format)?.amount, range(142_000, 143_000, .any))
     XCTAssertEqual(RegisterQuery.parse("142.30", currencyFormat: format)?.amount, range(142_300, 142_310, .any))

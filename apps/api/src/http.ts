@@ -4,7 +4,9 @@ import { AccountPreferencesConflictError, LedgerRepository, NotFoundError, Recon
 import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
 import { assertTransactionFieldTypes, collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
+import { normaliseFollowUpWords } from "./transaction-claim";
 import { ReportService } from "./reports";
+import { type AmountFormat, amountFormatOf, isStorableMilliunits } from "@howmuch/money";
 import { decimalToMilliunits } from "./money";
 import { importCsvRows } from "./importers/csv";
 import { importRewardsTrackerExport } from "./importers/rewards-tracker";
@@ -50,6 +52,7 @@ import {
 import { MAX_SNAPSHOT_BYTES, PlanNotEmptyError, SnapshotValidationError } from "./plan-snapshot";
 import { buildPlanExport, transactionsCsv } from "./plan-export";
 import { parseSeedCurrencyFormat, parseSeedDateFormat } from "./plan-settings-seed";
+import { isIsoDate, localDate } from "./card-payments";
 
 type HandlerOptions = {
   db?: Database;
@@ -73,7 +76,14 @@ export function createHandler(options: HandlerOptions): (request: Request) => Pr
   return async function handle(request: Request): Promise<Response> {
     try {
       const url = new URL(request.url);
-      const segments = url.pathname.split("/").filter(Boolean);
+      // Split before decoding: escaped separators belong to the opaque ID,
+      // and every lookup (including plan authorization) must decode once only.
+      let segments: string[];
+      try {
+        segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+      } catch {
+        return apiError(400, "bad_request", "Invalid path encoding");
+      }
 
       if (url.pathname === "/health") {
         return json({ ok: true });
@@ -107,7 +117,7 @@ export function createHandler(options: HandlerOptions): (request: Request) => Pr
       };
 
       if (segments[0] === "v1") {
-        return await handleV1(request, url, segments, repo, principal, config.defaultPlanId, config.transitionReadOnly, categoriser);
+        return await handleV1(request, url, segments, repo, principal, config.defaultPlanId, config.transitionReadOnly, categoriser, config.timeZone);
       }
 
       if (segments[0] === "api") {
@@ -197,6 +207,7 @@ async function handleV1(
   defaultPlanId: string,
   transitionReadOnly: boolean,
   categoriser: CategoriserConfig,
+  timeZone: string | undefined,
 ): Promise<Response> {
   const method = request.method.toUpperCase();
 
@@ -282,8 +293,8 @@ async function handleV1(
       // Balances feed integer milliunit arithmetic; a decimal string or an
       // object would be stored verbatim and corrupt every later balance.
       for (const field of ["balance", "opening_balance", "cleared_balance", "uncleared_balance"]) {
-        if (payload[field] != null && !Number.isSafeInteger(payload[field])) {
-          throw new ValidationError(`account.${field} must be integer milliunits`);
+        if (payload[field] != null && !isStorableMilliunits(payload[field])) {
+          throw new ValidationError(`account.${field} must be integer milliunits within ±1e15`);
         }
       }
       // The documented create body names a type and no on_budget; a tracking
@@ -313,10 +324,27 @@ async function handleV1(
       if (!body || typeof body !== "object" || Array.isArray(body) || typeof body.statement_date !== "string") {
         throw new ValidationError("statement_date is required");
       }
-      if (!Number.isSafeInteger(body.statement_balance)) {
-        throw new ValidationError("statement_balance must be integer milliunits");
+      if (!isStorableMilliunits(body.statement_balance)) {
+        throw new ValidationError("statement_balance must be integer milliunits within ±1e15");
       }
       return json({ data: await repo.reconcileAccount(planId, accountId, body.statement_date, body.statement_balance, { operationId }) });
+    }
+    if (segments.length === 6 && segments[5] === "card_payment_terms") {
+      if (method === "GET") {
+        return json({ data: { card_payment_terms: await repo.getCardPaymentTerms(planId, accountId), server_knowledge: await repo.getServerKnowledge(planId) } });
+      }
+      if (method === "PUT") {
+        const body = await readJson(request);
+        if (!body.card_payment_terms || typeof body.card_payment_terms !== "object" || Array.isArray(body.card_payment_terms)) {
+          throw new ValidationError("card_payment_terms is required");
+        }
+        const terms = await repo.putCardPaymentTerms(planId, accountId, body.card_payment_terms, scheduledWriteOptions(request));
+        return json({ data: { card_payment_terms: terms, server_knowledge: await repo.getServerKnowledge(planId) } });
+      }
+      if (method === "DELETE") {
+        const terms = await repo.deleteCardPaymentTerms(planId, accountId, scheduledWriteOptions(request));
+        return json({ data: { card_payment_terms: terms, server_knowledge: await repo.getServerKnowledge(planId) } });
+      }
     }
     if (segments.length === 5 && method === "GET") {
       return json({ data: { account: await repo.getAccount(planId, accountId) } });
@@ -358,6 +386,24 @@ async function handleV1(
     if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "unapproved_count" && method === "GET") {
       return unapprovedCountResponse(repo, planId, countFilters(url, { accountId }));
     }
+    if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "needs_confirmation_count" && method === "GET") {
+      return json({ data: await repo.countNeedsConfirmationTransactions(planId, countFilters(url, { accountId })) });
+    }
+    if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "to_claim_count" && method === "GET") {
+      return json({ data: await repo.countToClaimTransactions(planId, countFilters(url, { accountId })) });
+    }
+  }
+
+  if (resource === "card_payment_terms" && segments.length === 4 && method === "GET") {
+    return json({ data: await repo.listCardPaymentTerms(planId) });
+  }
+
+  if (resource === "card_payments" && segments.length === 4 && method === "GET") {
+    const requested = url.searchParams.get("as_of");
+    if (requested !== null && !isIsoDate(requested)) throw new ValidationError("as_of must be an ISO date (YYYY-MM-DD)");
+    const zone = timeZone ?? defaultTimeZone();
+    const asOf = requested ?? localDate(new Date(), zone);
+    return json({ data: await repo.getCardPaymentsView(planId, asOf, { timeZone: zone }) });
   }
 
   if (resource === "export_snapshot" && segments.length === 4 && method === "GET") {
@@ -550,6 +596,7 @@ async function handleV1(
       const body = await readJson(request);
       if (collectionPostIntent(body) === "many") {
         const inputs = parseTransactionCreates(body.transactions);
+        for (const input of inputs) normaliseFollowUpWords(input);
         for (const input of inputs) await stampTransactionFlagName(repo, planId, input.account_id, input);
         await autoCategorise(repo, planId, inputs, categoriser);
         const result = await repo.createTransactions(planId, inputs);
@@ -560,6 +607,7 @@ async function handleV1(
         return apiError(400, "bad_request", "transaction is required");
       }
       assertTransactionFieldTypes(input);
+      normaliseFollowUpWords(input);
       const existing = input?.import_id && input?.account_id
         ? await repo.findTransactionByImportId(planId, input.import_id, input.account_id)
         : null;
@@ -609,6 +657,12 @@ async function handleV1(
     if (segments.length === 5 && segments[4] === "unapproved_count" && method === "GET") {
       return unapprovedCountResponse(repo, planId, countFilters(url));
     }
+    if (segments.length === 5 && segments[4] === "needs_confirmation_count" && method === "GET") {
+      return json({ data: await repo.countNeedsConfirmationTransactions(planId, countFilters(url)) });
+    }
+    if (segments.length === 5 && segments[4] === "to_claim_count" && method === "GET") {
+      return json({ data: await repo.countToClaimTransactions(planId, countFilters(url)) });
+    }
 
     // Bulk commands are also path segments, and must precede the item route.
     // Each returns ordered per-item outcomes rather than promising atomicity:
@@ -623,7 +677,8 @@ async function handleV1(
       return json({ data: result });
     }
 
-    const { transactionId, expectedApprovedParameter } = transactionItemRef(segments[4], url);
+    const transactionId = segments[4];
+    const expectedApprovedParameter = url.searchParams.get("expected_approved");
     if (segments.length === 5 && method === "GET") {
       return json({ data: { transaction: await repo.getTransaction(planId, transactionId), server_knowledge: await repo.getServerKnowledge(planId) } });
     }
@@ -826,19 +881,20 @@ async function handleNative(
     }
   }
 
-  if (segments[1] === "mobile" && segments[2] === "quick-entry" && method === "POST") {
+  if (segments.length === 3 && segments[1] === "mobile" && segments[2] === "quick-entry" && method === "POST") {
     const body = await readJson(request);
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
     if (denied) return denied;
     await repo.ensurePlan(targetPlanId);
-    const amount = quickEntryMilliunits(body.amount_milli, body.amount, "amount");
+    const format = amountFormatOf((await repo.getSettings(targetPlanId)).currency_format);
+    const amount = quickEntryMilliunits(body.amount_milli, body.amount, "amount", format);
     if (Array.isArray(body.subtransactions) && body.subtransactions.some((sub: unknown) => !sub || typeof sub !== "object" || Array.isArray(sub))) {
       throw new ValidationError("subtransactions must be objects");
     }
     const subtransactions = Array.isArray(body.subtransactions)
       ? body.subtransactions.map((sub: any) => ({
-          amount: quickEntryMilliunits(sub.amount_milli, sub.amount, "subtransaction amount"),
+          amount: quickEntryMilliunits(sub.amount_milli, sub.amount, "subtransaction amount", format),
           payee_id: sub.payee_id ?? null,
           payee_name: sub.payee_name ?? null,
           category_id: sub.category_id ?? null,
@@ -855,19 +911,22 @@ async function handleNative(
       category_id: body.category_id ?? null,
       memo: body.memo ?? null,
       flag_color: body.flag_color ?? null,
+      ...(body.needs_confirmation === undefined ? {} : { needs_confirmation: body.needs_confirmation }),
+      ...(body.claim_status === undefined ? {} : { claim_status: body.claim_status }),
       approved: true,
       source_kind: "mobile",
       source_ref: body.client_id ?? null,
       subtransactions,
     };
     assertTransactionFieldTypes(input);
+    normaliseFollowUpWords(input);
     await stampTransactionFlagName(repo, targetPlanId, input.account_id, input);
     await autoCategorise(repo, targetPlanId, [input], categoriser);
     const transaction = await repo.createTransaction(targetPlanId, input);
     return json({ data: { transaction, server_knowledge: await repo.getServerKnowledge(targetPlanId) } }, 201);
   }
 
-  if (segments[1] === "import" && segments[2] === "csv" && method === "POST") {
+  if (segments.length === 3 && segments[1] === "import" && segments[2] === "csv" && method === "POST") {
     const body = await readJson(request);
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
@@ -877,7 +936,7 @@ async function handleNative(
     return json({ data: result }, 201);
   }
 
-  if (segments[1] === "import" && segments[2] === "ynab" && method === "POST") {
+  if (segments.length === 3 && segments[1] === "import" && segments[2] === "ynab" && method === "POST") {
     const body = await readJson(request);
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
@@ -892,7 +951,7 @@ async function handleNative(
     return json({ data: result }, 201);
   }
 
-  if (segments[1] === "import" && segments[2] === "rewards-tracker") {
+  if (segments.length === 3 && segments[1] === "import" && segments[2] === "rewards-tracker") {
     const denied = authorizePlan(principal, planId, defaultPlanId, method);
     if (denied) return denied;
     if (method === "GET") {
@@ -919,9 +978,7 @@ async function handleNative(
     if (isUnsafeMethod(method)) await repo.ensurePlan(targetPlanId);
 
     if (segments[2] === "accounts" && segments[4] === "config" && segments.length === 5) {
-      let accountId: string;
-      try { accountId = decodeURIComponent(segments[3]); }
-      catch { throw new ValidationError("Invalid account ID encoding"); }
+      const accountId = segments[3];
       if (method === "GET") return json({ data: await exportRewardsAccountConfig(repo, targetPlanId, accountId) });
       if (method === "PUT") {
         const card = await importRewardsAccountConfig(repo, targetPlanId, accountId, body.payload);
@@ -950,17 +1007,18 @@ async function handleNative(
 }
 
 /**
- * Quick entry takes integer milliunits or a decimal string. A missing or
- * unparseable decimal is the caller's mistake, not a server failure; integer
- * checks on `amount_milli` stay with the transaction writer.
+ * Quick entry takes integer milliunits or a decimal string in the plan's
+ * currency format. A missing or unparseable decimal is the caller's mistake,
+ * not a server failure; checks on `amount_milli` stay with the transaction
+ * writer.
  */
-function quickEntryMilliunits(milli: unknown, decimal: unknown, label: string): number {
+function quickEntryMilliunits(milli: unknown, decimal: unknown, label: string, format: AmountFormat): number {
   if (milli !== undefined && milli !== null) return milli as number;
   if (typeof decimal !== "string" && typeof decimal !== "number") throw new ValidationError(`${label} is required`);
   try {
-    return decimalToMilliunits(decimal);
+    return decimalToMilliunits(decimal, format);
   } catch {
-    throw new ValidationError(`${label} must be a decimal amount`);
+    throw new ValidationError(`${label} must be a decimal amount in the plan's currency format, within ±1,000,000,000,000`);
   }
 }
 
@@ -1134,6 +1192,15 @@ function scheduledWriteOptions(request: Request): { operationId?: string } {
   return { operationId: `http_${sha256(key)}` };
 }
 
+/** The host's zone, for a Bun server started without HOWMUCH_TIME_ZONE. */
+function defaultTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
 function requireIdempotencyKey(request: Request): string {
   const options = scheduledWriteOptions(request);
   if (!options.operationId) throw new ValidationError("Idempotency-Key is required");
@@ -1149,10 +1216,15 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
     const user = principal && principal.kind !== "api-token"
       ? { id: principal.id, username: principal.username }
       : null;
+    const setupRequired = await store.setupRequired();
     return authJson({
       data: {
-        setup_required: await store.setupRequired(),
+        setup_required: setupRequired,
         bootstrap_required: !!config.apiToken,
+        // Setup would be refused from this host because no setup token is
+        // configured. Lets the web app show the missing-secret step instead
+        // of a form that can only fail.
+        setup_blocked: setupRequired && !config.apiToken && !tokenlessSetupAllowed(config, url),
         user,
         // Unix seconds. The web client stores this and refuses to paint cached
         // ledger data once it has passed, so an expired cookie cannot show the
@@ -1161,6 +1233,10 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
         // Plan id to role, for session principals only. Lets the web client show
         // owner-only controls; the server still enforces the role on every write.
         ...(principal?.kind === "session" ? { roles: principal.roles } : {}),
+        // With a TypeSafe key, new transactions are sent to TypeSafe for a
+        // category. Public, so the iOS connect flow can say so before it
+        // switches to this server.
+        categoriser_enabled: !!config.typesafeApiKey,
       },
     });
   }
@@ -1224,11 +1300,11 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
     if (!sameOrigin(request, url)) {
       return authError(403, "forbidden", "Origin validation failed");
     }
-    if (!config.apiToken && !isLoopbackHost(url.hostname)) {
+    if (!config.apiToken && !tokenlessSetupAllowed(config, url)) {
       return authError(
         403,
         "forbidden",
-        "Tokenless setup is only allowed from this machine; set HOWMUCH_API_TOKEN",
+        "This server has no setup token. Set HOWMUCH_API_TOKEN on this server, then reload this page.",
       );
     }
     const authorization = request.headers.get("authorization");
@@ -1237,7 +1313,11 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
       ? bootstrapToken !== null && safeTokenEqual(bootstrapToken, config.apiToken)
       : authorization === null;
     if (!validBootstrap) {
-      return authError(401, "not_authorized", "Invalid setup token");
+      return authError(
+        401,
+        "not_authorized",
+        "That setup token does not match. Use the HOWMUCH_API_TOKEN value you set when deploying this server.",
+      );
     }
 
     const body = await readJson(request);
@@ -1387,6 +1467,11 @@ async function pruneAuthRows(store: AuthStore): Promise<void> {
   }
 }
 
+/** Setup without a token is only for a local server reached on loopback. */
+function tokenlessSetupAllowed(config: ApiConfig, url: URL): boolean {
+  return !config.refuseTokenlessSetup && isLoopbackHost(url.hostname);
+}
+
 async function authenticate(request: Request, store: AuthStore, apiToken?: string): Promise<Principal | null> {
   const authorization = request.headers.get("authorization");
   if (authorization !== null) {
@@ -1499,27 +1584,6 @@ function authorizePlan(principal: Principal, planId: string, defaultPlanId: stri
     return apiError(403, "forbidden", "Plan is read-only");
   }
   return null;
-}
-
-/**
- * iOS used to concatenate `?expected_approved=` onto the path. `encodedPath`
- * then percent-encodes `?` as `%3F`, so the last segment is `id%3Fexpected_approved=false`
- * and a lookup of that string 404s. Split the embedded query back out.
- */
-function transactionItemRef(segment: string, url: URL): { transactionId: string; expectedApprovedParameter: string | null } {
-  let decoded = segment;
-  try {
-    decoded = decodeURIComponent(segment);
-  } catch {
-    decoded = segment;
-  }
-  const cut = decoded.indexOf("?");
-  const transactionId = cut === -1 ? decoded : decoded.slice(0, cut);
-  const embedded = cut === -1 ? new URLSearchParams() : new URLSearchParams(decoded.slice(cut + 1));
-  return {
-    transactionId,
-    expectedApprovedParameter: url.searchParams.get("expected_approved") ?? embedded.get("expected_approved"),
-  };
 }
 
 function authorizePlanAdministration(principal: Principal, planId: string): Response | null {

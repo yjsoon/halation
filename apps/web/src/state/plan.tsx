@@ -28,6 +28,7 @@ import {
 } from "../lib/locale-plan-seed";
 import { configureDateFormat } from "../lib/dates";
 import { configureMoney } from "../lib/money";
+import type { NewAccountBody } from "../lib/new-account";
 import { parseTransactionDeepLink } from "../lib/transaction-deep-link";
 import { HalationMark } from "../components/Brand";
 import {
@@ -43,7 +44,9 @@ import {
   planKnowledge,
   resolveReferenceBatch,
   type Settled,
+  type SignedOutMode,
 } from "./bootstrap";
+import { describeAuthFailure } from "./auth-failure";
 import { isCachedReference, type CachedReference } from "./cache-shapes";
 import { loadPrefs, savePrefs, sessionLooksLive } from "./prefs";
 import {
@@ -91,6 +94,8 @@ interface PlanContextValue {
   accountPreferencesSync: AccountPreferencesState;
   updateAccountPreferences: (updater: (preferences: AccountPreferences) => AccountPreferences) => void;
   updateAccountIcon: (accountId: string, icon: string) => Promise<void>;
+  /** Creates an account and adds it to the sidebar before resolving. */
+  createAccount: (account: NewAccountBody) => Promise<Account>;
   retryAccountPreferences: () => void;
   categoryGroups: CategoryGroup[];
   categories: Category[];
@@ -176,6 +181,7 @@ function provisionalPlanValue(
     },
     updateAccountPreferences: () => {},
     updateAccountIcon: async () => {},
+    createAccount: () => Promise.reject(new Error("Still loading. Try again in a moment.")),
     retryAccountPreferences: () => {},
     categoryGroups,
     categories,
@@ -193,9 +199,11 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const requestedPlanId = locationDeepLink.kind === "valid" ? locationDeepLink.link.planId : null;
   const [value, setValue] = useState<PlanContextValue | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [authMode, setAuthMode] = useState<"checking" | "setup" | "login" | "ready">("checking");
+  const [authMode, setAuthMode] = useState<"checking" | SignedOutMode | "ready">("checking");
   const [bootstrapRequired, setBootstrapRequired] = useState(true);
   const [generation, setGeneration] = useState(0);
+  const sessionEndedRef = useRef(false);
+  const cancelBootstrapRef = useRef<() => void>(() => {});
   const accountPreferencesControllerRef = useRef<{
     key: string;
     planId: string;
@@ -209,20 +217,30 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(() => setGeneration((number) => number + 1), []);
 
   const signOut = useCallback(async () => {
-    await api.logout();
-    accountPreferencesControllerRef.current?.controller.detach();
-    accountPreferencesControllerRef.current = null;
-    // The next person to sign in here should inherit neither this hint nor
-    // any of this user's cached ledger data.
-    savePrefs({ planId: undefined, sessionExpiresAt: undefined });
-    clearReferenceCache();
-    setValue(null);
-    setError(null);
-    setAuthMode("login");
+    // Invalidate synchronously: a response received before logout can finish
+    // after it, even though the server has already revoked the session.
+    sessionEndedRef.current = true;
+    cancelBootstrapRef.current();
+    try {
+      await api.logout();
+    } finally {
+      cancelBootstrapRef.current();
+      accountPreferencesControllerRef.current?.controller.detach();
+      accountPreferencesControllerRef.current = null;
+      // The next person to sign in here should inherit neither this hint nor
+      // any of this user's cached ledger data, even if revocation failed.
+      savePrefs({ planId: undefined, sessionExpiresAt: undefined });
+      clearReferenceCache();
+      setValue(null);
+      setError(null);
+      setAuthMode("login");
+    }
   }, []);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      sessionEndedRef.current = true;
+      cancelBootstrapRef.current();
       accountPreferencesControllerRef.current?.controller.detach();
       accountPreferencesControllerRef.current = null;
       savePrefs({ planId: undefined, sessionExpiresAt: undefined });
@@ -252,7 +270,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (sessionEndedRef.current) return;
     let cancelled = false;
+    cancelBootstrapRef.current = () => { cancelled = true; };
     (async () => {
       try {
         // The session check, the plans list and - when a plan is remembered -
@@ -317,6 +337,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         savePrefs({ sessionExpiresAt: status.session_expires_at ?? undefined });
         const session = decideSession(status);
         if (session.kind === "signed-out") {
+          sessionEndedRef.current = true;
           // The sign-in form goes up now. Whatever the two speculative calls
           // return is never awaited, never read, and never reaches state. The
           // cache goes with it: nobody is signed in, so there is no session
@@ -477,6 +498,13 @@ export function PlanProvider({ children }: { children: ReactNode }) {
               throw cause;
             }
           },
+          createAccount: async (account) => {
+            const created = await api.createAccount(planId, account);
+            setValue((current) => current?.planId === planId
+              ? { ...current, accounts: [...current.accounts.filter((existing) => existing.id !== created.id), created] }
+              : current);
+            return created;
+          },
           retryAccountPreferences: () => accountPreferencesController?.retry(),
           categoryGroups,
           categories,
@@ -487,6 +515,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       } catch (cause) {
         if (!cancelled) {
           if (cause instanceof ApiError && cause.status === 401) {
+            sessionEndedRef.current = true;
             // The same teardown as `onUnauthorized` and `signOut`. A 401
             // raised here — a speculative call deciding its own, or a read
             // after the session went — ends the session just as surely, so it
@@ -512,6 +541,10 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     accountPreferencesControllerRef.current = null;
   }, []);
 
+  if (authMode === "setup-blocked") {
+    return <SetupBlocked />;
+  }
+
   if (authMode === "setup" || authMode === "login") {
     return (
       <AuthForm
@@ -519,6 +552,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         bootstrapRequired={bootstrapRequired}
         error={error}
         onSuccess={() => {
+          sessionEndedRef.current = false;
           setError(null);
           setAuthMode("checking");
           setGeneration((number) => number + 1);
@@ -551,6 +585,37 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     <PlanContext.Provider value={value} key={bootstrapControllerKey(value.userId, value.planId)}>
       {children}
     </PlanContext.Provider>
+  );
+}
+
+const REPOSITORY_URL = "https://github.com/yjsoon/howmuch";
+const SELF_HOSTING_DOCS_URL = `${REPOSITORY_URL}/blob/main/docs/self-hosting.md`;
+const SETUP_TOKEN_DOCS_URL = `${SELF_HOSTING_DOCS_URL}#4-create-the-setup-token`;
+
+/** A server with no owner and no setup token: setup can only fail, so say how to fix it. */
+function SetupBlocked() {
+  return (
+    <div className="boot-message auth-form">
+      <HalationMark size="hero" />
+      <h1>Set up Halation</h1>
+      <p>This server needs a setup token before you can create your account.</p>
+      <ol className="setup-steps">
+        <li>
+          Generate a long random value, for example with <code>openssl rand -hex 32</code>, and keep a copy in a
+          password manager.
+        </li>
+        <li>
+          Set it on this server as <code>HOWMUCH_API_TOKEN</code>. On Cloudflare, add it as a secret under the
+          Worker's <strong>Settings</strong>, <strong>Variables and Secrets</strong>, or run{" "}
+          <code>bunx wrangler secret put HOWMUCH_API_TOKEN</code> with your Wrangler config.
+        </li>
+        <li>Reload this page and enter the value as the setup token.</li>
+      </ol>
+      <button type="button" onClick={() => window.location.reload()}>Reload</button>
+      <p className="boot-hint">
+        <a href={SETUP_TOKEN_DOCS_URL}>Setup token in the self-hosting guide</a>
+      </p>
+    </div>
   );
 }
 
@@ -592,7 +657,7 @@ function AuthForm({
           setBootstrapToken("");
           onSuccess();
         } catch (cause) {
-          onError(cause instanceof Error ? cause.message : String(cause));
+          onError(describeAuthFailure(cause));
         } finally {
           setSubmitting(false);
         }
@@ -601,6 +666,12 @@ function AuthForm({
       <HalationMark size="hero" />
       <h1>{setup ? "Set up Halation" : "Sign in to Halation"}</h1>
       <p>{setup ? "Create your account." : "Enter your username and password."}</p>
+      {!setup && (
+        <p className="boot-hint">
+          This is a private Halation instance. To run your own, see{" "}
+          <a href={REPOSITORY_URL}>github.com/yjsoon/howmuch</a>.
+        </p>
+      )}
       <label>
         <span>Username</span>
         <input
@@ -637,9 +708,16 @@ function AuthForm({
             value={bootstrapToken}
             onChange={(event) => setBootstrapToken(event.target.value)}
             autoComplete="off"
+            aria-describedby="auth-token-note"
             required
           />
         </label>
+      )}
+      {setup && bootstrapRequired && (
+        <span id="auth-token-note" className="field-note auth-field-note">
+          The <code>HOWMUCH_API_TOKEN</code> secret you set when deploying this server.{" "}
+          <a href={SETUP_TOKEN_DOCS_URL}>How to set it</a>
+        </span>
       )}
       {setup && (
         <>

@@ -1,44 +1,32 @@
-export function decimalToMilliunits(value: string | number): number {
-  const raw = String(value).trim().replace(/[$,\s]/g, "");
-  if (!raw) {
-    return 0;
-  }
+import { type AmountFormat, parseAmount } from "@howmuch/money";
 
-  if (!/^[+-]?\d*(\.\d*)?$/.test(raw)) {
-    // Scientific notation and other JS-parsable spellings ("2e2") would be
-    // mangled by the digit parse below; round them via Number instead.
-    const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) {
-      throw new Error(`Invalid money value: ${value}`);
-    }
-    return Math.round(parsed * 1000);
-  }
-
-  const sign = raw.startsWith("-") ? -1 : 1;
-  const unsigned = raw.replace(/^[+-]/, "");
-  const [wholePart, fractionPart = ""] = unsigned.split(".");
-  const whole = Number.parseInt(wholePart || "0", 10);
-  const fraction = Number.parseInt(fractionPart.padEnd(3, "0").slice(0, 3) || "0", 10);
-
-  if (Number.isNaN(whole) || Number.isNaN(fraction)) {
+/**
+ * Reads a decimal amount in the plan's format; throws on anything it cannot
+ * read exactly. A JSON number is never locale text, so it is read with a
+ * plain dot: 1.234 is not 1,234 in a comma plan.
+ */
+export function decimalToMilliunits(value: string | number, format: AmountFormat): number {
+  const parsed = typeof value === "number"
+    ? parseAmount(String(value), { decimalDigits: format.decimalDigits, decimalSeparator: ".", groupSeparator: "" })
+    : parseAmount(value, format);
+  if (parsed === null) {
     throw new Error(`Invalid money value: ${value}`);
   }
-
-  return sign * (whole * 1000 + fraction);
+  return parsed;
 }
 
-export function csvRowToMilliunits(row: { outflow?: unknown; inflow?: unknown; amount?: unknown }): number {
+export function csvRowToMilliunits(row: { outflow?: unknown; inflow?: unknown; amount?: unknown }, format: AmountFormat): number {
   if (row.amount !== undefined && row.amount !== null && String(row.amount).trim() !== "") {
-    return decimalToMilliunits(String(row.amount));
+    return decimalToMilliunits(typeof row.amount === "number" ? row.amount : String(row.amount), format);
   }
 
-  const outflow = row.outflow === undefined || row.outflow === null ? "" : String(row.outflow).trim();
-  const inflow = row.inflow === undefined || row.inflow === null ? "" : String(row.inflow).trim();
+  const cell = (value: unknown): string | number => (typeof value === "number" ? value : value === undefined || value === null ? "" : String(value).trim());
+  const outflow = cell(row.outflow);
+  const inflow = cell(row.inflow);
 
   // Register exports (YNAB's among them) fill the unused column with "0.00",
   // so a filled outflow cell must not hide the inflow beside it.
-  const outflowMilli = outflow ? Math.abs(decimalToMilliunits(outflow)) : 0;
-  const inflowMilli = inflow ? Math.abs(decimalToMilliunits(inflow)) : 0;
+  const outflowMilli = outflow !== "" ? Math.abs(decimalToMilliunits(outflow, format)) : 0;
+  const inflowMilli = inflow !== "" ? Math.abs(decimalToMilliunits(inflow, format)) : 0;
   return inflowMilli - outflowMilli || 0;
 }
-

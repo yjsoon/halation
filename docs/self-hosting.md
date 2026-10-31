@@ -98,7 +98,7 @@ openssl rand -hex 32
 bunx wrangler secret put HOWMUCH_API_TOKEN --config wrangler.self-host.jsonc
 ```
 
-Paste the random string when prompted. Keep a copy in a password manager: it is the setup token, and it also authorises default-plan integrations, so treat it like a password. Until this secret exists, setup fails closed.
+Paste the random string when prompted. Keep a copy in a password manager: it is the setup token, and it also authorises default-plan integrations, so treat it like a password. Until this secret exists, setup fails closed: the setup page says the token is missing and shows these steps instead of the form. You can also add the secret in the Cloudflare dashboard, under the Worker's **Settings**, then **Variables and Secrets**.
 
 ## 5. First-owner setup
 
@@ -106,7 +106,11 @@ Open your Worker's address in a browser. The app shows the setup form. Enter a u
 
 The form also asks for a currency and a date format, prefilled from your browser's language. That guess is only a guess: browsers often report US English whatever the person's country, so check both before you continue. You can change them later in Settings.
 
+The setup token is the `HOWMUCH_API_TOKEN` value from step 4, or the one you entered on the Deploy to Cloudflare setup page. If the form says the token does not match, check for a missing character or a stray space, or set a new value with `wrangler secret put` and try again. If it reports that the server could not complete the request, open the Worker's live logs (**Logs**, then **Live**, in the Cloudflare dashboard, or `bunx wrangler tail`) and try again while watching; the stored logs keep only about one request in ten. Cloudflare error 1102 (exceeded resource limits) means the Worker is on the Workers Free plan; see [Costs](#costs). Any other error means the Worker failed, and the logs say why.
+
 Setup works once. A second attempt returns "Setup has already completed".
+
+The ledger starts empty. Choose **Add your first account** (or **+ New** beside Accounts in the sidebar), give the account a name, type and today's balance, and you can start adding transactions.
 
 ### Changing the currency or date format afterwards
 
@@ -120,7 +124,21 @@ Open **Settings** and use **Change password**. Enter the current password and th
 
 ## 6. Connect the iOS app
 
-The iOS app is not on the App Store. If you have a build, open **More, then Settings** on the Accounts, Rewards, Reflect or Assistant screen, and set the server URL to your Worker's `https://` address. Then sign in with the username and password you chose. The app never asks for the setup token, which is why first-owner setup happens in the browser.
+The iOS app is not on the App Store. Build it from source with Xcode, as described in [Getting the iPhone app](../README.md#getting-the-iphone-app). Then open **More, then Settings** on the Accounts, Rewards, Insights or Assistant screen, and set the server URL to your Worker's `https://` address. Then sign in with the username and password you chose. The app never asks for the setup token, which is why first-owner setup happens in the browser.
+
+## Optional: automatic categories
+
+Halation can ask [TypeSafe](https://docs.typesafe.ai)'s Jev model to pick categories. It is off unless you add a key:
+
+```sh
+bunx wrangler secret put TYPESAFE_API_KEY --config wrangler.self-host.jsonc
+```
+
+With a key, the server sends every new transaction that has a payee but no category to TypeSafe, an outside service. It sends the payee, memo, amount, date and account name, your category and group names, and similar past transactions with their payees, memos, amounts, dates and categories. A confident pick is saved without review. The **Suggest categories** button on the Transactions page sends the same details for the rows you select. Imports, CSV uploads and scheduled transactions are not categorised automatically, but they can be among the similar past transactions sent. The web Settings page says whether this is on, and the iOS app says so when you connect and in its server settings. To turn it off, delete the secret with `bunx wrangler secret delete TYPESAFE_API_KEY --config wrangler.self-host.jsonc`. If you used the Deploy to Cloudflare button, run these commands from the root of your clone with `--config wrangler.jsonc`, or manage the secret in the Cloudflare dashboard.
+
+## HTTPS
+
+The Worker sends `Strict-Transport-Security: max-age=31536000; includeSubDomains`, so browsers use HTTPS for a year on the host serving Halation and every subdomain under it. Serve Halation from its own hostname (for example `halation.example.com`), not your apex domain, unless every subdomain of that domain already serves HTTPS.
 
 ## Updating
 
@@ -136,7 +154,7 @@ bunx wrangler d1 migrations apply <db-name> --remote --config wrangler.self-host
 bun run deploy:self-host
 ```
 
-Apply migrations before deploying so the new code never meets an old schema. Read the tag's commit log (`git log --oneline <previous-tag>..<new-tag>`) for anything that needs more than this.
+Apply migrations before deploying so the new code never meets an old schema. Update the Worker before installing an iOS build from the same or a newer tag: an older Worker ignores fields the newer app sends, such as the To claim flag, and the app may drop the memo word that used to carry it. Read the tag's commit log (`git log --oneline <previous-tag>..<new-tag>`) for anything that needs more than this.
 
 ## Backups
 

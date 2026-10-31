@@ -70,6 +70,12 @@ environment `tk` in `wrangler.jsonc`:
   `HOWMUCH_API_TOKEN` as an encrypted secret on this Worker.
 - Optional: `TYPESAFE_API_KEY` (encrypted secret) turns on Jev category
   suggestions (`POST /api/tools/categorise`); without it the route returns 503.
+  It also turns on automatic categorisation: every new API or quick-entry
+  transaction with a payee but no category is sent to TypeSafe (payee, memo,
+  amount, date, account name, category and group names, and similar past
+  transactions with their payees, memos, amounts, dates and categories),
+  and a confident pick is saved without review. `/api/auth/status` reports
+  `categoriser_enabled`, and both clients tell users.
   Set it from `apps/worker` with
   `bunx wrangler secret put TYPESAFE_API_KEY --env tk --profile tinkertanker`.
   `TYPESAFE_MODEL` (plain var) overrides the SDK default, `jev-latest`.
@@ -84,6 +90,33 @@ environment `tk` in `wrangler.jsonc`:
   applies D1 migrations. If a release includes a migration, apply it manually
   (`wrangler d1 migrations apply DB --env tk --remote --profile tinkertanker`)
   before tagging, following the verification order in this document.
+- Migration `0023_transaction_claim_status.sql` adds
+  `transactions.claim_status` and `transactions.claimed_on` (both null by
+  default) and a partial index over rows to claim. It is additive and the
+  running Worker ignores the columns, so apply it (after
+  `scripts/backup-d1.sh`) before tagging the release that writes them. That
+  release turns `TODO` and `CLAIMED` memo words into these fields, so deploy
+  the claims tool version that reads `claim_status` first (it also works with
+  the older Worker). Ship an iOS build with the To claim field only after that
+  Worker is live: an older Worker ignores the field, so the app would drop the
+  claim along with the memo word it strips. Rows written before the release
+  keep their memo words: nothing converts them in bulk, the apps and the
+  claims tool read both the words and the fields, and a row's words become
+  fields only when its memo or follow-ups are edited. Rolling the Worker
+  back to a tag before 0023 after the release hides claims held in the field
+  from the apps and the claims tool until it rolls forward again; the
+  columns and their values stay in D1, and on rolling forward they win over
+  any claim changed through memo words in the meantime, so check claims
+  changed during a rollback.
+- Migration `0022_transaction_needs_confirmation.sql` adds
+  `transactions.needs_confirmation` (default 0) and a partial index. It is
+  additive and the running Worker ignores the column, but the Worker that
+  writes it needs it, so apply it (after `scripts/backup-d1.sh`) before
+  tagging that release.
+- Migration `0021_card_payment_terms.sql` adds the `card_payment_terms`
+  table and its ownership triggers. It is additive and the running Worker
+  ignores it, so apply it (after `scripts/backup-d1.sh`) before tagging the
+  release whose Worker serves the card payment routes.
 - Migration `0020_drop_budgeting_tables.sql` drops `plan_month_assignments`,
   `plan_month_category_targets` and `ynab_source_month_activity`, which no code
   has read since budgeting was removed. Run `scripts/backup-d1.sh` first, then

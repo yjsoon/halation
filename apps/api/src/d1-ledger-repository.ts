@@ -1,8 +1,9 @@
+import { isStorableMilliunits } from "@howmuch/money";
 import { createId } from "./ids";
 import { createHash } from "node:crypto";
 import { parseAccountIcon } from "./account-icon";
 import { applyAccountUpdate, type AccountUpdatePatch } from "./account-kind";
-import { LedgerRepository, NotFoundError, PlanNotFoundError, type PlanFormatsPatch, ReconciliationMismatchError, TransactionStateConflictError, ValidationError, type CategoryWriteOptions, type SnapshotImportResult, type TransactionWriteOptions } from "./repository";
+import { LedgerRepository, NotFoundError, cardPaymentTermsDeleteStatements, cardPaymentTermsPutStatements, type CardPaymentTermsWriteOptions, PlanNotFoundError, type PlanFormatsPatch, ReconciliationMismatchError, TransactionStateConflictError, ValidationError, type CategoryWriteOptions, type SnapshotImportResult, type TransactionWriteOptions } from "./repository";
 import {
   EntityConflictError,
   categoryCommandStatements,
@@ -20,6 +21,7 @@ import {
 import { requestHash } from "./canonical-json";
 import { PLAN_NOT_EMPTY_CONDITION, parsePlanSnapshot, planNotEmptyValues, snapshotImportStatements } from "./plan-snapshot";
 import type { LedgerStore } from "./storage";
+import type { CardPaymentTerms } from "./card-payments";
 import type { AccountReconciliationOptions, AccountReconciliationPreview, AccountReconciliationResult, ScheduledTransactionInput, ScheduledWriteOptions, TransactionBatchResult, TransactionBatchUpdate, TransactionInput } from "./types";
 import { D1Database } from "./d1";
 import { D1MetadataRepository, type AccountReconciliationSnapshot, type ScheduledMutationSnapshot } from "./d1-metadata-repository";
@@ -111,7 +113,7 @@ export class D1LedgerRepository extends LedgerRepository {
     options: AccountReconciliationOptions,
   ): Promise<AccountReconciliationResult> {
     const date = normaliseReconciliationDate(statementDate);
-    if (!Number.isSafeInteger(statementBalance)) throw new ValidationError("statement_balance must be integer milliunits");
+    if (!isStorableMilliunits(statementBalance)) throw new ValidationError("statement_balance must be integer milliunits within ±1e15");
     if (!accountId || typeof accountId !== "string") throw new ValidationError("account_id is required");
     if (!options?.operationId) throw new ValidationError("operationId is required");
     const context = this.context("account.reconcile", planId, accountId, options.operationId);
@@ -281,6 +283,56 @@ export class D1LedgerRepository extends LedgerRepository {
       throw error;
     }
     return { imported: rows.counts, replayed: Boolean(receipt), server_knowledge: await this.getServerKnowledge(planId) };
+  }
+
+  /**
+   * Card terms PUT as one guarded batch. The card and funding account are
+   * re-asserted live in this plan inside the batch (and by the table's
+   * ownership triggers), so a concurrent delete aborts the write.
+   */
+  override async putCardPaymentTerms(planId: string, accountId: string, input: unknown, options: CardPaymentTermsWriteOptions = {}): Promise<CardPaymentTerms> {
+    const hash = requestHash({ action: "card_payment_terms.put", planId, accountId, request: input });
+    const context = this.context("card_payment_terms.put", planId, accountId, options.operationId);
+    const payload = { request_hash: hash };
+    const receipt = options.operationId ? await this.d1.get("SELECT 1 FROM write_commands WHERE id=?", [context.operationId]) : null;
+    let statements: PlannedSql[] = [];
+    if (!receipt) {
+      const terms = await this.planCardPaymentTerms(planId, accountId, input);
+      const auditId = `audit_${createHash("sha256").update(context.operationId).digest("hex").slice(0, 24)}`;
+      statements = [
+        categoryAssertion(context.operationId, "account", accountId, planId),
+        ...(terms.default_funding_account_id ? [categoryAssertion(context.operationId, "account", terms.default_funding_account_id, planId)] : []),
+        ...cardPaymentTermsPutStatements(planId, terms, auditId, hash),
+      ];
+    }
+    try {
+      await this.metadata.applyPlanCommand("card_payment_terms.put", planId, accountId, payload, statements, context);
+    } catch (error) {
+      if (isPreconditionFailure(error) || String(error).includes("card payment terms ownership failed")) {
+        await this.planCardPaymentTerms(planId, accountId, input);
+        throw new EntityConflictError("The plan changed while the card payment terms were being saved; refresh and try again");
+      }
+      throw error;
+    }
+    return this.getCardPaymentTerms(planId, accountId);
+  }
+
+  override async deleteCardPaymentTerms(planId: string, accountId: string, options: CardPaymentTermsWriteOptions = {}): Promise<CardPaymentTerms> {
+    const hash = requestHash({ action: "card_payment_terms.delete", planId, accountId });
+    const context = this.context("card_payment_terms.delete", planId, accountId, options.operationId);
+    const auditId = `audit_${createHash("sha256").update(context.operationId).digest("hex").slice(0, 24)}`;
+    const receipt = options.operationId ? await this.d1.get("SELECT 1 FROM write_commands WHERE id=?", [context.operationId]) : null;
+    if (receipt) {
+      // The executor verifies kind, plan, resource and hash before replaying.
+      await this.metadata.applyPlanCommand("card_payment_terms.delete", planId, accountId, { request_hash: hash }, [], context);
+      const replayed = await this.readCardPaymentTermsReceipt(auditId);
+      if (!replayed) throw new Error("Card payment terms receipt is missing");
+      return replayed;
+    }
+    const terms = await this.getCardPaymentTerms(planId, accountId);
+    await this.metadata.applyPlanCommand("card_payment_terms.delete", planId, accountId, { request_hash: hash },
+      cardPaymentTermsDeleteStatements(planId, terms, auditId, hash), context);
+    return terms;
   }
 
   override async createScheduledTransaction(planId: string, input: ScheduledTransactionInput, options: ScheduledWriteOptions = {}): Promise<any> {

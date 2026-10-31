@@ -194,7 +194,7 @@ final class CaptureAITests: XCTestCase {
     let cases: [(String, Int)] = [
       ("0", 0), ("12", 12_000), ("12.34", 12_340), ("12.345", 12_345),
       ("+12.345", 12_345), ("-12.345", 12_345), (".125", 125), ("-.125", 125),
-      ("0012.300", 12_300), ("9007199254740.991", 9_007_199_254_740_991),
+      ("0012.300", 12_300), ("1000000000000", MoneyCodec.storableAmountCap),
     ]
     for (amount, expected) in cases {
       var payload = Self.payload
@@ -208,6 +208,19 @@ final class CaptureAITests: XCTestCase {
       XCTAssertEqual(value.1.count, 1)
       XCTAssertEqual(value.1.first?.mapped.draft.amountMagnitudeMilli, expected, amount)
     }
+  }
+
+  /// Past the server's cap (a card number misread as an amount) the reply is
+  /// refused rather than mapped into a draft the server would reject.
+  func testRemoteAmountsPastTheStorableCapAreRefused() async throws {
+    var payload = Self.payload
+    payload.spends[0].amount = "9007199254740.991"
+    let text = String(decoding: try JSONEncoder().encode(payload), as: UTF8.self)
+    let event = Self.json(["type": "response.completed", "response": Self.responseObject(text)])
+    CaptureAIStub.configure(body: "data: \(event)\r\n\r\n")
+    let result = await CaptureInterpreter(backend: .remote(Self.configuration(.responses)), remoteClient: Self.client()).interpret(
+      context: Self.context, accounts: [], categoryGroups: [], payees: [])
+    XCTAssertThrowsError(try result.get())
   }
 
   func testStreamRequiresSuccessfulTerminalAndRejectsTruncationRefusalOrToolCalls() throws {

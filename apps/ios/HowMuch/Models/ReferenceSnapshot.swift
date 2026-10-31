@@ -21,11 +21,13 @@ protocol ConnectionScopedSnapshot {
 }
 
 struct ReferenceSnapshot: Codable, Equatable, ConnectionScopedSnapshot {
-  /// Bumped whenever the stored shape changes. A snapshot written by an older
-  /// build is deleted rather than migrated: it can always be refetched.
+  /// Bumped whenever the stored shape changes. Schema 3 remains readable
+  /// offline because schema 4 only adds optional fields, but must be refreshed.
   ///
   /// 2: carries the plan-wide unapproved count (#181's badge).
-  static let currentSchemaVersion = 2
+  /// 3: ledger rows carry `needsConfirmation` ("To confirm").
+  /// 4: ledger rows carry `claimStatus` and `claimedOn` ("To claim").
+  static let currentSchemaVersion = 4
 
   /// One bounded ledger page, stored exactly as the network returned it.
   /// `TransactionPage` itself is not `Codable` and carries no identity, so the
@@ -116,7 +118,10 @@ enum SnapshotPolicy {
     settings: APISettings,
     schemaVersion: Int = ReferenceSnapshot.currentSchemaVersion
   ) -> Rejection? {
-    if let rejection = connectionRejection(snapshot: snapshot, settings: settings, schemaVersion: schemaVersion) {
+    // Compatibility is specific to the reference cache's 3 -> 4 upgrade;
+    // reports and unsupported older/future versions retain exact admission.
+    let acceptedVersion = schemaVersion == 4 && snapshot.schemaVersion == 3 ? 3 : schemaVersion
+    if let rejection = connectionRejection(snapshot: snapshot, settings: settings, schemaVersion: acceptedVersion) {
       return rejection
     }
     // A snapshot with no accounts renders the same empty placeholder a cold

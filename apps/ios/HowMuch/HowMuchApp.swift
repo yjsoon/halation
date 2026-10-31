@@ -152,6 +152,7 @@ private struct RootView: View {
     @Bindable var capture = CaptureRouter.shared
     @Bindable var chrome = chrome
     @Bindable var workspace = CaptureWorkspace.shared
+    @Bindable var cardReminders = CardPaymentNotifier.shared
 
     RootTabView(chrome: chrome, usesSidebar: usesSidebar, workspace: workspace)
       .onChange(of: usesSidebar, initial: true) { _, sidebar in
@@ -221,6 +222,25 @@ private struct RootView: View {
       CaptureIntakeHost(request: request)
         .id(request.id)
     }
+    .sheet(item: $cardReminders.presentedSheet) { route in
+      Group {
+        switch route {
+        case .schedule(let request):
+          CardPaymentScheduleSheet(accountID: request.accountID, statementDate: request.statementDate)
+        case .editSchedule(let scheduleID):
+          CardScheduleEditorHost(scheduleID: scheduleID)
+        }
+      }
+      .environment(model)
+      .blocksCapturePresentation()
+    }
+    .onChange(of: cardReminders.pendingAccountID, initial: true) { _, accountID in
+      guard let accountID else {
+        return
+      }
+      cardReminders.pendingAccountID = nil
+      chrome.showAccount(accountID)
+    }
     .onAppear {
       consumePendingCapture()
       enqueueInboxIfNeeded(force: false)
@@ -254,6 +274,7 @@ private struct RootView: View {
         ScreenshotOfferController.shared.startIfNeeded()
         Task { await model.runLocalScheduledTransactions() }
         model.sceneDidBecomeActive()
+        Task { await model.cardPaymentsSceneDidBecomeActive() }
       } else if phase == .background {
         CaptureWorkspace.shared.persistCurrentIfNeeded()
         IntakeBackgroundRefresh.shared.appDidEnterBackground()
@@ -263,6 +284,7 @@ private struct RootView: View {
       if !isAuthenticated {
         IntakeCoordinator.shared.cancelDrain()
         IntakeNotifier.shared.clearAll()
+        CardPaymentNotifier.shared.clearAll()
         capture.dropForSignOut()
       } else {
         drainIntakeInbox()
@@ -354,6 +376,7 @@ private struct RootView: View {
 
 struct CaptureIntakeHost: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dismiss) private var dismiss
   let request: CaptureRequest
   private let workspace: CaptureWorkspace
   @State private var session: CaptureSession?
@@ -361,6 +384,8 @@ struct CaptureIntakeHost: View {
   @State private var claimedInboxIDs: [UUID] = []
   @State private var isReadingInbox = false
   @State private var admissionError: String?
+  @State private var needsAccount = false
+  @State private var isCreatingAccount = false
   @State private var didAdmit = false
 
   init(request: CaptureRequest, workspace: CaptureWorkspace = .shared) {
@@ -370,7 +395,24 @@ struct CaptureIntakeHost: View {
 
   var body: some View {
     Group {
-      if !didAdmit {
+      if !didAdmit, needsAccount {
+        // Admitting would open a form whose account picker is empty.
+        AddAccountFirstView(
+          description: request.kind == .inbox
+            ? "Every transaction belongs to an account. Add one and your shared items will be ready to record."
+            : "Every transaction belongs to an account. Add one to start recording.",
+          onCreated: { _ in
+            // The new account is the only open one, so admission selects it.
+            needsAccount = false
+            Task { await admitWhenReady() }
+          },
+          onAddingChanged: { isCreatingAccount = $0 }
+        ) {
+          Button("Cancel") { dismiss() }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.canvas)
+      } else if !didAdmit {
         admissionPlaceholder
       } else if let manualDraft {
         TransactionFormView(draft: manualDraft, isEditing: false, allowsDeletion: false)
@@ -398,9 +440,18 @@ struct CaptureIntakeHost: View {
       }
     }
     .presentationDetents([.large])
+    // An account added elsewhere (the web, another device) arrives with a
+    // refresh; the prompt must not outlive it. Its own sheet hands over through
+    // onCreated instead, so it is left alone while open.
+    .onChange(of: CaptureAdmissionGate.hasUsableAccount(model.accounts)) { _, usable in
+      guard usable, needsAccount, !isCreatingAccount else { return }
+      needsAccount = false
+      Task { await admitWhenReady() }
+    }
     .task(id: request.id) {
       claimedInboxIDs = []
       didAdmit = false
+      needsAccount = false
       await admitWhenReady()
     }
     .onDisappear {
@@ -479,6 +530,10 @@ struct CaptureIntakeHost: View {
       hasAccounts: !model.accounts.isEmpty
     ) {
       admissionError = message
+      return
+    }
+    if CaptureAdmissionGate.needsAccount(referencePhase: model.referencePhase, accounts: model.accounts) {
+      needsAccount = true
       return
     }
     guard CaptureRouter.shared.presented?.id == request.id else {

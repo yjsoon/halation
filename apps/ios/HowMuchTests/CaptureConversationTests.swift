@@ -78,6 +78,22 @@ final class CaptureConversationTests: XCTestCase {
     XCTAssertEqual(session.ownerMessageID(forDraft: lunch.id), owners[0].id)
   }
 
+  func testModelUpdatesCannotModifySavedCardsIndividuallyOrInBulk() {
+    for all in [false, true] {
+      let session = Self.session()
+      session.apply(turn: Self.addTurn("Added lunch."), mapped: [Self.mapped(amount: 12_000, payee: "Lunch")])
+      let id = session.drafts[0].id
+      session.markCommitted(ids: [id])
+      session.apply(turn: CaptureInterpretedTurn(
+        intent: .update, feedback: "Changed saved lunch.",
+        mutations: [CaptureDraftMutation(targetDraftID: id, extraction: .init(amount: "99"))],
+        query: nil, applyToAllDrafts: all), mapped: [Self.mapped(amount: 99_000, payee: "Lunch")])
+      XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 12_000)
+      XCTAssertTrue(session.messages.last?.updatedDraftIDs.isEmpty == true)
+      XCTAssertTrue(session.messages.last?.text.contains("saved") == true)
+    }
+  }
+
   func testGroupSaveMarksOnlyOwnedIncludedDraftsAndLeavesOthersEditable() {
     let session = Self.session()
     session.apply(turn: Self.addTurn("Added lunch."), mapped: [Self.mapped(amount: 12_000, payee: "Lunch")])
@@ -203,28 +219,27 @@ final class CaptureConversationTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.accountID, "acct-everyday")
   }
 
-  func testTwoManualDonesCreateSeparateDraftsAndRejectSavedUpsert() {
+  func testTwoAddsKeepSeparateDraftsAndSavedDraftRejectsManualEdit() {
     let session = Self.session()
     XCTAssertTrue(session.drafts.isEmpty)
-    var first = Self.draft(payee: "Lunch", amount: 12_000)
     var engine = AmountKeypadEngine()
     engine.setValue(5_000)
     engine.tapOperator(.add)
     engine.tapDigit(2)
     engine.tapDigit(0)
     engine.tapDigit(0)
-    first.amountMagnitudeMilli = engine.commitValue()
-    let lunch = session.appendManualDraft(first)
+    session.apply(turn: Self.addTurn("Added lunch."), mapped: [Self.mapped(amount: engine.commitValue(), payee: "Lunch")])
     XCTAssertEqual(session.drafts.count, 1)
+    let lunch = session.drafts[0]
     XCTAssertEqual(lunch.draft.amountMagnitudeMilli, 7_000)
-    XCTAssertEqual(session.messages.filter { $0.text == "Entered manually" }.count, 1)
 
-    let taxi = session.appendManualDraft(Self.draft(payee: "Taxi", amount: 8_000))
+    session.apply(turn: Self.addTurn("Added taxi."), mapped: [Self.mapped(amount: 8_000, payee: "Taxi")])
     XCTAssertEqual(session.drafts.count, 2)
+    let taxi = session.drafts[1]
     XCTAssertNotEqual(lunch.id, taxi.id)
-    XCTAssertEqual(session.messages.filter { $0.text == "Entered manually" }.count, 2)
-    XCTAssertEqual(session.ownerMessageID(forDraft: lunch.id), session.messages.first { $0.ownedDraftIDs == [lunch.id] }?.id)
-    XCTAssertEqual(session.ownerMessageID(forDraft: taxi.id), session.messages.first { $0.ownedDraftIDs == [taxi.id] }?.id)
+    XCTAssertNotNil(session.ownerMessageID(forDraft: lunch.id))
+    XCTAssertNotNil(session.ownerMessageID(forDraft: taxi.id))
+    XCTAssertNotEqual(session.ownerMessageID(forDraft: lunch.id), session.ownerMessageID(forDraft: taxi.id))
 
     var cancelled = lunch.draft
     cancelled.payeeName = "Dinner"
@@ -232,15 +247,15 @@ final class CaptureConversationTests: XCTestCase {
     XCTAssertEqual(session.drafts.first { $0.id == lunch.id }?.draft.payeeName, "Lunch")
     session.applyManualEdit(cancelled, id: lunch.id)
     XCTAssertEqual(session.drafts.first { $0.id == lunch.id }?.draft.payeeName, "Dinner")
-    XCTAssertTrue(session.canUndoDraft(lunch.id))
+    XCTAssertTrue(session.canUndo(ownedIDs: [lunch.id]))
+    XCTAssertFalse(session.canUndo(ownedIDs: [taxi.id]))
     session.undo()
     XCTAssertEqual(session.drafts.first { $0.id == lunch.id }?.draft.payeeName, "Lunch")
 
     session.markCommitted(ids: [taxi.id])
     var overwrite = taxi.draft
     overwrite.payeeName = "Should not apply"
-    overwrite.importID = taxi.id
-    session.upsertManualDraft(overwrite)
+    session.applyManualEdit(overwrite, id: taxi.id)
     XCTAssertEqual(session.drafts.first { $0.id == taxi.id }?.draft.payeeName, "Taxi")
     XCTAssertTrue(session.drafts.first { $0.id == taxi.id }?.committed == true)
     XCTAssertEqual(session.drafts.count, 2)
@@ -442,22 +457,28 @@ final class CaptureConversationTests: XCTestCase {
     XCTAssertEqual(session.ownerMessageID(forDraft: lunch.id), owner.id)
   }
 
-  func testUndoAfterLaterManualAddRestoresOnlyTheEditedDraft() {
+  func testUndoAfterLaterAddRemovesOnlyTheAddedDraft() {
     let session = Self.session()
-    let lunch = session.appendManualDraft(Self.draft(payee: "Lunch", amount: 12_000))
+    session.apply(turn: Self.addTurn("Added lunch."), mapped: [Self.mapped(amount: 12_000, payee: "Lunch")])
+    let lunch = session.drafts[0]
     var edited = lunch.draft
     edited.amountMagnitudeMilli = 21_000
     session.applyManualEdit(edited, id: lunch.id)
-    let taxi = session.appendManualDraft(Self.draft(payee: "Taxi", amount: 8_000))
+    session.apply(turn: Self.addTurn("Added taxi."), mapped: [Self.mapped(amount: 8_000, payee: "Taxi")])
+    XCTAssertEqual(session.drafts.count, 2)
+    let taxi = session.drafts[1]
     let lunchOwner = session.messages.first { $0.ownedDraftIDs.contains(lunch.id) }!
     let taxiOwner = session.messages.first { $0.ownedDraftIDs.contains(taxi.id) }!
+    XCTAssertNotEqual(lunchOwner.id, taxiOwner.id)
+    XCTAssertFalse(session.canUndo(ownedIDs: lunchOwner.ownedDraftIDs))
+    XCTAssertTrue(session.canUndo(ownedIDs: taxiOwner.ownedDraftIDs))
+    session.undo()
+    XCTAssertEqual(session.drafts.map(\.id), [lunch.id])
+    XCTAssertEqual(session.drafts.first { $0.id == lunch.id }?.draft.amountMagnitudeMilli, 21_000)
+    XCTAssertEqual(session.ownerMessageID(forDraft: lunch.id), lunchOwner.id)
     XCTAssertTrue(session.canUndo(ownedIDs: lunchOwner.ownedDraftIDs))
-    XCTAssertFalse(session.canUndo(ownedIDs: taxiOwner.ownedDraftIDs))
     session.undo()
     XCTAssertEqual(session.drafts.first { $0.id == lunch.id }?.draft.amountMagnitudeMilli, 12_000)
-    XCTAssertEqual(session.drafts.first { $0.id == taxi.id }?.id, taxi.id)
-    XCTAssertEqual(session.ownerMessageID(forDraft: taxi.id), taxiOwner.id)
-    XCTAssertEqual(session.drafts.count, 2)
   }
 
   func testToggleAndResolveDoNotLetUndoRollBackAnUnrelatedEdit() {

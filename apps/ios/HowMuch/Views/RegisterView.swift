@@ -83,10 +83,20 @@ struct RegisterSnapshot {
   }
 }
 
+/// A finished Load older tap: how many rows this register listed before it,
+/// in which ledger load and under which filters.
+private struct OlderPageTap: Equatable {
+  let listedCount: Int
+  let generation: Int
+  let filterKey: String
+}
+
 private struct RegisterFilterCounts {
   let unapproved: Int
   let uncleared: Int
   let uncategorised: Int
+  let toConfirm: Int
+  let toClaim: Int
 }
 
 private struct RegisterSearchPage: Equatable {
@@ -131,6 +141,7 @@ enum RegisterReportFilter {
   static func include(
     _ transaction: Transaction,
     categoryID: String? = nil,
+    categoryIDs: Set<String>? = nil,
     payeeID: String? = nil,
     payeeName: String? = nil,
     missingPayee: Bool = false,
@@ -160,6 +171,11 @@ enum RegisterReportFilter {
       if !matchesCategory(transaction, categoryID: categoryID) {
         return false
       }
+    }
+    // A report's category scope: any of the chosen categories.
+    if let categoryIDs, !categoryIDs.isEmpty,
+       !categoryIDs.contains(where: { matchesCategory(transaction, categoryID: $0) }) {
+      return false
     }
     // `missingPayee` is the only signal for the report's missing-payee bucket.
     // "No payee" is that bucket's label, not a reserved name, so a real payee
@@ -241,6 +257,8 @@ struct RegisterView: View {
   @Environment(AppModel.self) private var model
   let scope: RegisterScope
   var categoryID: String?
+  /// A report's category scope, narrowing on top of `categoryID`.
+  var categoryIDs: Set<String>?
   var payeeID: String?
   var payeeName: String?
   var missingPayee = false
@@ -248,6 +266,9 @@ struct RegisterView: View {
   var accountIDs: Set<String>?
   var amountFilter: RegisterAmountFilter?
   var excludePlainTransfers = false
+  /// A caller's own screen title, for a drill-down the filters cannot name
+  /// (a single day from a report).
+  var titleOverride: String?
 
   @State private var searchText = ""
   /// The search drawer exists only once the magnifier asks for it; see
@@ -257,9 +278,15 @@ struct RegisterView: View {
   @State private var searchPage = RegisterSearchPage()
   @State private var unclearedOnly = false
   @State private var uncategorisedOnly = false
+  @State private var toConfirmOnly = false
+  @State private var toClaimOnly = false
   @State private var unapprovedOnly = false
   /// The row that last started an older page ahead of the reader.
   @State private var olderPagePrefetchedRowID: String?
+  /// The last Load older tap that finished. Older pages come from the
+  /// plan-wide ledger, so in a quiet account a page can add nothing here;
+  /// without this the tap looks like it did nothing.
+  @State private var olderPageTap: OlderPageTap?
 
   @State private var editingTransaction: Transaction?
   @State private var isShowingReconciliation = false
@@ -275,16 +302,19 @@ struct RegisterView: View {
   init(
     scope: RegisterScope,
     categoryID: String? = nil,
+    categoryIDs: Set<String>? = nil,
     payeeID: String? = nil,
     payeeName: String? = nil,
     missingPayee: Bool = false,
     dateRange: ClosedRange<String>? = nil,
     accountIDs: Set<String>? = nil,
     amountFilter: RegisterAmountFilter? = nil,
-    excludePlainTransfers: Bool = false
+    excludePlainTransfers: Bool = false,
+    title: String? = nil
   ) {
     self.scope = scope
     self.categoryID = categoryID
+    self.categoryIDs = categoryIDs
     self.payeeID = payeeID
     self.payeeName = payeeName
     self.missingPayee = missingPayee
@@ -292,6 +322,7 @@ struct RegisterView: View {
     self.accountIDs = accountIDs
     self.amountFilter = amountFilter
     self.excludePlainTransfers = excludePlainTransfers
+    titleOverride = title
   }
 
   var body: some View {
@@ -321,7 +352,7 @@ struct RegisterView: View {
       searchCoverageSection(snapshot)
       emptyRegisterSection(snapshot)
       olderTransactionsErrorSection
-      loadOlderTransactionsSection
+      loadOlderTransactionsSection(snapshot)
     }
     .listStyle(.plain)
     .listSectionSpacing(0)
@@ -560,7 +591,7 @@ struct RegisterView: View {
         Image(systemName: "line.3.horizontal.decrease.circle")
       }
       .accessibilityLabel("Register filters")
-      .accessibilityHint("Review new, uncleared, or uncategorised transactions.")
+      .accessibilityHint("Review new, uncleared, uncategorised, or to-confirm transactions.")
     }
   }
 
@@ -590,6 +621,18 @@ struct RegisterView: View {
     if counts.uncategorised > 0 || uncategorisedOnly {
       Toggle(isOn: $uncategorisedOnly.animation(Theme.Motion.standard)) {
         Label(uncategorisedMenuTitle(counts.uncategorised), systemImage: "tag.slash")
+      }
+      .menuActionDismissBehavior(.disabled)
+    }
+    if counts.toConfirm > 0 || toConfirmOnly {
+      Toggle(isOn: $toConfirmOnly.animation(Theme.Motion.standard)) {
+        Label(toConfirmMenuTitle(counts.toConfirm), systemImage: "circle.dashed")
+      }
+      .menuActionDismissBehavior(.disabled)
+    }
+    if counts.toClaim > 0 || toClaimOnly {
+      Toggle(isOn: $toClaimOnly.animation(Theme.Motion.standard)) {
+        Label(toClaimMenuTitle(counts.toClaim), systemImage: "doc.text")
       }
       .menuActionDismissBehavior(.disabled)
     }
@@ -776,6 +819,14 @@ struct RegisterView: View {
         }
         .tint(Theme.inflow)
       }
+      if transaction.isToConfirm {
+        Button {
+          confirmAmount(transaction)
+        } label: {
+          Label("Confirm", systemImage: "checkmark.seal")
+        }
+        .tint(Theme.toConfirm)
+      }
     }
     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
       Button(role: .destructive) {
@@ -791,6 +842,13 @@ struct RegisterView: View {
           approve(transaction)
         } label: {
           Label("Approve", systemImage: "checkmark")
+        }
+      }
+      if transaction.isToConfirm {
+        Button {
+          confirmAmount(transaction)
+        } label: {
+          Label("Confirm Amount", systemImage: "checkmark.seal")
         }
       }
       Button {
@@ -834,6 +892,19 @@ struct RegisterView: View {
     ].joined(separator: "|")
   }
 
+  /// What decides which loaded rows this register lists, so Load older
+  /// feedback is only shown for the filters it was measured under.
+  private var olderPageFilterKey: String {
+    [
+      searchFetchKey,
+      unclearedOnly ? "uncleared" : "",
+      uncategorisedOnly ? "uncategorised" : "",
+      toConfirmOnly ? "confirm" : "",
+      toClaimOnly ? "claim" : "",
+      unapprovedOnly ? "unapproved-only" : "",
+    ].joined(separator: "|")
+  }
+
   @ViewBuilder
   private func searchCoverageSection(_ snapshot: RegisterSnapshot) -> some View {
     if searchQuery != nil {
@@ -863,7 +934,7 @@ struct RegisterView: View {
         Group {
           if !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             ContentUnavailableView.search
-          } else if unclearedOnly || uncategorisedOnly || (unapprovedOnly && scope != .unapproved) {
+          } else if unclearedOnly || uncategorisedOnly || toConfirmOnly || toClaimOnly || (unapprovedOnly && scope != .unapproved) {
             ContentUnavailableView(
               "Nothing matches",
               systemImage: "line.3.horizontal.decrease",
@@ -979,7 +1050,7 @@ struct RegisterView: View {
   }
 
   @ViewBuilder
-  private var loadOlderTransactionsSection: some View {
+  private func loadOlderTransactionsSection(_ snapshot: RegisterSnapshot) -> some View {
     if let query = searchQuery, !showingUnapprovedQueue {
       if searchPage.hasMore || searchPage.error != nil {
         Section {
@@ -1010,24 +1081,76 @@ struct RegisterView: View {
           .listRowSeparator(.hidden)
         }
       }
-    } else if model.hasMoreTransactions, !showingUnapprovedQueue, !model.isFillingHorizon, model.ledgerPhase == .loaded {
-      Section {
-        Button {
-          Task { await model.loadOlderTransactions() }
-        } label: {
-          HStack(spacing: 8) {
-            if model.isLoadingOlderTransactions {
-              ProgressView()
+    } else if !showingUnapprovedQueue, !model.isFillingHorizon, model.ledgerPhase == .loaded {
+      let lastTap = olderPageTap.flatMap {
+        $0.generation == model.ledgerPageGeneration && $0.filterKey == olderPageFilterKey ? $0 : nil
+      }
+      if model.hasMoreTransactions {
+        Section {
+          VStack(spacing: 8) {
+            Button {
+              loadOlderPage(listedCount: snapshot.transactionCount)
+            } label: {
+              HStack(spacing: 8) {
+                if model.isLoadingOlderTransactions {
+                  ProgressView()
+                }
+                Text(model.isLoadingOlderTransactions ? "Loading older transactions…" : "Load older transactions")
+              }
+              .frame(maxWidth: .infinity)
             }
-            Text(model.isLoadingOlderTransactions ? "Loading older transactions…" : "Load older transactions")
+            .buttonStyle(.borderedProminent)
+            .disabled(model.isLoadingOlderTransactions)
+            .accessibilityHint("Loads the next page of older transactions into this register.")
+            if let lastTap, !model.isLoadingOlderTransactions, model.olderTransactionsError == nil,
+               lastTap.listedCount == snapshot.transactionCount,
+               let searchedBack = model.ledgerCursorOldestDate {
+              Text("Nothing older here yet. Searched back to \(LedgerDate.shortDateString(fromISO: searchedBack)).")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: .infinity)
+            }
           }
-          .frame(maxWidth: .infinity)
+          .listRowBackground(Color.clear)
+          .listRowSeparator(.hidden)
         }
-        .buttonStyle(.borderedProminent)
-        .disabled(model.isLoadingOlderTransactions)
-        .accessibilityHint("Loads the next page of older transactions into this register.")
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
+      } else if lastTap != nil, !snapshot.isEmpty {
+        Section {
+          Text("No older transactions")
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .listRowBackground(Color.clear)
+            .listRowSeparator(.hidden)
+        }
+      }
+    }
+  }
+
+  /// Loads the next plan-wide page and remembers what this register listed
+  /// before it, so a page that adds nothing here can say so.
+  private func loadOlderPage(listedCount: Int) {
+    let generation = model.ledgerPageGeneration
+    let filterKey = olderPageFilterKey
+    Task {
+      await model.loadOlderTransactions()
+      // A refresh or filter change while the page loaded makes the count
+      // meaningless; say nothing rather than something wrong.
+      guard generation == model.ledgerPageGeneration, filterKey == olderPageFilterKey else {
+        return
+      }
+      olderPageTap = OlderPageTap(listedCount: listedCount, generation: generation, filterKey: filterKey)
+      // True whether or not the page added rows here, so it cannot
+      // contradict the note on screen.
+      if model.olderTransactionsError == nil {
+        AccessibilityNotification.Announcement(
+          !model.hasMoreTransactions
+            ? "No older transactions"
+            : model.ledgerCursorOldestDate.map {
+              "Searched back to \(LedgerDate.shortDateString(fromISO: $0))"
+            } ?? "Older transactions loaded"
+        ).post()
       }
     }
   }
@@ -1035,6 +1158,16 @@ struct RegisterView: View {
   private func approve(_ transaction: Transaction) {
     withAnimation(Theme.Motion.standard) {
       model.approveTransaction(transaction)
+    }
+  }
+
+  private func confirmAmount(_ transaction: Transaction) {
+    do {
+      try withAnimation(Theme.Motion.standard) {
+        try model.confirmTransactionAmount(transaction)
+      }
+    } catch {
+      statusError = error.localizedDescription
     }
   }
 
@@ -1049,6 +1182,9 @@ struct RegisterView: View {
   }
 
   private var title: String {
+    if let titleOverride {
+      return titleOverride
+    }
     if missingPayee {
       return "No payee"
     }
@@ -1271,14 +1407,16 @@ struct RegisterView: View {
   }
 
   private var visibleSchedules: [ScheduledTransaction] {
-    if showingUnapprovedQueue || unclearedOnly || uncategorisedOnly {
+    if showingUnapprovedQueue || unclearedOnly || uncategorisedOnly || toConfirmOnly || toClaimOnly {
       return []
     }
     let query = searchQuery
     return accountSchedules.filter { schedule in
-      if let categoryID,
-         schedule.categoryID != categoryID,
-         !schedule.activeSubtransactions.contains(where: { $0.categoryID == categoryID }) {
+      if let categoryID, !Self.scheduleMatchesCategory(schedule, categoryID: categoryID) {
+        return false
+      }
+      if let categoryIDs, !categoryIDs.isEmpty,
+         !categoryIDs.contains(where: { Self.scheduleMatchesCategory(schedule, categoryID: $0) }) {
         return false
       }
       if let dateRange, !dateRange.contains(schedule.dateNext) {
@@ -1286,6 +1424,21 @@ struct RegisterView: View {
       }
       return scheduleMatchesSearch(schedule, query: query)
     }
+  }
+
+  /// A schedule's category, read as the report reads a transaction's: the
+  /// parent or any live line. "Uncategorised" means a line with neither a
+  /// category nor a transfer; a plain transfer is a transfer, not a gap.
+  private static func scheduleMatchesCategory(_ schedule: ScheduledTransaction, categoryID: String) -> Bool {
+    let lines = schedule.activeSubtransactions
+    if categoryID == CategoryGroup.uncategorisedCategoryID {
+      guard schedule.categoryID == nil else { return false }
+      if lines.isEmpty {
+        return schedule.transferAccountID == nil
+      }
+      return lines.contains { $0.categoryID == nil && $0.transferAccountID == nil }
+    }
+    return schedule.categoryID == categoryID || lines.contains { $0.categoryID == categoryID }
   }
 
   private func scheduleMatchesSearch(_ schedule: ScheduledTransaction, query: RegisterQuery?) -> Bool {
@@ -1324,6 +1477,7 @@ struct RegisterView: View {
       return RegisterReportFilter.include(
         transaction,
         categoryID: categoryID,
+        categoryIDs: categoryIDs,
         payeeID: payeeID,
         payeeName: payeeName,
         missingPayee: missingPayee,
@@ -1339,8 +1493,11 @@ struct RegisterView: View {
     !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
       || unclearedOnly
       || uncategorisedOnly
+      || toConfirmOnly
+      || toClaimOnly
       || showingUnapprovedQueue
       || categoryID != nil
+      || categoryIDs?.isEmpty == false
       || payeeID != nil
       || missingPayee
       || payeeName != nil
@@ -1390,6 +1547,8 @@ struct RegisterView: View {
     (scope != .unapproved && (counts.unapproved > 0 || unapprovedOnly))
       || counts.uncleared > 0 || unclearedOnly
       || counts.uncategorised > 0 || uncategorisedOnly
+      || counts.toConfirm > 0 || toConfirmOnly
+      || counts.toClaim > 0 || toClaimOnly
   }
 
   private var showingUnapprovedQueue: Bool {
@@ -1423,11 +1582,25 @@ struct RegisterView: View {
       : "Show \(uncategorisedCount) uncategorised"
   }
 
+  private func toConfirmMenuTitle(_ toConfirmCount: Int) -> String {
+    toConfirmCount == 0
+      ? "Show to confirm"
+      : "Show \(toConfirmCount) to confirm"
+  }
+
+  private func toClaimMenuTitle(_ toClaimCount: Int) -> String {
+    toClaimCount == 0
+      ? "Show to claim"
+      : "Show \(toClaimCount) to claim"
+  }
+
   private var activeRegisterFilterSummary: String? {
     var parts: [String] = []
     if unapprovedOnly { parts.append("new") }
     if unclearedOnly { parts.append("uncleared") }
     if uncategorisedOnly { parts.append("uncategorised") }
+    if toConfirmOnly { parts.append("to confirm") }
+    if toClaimOnly { parts.append("to claim") }
     guard !parts.isEmpty else {
       return nil
     }
@@ -1435,6 +1608,8 @@ struct RegisterView: View {
       switch parts[0] {
       case "new": return "Showing new transactions"
       case "uncleared": return "Showing uncleared transactions"
+      case "to confirm": return "Showing transactions to confirm"
+      case "to claim": return "Showing transactions to claim"
       default: return "Showing uncategorised transactions"
       }
     }
@@ -1445,20 +1620,28 @@ struct RegisterView: View {
     unapprovedOnly = false
     unclearedOnly = false
     uncategorisedOnly = false
+    toConfirmOnly = false
+    toClaimOnly = false
   }
 
   private func filterCounts(scopedLedger: [Transaction], approvalScoped: [Transaction]) -> RegisterFilterCounts {
     var uncleared = 0
     var uncategorised = 0
+    var toConfirm = 0
+    var toClaim = 0
     for transaction in scopedLedger {
       if transaction.cleared == .uncleared { uncleared += 1 }
       if transaction.isUncategorised { uncategorised += 1 }
+      if transaction.isToConfirm { toConfirm += 1 }
+      if transaction.isToClaim { toClaim += 1 }
     }
     return RegisterFilterCounts(
       // The New register has no "Review new" filter, so it never reads this.
       unapproved: scope == .unapproved ? 0 : unapprovedCount(approvalScoped: approvalScoped),
       uncleared: uncleared,
-      uncategorised: uncategorised
+      uncategorised: uncategorised,
+      toConfirm: toConfirm,
+      toClaim: toClaim
     )
   }
 
@@ -1527,6 +1710,12 @@ struct RegisterView: View {
       if uncategorisedOnly, !transaction.isUncategorised {
         return false
       }
+      if toConfirmOnly, !transaction.isToConfirm {
+        return false
+      }
+      if toClaimOnly, !transaction.isToClaim {
+        return false
+      }
       if showingUnapprovedQueue, transaction.approved {
         return false
       }
@@ -1543,13 +1732,11 @@ struct RegisterView: View {
       if merged[hit.id] != nil { continue }
       if unclearedOnly, hit.cleared != .uncleared { continue }
       if uncategorisedOnly, !hit.isUncategorised { continue }
-      if let accountID = scope.accountID, hit.accountID != accountID { continue }
-      if let accountIDs, !accountIDs.isEmpty, !accountIDs.contains(hit.accountID) { continue }
-      if let categoryID, hit.categoryID != categoryID,
-         !hit.subtransactions.contains(where: { $0.categoryID == categoryID }) {
-        continue
-      }
-      if let dateRange, !dateRange.contains(hit.date) { continue }
+      if toConfirmOnly, !hit.isToConfirm { continue }
+      if toClaimOnly, !hit.isToClaim { continue }
+      // A hit joins the list only if it would have been in it unsearched:
+      // the same account, category, payee, amount, date and transfer rules.
+      if scoped([hit]).isEmpty { continue }
       if query.matches(hit.registerSearchFields) {
         merged[hit.id] = hit
       }
@@ -1566,6 +1753,9 @@ struct RegisterView: View {
         return false
       }
       if let categoryID, !row.matches(categoryID: categoryID) {
+        return false
+      }
+      if let categoryIDs, !categoryIDs.isEmpty, !categoryIDs.contains(where: { row.matches(categoryID: $0) }) {
         return false
       }
       if let dateRange, !dateRange.contains(row.isoDate) {
@@ -1585,6 +1775,12 @@ struct RegisterView: View {
         return false
       }
       if uncategorisedOnly, row.categoryID != nil || row.splitLineCount > 0 {
+        return false
+      }
+      if toConfirmOnly, !row.isToConfirm {
+        return false
+      }
+      if toClaimOnly, row.claimStatus != MemoClaim.toClaim.rawValue {
         return false
       }
       guard let query else {
@@ -1819,16 +2015,21 @@ private struct AccountReconciliationSheet: View {
     model.accounts.first { $0.id == accountID }
   }
 
+  private var typedStatementBalance: Int? {
+    MoneyCodec.milliunits(fromTyped: statementBalanceText, decimalDigits: model.currencyFormat?.decimalDigits)
+  }
+
   private var reviewBalanceText: String {
-    let amount = MoneyCodec.milliunits(fromTyped: statementBalanceText) ?? 0
+    let amount = typedStatementBalance ?? 0
     return MoneyCodec.signedDisplayString(for: amount, currencyFormat: model.currencyFormat)
   }
 
   private var reviewDifference: Int? {
-    guard let preview, let statementBalance = MoneyCodec.milliunits(fromTyped: statementBalanceText) else {
+    guard let preview, let statementBalance = typedStatementBalance else {
       return nil
     }
-    return statementBalance - preview.projectedReconciledBalance
+    let difference = statementBalance.subtractingReportingOverflow(preview.projectedReconciledBalance)
+    return difference.overflow ? nil : difference.partialValue
   }
 
   private var reviewDifferenceText: String {
@@ -1841,8 +2042,8 @@ private struct AccountReconciliationSheet: View {
   }
 
   private var reviewRequirement: String {
-    if MoneyCodec.milliunits(fromTyped: statementBalanceText) == nil {
-      return "Enter a statement balance with no more than three decimal places."
+    if typedStatementBalance == nil {
+      return "Enter a valid statement balance."
     }
     return "The statement balance must exactly match the projected balance before confirmation."
   }
@@ -1929,8 +2130,8 @@ private struct AccountReconciliationSheet: View {
       errorMessage = "Wait for an exact server review, then confirm the reconciliation."
       return
     }
-    guard let statementBalance = MoneyCodec.milliunits(fromTyped: statementBalanceText) else {
-      errorMessage = "Enter the exact statement balance with no more than three decimal places."
+    guard let statementBalance = typedStatementBalance else {
+      errorMessage = "Enter a valid statement balance."
       return
     }
 
@@ -2040,16 +2241,16 @@ private struct PendingTransactionRow: View {
             .font(.footnote)
             .foregroundStyle(row.categoryID == nil && row.splitLineCount == 0 ? AnyShapeStyle(Theme.uncategorised) : AnyShapeStyle(.secondary))
             .lineLimit(1)
-          if let memo = row.memo, !memo.isEmpty {
-            Text(memo)
-              .font(.footnote)
-              .foregroundStyle(.secondary)
-              .lineLimit(2)
+          if !(row.memo ?? "").isEmpty || row.claimStatus != nil {
+            RegisterMemoLine(memo: row.memo ?? "", claimStatus: row.claimStatus)
           }
         }
 
         Spacer()
 
+        if row.isToConfirm {
+          EstimateMark()
+        }
         Text(MoneyCodec.signedDisplayString(for: row.signedAmount, currencyFormat: currencyFormat))
           .font(.subheadline.weight(.medium))
           .monospacedDigit()
@@ -2160,11 +2361,8 @@ struct TransactionRow: View {
               .font(.footnote)
               .foregroundStyle(transaction.isUncategorised ? AnyShapeStyle(Theme.uncategorised) : AnyShapeStyle(.secondary))
               .lineLimit(1)
-            if let memo = transaction.memo, !memo.isEmpty {
-              Text(memo)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
+            if !(transaction.memo ?? "").isEmpty || transaction.claimStatus != nil {
+              RegisterMemoLine(memo: transaction.memo ?? "", claimStatus: transaction.claimStatus)
             }
           }
 
@@ -2172,6 +2370,9 @@ struct TransactionRow: View {
 
           HStack(spacing: 4) {
             syncGlyph
+            if transaction.isToConfirm {
+              EstimateMark()
+            }
             Text(MoneyCodec.signedDisplayString(for: transaction.amount, currencyFormat: currencyFormat))
               .font(.subheadline.weight(.medium))
               .monospacedDigit()
@@ -2189,6 +2390,7 @@ struct TransactionRow: View {
     .padding(.leading, 16)
     .padding(.trailing, 8)
     .padding(.vertical, 10)
+    .background(transaction.isToConfirm ? Theme.toConfirmWash.opacity(0.45) : Color.clear)
     .flagRail(Theme.flagColour(named: transaction.flagColor))
     .contentShape(Rectangle())
   }

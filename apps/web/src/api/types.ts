@@ -17,6 +17,11 @@ import type {
   SpendingTierSubcategory,
   CardSpendingTier,
   CreditCard,
+  CardPaymentTerms,
+  CardPaymentTermsInput,
+  CardPaymentCoverage,
+  CardPaymentCycle,
+  CardPaymentsView,
 } from "@howmuch/contract";
 
 export type {
@@ -38,6 +43,11 @@ export type {
   SpendingTierSubcategory,
   CardSpendingTier,
   CreditCard,
+  CardPaymentTerms,
+  CardPaymentTermsInput,
+  CardPaymentCoverage,
+  CardPaymentCycle,
+  CardPaymentsView,
 };
 
 export type Interval = "day" | "week" | "month" | "year";
@@ -137,6 +147,9 @@ export interface TransactionUpdateInput {
   approved?: boolean;
   flag_color?: string | null;
   flag_name?: string | null;
+  needs_confirmation?: boolean;
+  claim_status?: "to_claim" | "claimed" | null;
+  claimed_on?: string | null;
   payee_id?: string | null;
   payee_name?: string | null;
   category_id?: string | null;
@@ -281,8 +294,10 @@ export interface RewardsReport {
   }>;
 }
 
+// Amounts go as exact milliunits: a decimal string would be read in the
+// plan's currency format, where "12.345" can mean 12,345.
 export interface QuickEntrySplitLine {
-  amount: string;
+  amount_milli: number;
   category_id: string | null;
   memo?: string | null;
 }
@@ -291,12 +306,14 @@ export interface QuickEntryInput {
   client_id: string;
   account_id: string;
   date: string;
-  amount: string;
+  amount_milli: number;
   payee_id?: string | null;
   payee_name?: string | null;
   category_id: string | null;
   memo: string | null;
   flag_color: string | null;
+  needs_confirmation?: boolean;
+  claim_status?: "to_claim" | null;
   subtransactions?: QuickEntrySplitLine[];
 }
 

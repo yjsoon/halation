@@ -67,6 +67,10 @@
         {
           "pattern": "howmuch.tk.sg",
           "custom_domain": true
+        },
+        {
+          "pattern": "halation.tk.sg",
+          "custom_domain": true
         }
       ],
       // Daily HowMuch scheduled-transaction materialisation, 00:05 Asia/Singapore.

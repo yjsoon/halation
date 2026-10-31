@@ -1,6 +1,7 @@
 import XCTest
 import UIKit
 import ImageIO
+import PDFKit
 @testable import HowMuch
 
 final class InboxStoreTests: XCTestCase {
@@ -14,6 +15,22 @@ final class InboxStoreTests: XCTestCase {
 
   override func tearDown() async throws {
     try? FileManager.default.removeItem(at: directory)
+  }
+
+  @MainActor
+  func testPDFRecognitionRejectsExcessivePagesBeforeTextExtraction() async throws {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("bounded-\(UUID().uuidString).pdf")
+    defer { try? FileManager.default.removeItem(at: url) }
+    let renderer = UIGraphicsPDFRenderer(bounds: CGRect(x: 0, y: 0, width: 300, height: 300))
+    try renderer.writePDF(to: url) { context in
+      for _ in 0..<101 {
+        context.beginPage()
+        ("Synthetic receipt" as NSString).draw(at: CGPoint(x: 10, y: 10), withAttributes: [.font: UIFont.systemFont(ofSize: 14)])
+      }
+    }
+    let result = await SlipPDFText.recognize(url)
+    XCTAssertEqual(result.text, "")
+    XCTAssertEqual(result.skippedPages, 101)
   }
 
   func testPreviewDownsamplesToDisplayPixelBoundAndPreservesOriginal() async throws {

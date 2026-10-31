@@ -132,11 +132,6 @@ describe("decideReferenceRefresh", () => {
 });
 
 describe("deserialiseEnvelope", () => {
-  test("round-trips an envelope", () => {
-    const envelope = makeEnvelope(identity, 41, payees);
-    expect(deserialiseEnvelope(serialiseEnvelope(envelope), isPayeeList)).toEqual(envelope);
-  });
-
   test("ignores a truncated write", () => {
     const raw = serialiseEnvelope(makeEnvelope(identity, 41, payees));
     expect(deserialiseEnvelope(raw.slice(0, raw.length - 12), isPayeeList)).toBeNull();

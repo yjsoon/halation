@@ -11,6 +11,11 @@
 }
 
 @media (max-width: 720px) {
+  .register-compose-row input.payee-combobox-input {
+    padding-right: 18px;
+    background-position: right 5px center;
+  }
+
   .api-docs-header {
     padding-inline: 16px;
   }
@@ -599,5 +604,77 @@
 
   .col-bar {
     width: 16%;
+  }
+}
+
+@media (max-width: 720px) {
+  .card-payments-table thead {
+    display: none;
+  }
+
+  .card-payments-table,
+  .card-payments-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .table-wrap-wide .card-payments-table {
+    min-width: 0;
+  }
+
+  .card-payments .table-wrap {
+    overflow: visible;
+  }
+
+  .card-payments-table .card-payment-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: 8px;
+    row-gap: 4px;
+    padding: 9px 0 8px;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .card-payments-table .card-payment-row td {
+    display: block;
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  .card-payments-table .card-payment-row td:nth-child(2),
+  .card-payments-table .card-payment-row td:nth-child(3) {
+    display: none;
+  }
+
+  .card-payments-table .card-payment-row td:nth-child(5) {
+    grid-column: 1;
+  }
+
+  .card-payments-table .card-payment-row td:last-child {
+    display: flex;
+    grid-column: 1 / -1;
+    gap: 8px;
+    width: auto;
+    padding: 0 !important;
+    text-align: left;
+  }
+
+  .card-payments-table .card-payment-row-off td:nth-child(2),
+  .card-payments-table .card-payment-row-off td:nth-child(3) {
+    display: block;
+  }
+
+  .card-payments-setup {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .card-terms-dialog {
+    max-height: 100dvh;
+  }
+
+  .card-terms-form .field-row {
+    grid-template-columns: 1fr;
   }
 }

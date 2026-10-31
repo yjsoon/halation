@@ -7,7 +7,7 @@ Share and a later screenshot offer are more writers of the same inbox. The exten
 - `share-appears` HowMuch appears in the iOS share sheet for up to 10 images, one PDF, or text.
 - `share-copies` choosing HowMuch shows a sheet with account, kind and note. Send hands the job off without opening the app, and nothing is saved.
 - `share-inbox-band` opening Halation shows an **Inbox** band at the top of Accounts, with a count chip (Ready plus Needs you), **See all**, and the batch row: thumbnail, title such as `2 screenshots`, a status pill and a summary.
-- `share-reading` while the batch is read the row's pill is **Reading** with `Reading on this phone…`. Reading continues if you leave the Inbox list. A job waiting for account data (a fresh share launched offline, say) shows `Waiting for your accounts` instead, then `Reading on this phone…` once accounts load.
+- `share-reading` while the batch is read the row's pill is **Reading** with `Reading…`. Reading continues if you leave the Inbox list. A job waiting for account data (a fresh share launched offline, say) shows `Waiting for your accounts` instead, then `Reading…` once accounts load.
 - `share-ready` when reading ends the pill is **Ready** and the summary reads like `1 new · 1 fix · 1 already in`. With Apple Intelligence unavailable (Simulator) the line reader fills in: its rows carry the reason `Read without Apple Intelligence` and are never above Likely.
 - `share-batch` tapping the row opens the batch with FIX, NEW, POSSIBLE DUPLICATES and ALREADY IN groups, each row with its reasons, and **Approve all N** and **Reject batch**.
 - `share-approve` **Approve all** adds the ticked new rows and fixes the ticked fix rows, shows `{n} added, {m} fixed · Saved on device`, and the batch moves to **Applied**. A fix keeps the row's approved state.
@@ -15,7 +15,7 @@ Share and a later screenshot offer are more writers of the same inbox. The exten
 - `share-needs-you` **Let Halation decide** with a line that names no account puts the batch under **Needs you**. Choosing an account moves it to **Ready**.
 - `share-failed` an image with no text shows **Failed** with `Couldn’t read this. No text was found.` and a **Retry** swipe. Text with no spends fails with `Couldn’t read this. No transactions were found.`
 - `share-no-upload` sharing does not POST the file or a transcript to the HowMuch API.
-- `skill-remember` correct a New row's category, **Approve**, and **Remember this?** appears; tap Remember. Share the same payee again: the New row is pre-categorised and Why cites a `Learned rule`. An **Already in** row is unchanged.
+- `skill-remember` share a single-account batch whose payee's first word is under five letters (for example `NTUC FAIRPRICE`), correct a New row's category, **Approve**, and **Remember this?** appears with `Scope · {account} only`; tap Remember. The saved rule in `{appGroup}/Intake/skill.json` has `scope.kind` `account` with that account's id in `scope.value` and `when.accountID`, and every merchant word of the payee as its token (`ntuc fairprice`, not `ntuc`, when the row's payee is `NTUC FAIRPRICE`). Share the same payee to the same account again: the New row is pre-categorised and Why cites a `Learned rule`. An **Already in** row is unchanged. These checks replace unit tests, so a run that skips them is not passing evidence.
 - `skill-delete` delete the rule in Settings → Intelligence → Skill & Memory. Pending rows lose the rule's effect but keep `Read without Apple Intelligence`. The confirmation says `Pending and future documents won’t use it.` Repeat offline: untouched New rows stay ticked. Save the Skill & Memory screen and the Why sheet before and after under `.amp/in/artifacts/ios-share-and-screenshots/`.
 - `intents-conversation-unchanged` App Intents (Add from Image or Text) still open the conversation, not the Inbox.
 - `shot-offer` Accounts bottom toast `Add these transactions?` / `Clipboard image · {n} lines`. Tap the toast to create an Inbox batch (no conversation opens). Swipe away or tap dismiss. Default off.
@@ -36,7 +36,7 @@ Preconditions:
 
 - `control-howmuch doctor` passes.
 - [iOS connection](./ios-connection.md) signed in.
-- Compose/reader already prove typed `N == 1` / `N > 1` ([iOS intake compose](./ios-intake-compose.md), [iOS intake review list](./ios-intake-review-list.md)).
+- [iOS capture typed replies](./ios-capture-typed-replies.md) already proves typed intake in the conversation.
 - Share extension `sg.soon.howmuch.share` / App Group `group.sg.soon.howmuch` present.
 
 - **Image share.** In Simulator Photos (or any image), Share → HowMuch, choose the account, kind and optionally a note, then Send. The sheet shows **Sent to Halation** and closes without opening the app. Open HowMuch. The conversation sheet does not open. Accounts shows the **Inbox** band with the batch row and a **Reading** then **Ready** pill, and a summary such as `1 new`.

@@ -43,7 +43,6 @@ final class CaptureOriginTests: XCTestCase {
       lastUsedAccountID: "acct-closed"
     )
     XCTAssertNil(context.selectedAccountID)
-    XCTAssertTrue(context.needsAccountChoice)
   }
 
   func testPresetDraftKeepsExplicitAccount() {
@@ -119,6 +118,28 @@ final class CaptureOriginTests: XCTestCase {
     )
     XCTAssertNil(CaptureAdmissionGate.blockingError(referencePhase: .loaded, hasAccounts: false))
     XCTAssertNil(CaptureAdmissionGate.blockingError(referencePhase: .loaded, hasAccounts: true))
+  }
+
+  /// Failure modes: a plan holding only closed or deleted rows (AppModel's
+  /// `openAccounts` keeps deleted ones) would admit into a picker with
+  /// nothing to choose; and a reference that failed or is still loading must
+  /// not invite the user to add an account they may already have.
+  func testAddAccountPromptOnlyWhenLoadedPlanHasNoUsableAccount() {
+    let unusable = [
+      Self.account("acct-closed", "Closed", closed: true),
+      Self.account("acct-deleted", "Deleted", deleted: true),
+    ]
+    XCTAssertTrue(CaptureAdmissionGate.needsAccount(referencePhase: .loaded, accounts: []))
+    XCTAssertTrue(CaptureAdmissionGate.needsAccount(referencePhase: .loaded, accounts: unusable))
+    XCTAssertFalse(
+      CaptureAdmissionGate.needsAccount(
+        referencePhase: .loaded,
+        accounts: unusable + [Self.account("acct-everyday", "Everyday")]
+      )
+    )
+    XCTAssertFalse(CaptureAdmissionGate.needsAccount(referencePhase: .failed("offline"), accounts: []))
+    XCTAssertFalse(CaptureAdmissionGate.needsAccount(referencePhase: .loading, accounts: []))
+    XCTAssertFalse(CaptureAdmissionGate.needsAccount(referencePhase: .idle, accounts: []))
   }
 
   func testAdmissionAfterRefreshRequiresCurrentRequestAndMatchingScope() {

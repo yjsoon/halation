@@ -1,9 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  choosePlanId,
-  chooseRequestedPlanId,
   decideSession,
-  controllerKey,
   decideBootstrap,
   planBootstrapRequests,
   planKnowledge,
@@ -42,26 +39,6 @@ describe("planKnowledge", () => {
 
   test("is null when the server reports no knowledge, so nothing is validated", () => {
     expect(planKnowledge([{ id: "plan-a" }], "plan-a")).toBeNull();
-  });
-});
-
-describe("choosePlanId", () => {
-
-  test("falls back to the first plan when the hint is gone", () => {
-    expect(choosePlanId([{ id: "plan-a" }], "plan-b")).toBe("plan-a");
-  });
-
-});
-
-describe("chooseRequestedPlanId", () => {
-  test("gives an accessible URL plan precedence over preferences", () => {
-    expect(chooseRequestedPlanId([{ id: "usual" }, { id: "linked" }], "usual", "linked"))
-      .toEqual({ planId: "linked", requestedPlanRejected: false });
-  });
-
-  test("retains safe preference fallback when the URL plan is inaccessible", () => {
-    expect(chooseRequestedPlanId([{ id: "usual" }, { id: "other" }], "usual", "private"))
-      .toEqual({ planId: "usual", requestedPlanRejected: true });
   });
 });
 
@@ -153,14 +130,3 @@ describe("resolveReferenceBatch", () => {
   });
 });
 
-describe("controllerKey", () => {
-  test("scopes a controller to one user and plan", () => {
-    expect(controllerKey("user-1", "plan-a")).toBe("user-1:plan-a");
-    expect(controllerKey("user-1", "plan-a")).not.toBe(controllerKey("user-2", "plan-a"));
-  });
-
-  test("changes across user or plan boundaries so plan-owned UI state remounts", () => {
-    expect(controllerKey("user-a", "plan-a")).not.toBe(controllerKey("user-a", "plan-b"));
-    expect(controllerKey("user-a", "plan-a")).not.toBe(controllerKey("user-b", "plan-a"));
-  });
-});

@@ -6,14 +6,14 @@ import { runDailyScheduledMaterialization } from "../../api/src/scheduled-materi
 import { runD1ScheduledYnabSync } from "../../api/src/d1-scheduled-sync-runner";
 import { createHandler } from "../../api/src/http";
 import { D1AuthStore } from "../../api/src/auth-store";
-import { withDocumentSecurityHeaders } from "./security-headers";
+import { withDocumentSecurityHeaders, withTransportSecurity } from "./security-headers";
 
 const DEFAULT_YNAB_SYNC_CRON = "10 16 * * *";
 
 interface Env {
   ASSETS: Fetcher;
   DB: D1Binding;
-  HOWMUCH_API_TOKEN: string;
+  HOWMUCH_API_TOKEN?: string;
   HOWMUCH_DEFAULT_PLAN_ID: string;
   HOWMUCH_TIME_ZONE: string;
   HOWMUCH_YNAB_TOKEN?: string;
@@ -43,19 +43,20 @@ export default {
     // claims another owner's app; without it these paths are a plain 404.
     if (pathname === "/.well-known/apple-app-site-association" || pathname === "/apple-app-site-association") {
       const association = appSiteAssociation(env);
-      if (!association) return new Response("Not found", { status: 404 });
-      return new Response(association, {
+      if (!association) return withTransportSecurity(new Response("Not found", { status: 404 }));
+      return withTransportSecurity(new Response(association, {
         headers: {
           "content-type": "application/json",
           "cache-control": "public, max-age=3600",
         },
-      });
+      }));
     }
     if (env.HOWMUCH_REDIRECT_TARGET) {
       const url = new URL(request.url);
       // 308 preserves method and body, so API clients (including the iOS app)
       // follow the redirect without turning POSTs into GETs.
-      return Response.redirect(`${env.HOWMUCH_REDIRECT_TARGET}${url.pathname}${url.search}`, 308);
+      // HSTS here too, so the legacy host stops taking plain HTTP.
+      return withTransportSecurity(Response.redirect(`${env.HOWMUCH_REDIRECT_TARGET}${url.pathname}${url.search}`, 308));
     }
     if (!pathname.startsWith("/api/") && !pathname.startsWith("/v1/") && pathname !== "/health") {
       return withDocumentSecurityHeaders(await env.ASSETS.fetch(request));
@@ -65,7 +66,7 @@ export default {
 
     const config = workerConfig(env);
     const database = new HowMuchD1Database(requiredBinding(env.DB, "DB"));
-    return createHandler({ repo: new D1LedgerRepository(database, config.defaultPlanId), reports: new D1ReportService(database.binding), auth: new D1AuthStore(database), config })(request);
+    return withTransportSecurity(await createHandler({ repo: new D1LedgerRepository(database, config.defaultPlanId), reports: new D1ReportService(database.binding), auth: new D1AuthStore(database), config })(request));
   },
 
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
@@ -107,7 +108,10 @@ function workerConfig(env: Env): ApiConfig & { timeZone: string } {
   return {
     dbPath: "",
     port: 0,
-    apiToken: required(env.HOWMUCH_API_TOKEN, "HOWMUCH_API_TOKEN"),
+    // Optional so a Worker deployed without the secret can still say so on
+    // its setup page. Setup without it is always refused here.
+    apiToken: optional(env.HOWMUCH_API_TOKEN),
+    refuseTokenlessSetup: true,
     defaultPlanId: required(env.HOWMUCH_DEFAULT_PLAN_ID, "HOWMUCH_DEFAULT_PLAN_ID"),
     transitionReadOnly: env.HOWMUCH_TRANSITION_READ_ONLY === "true",
     ynabToken: optional(env.HOWMUCH_YNAB_TOKEN),

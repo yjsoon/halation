@@ -530,8 +530,8 @@ struct CaptureAssistantReply: View {
   }
 
   private func groupSummary(_ selected: [CaptureDraftItem]) -> String {
-    let inflow = selected.filter { $0.draft.signedMilliunits > 0 }.reduce(0) { $0 + $1.draft.signedMilliunits }
-    let outflow = selected.filter { $0.draft.signedMilliunits < 0 }.reduce(0) { $0 + abs($1.draft.signedMilliunits) }
+    let inflow = selected.filter { $0.draft.signedMilliunits > 0 }.map(\.draft.signedMilliunits).saturatingSum()
+    let outflow = selected.filter { $0.draft.signedMilliunits < 0 }.map { abs($0.draft.signedMilliunits) }.saturatingSum()
     var parts = ["\(selected.count) selected"]
     if outflow > 0 {
       parts.append("\(money(-outflow)) outflow")

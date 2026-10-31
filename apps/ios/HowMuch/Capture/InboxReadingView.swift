@@ -30,7 +30,7 @@ struct InboxReadingView: View {
         VStack(spacing: 18) {
           Spacer()
           sourcePreview
-          Text("Stays on this device")
+          Text("Read on this device")
             .font(.subheadline.weight(.medium))
             .foregroundStyle(Theme.textPrimary.opacity(0.72))
           Spacer()
@@ -159,7 +159,7 @@ struct InboxReadingView: View {
             try Task.checkCancellation()
             if result.skippedPages > 0 {
               let skipped = result.skippedPages
-              onNotice("Skipped \(skipped) scanned \(skipped == 1 ? "page" : "pages"). Halation reads up to \(SlipPDFText.maxOCRPages) scanned pages per PDF.")
+              onNotice("Skipped \(skipped) PDF \(skipped == 1 ? "page" : "pages"). Limits per PDF: \(SlipPDFText.maxPages) pages, 1 MiB of text, and \(SlipPDFText.maxOCRPages) scanned pages.")
             }
             itemDrafts.append(contentsOf: await interpretDrafts(from: result.text))
           }
@@ -282,11 +282,13 @@ enum SlipImageText {
 
 enum SlipPDFText {
   static let maxOCRPages = 8
+  static let maxPages = 100
+  static let maxTextBytes = 1_048_576
   static let maxRenderedEdge: CGFloat = 4096
 
   struct Result: Sendable {
     var text: String
-    /// Pages that needed OCR but were beyond `maxOCRPages`.
+    /// Pages excluded by the document, text, or OCR budget.
     var skippedPages: Int
   }
 
@@ -295,18 +297,34 @@ enum SlipPDFText {
   static func recognize(_ url: URL) async -> Result {
     // One open for every text layer. OCR pages reopen the file one at a time
     // (at most `maxOCRPages`) so their renders never sit in memory together.
-    let layers = (try? await inboxBackgroundWork { () throws -> [String] in
-      guard let document = PDFDocument(url: url) else { return [] }
-      return (0..<document.pageCount).map {
-        document.page(at: $0)?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let extracted = (try? await inboxBackgroundWork { () throws -> (layers: [String], skipped: Int) in
+      guard let document = PDFDocument(url: url) else { return ([], 0) }
+      guard document.pageCount <= maxPages else { return ([], document.pageCount) }
+      var layers: [String] = []
+      var bytes = 0
+      for index in 0..<document.pageCount {
+        try Task.checkCancellation()
+        let page = document.page(at: index)
+        guard (page?.numberOfCharacters ?? 0) <= maxTextBytes - bytes else {
+          return ([], document.pageCount)
+        }
+        let text = page?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        bytes += text.utf8.count + 1
+        guard bytes <= maxTextBytes else { return ([], document.pageCount) }
+        layers.append(text)
       }
-    }) ?? []
+      return (layers, 0)
+    }) ?? (layers: [], skipped: 0)
+    let layers = extracted.layers
     var pages: [String] = []
+    var textBytes = 0
     var ocrPages = 0
-    var skipped = 0
+    var skipped = extracted.skipped
     for (index, layer) in layers.enumerated() {
       if Task.isCancelled { break }
       if !layer.isEmpty {
+        textBytes += layer.utf8.count + 1
+        guard textBytes <= maxTextBytes else { return Result(text: "", skippedPages: layers.count) }
         pages.append(layer)
         continue
       }
@@ -332,6 +350,8 @@ enum SlipPDFText {
       guard let png else { continue }
       let text = await SlipImageText.recognize(png)
       if !text.isEmpty {
+        textBytes += text.utf8.count + 1
+        guard textBytes <= maxTextBytes else { return Result(text: "", skippedPages: layers.count) }
         pages.append(text)
       }
     }

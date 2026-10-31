@@ -33,6 +33,9 @@ struct AuthStatusPayload: Decodable {
   let setupRequired: Bool
   let bootstrapRequired: Bool
   let user: APIUser?
+  /// True when the server sends new transactions to TypeSafe for a category.
+  /// Optional: older servers do not send it.
+  let categoriserEnabled: Bool?
 }
 
 struct PlansPayload: Decodable {
@@ -220,6 +223,10 @@ struct TransactionPage {
   let hasMore: Bool
   let nextOffset: Int?
   let serverKnowledge: Int?
+  /// The last row's date as the server sent it, before tombstones are dropped
+  /// or acknowledged writes repair `transactions`: where this page leaves the
+  /// cursor.
+  var cursorDate: String? = nil
 }
 
 struct TransactionPayload: Decodable {
