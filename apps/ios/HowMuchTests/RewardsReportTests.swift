@@ -709,7 +709,9 @@ final class RewardsSnapshotTests: XCTestCase {
       "Travel Fixture", "$169.20", "8 days left"]
     let rendered = await surface.captureUntilOCR(contains: expected, timeoutNanoseconds: 5_000_000_000)
     attach(rendered.image, "rewards-compact-root")
-    for text in expected { XCTAssertTrue(rendered.text.contains(text.lowercased()), "Missing \(text): \(rendered.text)") }
+    // OCR reads the tall row's larger monospaced figure with a space after the decimal point.
+    let read = rendered.text.replacingOccurrences(of: #"(\d)\. (\d)"#, with: "$1.$2", options: .regularExpression)
+    for text in expected { XCTAssertTrue(read.contains(text.lowercased()), "Missing \(text): \(rendered.text)") }
     XCTAssertEqual(chrome.tab, .rewards)
     XCTAssertEqual(chrome.compactBarTab, .rewards)
   }

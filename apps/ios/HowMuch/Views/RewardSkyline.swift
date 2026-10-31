@@ -514,12 +514,15 @@ struct RewardCardSlip: View {
       .foregroundStyle(over ? urgent : Theme.textPrimary)
     let figures = HStack(alignment: .center, spacing: 10) {
       amount
+        .lineLimit(1)
       bar(category, over: over)
       Text(rate(category))
         .font(.system(.caption, design: .monospaced))
         .foregroundStyle(Theme.rowSecondary)
+        .lineLimit(1)
         .frame(minWidth: rateWidth, alignment: .trailing)
     }
+    .fixedSize(horizontal: true, vertical: false)
     return VStack(alignment: .leading, spacing: 3) {
       ViewThatFits(in: .horizontal) {
         HStack(alignment: .center, spacing: 10) {
