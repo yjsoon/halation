@@ -119,12 +119,16 @@ private struct RegisterSearchDrawer: ViewModifier {
   @Binding var text: String
   @Binding var isPresented: Bool
   let isShown: Bool
+  /// Keeps the navigation bar up while searching, so Select All and Done
+  /// stay reachable over the results.
+  var keepsToolbar = false
 
   func body(content: Content) -> some View {
     content.background {
       if isShown {
         Color.clear
           .searchable(text: $text, isPresented: $isPresented, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search transactions or amounts")
+          .searchPresentationToolbarBehavior(keepsToolbar ? .avoidHidingContent : .automatic)
       }
     }
   }
@@ -433,7 +437,7 @@ struct RegisterView: View {
           .transition(.move(edge: .bottom).combined(with: .opacity))
       }
     }
-    .modifier(RegisterSearchDrawer(text: $searchText, isPresented: $isSearchPresented, isShown: showsSearch))
+    .modifier(RegisterSearchDrawer(text: $searchText, isPresented: $isSearchPresented, isShown: showsSearch, keepsToolbar: selection != nil))
     .onChange(of: isSearchPresented) { _, presented in
       if !presented, searchText.isEmpty {
         showsSearch = false
