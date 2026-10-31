@@ -401,7 +401,7 @@ struct AddTransactionsView: View {
         chooseUnresolvedCategory: { resolvingCategoryDraftID = $0 },
         chooseTarget: { id in
           session.chooseTargetDraft(id)
-          persistCommittedCaptures(session.messages.last?.updatedDraftIDs ?? [])
+          persistCommittedCaptures()
         },
         inspectQuery: { inspectQueryCard = $0 },
         jumpToDraft: { id in
@@ -414,7 +414,8 @@ struct AddTransactionsView: View {
         enterManually: beginManualEntry,
         undo: session.canUndo(ownedIDs: message.ownedDraftIDs)
           ? {
-            persistCommittedCaptures(session.undo())
+            session.undo()
+            persistCommittedCaptures()
           }
           : nil,
         pendingQuery: message.id == session.pendingQueryReplyID ? session.pendingQuery : nil,
@@ -778,15 +779,12 @@ struct AddTransactionsView: View {
       expectedRevision: expectedRevision,
       expectedGeneration: expectedGeneration
     )
-    persistCommittedCaptures(session.messages.last?.updatedDraftIDs ?? [])
+    persistCommittedCaptures()
   }
 
-  private func persistCommittedCaptures(_ ids: [String]) {
-    guard !ids.isEmpty else {
-      return
-    }
-    for item in session.drafts where item.committed && ids.contains(item.id) {
-      model.reviseConversationCapture(item)
+  private func persistCommittedCaptures() {
+    for revision in session.takeSavedCardRevisions() {
+      model.reviseConversationCapture(revision.item, prior: revision.prior)
     }
   }
 

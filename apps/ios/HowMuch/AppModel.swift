@@ -1729,10 +1729,13 @@ final class AppModel {
   /// the server already, or still in the outbox (queued or on the wire); the
   /// revision becomes an edit of whichever it is, and the planner folds it
   /// into a create that has not been sent.
-  func reviseConversationCapture(_ item: CaptureDraftItem) {
+  /// Writes a conversation change to a saved card's row. With `prior`, a row
+  /// already on the server gets only the fields that changed from `prior`,
+  /// laid over the live row, so an edit made in the register is kept.
+  func reviseConversationCapture(_ item: CaptureDraftItem, prior: TransactionDraft? = nil) {
     let transactionID: String
     let base: Transaction?
-    if let existing = matchingServerRow(importID: item.id, accountID: item.draft.accountID) {
+    if let existing = matchingServerRow(importID: item.id, accountID: prior?.accountID ?? item.draft.accountID) {
       transactionID = existing.id
       base = existing
     } else if let create = currentOutbox.first(where: { command in
@@ -1745,12 +1748,63 @@ final class AppModel {
       return
     }
     var draft = item.draft
+    if let base, let prior {
+      let fields = Self.conversationFields(changedFrom: prior, to: item.draft)
+      guard !fields.isEmpty else {
+        return
+      }
+      let splitCategory = base.isSplit && fields.contains(.category)
+      if let refusal = splitCategory ? "Splits can’t be recategorised here" : IntakeCoordinator.fixRefusal(fields: fields, live: base) {
+        showSaveMessage("Couldn’t save changes — \(refusal)", kind: .failure)
+        return
+      }
+      draft = TransactionDraft(transaction: base)
+      for field in fields {
+        switch field {
+        case .payee:
+          draft.payeeID = item.draft.payeeID
+          draft.payeeName = item.draft.payeeName
+        case .category:
+          draft.categoryID = item.draft.categoryID
+        case .amount:
+          draft.direction = item.draft.direction
+          draft.amountMagnitudeMilli = item.draft.amountMagnitudeMilli
+        case .date:
+          draft.date = item.draft.date
+        case .memo:
+          draft.memo = item.draft.memo
+        case .unknown:
+          break
+        }
+      }
+      draft.approved = base.approved
+    }
     draft.id = transactionID
     do {
       try enqueueOutbox([editCommand(draft, transactionID: transactionID, base: base)])
     } catch {
       showSaveMessage("Couldn’t save changes — \(error.localizedDescription)", kind: .failure)
     }
+  }
+
+  private static func conversationFields(changedFrom old: TransactionDraft, to new: TransactionDraft) -> [IntakeField] {
+    var fields: [IntakeField] = []
+    if old.payeeName != new.payeeName || old.payeeID != new.payeeID {
+      fields.append(.payee)
+    }
+    if old.categoryID != new.categoryID {
+      fields.append(.category)
+    }
+    if old.direction != new.direction || old.amountMagnitudeMilli != new.amountMagnitudeMilli {
+      fields.append(.amount)
+    }
+    if !Calendar.current.isDate(old.date, inSameDayAs: new.date) {
+      fields.append(.date)
+    }
+    if old.memo != new.memo {
+      fields.append(.memo)
+    }
+    return fields
   }
 
   private func matchingServerRow(importID: String, accountID: String) -> Transaction? {

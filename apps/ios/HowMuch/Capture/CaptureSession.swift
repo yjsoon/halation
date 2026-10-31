@@ -280,6 +280,9 @@ final class CaptureSession: Identifiable {
   var pendingUpdateChanges: [CaptureMappedChange]
   var isTransferringImages: Bool
   private var undoStack: [CaptureUndoSnapshot]
+  /// Saved cards changed since the last `takeSavedCardRevisions()`, with the
+  /// card's draft before the first of those changes.
+  private var savedCardPriors: [(id: String, prior: TransactionDraft)] = []
   /// False once the workspace stops owning this session (scope change,
   /// resume/start of another session, discard). A view can still hold the
   /// instance, so send, freeze, and save must refuse rather than rely on
@@ -940,6 +943,7 @@ final class CaptureSession: Identifiable {
       if let saved = prior[id] {
         if let index = next.firstIndex(where: { $0.id == id }) {
           if next[index].committed {
+            noteSavedCardPrior(next[index])
             var restored = saved
             restored.committed = true
             restored.included = false
@@ -1275,6 +1279,9 @@ final class CaptureSession: Identifiable {
         shouldHold: false
       )
     }
+    if targetsSavedCard, changes.contains(where: \.mapped.parsedAccount) {
+      return .clarification("To move a saved transaction to another account, open it in the register.", shouldHold: false)
+    }
     if turn.applyToAllDrafts {
       var assignments: [(index: Int, change: CaptureMappedChange)] = []
       var splitWarning: String?
@@ -1321,6 +1328,9 @@ final class CaptureSession: Identifiable {
   private func applyPreparedUpdates(_ assignments: [(index: Int, change: CaptureMappedChange)]) {
     var next = drafts
     for (index, change) in assignments {
+      if next[index].committed {
+        noteSavedCardPrior(next[index])
+      }
       applyMapped(change.mapped, to: &next[index])
       if change.mapped.parsedAccount, !change.mapped.draft.accountID.isEmpty {
         selectedAccountID = change.mapped.draft.accountID
@@ -1371,6 +1381,24 @@ final class CaptureSession: Identifiable {
     )
     if undoStack.count > 20 {
       undoStack.removeFirst()
+    }
+  }
+
+  private func noteSavedCardPrior(_ item: CaptureDraftItem) {
+    if !savedCardPriors.contains(where: { $0.id == item.id }) {
+      savedCardPriors.append((item.id, item.draft))
+    }
+  }
+
+  /// Saved cards changed since the last call, each with its draft before the
+  /// change, so the caller revises only the fields the conversation changed.
+  func takeSavedCardRevisions() -> [(item: CaptureDraftItem, prior: TransactionDraft)] {
+    defer { savedCardPriors = [] }
+    return savedCardPriors.compactMap { entry in
+      guard let item = drafts.first(where: { $0.id == entry.id && $0.committed }) else {
+        return nil
+      }
+      return (item, entry.prior)
     }
   }
 
