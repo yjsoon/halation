@@ -431,10 +431,13 @@ struct RegisterView: View {
     }
     // Select All takes the back button's place; Done is the way out.
     .navigationBarBackButtonHidden(selection != nil)
-    .safeAreaInset(edge: .bottom) {
+    // At the top, under the navigation bar and any search field: the bottom
+    // edge belongs to the floating tab bar, Add and Assistant, whose safe area
+    // shifts with search and scroll and covered the bar.
+    .safeAreaInset(edge: .top, spacing: 0) {
       if let selection {
         selectionBar(selection, visible: transactions)
-          .transition(.move(edge: .bottom).combined(with: .opacity))
+          .transition(.move(edge: .top).combined(with: .opacity))
       }
     }
     .modifier(RegisterSearchDrawer(text: $searchText, isPresented: $isSearchPresented, isShown: showsSearch, keepsToolbar: selection != nil))
@@ -717,11 +720,9 @@ struct RegisterView: View {
     .padding(.leading, 16)
     .padding(.trailing, count > 0 ? 4 : 16)
     .ynabCard()
-    .padding(.leading, 12)
-    // The floating Assistant (iPhone) or Add (iPad sidebar) control sits on
-    // the window's bottom-trailing corner, over anything there.
-    .padding(.trailing, RootChrome.compactFloatingAssistantClearance)
-    .padding(.bottom, 8)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .background(Theme.canvas)
     .accessibilityElement(children: .contain)
   }
 
