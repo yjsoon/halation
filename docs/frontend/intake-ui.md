@@ -42,7 +42,7 @@ One keyboard-safe dock: compact account line with **Add manually**, plus a singl
 
 ## Save
 
-Group-local Save commits only that reply’s included, unsaved draft IDs through `AppModel.commit(_ drafts:)`. Successful local enqueue reads **Saved on device** (and **Sync pending** only when an outbox row exists). No remote-success claim, no cross-group Save, no auto-dismiss. Cards in this conversation stay visible after Save. A later field change (name, category, date, account, amount, direction) updates that row. There is no second Save. Delete remains unsupported. No Undo back to a recommit of the original add. Undo can restore a later field change on that card. Undo is only on the reply that owns the drafts that actually changed or were removed.
+Group-local Save commits only that reply’s included, unsaved draft IDs through `AppModel.commit(_ drafts:)`. Successful local enqueue reads **Saved on device** (and **Sync pending** only when an outbox row exists). No remote-success claim, no cross-group Save, no auto-dismiss. Cards in this conversation stay visible after Save. A later field change (name, category, date, account, amount, direction) updates that row, but only from a typed turn: a turn that carries a photo or PDF never changes a saved row and says to type the correction or open the register. There is no second Save. Delete remains unsupported. No Undo back to a recommit of the original add. Undo can restore a later field change on that card. Undo is only on the reply that owns the drafts that actually changed or were removed.
 
 ## Manual
 

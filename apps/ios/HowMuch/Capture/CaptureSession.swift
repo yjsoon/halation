@@ -1267,8 +1267,13 @@ final class CaptureSession: Identifiable {
         change.targetDraftID == item.id || (change.targetDraftID == nil && drafts.count == 1)
       })
     }
-    if targetsSavedCard {
-      return .clarification("That transaction is already saved. Open it in the register to make changes.", shouldHold: false)
+    // Saved rows change only from typed corrections. Text read from a slip or
+    // PDF in the same turn is untrusted and must not rewrite ledger history.
+    if targetsSavedCard, !(frozenTurn?.attachmentIDs ?? []).isEmpty {
+      return .clarification(
+        "I don't change saved transactions from attached documents. Type the correction, or open it in the register.",
+        shouldHold: false
+      )
     }
     if turn.applyToAllDrafts {
       var assignments: [(index: Int, change: CaptureMappedChange)] = []
