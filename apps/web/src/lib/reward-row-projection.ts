@@ -216,7 +216,7 @@ export function projectRow(row: RewardsRow, asOf: string | null | undefined, isR
     // The flag is authoritative: it fires once headroom is below one block.
     const terminal = calc.should_stop_using === true || calc.has_next_spending_tier !== true;
     const cap = maximum ?? 0;
-    action = { kind: "capReached", beyond: cap > 0 ? Math.max(0, calc.total_spend - cap) : 0, terminal };
+    action = { kind: "capReached", beyond: beyondCap(calc.total_spend, cap), terminal };
     tone = terminal ? "complete" : "earning";
     if (cap > 0) basis = { spend: Math.min(calc.counted_spend, cap), target: cap };
     fill = 1;
@@ -251,7 +251,7 @@ export function projectRow(row: RewardsRow, asOf: string | null | undefined, isR
   if (!calc.maximum_spend_exceeded) {
     const atCap = calc.flags.filter((f) => (f.maximumSpend ?? 0) > 0 && f.maximumSpendExceeded === true);
     if (atCap.length) {
-      exceptions.push({ kind: "categoriesAtCap", names: atCap.map((f) => f.name), over: atCap.some((f) => (f.totalSpend ?? 0) > (f.maximumSpend ?? 0)) });
+      exceptions.push({ kind: "categoriesAtCap", names: atCap.map((f) => f.name), over: atCap.some((f) => beyondCap(f.totalSpend ?? 0, f.maximumSpend) > 0) });
     }
   }
   if (calc.minimum_spend_met) {
@@ -275,12 +275,21 @@ export interface RowText {
   isUrgent: boolean;
   basisLine: string;
   exceptionLines: string[];
+  /** The gate row's pace, "$5.94" for "about $5.94 a day to make it": the amount to the minimum (rounded up to
+   *  the cent) over the days left, rounded up to the cent. Null without an ending deadline of two days or more. */
+  pacePerDay: string | null;
   accessibilityValue: string;
 }
 
 const VISIBLE_EXCEPTION_LIMIT = 2;
 
 const money = (value: number): string => formatMoney(Math.round(value * 1000));
+
+/** Spend past a cap, or 0 when under it or within half a cent of it (float noise never reads "$0.00 beyond cap"). */
+export function beyondCap(spend: number, cap: number | null | undefined): number {
+  const over = cap != null && cap > 0 ? spend - cap : 0;
+  return over >= 0.005 ? over : 0;
+}
 
 export function roundedUpToCent(value: number): number {
   if (!(value > 0)) return 0;
@@ -353,6 +362,13 @@ export function rowText(p: RewardRowProjection, today: string = singaporeToday()
     basisLine = `${money(p.totalSpend)} spent · ${earned} earned`;
   }
 
+  let pacePerDay: string | null = null;
+  if ((p.action.kind === "minimum" || p.action.kind === "monthlyMinimum") && p.action.remaining > 0
+    && p.deadline?.kind === "ends" && p.deadline.days >= 2) {
+    // Up to the cent, so a few cents left never reads "$0.00 a day".
+    pacePerDay = money(roundedUpToCent(roundedUpToCent(p.action.remaining) / p.deadline.days));
+  }
+
   const allExceptions = p.exceptions.map(exceptionText);
   const exceptionLines = allExceptions.length > VISIBLE_EXCEPTION_LIMIT
     ? [...allExceptions.slice(0, VISIBLE_EXCEPTION_LIMIT), `+${allExceptions.length - VISIBLE_EXCEPTION_LIMIT} more`]
@@ -362,14 +378,17 @@ export function rowText(p: RewardRowProjection, today: string = singaporeToday()
   if (p.basis && p.basis.target > 0 && p.action.kind !== "range") {
     const percent = Math.round(clamp01(p.basis.spend / p.basis.target) * 100);
     spoken.push(`${money(p.basis.spend)} of ${money(p.basis.target)}, ${percent} per cent`);
+    // The basis line says this on the strip; the slim row and the wide ledger leave it to the slip (as iOS).
+    if (p.action.kind === "capReached" && p.action.beyond > 0) spoken.push(`${money(p.action.beyond)} beyond cap`);
   } else {
     spoken.push(basisLine);
   }
   if (p.deadline && deadline) spoken.push(`${deadline}, ${p.deadline.kind === "ends" ? "ends" : "period ends"} ${shortLabel(p.deadline.end)}`);
+  if (pacePerDay) spoken.push(`About ${pacePerDay} a day to make it`);
   if (p.action.kind !== "range") spoken.push(`${earned} earned`);
   spoken.push(...allExceptions);
 
-  return { amount: amountText, actionLabel, deadline, isUrgent, basisLine, exceptionLines, accessibilityValue: spoken.join(". ") };
+  return { amount: amountText, actionLabel, deadline, isUrgent, basisLine, exceptionLines, pacePerDay, accessibilityValue: spoken.join(". ") };
 }
 
 // --------------------------------------------------------------------- summary

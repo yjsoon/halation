@@ -22,32 +22,43 @@
 
 /* ---------- hero ---------- */
 
+/* The masthead is a quiet sky: it reaches the content area's top and side edges (the report body's
+   padding, --rw-inset) and fades into the page before the figures end. A backdrop, never data. */
 .rw-hero {
+  --rw-inset: 32px;
   position: relative;
   isolation: isolate;
-  overflow: hidden;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 14px 40px;
   align-items: end;
-  margin: 4px 0 16px;
-  padding: 26px 28px 22px;
-  border: 1px solid var(--rule);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--glow) 14%, var(--paper-raised)), var(--paper-raised));
-  container-type: inline-size;
+  margin: -14px calc(-1 * var(--rw-inset)) 12px;
+  padding: 34px calc(var(--rw-inset) + 4px) 22px;
 }
 
-/* Light from a sun just above the frame's corner: stepped rings only, no clipped disc.
-   Radii scale with the hero, so a phone-width hero is not flooded. */
+/* The sky itself, a fixed depth that may run past a short masthead and fade behind the toolbar. */
+.rw-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: var(--rw-sky-h, 260px);
+  z-index: -2;
+  pointer-events: none;
+  background: var(--rw-sky-glow), var(--rw-sky);
+}
+
+/* One faint contrail high in the sky. */
 .rw-hero::before {
   content: "";
   position: absolute;
-  inset: 0;
+  top: 34px;
+  right: 6%;
+  width: min(380px, 42%);
+  height: 1px;
   z-index: -1;
   pointer-events: none;
-  background: radial-gradient(circle at 100% 0, var(--glow-ring-1) 0 min(92px, 22cqi), var(--glow-ring-2) 0 min(150px, 36cqi),
-    var(--glow-ring-3) 0 min(228px, 54cqi), var(--glow-ring-4) 0 min(330px, 78cqi), transparent 0);
+  rotate: -3deg;
+  background: linear-gradient(90deg, transparent, var(--rw-sky-contrail) 30%, var(--rw-sky-contrail) 70%, transparent);
 }
 
 .rw-hero h1 {
@@ -92,11 +103,12 @@
   justify-items: end;
 }
 
+/* Soft rather than faint ink: the labels sit on the sky, where faint would fall under 4.5:1. */
 .rw-figure-label {
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--ink-faint);
+  color: var(--ink-soft);
 }
 
 .rw-figure-value {
@@ -146,11 +158,33 @@
 
 .rw-add {
   position: absolute;
-  top: 18px;
-  right: 20px;
+  top: 26px;
+  right: calc(var(--rw-inset) + 4px);
+}
+
+/* Beside the sidebar on a tablet the four figures would squeeze the title's lines: they go under it. */
+@media (min-width: 721px) and (max-width: 1023px) {
+  .rw-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rw-hero-figures {
+    justify-content: start;
+    padding-top: 4px;
+  }
+
+  .rw-figure {
+    justify-items: start;
+  }
 }
 
 /* ---------- toolbar ---------- */
+
+/* Positioned, so the controls paint over the masthead's sky where it runs on behind them. */
+.rw-toolbar,
+.rw-mode-note {
+  position: relative;
+}
 
 .rw-toolbar {
   display: flex;
@@ -762,6 +796,21 @@
   font: 600 10px var(--font-ui);
 }
 
+/* Manual order adds the move buttons: the badge moves left of all three, and the name stops short of it. */
+@media (max-width: 999px) {
+  .rw-card[data-size]:has(.rw-order) .rw-face[data-variant="strip"] > .rw-badge-pin {
+    right: 116px;
+  }
+
+  .rw-card[data-size] .rw-face[data-variant="strip"]:has(> .rw-badge-pin) .rw-face-name {
+    max-width: calc(100% - 156px);
+  }
+
+  .rw-card[data-size]:has(.rw-order) .rw-face[data-variant="strip"]:has(> .rw-badge-pin) .rw-face-name {
+    max-width: calc(100% - 226px);
+  }
+}
+
 .rw-strip-foot {
   z-index: 1;
   color: var(--face-foot-ink);
@@ -1104,6 +1153,1036 @@
   color: var(--tone-failed);
 }
 
+/* ---------- Skyline: the stacked board ----------
+   Rows stand as tall as their urgency (data-size): a gate row, still working towards its minimum, is tall
+   with the pace line; a climb row is the standard strip; a noon row (met, capped, calm, failed, range) is
+   slim, the name in a thin sky and one line on the ground. Below 1000px a row is the strip; from 1000px it
+   is a sunrise window on the left beside aligned columns. The toggle opens the slip in place, under the
+   row, and the row and slip become one lifted card on the open surface (--rw-open-bg). */
+
+.rw-grid[data-layout="stacked"] {
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.rw-card[data-size] {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  transition: background-color var(--dur-standard) var(--ease-out), box-shadow var(--dur-standard) var(--ease-out);
+}
+
+.rw-card[data-size][data-open] {
+  background: var(--rw-open-bg);
+  box-shadow: var(--rw-open-shadow);
+  /* Faint ink on the open surface (the slip, and the wide window's ledger and columns) keeps 4.5:1. */
+  --ink-faint: var(--rw-open-ink-faint);
+}
+
+/* Selection and the update pulse wrap the whole stacked card at every width: the strip or the window and
+   ledger, and the slip when it is open. */
+.rw-card[data-size][data-selected] {
+  box-shadow: 0 0 0 2px var(--plan-accent), 0 0 0 6px var(--plan-accent-wash);
+}
+
+.rw-card[data-size][data-selected][data-open] {
+  box-shadow: 0 0 0 2px var(--plan-accent), 0 0 0 6px var(--plan-accent-wash), var(--rw-open-shadow);
+}
+
+.rw-card[data-size][data-selected] .rw-face {
+  box-shadow: none;
+}
+
+.rw-card[data-size][data-just-updated] {
+  /* The entry animation stays first in the list, so adding and removing the pulse never restarts it. */
+  animation: rw-arrive var(--dur-arrive) var(--ease-out) backwards, rw-pulse-row var(--dur-pulse) var(--ease-out) 1;
+  animation-delay: calc(var(--i, 0) * var(--stagger)), 0s;
+}
+
+.rw-card[data-size][data-just-updated] .rw-face {
+  animation: none;
+}
+
+.rw-row {
+  position: relative;
+}
+
+.rw-card[data-size] .rw-tile {
+  display: block;
+}
+
+/* -- the strip, by size -- */
+
+.rw-card[data-size] .rw-face[data-variant="strip"] {
+  padding: 9px 16px 10px;
+}
+
+.rw-card[data-size="gate"] .rw-face[data-variant="strip"] .rw-face-name {
+  margin-bottom: 46px;
+}
+
+.rw-card[data-size="noon"] .rw-face[data-variant="strip"] .rw-face-name {
+  margin-bottom: 8px;
+}
+
+/* Room for the toggle at the foot's right. */
+.rw-card[data-size] .rw-strip-foot {
+  padding-right: 30px;
+}
+
+.rw-card[data-size] .rw-headline {
+  gap: 0 8px;
+}
+
+.rw-card[data-size] .rw-lead {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  min-width: 0;
+}
+
+.rw-card[data-size] .rw-action {
+  font-weight: 500;
+}
+
+.rw-card[data-size="gate"] .rw-amount {
+  font-size: 26px;
+  line-height: 1.15;
+}
+
+.rw-card[data-size="gate"] .rw-action {
+  font-size: 15px;
+}
+
+.rw-card[data-size="climb"] .rw-amount {
+  font-size: 17px;
+}
+
+.rw-card[data-size="climb"] .rw-action {
+  font-size: 14px;
+}
+
+.rw-tail {
+  font: 500 12.5px var(--font-figures);
+  font-variant-numeric: tabular-nums;
+}
+
+.rw-pace {
+  margin: 1px 0 0;
+  font: 400 13px / 1.35 var(--font-ui);
+  color: var(--face-foot-soft);
+}
+
+.rw-pace b {
+  font: 500 13px var(--font-figures);
+  color: var(--face-foot-ink);
+}
+
+/* The open card's face loses its own lift: the card carries the shadow, the slip joins under the ground. */
+.rw-card[data-size][data-open] .rw-face {
+  box-shadow: none;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .rw-card[data-size][data-open] .rw-tile:hover .rw-face {
+    translate: none;
+    box-shadow: none;
+  }
+}
+
+/* -- the toggle: a chevron on the ground, clear of the actions above it -- */
+
+.rw-open-toggle {
+  position: absolute;
+  right: 2px;
+  bottom: 0;
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--face-foot-ink);
+}
+
+.rw-open-toggle:hover {
+  background: color-mix(in srgb, currentColor 10%, transparent);
+}
+
+.rw-open-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.rw-open-chevron {
+  width: 8px;
+  height: 8px;
+  border-right: 1.75px solid currentColor;
+  border-bottom: 1.75px solid currentColor;
+  rotate: 45deg;
+  translate: 0 -2px;
+  transition: rotate var(--dur-standard) var(--ease-out), translate var(--dur-standard) var(--ease-out);
+}
+
+.rw-open-toggle[aria-expanded="true"] .rw-open-chevron {
+  rotate: 225deg;
+  translate: 0 2px;
+}
+
+.rw-page[data-selecting] .rw-open-toggle {
+  visibility: hidden;
+}
+
+/* The noon row is slim: the actions sit 4px from the top and the toggle under them. */
+.rw-card[data-size="noon"] .rw-card-actions {
+  top: 4px;
+}
+
+.rw-card[data-size="noon"] .rw-face[data-variant="strip"] {
+  min-height: 72px;
+}
+
+/* -- the slip: unfolds under the row (rows 0fr to 1fr), hidden from the tree once folded -- */
+
+.rw-open {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  color: var(--ink);
+  transition: grid-template-rows var(--dur-standard) var(--ease-out), visibility 0s linear var(--dur-standard);
+}
+
+.rw-open[data-open] {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition: grid-template-rows var(--dur-standard) var(--ease-out), visibility 0s;
+}
+
+.rw-open-body {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rw-open-grid {
+  display: grid;
+  gap: 0;
+  padding: 4px 16px 14px;
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.rw-open[data-open] .rw-open-grid {
+  opacity: 1;
+  transition-delay: calc(var(--dur-fast) * 0.6);
+}
+
+.rw-open-grid > :is(section, .rw-open-link, .rw-open-more) {
+  border-top: 1px solid var(--rule);
+}
+
+.rw-open-grid > section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 12px 0;
+}
+
+.rw-open-grid > section:first-child {
+  border-top: 0;
+}
+
+.rw-open-grid h4 {
+  margin: 0;
+  font: 400 19px / 1.2 var(--font-display);
+}
+
+.rw-open-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  margin: 0;
+  font: 12.5px / 1.4 var(--font-figures);
+  color: var(--ink-soft);
+}
+
+.rw-open-day::before {
+  content: "· ";
+}
+
+.rw-open-meta {
+  margin: 0;
+  font: 12px / 1.4 var(--font-figures);
+  color: var(--ink-soft);
+}
+
+.rw-open-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  font: 500 14px var(--font-ui);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.rw-open-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+.rw-open-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.rw-open-link-chevron {
+  width: 7px;
+  height: 7px;
+  margin: 0 6px 0 12px;
+  border-right: 1.5px solid var(--ink-soft);
+  border-top: 1.5px solid var(--ink-soft);
+  rotate: 45deg;
+}
+
+/* -- the day rail: a tick per day, filled to today, the met day marked -- */
+
+.rw-rail {
+  position: relative;
+  flex-basis: 100%;
+  padding-top: 18px;
+  container-type: inline-size;
+}
+
+.rw-rail-met-label {
+  position: absolute;
+  top: 0;
+  left: calc(var(--met) * 100%);
+  translate: -50% 0;
+  font: 11px / 16px var(--font-ui);
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+
+.rw-rail-line {
+  position: relative;
+  display: block;
+  height: 14px;
+}
+
+.rw-rail-line::before,
+.rw-rail-fill {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 6px;
+  height: 2px;
+}
+
+.rw-rail-line::before {
+  right: 0;
+  background: var(--meter-track);
+}
+
+.rw-rail-fill {
+  width: calc(var(--today) * 100%);
+  background: var(--green);
+}
+
+.rw-rail-ticks {
+  position: absolute;
+  left: 0;
+  right: -1px;
+  top: 3px;
+  height: 8px;
+  opacity: 0.55;
+  background: linear-gradient(90deg, var(--rule-control) 0 1px, transparent 1px) 0 0 / calc((100% - 1px) / var(--days)) 100% repeat-x;
+}
+
+.rw-rail-today,
+.rw-rail-met {
+  position: absolute;
+  top: 7px;
+  border-radius: 50%;
+  translate: -50% -50%;
+}
+
+.rw-rail-today {
+  left: calc(var(--today) * 100%);
+  width: 12px;
+  height: 12px;
+  background: var(--sun-disc);
+  box-shadow: 0 0 0 1.5px var(--sun-rim);
+}
+
+.rw-rail-met {
+  left: calc(var(--met) * 100%);
+  width: 9px;
+  height: 9px;
+  background: var(--rw-open-bg);
+  box-shadow: 0 0 0 2px var(--green);
+}
+
+.rw-rail-labels {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  height: 16px;
+  margin-top: 3px;
+  font: 11px / 16px var(--font-ui);
+  color: var(--ink-faint);
+}
+
+.rw-rail-now {
+  position: absolute;
+  top: 0;
+  left: calc(var(--today) * 100%);
+  translate: -50% 0;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+
+:is(.rw-rail-now, .rw-rail-met-label)[data-edge="start"] {
+  translate: 0 0;
+}
+
+:is(.rw-rail-now, .rw-rail-met-label)[data-edge="end"] {
+  translate: -100% 0;
+}
+
+/* When the today label would touch an end's date (measured in DayRail), that date gives way: it is in the line above. */
+.rw-rail[data-cover-start] .rw-rail-start,
+.rw-rail[data-cover-end] .rw-rail-end {
+  visibility: hidden;
+}
+
+/* -- targets -- */
+
+.rw-targets {
+  display: grid;
+  gap: 10px;
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rw-targets li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  font: 400 14px / 1.35 var(--font-ui);
+}
+
+.rw-target-mark {
+  position: relative;
+  flex: none;
+  align-self: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1.5px solid var(--ink-soft);
+}
+
+.rw-targets [data-state="met"] .rw-target-mark {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.rw-targets [data-state="met"] .rw-target-mark::after {
+  content: "";
+  position: absolute;
+  left: 4.5px;
+  top: 1.5px;
+  width: 3.5px;
+  height: 7px;
+  border-right: 1.75px solid var(--rw-open-bg);
+  border-bottom: 1.75px solid var(--rw-open-bg);
+  rotate: 45deg;
+}
+
+.rw-targets [data-state="none"] .rw-target-mark {
+  border-style: dashed;
+  border-color: var(--ink-faint);
+}
+
+/* Spend has reached the minimum but the card holds it back (a monthly qualification or a tier): dashed, not amber. */
+.rw-targets [data-state="pending"] .rw-target-mark {
+  border-style: dashed;
+}
+
+/* A missed month: the failed tone, struck through, never the urgent amber. */
+.rw-targets [data-state="failed"] .rw-target-mark {
+  border-color: var(--tone-failed);
+}
+
+.rw-targets [data-state="failed"] .rw-target-mark::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: calc(50% - 0.75px);
+  height: 1.5px;
+  background: var(--tone-failed);
+  rotate: -45deg;
+}
+
+.rw-cat[data-excluded] :is(.rw-cat-name, .rw-cat-spend, .rw-cat-rate) {
+  color: var(--ink-soft);
+}
+
+.rw-target-label {
+  font-weight: 500;
+}
+
+.rw-target-amount {
+  font: 500 14px var(--font-figures);
+  font-variant-numeric: tabular-nums;
+}
+
+.rw-target-note {
+  margin-left: auto;
+  color: var(--ink-soft);
+}
+
+.rw-target-note[data-urgent] {
+  font-weight: 500;
+  color: var(--tone-needs);
+}
+
+.rw-open-targets .rw-line-strong {
+  flex-basis: 100%;
+}
+
+/* -- categories: name, spend, a short bar and the rate; over the cap in the urgent amber -- */
+
+.rw-cats {
+  display: grid;
+  gap: 12px;
+  flex-basis: 100%;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The name takes what the figures leave; a name too long for that puts the figures on a line of their own. */
+.rw-cat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+}
+
+.rw-cat-figs {
+  flex: 0 0 min(100%, 56%);
+  margin-left: auto;
+  display: grid;
+  grid-template-columns: auto minmax(40px, 1fr) 3.4em;
+  align-items: center;
+  gap: 12px;
+}
+
+.rw-cat-note {
+  flex-basis: 100%;
+}
+
+.rw-cat-name {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font: 500 14px / 1.3 var(--font-ui);
+}
+
+.rw-cat-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  translate: 0 -1px;
+}
+
+.rw-cat-spend {
+  font: 500 14px var(--font-figures);
+  font-variant-numeric: tabular-nums;
+}
+
+.rw-cat-rate {
+  justify-self: end;
+  font: 12px var(--font-figures);
+  color: var(--ink-faint);
+}
+
+.rw-cat-bar {
+  position: relative;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--meter-track);
+}
+
+.rw-cat-fill,
+.rw-cat-over {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.rw-cat-fill {
+  left: 0;
+  width: calc(var(--fill) * 100%);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--green) 55%, transparent);
+}
+
+.rw-cat[data-over] .rw-cat-fill {
+  background: var(--tone-needs);
+}
+
+.rw-cat-over {
+  left: calc(var(--fill) * 100%);
+  width: calc(var(--over) * 100%);
+  background: repeating-linear-gradient(90deg, var(--tone-needs) 0 3px, transparent 3px 5px);
+}
+
+.rw-cat-tick {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  left: calc(var(--cap) * 100%);
+  width: 2px;
+  translate: -50% 0;
+  background: var(--ink);
+}
+
+.rw-cat-note {
+  font: 12px / 1.4 var(--font-ui);
+  color: var(--ink-faint);
+}
+
+.rw-cat-note b {
+  font: 500 12px var(--font-figures);
+}
+
+.rw-cat[data-over] :is(.rw-cat-name, .rw-cat-note) {
+  color: var(--tone-needs);
+}
+
+/* -- the rest, one tap further: totals, meters, qualifications and the tier -- */
+
+.rw-open-more {
+  padding: 4px 0 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.rw-open-more summary {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 12.5px;
+}
+
+.rw-open-more > :is(.rw-meter, .rw-stats, .rw-flags, .rw-line) {
+  margin-top: 10px;
+}
+
+.rw-open-more p {
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+/* -- wide: a sunrise window on the left, aligned columns on the right -- */
+
+@media (min-width: 1000px) {
+  .rw-grid[data-layout="stacked"] {
+    --rw-window: 280px;
+  }
+
+  .rw-card[data-size] .rw-tile {
+    display: grid;
+    grid-template-columns: var(--rw-window) minmax(0, 1fr);
+    grid-template-rows: auto;
+    min-height: 116px;
+    overflow: hidden;
+    overflow: clip;
+    background: var(--paper-raised);
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    transition: background-color var(--dur-standard) var(--ease-out), border-color var(--dur-standard) var(--ease-out);
+  }
+
+  .rw-card[data-size="gate"] .rw-tile {
+    min-height: 176px;
+  }
+
+  .rw-card[data-size="noon"] .rw-tile {
+    min-height: 84px;
+  }
+
+  .rw-card[data-size][data-open] .rw-tile {
+    background: var(--rw-open-bg);
+    border-color: transparent;
+    border-radius: 12px 12px 0 0;
+  }
+
+  /* The window: the name on the sky, the account on the ground; the ground's depth follows the size. */
+  .rw-card[data-size] .rw-face[data-variant="strip"] {
+    min-height: 0;
+    padding: 12px 16px 10px;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .rw-card[data-size] .rw-face[data-variant="strip"] .rw-face-name {
+    margin: 0;
+    max-width: 76%;
+  }
+
+  .rw-window-foot {
+    display: flex;
+    align-items: flex-end;
+    min-height: 40px;
+    margin: auto 0 0;
+    font: 500 10px / 1.2 var(--font-ui);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--face-foot-ink);
+  }
+
+  .rw-window-foot > span {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  /* The "Back {date}" badge sits at the window's top right (the card's actions are over the ledger),
+     and the name leaves room for it. */
+  .rw-card[data-size] .rw-face[data-variant="strip"] > .rw-badge-pin {
+    right: 12px;
+  }
+
+  .rw-card[data-size] .rw-face[data-variant="strip"]:has(> .rw-badge-pin) .rw-face-name {
+    max-width: calc(100% - 108px);
+  }
+
+  .rw-card[data-size="gate"] .rw-window-foot {
+    min-height: 58px;
+  }
+
+  .rw-card[data-size="noon"] .rw-window-foot {
+    min-height: 26px;
+    visibility: hidden;
+  }
+
+  @media (hover: hover) and (prefers-reduced-motion: no-preference) {
+    .rw-card[data-size] .rw-tile:hover .rw-face {
+      translate: none;
+      box-shadow: none;
+    }
+
+    .rw-card[data-size]:not([data-open]) .rw-tile:hover {
+      border-color: var(--rule-control);
+    }
+  }
+
+  .rw-ledger {
+    display: grid;
+    align-content: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 12px 48px 12px 20px;
+    container: ledger / inline-size;
+  }
+
+  /* Manual order adds the move buttons beside the menu: about 104px of actions at the top right. */
+  .rw-card:has(.rw-order) .rw-ledger {
+    padding-right: 116px;
+  }
+
+  .rw-card[data-size][data-hidden] .rw-ledger {
+    opacity: 0.55;
+  }
+
+
+  .rw-card[data-size="noon"] .rw-ledger {
+    padding-block: 8px;
+    gap: 2px;
+  }
+
+  .rw-ledger .rw-headline {
+    color: var(--ink);
+    align-items: baseline;
+    gap: 4px 10px;
+  }
+
+  .rw-ledger .rw-deadline {
+    color: var(--ink-soft);
+  }
+
+  .rw-ledger .rw-deadline[data-urgent] {
+    color: var(--tone-needs);
+  }
+
+  .rw-card[data-tone="needs"] .rw-ledger .rw-amount {
+    color: var(--tone-needs);
+  }
+
+  .rw-card[data-tone="failed"] .rw-ledger .rw-action {
+    color: var(--tone-failed);
+  }
+
+  .rw-card[data-size="gate"] .rw-ledger .rw-amount {
+    font-size: 28px;
+  }
+
+  .rw-card[data-size="noon"] .rw-ledger .rw-action {
+    font-size: 14px;
+  }
+
+  .rw-beyond {
+    font: 12px var(--font-figures);
+    color: var(--ink-soft);
+  }
+
+  .rw-ledger .rw-pace {
+    color: var(--ink-soft);
+  }
+
+  .rw-ledger .rw-pace b {
+    color: var(--ink);
+  }
+
+  /* Exceptions are a chip beside the status. */
+  .rw-ledger .rw-exceptions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+  }
+
+  .rw-ledger .rw-exceptions li {
+    padding: 1px 7px;
+    border-radius: 4px;
+    background: var(--tone-needs-wash);
+    color: var(--tone-needs);
+    font: 500 11.5px / 1.5 var(--font-ui);
+  }
+
+  .rw-ledger .rw-exceptions li::before {
+    display: none;
+  }
+
+  /* The columns: shares of the ledger, which is the same width on every row, so a figure sits at the same x
+     down the board. A column never narrows below its figure: a figure too long for its share widens it, and
+     when the row cannot hold them all the columns wrap to a second line rather than overprint. Four columns
+     on a narrow ledger; Period joins from 440px. */
+  .rw-columns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
+    margin: 4px 0 0;
+  }
+
+  .rw-columns > div {
+    flex: 1 1 0;
+    min-width: max-content;
+  }
+
+  .rw-columns > div:nth-child(2),
+  .rw-columns > div:nth-child(3) {
+    flex-grow: 1.15;
+  }
+
+  .rw-columns dt {
+    font: 500 9.5px / 1.4 var(--font-ui);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .rw-columns dd {
+    margin: 1px 0 0;
+    white-space: nowrap;
+    font: 500 13px / 1.3 var(--font-figures);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rw-columns dd small {
+    font: 400 11px var(--font-figures);
+    color: var(--ink-soft);
+  }
+
+  .rw-columns dd[data-none] {
+    font-weight: 400;
+    color: var(--ink-faint);
+  }
+
+  .rw-col-period {
+    display: none;
+  }
+
+  .rw-columns > .rw-col-period {
+    flex: 1.4 1 0;
+    min-width: 96px;
+  }
+
+  /* A range row has three columns: the range's spend and earnings, and Period reading "range". */
+  .rw-columns[data-range] > div {
+    flex-grow: 1;
+  }
+
+  .rw-mini-rail {
+    position: relative;
+    display: block;
+    height: 3px;
+    margin: 5px 6px 0 0;
+    border-radius: 2px;
+    background: linear-gradient(90deg, var(--green) calc(var(--today) * 100%), var(--meter-track) 0);
+  }
+
+  .rw-mini-rail::after {
+    content: "";
+    position: absolute;
+    top: 50%;
+    left: calc(var(--today) * 100%);
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    translate: -50% -50%;
+    background: var(--sun-disc);
+    box-shadow: 0 0 0 1.5px var(--sun-rim);
+  }
+
+  @container ledger (min-width: 440px) {
+    .rw-col-period {
+      display: block;
+    }
+  }
+
+  @container ledger (min-width: 560px) {
+    .rw-columns {
+      gap: 2px 14px;
+    }
+
+    .rw-columns dd {
+      font-size: 14px;
+    }
+  }
+
+  @container ledger (min-width: 700px) {
+    .rw-columns {
+      gap: 2px 16px;
+    }
+
+    .rw-columns > .rw-col-period {
+      flex-grow: 1.6;
+      min-width: 150px;
+    }
+
+    .rw-columns dd {
+      font-size: 15px;
+    }
+  }
+
+  .rw-open-toggle {
+    right: 8px;
+    bottom: 6px;
+    color: var(--ink-soft);
+  }
+
+  .rw-card[data-size="noon"] .rw-card-actions {
+    top: 6px;
+  }
+
+  /* The slip uses the width: Period and Targets side by side with View transactions at the right,
+     the categories as a row of tiles under them. */
+  .rw-open-grid {
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr) auto;
+    grid-template-areas: "period targets link" "cats cats cats" "more more more";
+    gap: 0 32px;
+    padding: 8px 24px 16px;
+  }
+
+  .rw-open-period { grid-area: period; }
+  .rw-open-targets { grid-area: targets; }
+  .rw-open-cats { grid-area: cats; }
+  .rw-open-more { grid-area: more; }
+
+  .rw-open-grid > .rw-open-targets {
+    border-top: 0;
+    align-content: flex-start;
+  }
+
+  .rw-open-grid > .rw-open-link {
+    grid-area: link;
+    align-self: start;
+    min-height: 36px;
+    margin-top: 12px;
+    padding: 0 12px 0 14px;
+    border: 1px solid var(--rule-control);
+    border-radius: 8px;
+    background: var(--paper-raised);
+    white-space: nowrap;
+  }
+
+  .rw-open-link-chevron {
+    margin-right: 0;
+  }
+
+  .rw-open-period,
+  .rw-open-targets {
+    align-content: flex-start;
+  }
+
+  .rw-target-note {
+    margin-left: 0;
+  }
+
+  .rw-cats {
+    grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
+    gap: 12px;
+  }
+
+  .rw-cat-figs {
+    display: contents;
+  }
+
+  .rw-cat-name { grid-area: name; }
+  .rw-cat-spend { grid-area: spend; }
+  .rw-cat-bar { grid-area: bar; }
+  .rw-cat-rate { grid-area: rate; }
+  .rw-cat-note { grid-area: note; }
+
+  .rw-cat {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "name rate" "spend spend" "bar bar" "note note";
+    gap: 6px 10px;
+    padding: 12px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    background: var(--paper-raised);
+  }
+
+  .rw-cat-spend {
+    font-size: 16px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .rw-grid[data-layout="stacked"] {
+    --rw-window: 360px;
+  }
+}
+
 /* ---------- actions, selection ---------- */
 
 .rw-card-actions {
@@ -1175,6 +2254,12 @@
 @keyframes rw-pulse {
   50% {
     box-shadow: var(--face-shadow), 0 0 0 10px var(--glow-wash-strong);
+  }
+}
+
+@keyframes rw-pulse-row {
+  50% {
+    box-shadow: 0 0 0 10px var(--glow-wash-strong);
   }
 }
 
@@ -1306,8 +2391,11 @@
 
 @media (max-width: 720px) {
   .rw-hero {
+    --rw-inset: 12px;
     grid-template-columns: 1fr;
-    padding: 20px 16px 16px;
+    margin-top: 0;
+    --rw-sky-h: 200px;
+    padding: 22px calc(var(--rw-inset) + 4px) 16px;
   }
 
   .rw-hero-figures {
@@ -1326,8 +2414,8 @@
   }
 
   .rw-add {
-    top: 16px;
-    right: 16px;
+    top: 18px;
+    right: calc(var(--rw-inset) + 4px);
   }
 
   /* Three rows on a phone: the period mode; the as-of stepper with Today and

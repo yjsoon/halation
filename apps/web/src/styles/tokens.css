@@ -102,6 +102,13 @@
   --face-horizon: #ffad5c2b;   /* pre-dawn warmth along the ridge, whatever the progress */
   --face-shadow: 0 0 0 1px #1c1b1814, 0 14px 28px -18px #1c1b1866, 0 2px 4px -2px #1c1b182e;
   --face-shadow-lift: 0 0 0 1px #1c1b181a, 0 22px 36px -18px #1c1b1880, 0 4px 8px -4px #1c1b1840;
+  /* Rewards Skyline: the open card's surface (the owner's pick) and the masthead's sky. Like the faces they
+     follow the mode, never the look. The tertiary ink is lightened on the dark surface to keep 4.5:1. */
+  --rw-open-bg: #ebebe6; --rw-open-ink-faint: var(--ink-faint);
+  --rw-open-shadow: 0 0 0 1px #1c1b1814, 0 16px 34px -14px #2b1f2c4d, 0 2px 6px -3px #2b1f2c26;
+  --rw-sky: linear-gradient(180deg, #b6cfe7 0%, #cddeec 36%, #e3e8e6 68%, #f8f4ee00 100%);
+  --rw-sky-glow: radial-gradient(ellipse 30% 40% at 80% 48%, #fff1d2d9, #ffe6b44d 42%, #ffe6b400 72%);
+  --rw-sky-contrail: #ffffff99;
 }
 
 /* Motion. Timings follow iOS Theme.Motion (standard 0.32s, arrive 0.4s, chart 0.6s). */
@@ -168,6 +175,11 @@
   --sun-core: #f0b35a; --sun-rim: #8a4a18;
   --sun-disc-1: #ffd27a; --sun-disc-2: #e8923a; --sun-rise-1: #f7b35c; --sun-rise-2: #c4651c;
   --sun-gate-core: #d9823a;
+  --rw-open-bg: #32312a; --rw-open-ink-faint: #aaa49b;
+  --rw-open-shadow: 0 0 0 1px #00000059, 0 18px 40px -14px #000000b3, 0 2px 6px -3px #00000080;
+  --rw-sky: linear-gradient(180deg, #5a321a 0%, #48291b 34%, #33201f 66%, #1c161c00 100%);
+  --rw-sky-glow: radial-gradient(ellipse 30% 40% at 80% 48%, #ffb4603d, #ffb4601a 44%, #ffb46000 72%);
+  --rw-sky-contrail: #ffd98c2e;
 }
 
 /* Increase Contrast: the Rewards faces' High Contrast colours. Light mode lightens the ground and darkens its foot inks;

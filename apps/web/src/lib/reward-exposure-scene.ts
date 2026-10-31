@@ -136,13 +136,19 @@ export function exposureScene(layout: SceneLayout, ex: Exposure, pose: Pose, opt
   const wiggle = (ux: number) => Math.sin(ux * 8.2 + 0.4);
   // Upper line: the target horizon. The brand back ridge on the face; on the strip the same rise, 12pt
   // deep, from 14pt under the name at the left to 2pt under it at the right, where the sun's column is.
+  // The band between the name and the foot is 34pt on the standard strip. A taller band (the Skyline gate
+  // row, the wide window) drops both slopes, so the extra height is sky; a shorter one (the noon row) presses
+  // them flatter, keeping the same shape.
+  const band = strip ? layout.footTop - layout.nameBottom : 34;
+  const skyDrop = strip ? Math.max(0, band - 34) : 0;
+  const squeeze = strip ? Math.min(1, Math.max(0, band) / 34) : 1;
   const upper = strip
-    ? (ux: number) => layout.nameBottom + 2 + 12 * crestAt(BACK_RISE, ux)
+    ? (ux: number) => layout.nameBottom + skyDrop + squeeze * (2 + 12 * crestAt(BACK_RISE, ux))
     : (ux: number) => H * crestAt(BACK_CREST, ux);
   // The floor the spend horizon lifts from: level on the face (or the brand front ridge for a card with
   // no journey). On the strip it is the target horizon's own shape, as far down as the words allow (3pt
   // above the foot at its lowest, the left edge), so the two slopes start equidistant and converge.
-  const stripGap = strip ? Math.max(4, layout.footTop - 3 - (layout.nameBottom + 14)) : 0;
+  const stripGap = strip ? Math.max(squeeze < 1 ? 2 : 4, layout.footTop - 3 - (layout.nameBottom + skyDrop + 14 * squeeze)) : 0;
   const level = strip
     ? (ux: number) => upper(ux) + stripGap
     : (ux: number) => H * (0.8 + 0.01 * wiggle(ux));

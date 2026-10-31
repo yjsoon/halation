@@ -47,6 +47,23 @@ enum CardType {
     .custom(monoName(weight.stepped(bold)), size: size, relativeTo: style)
   }
 
+  /// Each text style's point size at the default Dynamic Type size (Large), for the card's own faces.
+  static func size(_ style: Font.TextStyle) -> CGFloat {
+    switch style {
+    case .largeTitle: return 34
+    case .title: return 28
+    case .title2: return 22
+    case .title3: return 20
+    case .headline, .body: return 17
+    case .callout: return 16
+    case .subheadline: return 15
+    case .footnote: return 13
+    case .caption: return 12
+    case .caption2: return 11
+    default: return 17
+    }
+  }
+
   /// A fixed-size mono label for art annotations, which never scale with Dynamic Type.
   static func fixedMono(_ size: CGFloat) -> Font {
     .custom(monoName(.regular), fixedSize: size)

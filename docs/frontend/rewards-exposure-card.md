@@ -203,7 +203,7 @@ Unchanged from version 1. The label is always the card name (`projection.title`)
 | 6 | `:1042` minimum 800, spend 800 | Minimum met · Resets in 8 days; $800.00 / $800.00 · $0.00 earned | Minimum met. $800.00 of $800.00, 100 per cent. Resets in 8 days, period ends 30 Sep. $0.00 earned |
 | 7 | `:1113` spend 1,650, earned 90 | Highest tier active · Resets in 8 days; $1,650.00 spent · $90.00 earned | Highest tier active. $1,650.00 spent · $90.00 earned. Resets in 8 days, period ends 30 Sep. $90.00 earned |
 | 8 | No dedicated test | Bonus cap reached · Resets in N days | As the text |
-| 9 | `:1097` cap 2,000, spend 2,150, earned 80 | Bonus cap reached · Resets in 8 days; $2,000.00 / $2,000.00 · $80.00 earned · $150.00 beyond cap | Bonus cap reached. $2,000.00 of $2,000.00, 100 per cent. Resets in 8 days, period ends 30 Sep. $80.00 earned |
+| 9 | `:1097` cap 2,000, spend 2,150, earned 80 | Bonus cap reached · Resets in 8 days; $2,000.00 / $2,000.00 · $80.00 earned · $150.00 beyond cap | Bonus cap reached. $2,000.00 of $2,000.00, 100 per cent. $150.00 beyond cap. Resets in 8 days, period ends 30 Sep. $80.00 earned (the beyond-cap clause on iOS and the web since the Skyline rows: the slim row and the wide ledger leave it to the slip) |
 | 10 | `:1153` spend 996, counted 995, cap 1,000 | Bonus cap reached · Resets in 8 days; $995.00 / $1,000.00 · $0.00 earned | The spoken figure is 995 of 1,000, from the basis, not from the sun's height |
 | 11 | `:1199` July 200 of 300 failed; period 1 Jul to 30 Sep | July minimum missed · Resets in 8 days; $0.00 spent · $0.00 earned | July minimum missed. $0.00 spent · $0.00 earned. Resets in 8 days, period ends 30 Sep. $0.00 earned |
 | 12 | `:1163` spend 420, earned 8.40 | No cap · Resets in 8 days; $420.00 spent · $8.40 earned | No cap. $420.00 spent · $8.40 earned. Resets in 8 days, period ends 30 Sep. $8.40 earned |
@@ -247,6 +247,8 @@ The "✦" after "DBS · MILES" on the web face and in the lab is the Featured fl
 | **Paper row with band** | Board and register rows at accessibility text sizes | A 64pt scene band above the text |
 | **Paper row, plain** | Range Report "Cards" section | As today, no picture |
 | **Hero** | Detail sheet header | A 3:2 print with a 6pt border |
+
+On the web the board defaults to **Stacked** (Arrange → Layout), the Skyline board described in [Skyline: the stacked board](#skyline-the-stacked-board): rows sized by urgency that open in place, a strip below 1000px wide and a sunrise window beside aligned columns from 1000px. **Grid** keeps the 3:2 faces in columns with the "Targets, periods and tiers" disclosure under each (on a phone, the strip with that disclosure).
 
 ### The scene
 
@@ -471,7 +473,55 @@ The foot inks resolve by appearance: dark in light mode, on the light ground; li
 | xSmall to xxxLarge | Strip. Above `.large` the name wraps to 2 lines, the deadline drops below the action, and the basis line wraps. The sky and the foot grow with the text, and the ridges follow the measured `N` and `F`; the art never scales text. | Paper row with print | Hero and slip |
 | AX1 to AX5 | Paper row with band: a full-width 64pt scene band (radius 16 on the top corners), with the text below on paper, full width | Paper row with band | Hero without the in-frame label; the slip text scales |
 
-Estimates: the strip is about 114pt at `.large` and 140 to 160pt at xxxLarge; the band row is about 280pt at AX1 with a two-line name. **Widths:** iPhone SE (3rd generation) gives W 343, iPhone 16 gives 361 and Pro Max gives 398. On iPad the row content is capped at 640pt and centred, because the board has no readable-width limit today and a 700pt-wide strip turns into a thin ribbon.
+Estimates: the strip is about 114pt at `.large` and 140 to 160pt at xxxLarge; the band row is about 280pt at AX1 with a two-line name. **Widths:** iPhone SE (3rd generation) gives W 343, iPhone 16 gives 361 and Pro Max gives 398. On iPad, where the board uses the phone rows (Slide Over, a narrow split, a board under 760pt, and the band rows at accessibility sizes), the row content is capped at 640pt and centred, because a 700pt-wide strip turns into a thin ribbon; at regular width with a board at least 760pt wide the Skyline window rows (below) use the whole width instead.
+
+## Skyline: the stacked board
+
+The owner chose "Skyline" for the Rewards list after three rounds of mockups (Oct 2026). It changes the list, not the picture: every stage, pose and word above still holds. The web board's **Stacked** layout is built to it (`SkylineRow` in `apps/web/src/pages/Rewards.tsx`, the rules in `apps/web/src/lib/reward-skyline.ts`, the styles in the Skyline section of `rewards-board.css`). iOS follows the same rules in its own row.
+
+### Rows sized by urgency
+
+| Size | Stages | Phone strip | Wide row (from 1000px) |
+| --- | --- | --- | --- |
+| **Gate** | gate | About 152px: the sky band 12px deeper than the standard strip (46px under the name, against 34px); the headline amount at 26px in the urgent amber; the pace line; the basis line | 176px; the headline amount at 28px; the pace line over the columns |
+| **Climb** | climb | About 116px: the standard strip (headline, basis line). iOS draws its phone climb row with a 26pt sky (about 100pt); the web keeps the standard 34px band. The difference is deliberate: each follows its own strip's measured band | 116px |
+| **Noon** | rest, capped, calm, failed, and range rows | At least 72px: the name in a thin sky; one line on the ground: the status, `·` the earned amount (range rows: the spend), and the deadline | 84px: the status (capped adds "$15.50 beyond cap") and any exception as a chip, the deadline, the columns |
+
+Heights are minimums: longer text, a wrapped deadline or exception lines grow a row, never clip it.
+
+**The pace line.** On a gate row only: "about **$5.94** a day to make it", the amount left to the minimum (or the monthly minimum) as the headline shows it (rounded up to the cent), divided by the days left (`deadline.days`, which counts today), rounded up to the cent, so a few cents left never reads "$0.00 a day". It is left out when the days are unknown, on the last day (one day left) and once the period has ended. `rowText` carries it as `pacePerDay` and adds "About $5.94 a day to make it" to the spoken value after the deadline, as iOS does.
+
+**The strip scene.** The scene still places the two slopes from the measured bottom of the name and top of the foot. The standard band between them is 34px. A taller band (the gate strip, the wide window) drops both slopes by the difference, so the extra height is sky and the sun sits lower on its horizon; a shorter band (the noon strip) presses the slopes flatter in proportion, keeping their shape (`exposureScene`, `skyDrop` and `squeeze`).
+
+### Wide: the sunrise window and the columns
+
+From 1000px each row is a sunrise window on the left (the strip scene with the name on the sky and the account in caps on the ground; noon rows leave the account out) and the figures on paper to its right. The window is 280px wide up to 1279px and 360px from 1280px, a step rather than a share so the sun stays round. The ledger sets the headline and deadline on one line, the pace line under it on a gate row, then the columns **Spent**, **Minimum**, **Bonus cap**, **Earned** and **Period** (day N of M over a small rail with a bead at today). The columns are shares of the ledger, which is the same width on every row, so each figure sits at the same x down the board. A column never narrows below its figure (`min-width: max-content` in a wrapping flex row): a figure too long for its share ("$12,345.67", "$1,000.00/mo") widens that column, and when a row cannot hold them all the columns wrap to a second line and the row grows, never overprint. On a ledger under 440px **Period** is dropped: about 1000 to 1132px wide with the name, value or spend orders, and about 1000 to 1200px (and at 1280px, where the window steps to 360px) with Manual order, whose move buttons take 116px of the ledger; at 1000 to about 1040px with Manual order the four columns themselves wrap. Figures step from 13px to 15px as the ledger widens (container queries on `.rw-ledger`). `sweep.mjs` in `.amp/in/artifacts/rewards-skyline/` checks every 2px from 1000 to 1300px. A card with no minimum or cap reads "none" in that column; a card with only a monthly minimum shows the month's minimum with "/mo" (the active month's, else `monthly_minimum_spend`). **Period** reads "ended" once the card's periods are past and "none" when no period holds the day. A Historical range row has three columns: **Spent in range** and **Earned in range** (the range's sums) and **Period** reading "range"; the minimum and cap belong to one card period, so they are left to the slip, under the latest period, rather than set beside the range's spend. Amounts to go are rounded up to the cent, as the headline is.
+
+The card's actions sit at the ledger's top right, so the ledger reserves 48px for the menu and 116px when Manual order adds the move buttons. A "Back {date}" badge sits at the window's top right, 12px in, and the name stops short of it. Below 1000px it sits left of the actions (46px in, 116px with Manual order) and the name stops short of it there too. A hidden card dims the window and the ledger alike, and the selection ring and the just-updated pulse wrap the whole card (with the slip when it is open) at every width. The pulse is listed after the card's entry animation, so adding and removing it never replays the entry.
+
+### Opening in place
+
+Every stacked row has a toggle, a chevron on the ground at the row's bottom right (a `<button>` with `aria-expanded`, `aria-controls` and the name "Details for {card}"), clear of the card's actions (⋯) at the top right. The card itself still links to `/rewards/:id`. The toggle unfolds the slip under the row inside the same card: the row and slip become one lifted card on the open surface, `--rw-open-bg` (light `#EBEBE6`, dark `#32312A`, the owner's pick) with `--rw-open-shadow`. Folded, the slip is `visibility: hidden` and `inert`, so it is out of the tab order and the accessibility tree; open, it is a region named "{card} details" with an `h4` per section. The slip holds:
+
+1. **Period**: the dates ("1 May to 31 May · day 24 of 31") and the day rail: a tick per day (up to 62 days), filled to today, a sun bead at the as-of day labelled "today · 24" when the as-of day is today and "as of · 24" on a past day (as iOS), a ring on the day the minimum was met labelled "min met · 4 May" when the minimum is met (`minimum_spend_met`, as iOS) and `minimum_met_on` falls in the period. When the today label would touch the start or end date (near day 1 or the last day, at any width), that date gives way; `DayRail` measures the labels and sets `data-cover-start` or `data-cover-end`. On a Historical range row there is no rail: the section names the range and the latest card period.
+2. **View transactions**: the account's register (`/transactions?accounts={account}&range=all`, the card menu's link).
+3. **Targets**: Minimum (met on its day; the amount to go, rounded up to the cent, in the urgent amber; or, when spend has reached it but `minimum_spend_met` is false, a dashed mark in secondary ink with "reached, needs this month's minimum" (qualification pending), "reached, a month was missed" (failed) or "reached", as iOS), This month on a card with a monthly minimum (the active `monthly_qualifications` entry: "This month $300.00 · $50.00 to go" in the urgent amber, "met", or "missed" with a struck mark in secondary ink when that month's status is failed). Once the period's qualification has failed (`qualification_status` failed) nothing is urged in amber: Minimum reads "reached, a month was missed" or "$X short, a month was missed" with a dashed mark, and a still-pending month keeps "$X to go" without amber. All as iOS. Next tier when its threshold is above the spend, and Cap (reached and what is beyond, from half a cent past the cap, the headroom left, or "none, keeps earning"; "none on the card, categories cap" when only categories cap). "Consider another card" follows when the server says so.
+4. **Categories**: the calculation's per-category flags (`calculation.flags`), each with its spend, a short bar (scaled to the largest spend or cap among them), its rate, and a note with its cap and earnings. A category over its cap turns the urgent amber, the bar hatched beyond a tick at the cap, with "$178.90 beyond cap". A category counts as over its cap from half a cent past it, so float noise never reads "$0.00 beyond cap" (`beyondCap`, which the projection's capped `beyond` also uses). A category the card excludes from rewards (`card.subcategories[].excludeFromRewards`, matched on `subcategoryId`, as iOS's `RewardCategoryUsage`) shows "Excluded from rewards", an empty bar, rate "none" and no cap, and sorts after the earning categories, which sort by spend. A card with no category rates says so with its spend and earnings.
+
+On a **Historical range** row the row's spend and earnings are summed over the range, but the minimum, caps and met flags belong to the cutoff period (the card period holding the as-of day). So Targets and Categories read that period's own calculation (`calculation.periods[…].calculation`, as the disclosure's full-period meter does), say so ("For the latest card period, 1 May to 31 May"; "2 in the latest card period"), and never set range sums against one period's minimum or caps. The Period column reads "range".
+5. **Totals, qualifications and tiers**: a nested disclosure with the grid's disclosure body (the full-period minimum and cap meters, Spend, Eligible and Value, the periods, monthly qualification and its months, the active tier).
+
+Below 1000px the sections stack. From 1000px Period and Targets sit side by side with View transactions as a button at the right, and the categories become a row of tiles on the card paper.
+
+**Motion.** The chevron turns, the card's tint and shadow fade in, and the slip unfolds (`grid-template-rows` 0fr to 1fr) over `--dur-standard` with `--ease-out`, its content fading in just after. Under reduced motion the tokens are 0ms, so it opens and closes at once. The sun does not move on the web.
+
+### The masthead sky
+
+The Rewards masthead is a quiet sky (`--rw-sky` and `--rw-sky-glow`, a faint contrail): it reaches the content area's top and side edges and fades into the page about 260px down (200px on a phone), running on behind the toolbar, which is positioned to paint over it. It is a backdrop, not data: no sun, no figures. The hero's figure labels use the soft ink there, since the faint ink falls under 4.5:1 on the sky. Between 721 and 1023px the four figures go under the title instead of beside it.
+
+### Contrast on the open surface
+
+Light `#EBEBE6` (Dusk Ridge inks): the ink 13.9:1, the soft ink 6.1:1, the faint ink 4.9:1 and the urgent amber `#9A5410` 4.8:1; the other looks stay at or above 5.2:1 soft and 4.6:1 faint. Dark `#32312A`: the ink 11.1:1, the soft ink 6.1:1 and the urgent amber 7.2:1, but the faint ink would be 4.1:1 (3.8:1 in Overexposed), so the open card (`.rw-card[data-size][data-open]`: the slip and, from 1000px, the window's ledger and columns) sets it to `#AAA49B` (5.3:1) through `--rw-open-ink-faint`. On the masthead sky the soft ink is at least 4.5:1 at the top of the light sky and 5.2:1 on the dark.
 
 ## SwiftUI architecture
 
@@ -1002,7 +1052,7 @@ Also fix the list-wide `.animation(Theme.Motion.arrive, value: model.rewardsPhas
 - **Contrast on the faces.** See the contrast tables, one per appearance. Text sits only on the sky above the target horizon or on the spend ridge, and never across a crest stroke or over rings 1 and 2. In dark mode the dusk veil is capped so dark ink keeps 6.6:1 on it, and the night print's pour stops short of the name. In light mode the cool dim is 15%: dark ink keeps at least 5.8:1 on every sky, gold or blue, and the foot inks at least 4.7:1 on the ground, lit or not.
 - **Increase Contrast.** Today's 1pt outline at `Color.primary` 30% stays, on the strip and on the print. The High Contrast colour sets darken the dark-mode ridges and lighten its foot inks, and in light mode lighten the ground and darken its foot inks. The crest strokes and the marker draw at their Increase Contrast opacities.
 - **Differentiate Without Colour.** Each state differs in shape and luminance, not just colour: the marker's position, the lit edge (a luminance step, and in light mode a hue step as well), the ridge gap, the sun's place (on the horizon, resting, halfway, gone), the ring size, a sun or none, plus the headline words.
-- **Smart Invert.** Faces ignore invert, like photographs. A strip's words ignore it with their face (its Increase Contrast outline inverts with the board), and on the sheet the print's label and tick ignore it with the print; the border around the print inverts with the sheet.
+- **Smart Invert.** Faces ignore invert, like photographs. A strip's words and chevron ignore it with their face (its Increase Contrast outline inverts with the board), as does the iPad window's name with its sky (the statement beside it inverts with the board), and on the sheet the print's label and tick ignore it with the print; the border around the print inverts with the sheet.
 - **Reduce Transparency.** Nothing to change: there is no material, and figures stay on opaque surfaces.
 
 ## Web parity
@@ -1249,7 +1299,7 @@ A screenshot alone does not prove step 6: the GET output does.
 
 ### Web recipe: `.cursor/skills/verify-howmuch/features/rewards.md`
 
-- **Open filled.** The face's headline now reads "Minimum met · Resets in 8 days" with the basis line. "Full-period minimum met" moves inside **Targets, periods and tiers**.
+- **Open filled.** The face's headline now reads "Minimum met · Resets in 8 days" with the basis line. "Full-period minimum met" moves inside **Targets, periods and tiers** (on the Stacked board, inside the open slip's **Totals, qualifications and tiers**).
 - **New `rewards-exposure-states`.** Import the states fixture through Settings → Rewards import and open `/rewards?to=2026-05-24`. For each card:
   - check the slip text and the `data-stage` and `data-mono` attributes against the fixture table;
   - check the marker line's x against `h × W` and the sun's centre against its pose.

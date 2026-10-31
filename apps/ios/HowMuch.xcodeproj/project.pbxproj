@@ -54,6 +54,7 @@
 		A10000000000000000000066 /* ReflectDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000076 /* ReflectDetails.swift */; };
 		A50000000000000000000011 /* RewardsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000010 /* RewardsView.swift */; };
 		D10000000000000000000006 /* RewardExposureFace.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000005 /* RewardExposureFace.swift */; };
+		D10000000000000000000008 /* RewardSkyline.swift in Sources */ = {isa = PBXBuildFile; fileRef = D10000000000000000000007 /* RewardSkyline.swift */; };
 		A50000000000000000000013 /* RewardsImportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000012 /* RewardsImportView.swift */; };
 		A50000000000000000000015 /* RewardCardEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000014 /* RewardCardEditorView.swift */; };
 		A50000000000000000000021 /* RewardsReportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000020 /* RewardsReportTests.swift */; };
@@ -303,6 +304,7 @@
 		A10000000000000000000076 /* ReflectDetails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReflectDetails.swift; sourceTree = "<group>"; };
 		A50000000000000000000010 /* RewardsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardsView.swift; sourceTree = "<group>"; };
 		D10000000000000000000005 /* RewardExposureFace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardExposureFace.swift; sourceTree = "<group>"; };
+		D10000000000000000000007 /* RewardSkyline.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardSkyline.swift; sourceTree = "<group>"; };
 		A50000000000000000000012 /* RewardsImportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardsImportView.swift; sourceTree = "<group>"; };
 		A50000000000000000000014 /* RewardCardEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RewardCardEditorView.swift; sourceTree = "<group>"; };
 		A10000000000000000000078 /* ScheduledTransactionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduledTransactionsView.swift; sourceTree = "<group>"; };
@@ -546,6 +548,7 @@
 				A10000000000000000000072 /* RegisterView.swift */,
 				A50000000000000000000010 /* RewardsView.swift */,
 				D10000000000000000000005 /* RewardExposureFace.swift */,
+				D10000000000000000000007 /* RewardSkyline.swift */,
 				A50000000000000000000012 /* RewardsImportView.swift */,
 				A50000000000000000000014 /* RewardCardEditorView.swift */,
 				A10000000000000000000078 /* ScheduledTransactionsView.swift */,
@@ -917,6 +920,7 @@
 				A10000000000000000000066 /* ReflectDetails.swift in Sources */,
 				A50000000000000000000011 /* RewardsView.swift in Sources */,
 				D10000000000000000000006 /* RewardExposureFace.swift in Sources */,
+				D10000000000000000000008 /* RewardSkyline.swift in Sources */,
 				A50000000000000000000013 /* RewardsImportView.swift in Sources */,
 				A50000000000000000000015 /* RewardCardEditorView.swift in Sources */,
 				A10000000000000000000068 /* ScheduledTransactionsView.swift in Sources */,

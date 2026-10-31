@@ -176,6 +176,8 @@ extension Theme {
     static let chart: Animation = .smooth(duration: 0.6)
     /// Touch-down feedback on pressable cards and tiles.
     static let press: Animation = .snappy(duration: 0.18)
+    /// A card opening in place: about 0.35s, the rows below sliding with it.
+    static let unfold: Animation = .spring(response: 0.4, dampingFraction: 0.85)
   }
 }
 
@@ -183,6 +185,15 @@ extension Theme {
   /// Secondary text on tinted Rewards rows. `.secondary` drops to about 2.7:1
   /// on the amber fill; this stays above 5.4:1 on every track and fill.
   static let rowSecondary = Color(light: 0x4E5468, dark: 0xB3B8C9)
+
+  /// An open Rewards card: the row and its detail slip lifted as one card. On it `textPrimary` is
+  /// 13.4:1 (light) and 11.2:1 (dark), `rowSecondary` 6.3:1 and 6.6:1, and the needs-minimum amber
+  /// 4.8:1 and 7.2:1.
+  static let openCard = Color(light: 0xEBEBE6, dark: 0x32312A)
+  static let openCardShadow = Color(
+    light: Color(red: 0.173, green: 0.259, blue: 0.188).opacity(0.18),
+    dark: Color.black.opacity(0.55)
+  )
 }
 
 extension Color {
