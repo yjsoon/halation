@@ -391,7 +391,8 @@ struct RegisterView: View {
           .accessibilityHint("Opens the account editor")
         }
       }
-      if showingUnapprovedQueue, let approveAllTitle = model.approveAllTitle(for: transactions) {
+      // Approve All acts on every row, not the picks, so it waits until Done.
+      if selection == nil, showingUnapprovedQueue, let approveAllTitle = model.approveAllTitle(for: transactions) {
         ToolbarItem(placement: .topBarTrailing) {
           Button(approveAllTitle) {
             withAnimation(Theme.Motion.standard) {
@@ -436,7 +437,7 @@ struct RegisterView: View {
     // shifts with search and scroll and covered the bar.
     .safeAreaInset(edge: .top, spacing: 0) {
       if let selection {
-        selectionBar(selection, visible: transactions)
+        selectionBar(selection, ledger: ledger, visible: transactions)
           .transition(.move(edge: .top).combined(with: .opacity))
       }
     }
@@ -673,26 +674,48 @@ struct RegisterView: View {
 
   /// The picked rows' count and total. A row still listed is read fresh, so a
   /// sync that changes its amount changes the sum too.
-  private func selectionBar(_ selection: [String: Transaction], visible: [Transaction]) -> some View {
-    let listed = Dictionary(visible.map { ($0.id, $0.amount) }, uniquingKeysWith: { first, _ in first })
-    let amounts = selection.map { id, row in listed[id] ?? row.amount }
+  private func selectionBar(_ selection: [String: Transaction], ledger: [Transaction], visible: [Transaction]) -> some View {
+    // Freshest amount first: the listed row, then the loaded ledger (a pick
+    // hidden by search), then the row as it was when picked.
+    var current = Dictionary(ledger.map { ($0.id, $0.amount) }, uniquingKeysWith: { first, _ in first })
+    for row in visible { current[row.id] = row.amount }
+    let amounts = selection.map { id, row in current[id] ?? row.amount }
     let total = amounts.reduce(0, +)
     let inflow = amounts.filter { $0 > 0 }.reduce(0, +)
     let outflow = -amounts.filter { $0 < 0 }.reduce(0, +)
     let count = selection.count
-    return VStack(alignment: .leading, spacing: 0) {
-      HStack(alignment: .center, spacing: 12) {
-        Text(count == 0 ? "Tap transactions to add them up" : "\(count) selected")
-          .font(.subheadline.weight(.semibold))
-          .foregroundStyle(Theme.textPrimary)
-        Spacer(minLength: 8)
+    let countText = Text(count == 0 ? "Tap transactions to add them up" : "\(count) selected")
+      .font(.subheadline.weight(.semibold))
+      .foregroundStyle(Theme.textPrimary)
+    let totalText = Text(MoneyCodec.signedDisplayString(for: total, currencyFormat: model.currencyFormat))
+      .font(.title3.weight(.bold))
+      .monospacedDigit()
+      .foregroundStyle(Theme.amountColour(total))
+      .rollingNumber(total)
+    return VStack(alignment: .leading, spacing: 2) {
+      HStack(alignment: .center, spacing: 8) {
+        // Side by side when it fits; at large text sizes the total goes under
+        // the count rather than pushing the card off screen.
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: 12) {
+            countText
+            Spacer(minLength: 8)
+            if count > 0 {
+              totalText.fixedSize()
+            }
+          }
+          VStack(alignment: .leading, spacing: 2) {
+            countText
+            if count > 0 {
+              totalText
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
+            }
+          }
+        }
+        .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+        .accessibilityElement(children: .combine)
         if count > 0 {
-          Text(MoneyCodec.signedDisplayString(for: total, currencyFormat: model.currencyFormat))
-            .font(.title3.weight(.bold))
-            .monospacedDigit()
-            .foregroundStyle(Theme.amountColour(total))
-            .rollingNumber(total)
-            .fixedSize()
           Button {
             withAnimation(Theme.Motion.standard) { self.selection = [:] }
           } label: {
@@ -705,18 +728,15 @@ struct RegisterView: View {
           .accessibilityLabel("Clear selection")
         }
       }
-      .frame(minHeight: 56)
       // Its own line: beside the total there is no room for both amounts.
       if inflow > 0, outflow > 0 {
         Text("In \(MoneyCodec.displayString(for: inflow, currencyFormat: model.currencyFormat)) · Out \(MoneyCodec.displayString(for: outflow, currencyFormat: model.currencyFormat))")
           .font(.caption)
           .monospacedDigit()
           .foregroundStyle(.secondary)
-          .lineLimit(1)
-          .padding(.top, -6)
-          .padding(.bottom, 10)
       }
     }
+    .padding(.vertical, 8)
     .padding(.leading, 16)
     .padding(.trailing, count > 0 ? 4 : 16)
     .ynabCard()
@@ -778,6 +798,7 @@ struct RegisterView: View {
       parts.append("filters")
     }
     parts.append("groups")
+    parts.append("select")
     parts.append("reconcile")
     let head = parts.dropLast().joined(separator: ", ")
     return "\(head), and \(parts.last ?? "reconcile")."
@@ -922,10 +943,14 @@ struct RegisterView: View {
       ScheduledTransactionRow(schedule: schedule, showsAccount: showsAccount, showsNextDate: showsNextDate)
     }
     .buttonStyle(.plain)
+    // Schedules can't be picked; while selecting they only take up space.
+    .disabled(selection != nil)
     .accessibilityHint("Opens this scheduled transaction.")
     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-      Button("Edit") {
-        editingSchedule = schedule
+      if selection == nil {
+        Button("Edit") {
+          editingSchedule = schedule
+        }
       }
     }
     .registerRowChrome()
@@ -2502,6 +2527,7 @@ struct TransactionRow: View {
               .font(.title3)
               .foregroundStyle(isSelected ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(.tertiary))
               .contentTransition(.symbolEffect(.replace))
+              .animation(Theme.Motion.standard, value: isSelected)
               .accessibilityHidden(true)
           }
           VStack(alignment: .leading, spacing: 3) {
@@ -2597,6 +2623,8 @@ struct TransactionRow: View {
     case nil:
       statusIcon(status)
         .accessibilityLabel(statusAccessibilityLabel(status))
+        // While selecting it is not a control, and its label names an action.
+        .accessibilityHidden(isSelected != nil)
     case .approve, .toggleCleared:
       statusIcon(status)
         .contentShape(Rectangle())
