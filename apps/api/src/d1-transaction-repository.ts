@@ -7,6 +7,11 @@ import type { D1Database } from "./d1";
 import type { SqlValues } from "./async-sql";
 import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
 import { statement } from "./d1-guarded-command";
+import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, claimParams, nextClaim, normaliseFollowUpEdit, transferClaim } from "./transaction-claim";
+import { CLEARED_CONFIRMS_SQL, NEEDS_CONFIRMATION_CONFLICT_SQL, NEEDS_CONFIRMATION_INSERT_SQL, needsConfirmationParam, nextNeedsConfirmation } from "./transaction-confirmation";
+
+/** Fields the linked side of a split line owns and may change on its own. */
+const LINKED_SIDE_OWN_FIELDS = new Set(["flag_color", "flag_name", "needs_confirmation", "claim_status", "claimed_on"]);
 
 export type PlannedStatement = Readonly<{ sql: string; values: Readonly<SqlValues> }>;
 export type D1WriteContext = Readonly<{
@@ -42,26 +47,32 @@ export class D1TransactionRepository {
     });
   }
 
-  async update(planId: string, transactionId: string, patch: Partial<TransactionInput>, context?: D1WriteContext): Promise<Record<string, any>> {
+  async update(planId: string, transactionId: string, input: Partial<TransactionInput>, context?: D1WriteContext): Promise<Record<string, any>> {
     const stable = identity(transactionId, context);
-    const fingerprint = requestHash(patch);
+    const fingerprint = requestHash(input);
     this.assertContext(planId, context);
     return this.write("update", planId, stable, fingerprint, context, async (snapshot) => {
+      const old = snapshot.transaction;
+      if (!old || old.deleted) throw new NotFoundError("Transaction not found");
+      if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
+      const patch = normaliseFollowUpEdit(old, input);
       if (snapshot.linkedSub) {
         // The split line owns this row's link, amount, date and memo, but not
-        // its flag: a rewards flag rename restamps every row in the account.
-        const old = snapshot.transaction;
+        // its flag (a rewards flag rename restamps every row in the account)
+        // or whether its amount still needs confirming or claiming back.
         const fields = Object.keys(patch).filter((field) => (patch as Record<string, unknown>)[field] !== undefined);
-        if (!old || old.deleted) throw new NotFoundError("Transaction not found");
-        if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
-        if (fields.length === 0 || fields.some((field) => field !== "flag_color" && field !== "flag_name")) {
+        if (fields.length === 0 || fields.some((field) => !LINKED_SIDE_OWN_FIELDS.has(field))) {
           throw new ValidationError("This transaction is the linked side of a split line; edit the split parent");
         }
+        const claim = nextClaim(old, patch);
         const body: PlannedStatement[] = [
           assertion(stable.commandId, "graph_update_target", transactionId, planId),
-          statement("UPDATE transactions SET flag_color=?,flag_name=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0", [
+          statement("UPDATE transactions SET flag_color=?,flag_name=?,needs_confirmation=?,claim_status=?,claimed_on=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0", [
             patch.flag_color === undefined ? old.flag_color : patch.flag_color,
             patch.flag_name === undefined ? old.flag_name : patch.flag_name,
+            nextNeedsConfirmation(old, patch) ? 1 : 0,
+            claim.claim_status,
+            claim.claimed_on,
             transactionId,
             planId,
           ]),
@@ -69,9 +80,6 @@ export class D1TransactionRepository {
         ];
         return makePlan(stable.commandId, snapshot.writeVersion, transactionId, planId, "update", fingerprint, context, body);
       }
-      const old = snapshot.transaction;
-      if (!old || old.deleted) throw new NotFoundError("Transaction not found");
-      if (old.plan_id !== planId) throw new NotFoundError("Transaction belongs to another plan");
       if (old.cleared === "reconciled" && patch.cleared !== undefined && patch.cleared !== "reconciled") {
         throw new Error("reconciled transaction state conflict");
       }
@@ -84,6 +92,8 @@ export class D1TransactionRepository {
         category_id: patch.category_id === undefined ? old.category_id : patch.category_id,
         flag_color: patch.flag_color === undefined ? old.flag_color : patch.flag_color,
         flag_name: patch.flag_name === undefined ? old.flag_name : patch.flag_name,
+        needs_confirmation: nextNeedsConfirmation(old, patch),
+        ...nextClaim(old, patch),
         matched_transaction_id: patch.matched_transaction_id === undefined ? old.matched_transaction_id : patch.matched_transaction_id,
         import_id: old.import_id,
         import_payee_name: patch.import_payee_name === undefined ? old.import_payee_name : patch.import_payee_name,
@@ -147,7 +157,7 @@ export class D1TransactionRepository {
       if (old.cleared !== expectedCleared) throw new Error("transaction cleared state conflict");
       const body = [
         assertion(stable.commandId, "graph_update_target", transactionId, planId),
-        statement("UPDATE transactions SET cleared=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0", [cleared, transactionId, planId]),
+        statement(`UPDATE transactions SET cleared=?,${CLEARED_CONFIRMS_SQL},updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0`, [cleared, expectedCleared, cleared, transactionId, planId]),
         recalculate(old.account_id),
         knowledge(planId, transactionId),
       ];
@@ -297,7 +307,7 @@ export class D1TransactionRepository {
       body.push(assertion(stable.commandId, "upsert_transaction", transferId, planId));
       body.push(assertion(stable.commandId, "mirror_transaction", transferId, input.id!));
       const existingMirror = snapshot.mirrors.find((row) => row.id === transferId);
-      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? newLinkedSideCleared(input.source_kind, target.type), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: transferDropsCategory ? null : existingMirror?.category_id, categoryName: transferDropsCategory ? null : existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: mirrorOwnFields(existingMirror) }));
+      body.push(upsertTransaction({ id: transferId, planId, accountId: transferAccount, date: input.date, amount: -input.amount, memo: input.memo, cleared: existingMirror?.cleared ?? newLinkedSideCleared(input.source_kind, target.type), approved: input.approved, payeeId: sourcePayee.id, payeeName: sourcePayee.name, categoryId: transferDropsCategory ? null : existingMirror?.category_id, categoryName: transferDropsCategory ? null : existingMirror?.category_name_snapshot, transferAccountId: input.account_id, transferTransactionId: input.id!, extra: { ...mirrorOwnFields(existingMirror), ...transferClaim(input) } }));
       touched.add(transferId);
     } else if (transferAccount) {
       const target = await this.db.get<Record<string, any>>("SELECT id FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [transferAccount, planId]);
@@ -424,12 +434,15 @@ function subInput(row: Record<string, any>) {
 /**
  * Fields a linked side owns. Writing the other side rewrites the mirror row,
  * and must keep its flag, its bank match and its source, as SQLite does. Its
- * category is kept by the callers, which pass it beside these fields.
+ * category is kept by the callers, which pass it beside these fields. The
+ * claim is kept here too; an ordinary transfer's caller then lays the pair's
+ * claim over it, while a split line's linked side keeps its own.
  */
 function mirrorOwnFields(existing: Record<string, any> | undefined): Record<string, unknown> {
   if (!existing) return {};
   return {
-    flag_color: existing.flag_color, flag_name: existing.flag_name,
+    flag_color: existing.flag_color, flag_name: existing.flag_name, needs_confirmation: existing.needs_confirmation,
+    claim_status: existing.claim_status ?? null, claimed_on: existing.claimed_on ?? null,
     matched_transaction_id: existing.matched_transaction_id, import_id: existing.import_id,
     import_payee_name: existing.import_payee_name, import_payee_name_original: existing.import_payee_name_original,
     source_kind: existing.source_kind, source_ref: existing.source_ref, external_ynab_id: existing.external_ynab_id,
@@ -437,9 +450,11 @@ function mirrorOwnFields(existing: Record<string, any> | undefined): Record<stri
 }
 function upsertTransaction(value: Record<string, any>): PlannedStatement {
   const extra = value.extra ?? {};
-  const columns = "id,plan_id,account_id,date,amount_milli,memo,cleared,approved,flag_color,flag_name,payee_id,payee_name_snapshot,category_id,category_name_snapshot,transfer_account_id,transfer_transaction_id,matched_transaction_id,import_id,import_payee_name,import_payee_name_original,source_kind,source_ref,external_ynab_id,deleted";
+  const columns = "id,plan_id,account_id,date,amount_milli,memo,cleared,approved,flag_color,flag_name,payee_id,payee_name_snapshot,category_id,category_name_snapshot,transfer_account_id,transfer_transaction_id,matched_transaction_id,import_id,import_payee_name,import_payee_name_original,source_kind,source_ref,external_ynab_id,deleted,needs_confirmation,claim_status,claimed_on";
   const values = [value.id,value.planId,value.accountId,value.date,value.amount,value.memo??null,value.cleared??"uncleared",value.approved?1:0,extra.flag_color??null,extra.flag_name??null,value.payeeId??null,value.payeeName??null,value.categoryId??null,value.categoryName??null,value.transferAccountId??null,value.transferTransactionId??null,extra.matched_transaction_id??null,extra.import_id??null,extra.import_payee_name??null,extra.import_payee_name_original??null,extra.source_kind??null,extra.source_ref??null,extra.external_ynab_id??value.id,value.deleted?1:0];
-  return statement(`INSERT INTO transactions (${columns},updated_at) VALUES (${values.map(() => "?").join(",")},CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,date=excluded.date,amount_milli=excluded.amount_milli,memo=excluded.memo,cleared=excluded.cleared,approved=excluded.approved,flag_color=excluded.flag_color,flag_name=excluded.flag_name,payee_id=excluded.payee_id,payee_name_snapshot=excluded.payee_name_snapshot,category_id=excluded.category_id,category_name_snapshot=excluded.category_name_snapshot,transfer_account_id=excluded.transfer_account_id,transfer_transaction_id=excluded.transfer_transaction_id,matched_transaction_id=excluded.matched_transaction_id,import_id=excluded.import_id,import_payee_name=excluded.import_payee_name,import_payee_name_original=excluded.import_payee_name_original,source_kind=excluded.source_kind,source_ref=excluded.source_ref,external_ynab_id=excluded.external_ynab_id,deleted=excluded.deleted,updated_at=CURRENT_TIMESTAMP`, values);
+  const needsConfirmation = needsConfirmationParam(extra.needs_confirmation);
+  const [claimGiven, claimStatus, claimedOn] = claimParams(extra);
+  return statement(`INSERT INTO transactions (${columns},updated_at) VALUES (${values.map(() => "?").join(",")},${NEEDS_CONFIRMATION_INSERT_SQL},${CLAIM_INSERT_SQL},CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET account_id=excluded.account_id,date=excluded.date,amount_milli=excluded.amount_milli,memo=excluded.memo,cleared=excluded.cleared,approved=excluded.approved,flag_color=excluded.flag_color,flag_name=excluded.flag_name,payee_id=excluded.payee_id,payee_name_snapshot=excluded.payee_name_snapshot,category_id=excluded.category_id,category_name_snapshot=excluded.category_name_snapshot,transfer_account_id=excluded.transfer_account_id,transfer_transaction_id=excluded.transfer_transaction_id,matched_transaction_id=excluded.matched_transaction_id,import_id=excluded.import_id,import_payee_name=excluded.import_payee_name,import_payee_name_original=excluded.import_payee_name_original,source_kind=excluded.source_kind,source_ref=excluded.source_ref,external_ynab_id=excluded.external_ynab_id,deleted=excluded.deleted,${NEEDS_CONFIRMATION_CONFLICT_SQL},${CLAIM_CONFLICT_SQL},updated_at=CURRENT_TIMESTAMP`, [...values, needsConfirmation, claimStatus, claimedOn, needsConfirmation, claimGiven, claimGiven]);
 }
 function bothOnBudget(source: Record<string, any>, target: Record<string, any>): boolean {
   return Number(source.on_budget) === 1 && Number(target.on_budget) === 1;
@@ -476,4 +491,3 @@ function makePlan(commandId: string, version: number, transactionId: string, pla
   ]);
   return Object.freeze({ commandId, expectedWriteVersion: version, transactionId, statements });
 }
-

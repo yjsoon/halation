@@ -691,6 +691,53 @@ tr:hover .share-bar {
   color: var(--on-accent);
 }
 
+.confirm-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: center;
+  padding: 4px 12px;
+  border: 1px solid var(--tone-needs);
+  border-radius: 2px;
+  background: var(--tone-needs-wash);
+  color: var(--tone-needs);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.confirm-pill-glyph {
+  font-family: var(--font-figures);
+}
+
+.confirm-pill:hover,
+.confirm-pill-active {
+  background: var(--tone-needs);
+  color: var(--paper);
+}
+
+.claim-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: center;
+  padding: 4px 12px;
+  border: 1px solid color-mix(in srgb, var(--flag-blue) 55%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--flag-blue) 9%, transparent);
+  color: var(--flag-blue);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.claim-pill:hover,
+.claim-pill-active {
+  border-color: var(--flag-blue);
+  background: var(--flag-blue);
+  color: var(--paper);
+}
+
 .approval-pill:disabled {
   cursor: progress;
   opacity: 0.55;

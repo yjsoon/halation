@@ -1,5 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { assembleIncomeVsSpendingGroups } from "./income-vs-spending-groups";
+import { validateReportPeriods } from "./report-periods";
 import { buildRewardsReport } from "./rewards/build";
 import { parseAppSettings, parseCreditCards, parseRewardGroupBy } from "./rewards/parse";
 import { mapRewardTransactionRow } from "./rewards/rows";
@@ -188,8 +189,9 @@ export class ReportService {
   }
 
   netWorth(planId: string, filters: ReportFilters = {}): any {
-    const from = filters.from ?? earliestDate(this.db, planId) ?? todayIso();
+    let from = filters.from ?? earliestDate(this.db, planId) ?? todayIso();
     const to = filters.to ?? todayIso();
+    if (filters.from == null && from > to) from = to;
     const periods = buildPeriods(from, to, filters.interval ?? "month");
     const accounts = this.db
       .query(
@@ -237,8 +239,9 @@ export class ReportService {
   }
 
   ageOfMoney(planId: string, filters: ReportFilters = {}): any {
-    const from = filters.from ?? earliestDate(this.db, planId) ?? todayIso();
+    let from = filters.from ?? earliestDate(this.db, planId) ?? todayIso();
     const to = filters.to ?? todayIso();
+    if (filters.from == null && from > to) from = to;
     const { linesSql, where, params } = this.lineFilters(planId, filters, true);
     const rows = this.db
       .query(
@@ -484,6 +487,7 @@ function earliestDate(db: Database, planId: string): string | null {
 }
 
 function buildPeriods(from: string, to: string, interval: string): Array<{ label: string; end: string }> {
+  validateReportPeriods(from, to, interval);
   const periods: Array<{ label: string; end: string }> = [];
   const cursor = new Date(`${from}T00:00:00Z`);
   const end = new Date(`${to}T00:00:00Z`);

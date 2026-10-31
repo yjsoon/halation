@@ -1,7 +1,9 @@
 import { isStorableMilliunits } from "@howmuch/money";
 import type { Payee, Subtransaction, Transaction, TransactionUpdateInput } from "../api/types";
 import { minorUnitMilliunits, parseMilliunits, planDecimalIsComma } from "./money";
+import { accountIcon } from "./account-icon";
 import { canonicalPayeeName, findTransferPayee, formatMilliunitsPadded } from "./register-compose";
+import { legacyWords, type ClaimStatus } from "./follow-up";
 
 export type RegisterRowDraft = {
   readonly date: string;
@@ -11,18 +13,23 @@ export type RegisterRowDraft = {
   readonly outflow: string;
   readonly inflow: string;
   readonly flagColor: string;
+  readonly needsConfirmation: boolean;
+  readonly claimStatus: ClaimStatus | null;
 };
 
 type RowEditAccount = {
   readonly id: string;
   readonly name: string;
   readonly closed?: boolean;
+  readonly icon?: string | null;
 };
 
-type PayeeListEntry = {
+export type PayeeListEntry = {
   readonly id: string;
   readonly value: string;
-  readonly label?: string;
+  /** Set for a transfer payee: the other account's current name. */
+  readonly transferAccount?: string;
+  readonly transferAccountIcon?: string;
 };
 
 export type RegisterRowRef =
@@ -50,7 +57,7 @@ export type RegisterRowEditSession =
 
 export type RegisterRowEditAction =
   | { readonly type: "begin"; readonly row: RegisterRowRef; readonly draft: RegisterRowDraft; readonly focus: RegisterRowFocus }
-  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "payeeName" | "categoryId" | "memo" | "flagColor">> }
+  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "claimStatus">> }
   | { readonly type: "set-outflow"; readonly value: string }
   | { readonly type: "set-inflow"; readonly value: string }
   | { readonly type: "invalid"; readonly message: string; readonly focus?: RegisterRowFocus }
@@ -295,10 +302,6 @@ export function postingAccountId(row: RegisterRowRef): string {
   return row.kind === "posted" ? row.transaction.account_id : row.parent.account_id;
 }
 
-function transferOptionLabel(accountName: string): string {
-  return `Transfer to ${accountName}`;
-}
-
 export function payeeListEntries(
   payees: readonly Payee[],
   accounts: readonly RowEditAccount[],
@@ -324,7 +327,8 @@ export function payeeListEntries(
     entries.push({
       id: payee.id,
       value: payee.name,
-      label: transferOptionLabel(account.name),
+      transferAccount: account.name,
+      transferAccountIcon: accountIcon(account),
     });
   }
   return entries;
@@ -363,12 +367,17 @@ export function beginRowEdit(
 }
 
 function postedDraft(txn: Transaction): RegisterRowDraft {
+  // A row stored before the follow-up fields keeps them as memo words; editing
+  // it moves the words into the fields.
+  const legacy = legacyWords(txn.memo);
   return {
     date: txn.date,
     payeeName: txn.payee_name ?? "",
     categoryId: txn.category_id ?? "",
-    memo: txn.memo ?? "",
+    memo: legacy.text,
     flagColor: txn.flag_color ?? "",
+    needsConfirmation: txn.needs_confirmation === true || legacy.toCheck,
+    claimStatus: txn.claim_status ?? legacy.claim,
     ...amountDraft(txn.amount),
   };
 }
@@ -380,6 +389,8 @@ function splitDraft(parent: Transaction, line: Subtransaction): RegisterRowDraft
     categoryId: line.category_id ?? "",
     memo: line.memo ?? "",
     flagColor: parent.flag_color ?? "",
+    needsConfirmation: parent.needs_confirmation === true,
+    claimStatus: parent.claim_status ?? null,
     ...amountDraft(line.amount),
   };
 }
@@ -465,7 +476,25 @@ function planPostedCommit(
     }
   }
 
-  if (rowFieldWritable(row, "memo", draft, payees)) {
+  // A row stored with memo words keeps them while its memo text and To claim
+  // are untouched: saving another field leaves both alone. Changing only To
+  // confirm sends the stored memo back with it, so the server turns the words
+  // into fields without reopening a claim the claims tool has since marked.
+  const legacy = legacyWords(txn.memo);
+  const echoWords = (legacy.claim !== null || legacy.toCheck)
+    && (txn.claim_status ?? null) === null
+    && draft.memo.trim() === legacy.text
+    && draft.claimStatus === (txn.claim_status ?? legacy.claim);
+  if (
+    echoWords && typeof draft.needsConfirmation === "boolean"
+    && draft.needsConfirmation !== (txn.needs_confirmation === true || legacy.toCheck)
+  ) {
+    if (rowFieldWritable(row, "memo", draft, payees)) input.memo = txn.memo ?? null;
+    input.needs_confirmation = draft.needsConfirmation;
+  }
+  const keepWords = echoWords;
+
+  if (!keepWords && rowFieldWritable(row, "memo", draft, payees)) {
     const memo = draft.memo.trim() || null;
     if (memo !== (txn.memo ?? null)) {
       input.memo = memo;
@@ -475,6 +504,16 @@ function planPostedCommit(
   const flagColor = draft.flagColor || null;
   if (flagColor !== (txn.flag_color ?? null)) {
     input.flag_color = flagColor;
+  }
+
+  if (!keepWords && typeof draft.needsConfirmation === "boolean" && draft.needsConfirmation !== (txn.needs_confirmation === true)) {
+    input.needs_confirmation = draft.needsConfirmation;
+  }
+
+  if (!keepWords && draft.claimStatus !== undefined && draft.claimStatus !== (txn.claim_status ?? null)) {
+    input.claim_status = draft.claimStatus;
+    // A row stored before the field keeps its claimed day in the memo word.
+    if (draft.claimStatus === "claimed") input.claimed_on = legacy.claimedOn;
   }
 
   if (rowFieldWritable(row, "outflow", draft, payees) || rowFieldWritable(row, "inflow", draft, payees)) {

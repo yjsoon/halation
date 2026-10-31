@@ -222,6 +222,55 @@ enum MoneyCodec {
     let base = displayString(for: milliunits, currencyFormat: currencyFormat)
     return milliunits > 0 ? "+\(base)" : base
   }
+
+  /// Short money for a chart's value axis: "$579k", "$1.2M", "-$850". Keeps
+  /// the plan's symbol on its side. `resolution` is the smallest difference
+  /// the axis has to tell apart (its tick step), so two ticks never read the
+  /// same: at a step of $200, 564,246 and 564,046 are "$564.2k" and "$564.0k".
+  static func compactDisplayString(
+    for milliunits: Int,
+    resolution: Int = 0,
+    currencyFormat: CurrencyFormat?
+  ) -> String {
+    let units = abs(Double(milliunits)) / 1000
+    let steps: [(limit: Double, divisor: Double, suffix: String)] = [
+      (1_000_000_000, 1_000_000_000, "B"),
+      (1_000_000, 1_000_000, "M"),
+      (1_000, 1_000, "k"),
+    ]
+    let step = steps.first { units >= $0.limit }
+    let divisor = step?.divisor ?? 1
+    let scaled = units / divisor
+    let fineness = Double(abs(resolution)) / 1000 / divisor
+    var digits = 0
+    if fineness > 0 {
+      digits = max(0, Int(ceil(-log10(fineness))))
+    } else if step != nil, scaled < 10 {
+      // No step given: one decimal under ten ("1.2M"), none above ("579k").
+      digits = 1
+    }
+    // Three decimals cover the smallest axis step a chart asks for.
+    digits = min(digits, 3)
+    let factor = pow(10, Double(digits))
+    let rounded = (scaled * factor).rounded() / factor
+
+    var number: String
+    if let step, rounded >= 1000, let next = steps.first(where: { $0.divisor == step.divisor * 1000 }) {
+      // A value that rounds up to the next step reads as that step, not "1000k".
+      number = "1" + next.suffix
+    } else {
+      number = String(format: "%.\(digits)f", rounded)
+      if let separator = currencyFormat?.decimalSeparator, separator != "." {
+        number = number.replacingOccurrences(of: ".", with: separator)
+      }
+      number += step?.suffix ?? ""
+    }
+    let showsSymbol = currencyFormat?.displaySymbol ?? true
+    let symbol = showsSymbol ? (currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$") : ""
+    let symbolFirst = currencyFormat?.symbolFirst ?? true
+    let body = symbolFirst ? symbol + number : number + symbol
+    return milliunits < 0 && rounded > 0 ? "-" + body : body
+  }
 }
 
 /// Milliunit sums. The server stores amounts up to 1e15 milliunits each, so
@@ -285,6 +334,22 @@ enum LedgerDate {
     return display.string(from: date)
   }
 
+  /// "30 Sep 2026" from an ISO date, for a date inside a sentence.
+  static func shortDateString(fromISO isoDate: String) -> String {
+    guard let date = parser.date(from: isoDate) else {
+      return isoDate
+    }
+    return shortDisplay.string(from: date)
+  }
+
+  /// "23 Oct" from an ISO date, for a day the surrounding text already dates.
+  static func dayMonthString(fromISO isoDate: String) -> String {
+    guard let date = parser.date(from: isoDate) else {
+      return isoDate
+    }
+    return dayMonthDisplay.string(from: date)
+  }
+
   /// Human label for a report period key: `2026-06-10`, `2026-W23`, `2026-06`, or `2026`.
   static func periodLabel(_ raw: String) -> String {
     let parts = raw.split(separator: "-")
@@ -295,7 +360,7 @@ enum LedgerDate {
       return "Week \(parts[1].dropFirst()), \(parts[0])"
     }
     if parts.count == 2, let month = Int(parts[1]), (1 ... 12).contains(month) {
-      return "\(Calendar.current.monthSymbols[month - 1]) \(parts[0])"
+      return "\(gregorian.monthSymbols[month - 1]) \(parts[0])"
     }
     return raw
   }
@@ -319,7 +384,7 @@ enum LedgerDate {
       return String(parts[1])
     }
     if parts.count == 2, let month = Int(parts[1]), (1 ... 12).contains(month) {
-      return Calendar.current.shortMonthSymbols[month - 1]
+      return gregorian.shortMonthSymbols[month - 1]
     }
     return raw
   }
@@ -334,7 +399,7 @@ enum LedgerDate {
       return raws.map(periodAxisLabel)
     }
     return months.enumerated().map { index, item in
-      let short = Calendar.current.shortMonthSymbols[item.month - 1]
+      let short = gregorian.shortMonthSymbols[item.month - 1]
       if index == 0 || item.month == 1 {
         return "\(short) \(String(item.year).suffix(2))"
       }
@@ -362,12 +427,36 @@ enum LedgerDate {
 
   private static let display: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = gregorian
     formatter.dateFormat = "EEE d MMM yyyy"
+    return formatter
+  }()
+
+  /// Period keys are Gregorian, so month names come from a Gregorian calendar
+  /// in the device's language, whatever calendar the device otherwise uses.
+  static let gregorian: Calendar = {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.locale = .current
+    return calendar
+  }()
+
+  private static let shortDisplay: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.calendar = gregorian
+    formatter.dateFormat = "d MMM yyyy"
+    return formatter
+  }()
+
+  private static let dayMonthDisplay: DateFormatter = {
+    let formatter = DateFormatter()
+    formatter.calendar = gregorian
+    formatter.dateFormat = "d MMM"
     return formatter
   }()
 
   private static let axisDayDisplay: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = gregorian
     formatter.dateFormat = "d MMM"
     return formatter
   }()
@@ -385,11 +474,13 @@ extension Date {
     self = parsed
   }
 
-  func startOfMonth(calendar: Calendar = .current) -> Date {
+  /// Months default to the Gregorian calendar: period keys, labels and the
+  /// server's windows are all Gregorian, whatever calendar the device uses.
+  func startOfMonth(calendar: Calendar = LedgerDate.gregorian) -> Date {
     calendar.date(from: calendar.dateComponents([.year, .month], from: self)) ?? self
   }
 
-  func endOfMonth(calendar: Calendar = .current) -> Date {
+  func endOfMonth(calendar: Calendar = LedgerDate.gregorian) -> Date {
     guard
       let nextMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth(calendar: calendar)),
       let lastDay = calendar.date(byAdding: .day, value: -1, to: nextMonth)
@@ -411,12 +502,14 @@ extension Date {
 
   private static let monthYearFormatter: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = LedgerDate.gregorian
     formatter.dateFormat = "MMMM yyyy"
     return formatter
   }()
 
   private static let compactDateFormatter: DateFormatter = {
     let formatter = DateFormatter()
+    formatter.calendar = LedgerDate.gregorian
     formatter.dateFormat = "d MMM yyyy"
     return formatter
   }()

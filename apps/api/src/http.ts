@@ -4,6 +4,7 @@ import { AccountPreferencesConflictError, LedgerRepository, NotFoundError, Recon
 import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
 import { assertTransactionFieldTypes, collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
+import { normaliseFollowUpWords } from "./transaction-claim";
 import { ReportService } from "./reports";
 import { type AmountFormat, amountFormatOf, isStorableMilliunits } from "@howmuch/money";
 import { decimalToMilliunits } from "./money";
@@ -75,7 +76,14 @@ export function createHandler(options: HandlerOptions): (request: Request) => Pr
   return async function handle(request: Request): Promise<Response> {
     try {
       const url = new URL(request.url);
-      const segments = url.pathname.split("/").filter(Boolean);
+      // Split before decoding: escaped separators belong to the opaque ID,
+      // and every lookup (including plan authorization) must decode once only.
+      let segments: string[];
+      try {
+        segments = url.pathname.split("/").filter(Boolean).map(decodeURIComponent);
+      } catch {
+        return apiError(400, "bad_request", "Invalid path encoding");
+      }
 
       if (url.pathname === "/health") {
         return json({ ok: true });
@@ -378,6 +386,12 @@ async function handleV1(
     if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "unapproved_count" && method === "GET") {
       return unapprovedCountResponse(repo, planId, countFilters(url, { accountId }));
     }
+    if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "needs_confirmation_count" && method === "GET") {
+      return json({ data: await repo.countNeedsConfirmationTransactions(planId, countFilters(url, { accountId })) });
+    }
+    if (segments.length === 7 && segments[5] === "transactions" && segments[6] === "to_claim_count" && method === "GET") {
+      return json({ data: await repo.countToClaimTransactions(planId, countFilters(url, { accountId })) });
+    }
   }
 
   if (resource === "card_payment_terms" && segments.length === 4 && method === "GET") {
@@ -582,6 +596,7 @@ async function handleV1(
       const body = await readJson(request);
       if (collectionPostIntent(body) === "many") {
         const inputs = parseTransactionCreates(body.transactions);
+        for (const input of inputs) normaliseFollowUpWords(input);
         for (const input of inputs) await stampTransactionFlagName(repo, planId, input.account_id, input);
         await autoCategorise(repo, planId, inputs, categoriser);
         const result = await repo.createTransactions(planId, inputs);
@@ -592,6 +607,7 @@ async function handleV1(
         return apiError(400, "bad_request", "transaction is required");
       }
       assertTransactionFieldTypes(input);
+      normaliseFollowUpWords(input);
       const existing = input?.import_id && input?.account_id
         ? await repo.findTransactionByImportId(planId, input.import_id, input.account_id)
         : null;
@@ -641,6 +657,12 @@ async function handleV1(
     if (segments.length === 5 && segments[4] === "unapproved_count" && method === "GET") {
       return unapprovedCountResponse(repo, planId, countFilters(url));
     }
+    if (segments.length === 5 && segments[4] === "needs_confirmation_count" && method === "GET") {
+      return json({ data: await repo.countNeedsConfirmationTransactions(planId, countFilters(url)) });
+    }
+    if (segments.length === 5 && segments[4] === "to_claim_count" && method === "GET") {
+      return json({ data: await repo.countToClaimTransactions(planId, countFilters(url)) });
+    }
 
     // Bulk commands are also path segments, and must precede the item route.
     // Each returns ordered per-item outcomes rather than promising atomicity:
@@ -655,7 +677,8 @@ async function handleV1(
       return json({ data: result });
     }
 
-    const { transactionId, expectedApprovedParameter } = transactionItemRef(segments[4], url);
+    const transactionId = segments[4];
+    const expectedApprovedParameter = url.searchParams.get("expected_approved");
     if (segments.length === 5 && method === "GET") {
       return json({ data: { transaction: await repo.getTransaction(planId, transactionId), server_knowledge: await repo.getServerKnowledge(planId) } });
     }
@@ -858,7 +881,7 @@ async function handleNative(
     }
   }
 
-  if (segments[1] === "mobile" && segments[2] === "quick-entry" && method === "POST") {
+  if (segments.length === 3 && segments[1] === "mobile" && segments[2] === "quick-entry" && method === "POST") {
     const body = await readJson(request);
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
@@ -888,19 +911,22 @@ async function handleNative(
       category_id: body.category_id ?? null,
       memo: body.memo ?? null,
       flag_color: body.flag_color ?? null,
+      ...(body.needs_confirmation === undefined ? {} : { needs_confirmation: body.needs_confirmation }),
+      ...(body.claim_status === undefined ? {} : { claim_status: body.claim_status }),
       approved: true,
       source_kind: "mobile",
       source_ref: body.client_id ?? null,
       subtransactions,
     };
     assertTransactionFieldTypes(input);
+    normaliseFollowUpWords(input);
     await stampTransactionFlagName(repo, targetPlanId, input.account_id, input);
     await autoCategorise(repo, targetPlanId, [input], categoriser);
     const transaction = await repo.createTransaction(targetPlanId, input);
     return json({ data: { transaction, server_knowledge: await repo.getServerKnowledge(targetPlanId) } }, 201);
   }
 
-  if (segments[1] === "import" && segments[2] === "csv" && method === "POST") {
+  if (segments.length === 3 && segments[1] === "import" && segments[2] === "csv" && method === "POST") {
     const body = await readJson(request);
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
@@ -910,7 +936,7 @@ async function handleNative(
     return json({ data: result }, 201);
   }
 
-  if (segments[1] === "import" && segments[2] === "ynab" && method === "POST") {
+  if (segments.length === 3 && segments[1] === "import" && segments[2] === "ynab" && method === "POST") {
     const body = await readJson(request);
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
@@ -925,7 +951,7 @@ async function handleNative(
     return json({ data: result }, 201);
   }
 
-  if (segments[1] === "import" && segments[2] === "rewards-tracker") {
+  if (segments.length === 3 && segments[1] === "import" && segments[2] === "rewards-tracker") {
     const denied = authorizePlan(principal, planId, defaultPlanId, method);
     if (denied) return denied;
     if (method === "GET") {
@@ -952,9 +978,7 @@ async function handleNative(
     if (isUnsafeMethod(method)) await repo.ensurePlan(targetPlanId);
 
     if (segments[2] === "accounts" && segments[4] === "config" && segments.length === 5) {
-      let accountId: string;
-      try { accountId = decodeURIComponent(segments[3]); }
-      catch { throw new ValidationError("Invalid account ID encoding"); }
+      const accountId = segments[3];
       if (method === "GET") return json({ data: await exportRewardsAccountConfig(repo, targetPlanId, accountId) });
       if (method === "PUT") {
         const card = await importRewardsAccountConfig(repo, targetPlanId, accountId, body.payload);
@@ -1560,27 +1584,6 @@ function authorizePlan(principal: Principal, planId: string, defaultPlanId: stri
     return apiError(403, "forbidden", "Plan is read-only");
   }
   return null;
-}
-
-/**
- * iOS used to concatenate `?expected_approved=` onto the path. `encodedPath`
- * then percent-encodes `?` as `%3F`, so the last segment is `id%3Fexpected_approved=false`
- * and a lookup of that string 404s. Split the embedded query back out.
- */
-function transactionItemRef(segment: string, url: URL): { transactionId: string; expectedApprovedParameter: string | null } {
-  let decoded = segment;
-  try {
-    decoded = decodeURIComponent(segment);
-  } catch {
-    decoded = segment;
-  }
-  const cut = decoded.indexOf("?");
-  const transactionId = cut === -1 ? decoded : decoded.slice(0, cut);
-  const embedded = cut === -1 ? new URLSearchParams() : new URLSearchParams(decoded.slice(cut + 1));
-  return {
-    transactionId,
-    expectedApprovedParameter: url.searchParams.get("expected_approved") ?? embedded.get("expected_approved"),
-  };
 }
 
 function authorizePlanAdministration(principal: Principal, planId: string): Response | null {

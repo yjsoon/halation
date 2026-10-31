@@ -147,6 +147,9 @@ export interface TransactionUpdateInput {
   approved?: boolean;
   flag_color?: string | null;
   flag_name?: string | null;
+  needs_confirmation?: boolean;
+  claim_status?: "to_claim" | "claimed" | null;
+  claimed_on?: string | null;
   payee_id?: string | null;
   payee_name?: string | null;
   category_id?: string | null;
@@ -309,6 +312,8 @@ export interface QuickEntryInput {
   category_id: string | null;
   memo: string | null;
   flag_color: string | null;
+  needs_confirmation?: boolean;
+  claim_status?: "to_claim" | null;
   subtransactions?: QuickEntrySplitLine[];
 }
 

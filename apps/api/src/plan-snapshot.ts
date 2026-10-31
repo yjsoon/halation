@@ -99,6 +99,11 @@ export type SnapshotTransaction = {
   approved: boolean;
   flag_color: string | null;
   flag_name: string | null;
+  /** Optional on import (absent is false), always written on export. */
+  needs_confirmation?: boolean;
+  /** Optional on import (absent is not a claim), always written on export. */
+  claim_status?: "to_claim" | "claimed" | null;
+  claimed_on?: string | null;
   payee_id: string | null;
   /** Free-text payee of a row with no payee row; null whenever `payee_id` is set. */
   payee_name: string | null;
@@ -370,6 +375,8 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
       approved: flag(input.approved, `${path}.approved`),
       flag_color: nullableText(input.flag_color, `${path}.flag_color`, 32),
       flag_name: nullableText(input.flag_name, `${path}.flag_name`, 200),
+      needs_confirmation: flag(input.needs_confirmation, `${path}.needs_confirmation`),
+      ...claim(input.claim_status, input.claimed_on, path),
       payee_id: payeeId,
       payee_name_snapshot: payeeId ? payees.get(payeeId)!.name : nullableText(input.payee_name, `${path}.payee_name`, 500),
       category_id: categoryId,
@@ -499,12 +506,14 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
   }
 
   const cardTerms: Row[] = [];
+  const cardTermAccounts = new Set<string>();
   for (const [index, item] of list(snapshot.card_payment_terms, "card_payment_terms").entries()) {
     const path = `card_payment_terms[${index}]`;
     const input = object(item, path);
     const accountId = accountRef(input.account_id, `${path}.account_id`);
     if (!accountId) throw new SnapshotValidationError(`${path}.account_id is required`);
-    if (cardTerms.some((row) => row.account_id === accountId)) throw new SnapshotValidationError(`${path}: account ${accountId} already has card payment terms`);
+    if (cardTermAccounts.has(accountId)) throw new SnapshotValidationError(`${path}: account ${accountId} already has card payment terms`);
+    cardTermAccounts.add(accountId);
     if (!CARD_PAYMENT_ACCOUNT_KINDS.has(String(accounts.get(accountId)!.type))) {
       throw new SnapshotValidationError(`${path}.account_id must be a creditCard or lineOfCredit account`);
     }
@@ -567,7 +576,7 @@ const TABLES: Array<[keyof Omit<SnapshotRows, "counts">, TablePlan]> = [
   ["payees", { table: "payees", columns: [["id"], ["plan_id", "?"], ["name"], ["transfer_account_id"], ["external_ynab_id", "$.id"], ["deleted"]] }],
   ["accounts", { table: "accounts", columns: [["id"], ["plan_id", "?"], ["name"], ["icon"], ["type"], ["on_budget"], ["closed"], ["opening_balance_milli"], ["transfer_payee_id"], ["external_ynab_id", "$.id"]] }],
   ["transactions", { table: "transactions", columns: [
-    ["id"], ["plan_id", "?"], ["account_id"], ["date"], ["amount_milli"], ["memo"], ["cleared"], ["approved"], ["flag_color"], ["flag_name"],
+    ["id"], ["plan_id", "?"], ["account_id"], ["date"], ["amount_milli"], ["memo"], ["cleared"], ["approved"], ["flag_color"], ["flag_name"], ["needs_confirmation"], ["claim_status"], ["claimed_on"],
     ["payee_id"], ["payee_name_snapshot"], ["category_id"], ["category_name_snapshot"], ["transfer_account_id"], ["transfer_transaction_id"],
     ["matched_transaction_id"], ["import_id"], ["import_payee_name"], ["import_payee_name_original"], ["source_kind", "'snapshot-import'"], ["external_ynab_id", "$.id"],
   ] }],
@@ -739,6 +748,9 @@ export function projectPlanSnapshot(source: SnapshotSource): PlanSnapshot {
       approved: Boolean(row.approved),
       flag_color: row.flag_color ?? null,
       flag_name: row.flag_name ?? null,
+      needs_confirmation: Boolean(row.needs_confirmation),
+      claim_status: row.claim_status ?? null,
+      claimed_on: row.claim_status === "claimed" ? row.claimed_on ?? null : null,
       payee_id: row.payee_id ?? null,
       payee_name: freeTextPayee(row),
       category_id: row.category_id ?? null,
@@ -894,6 +906,13 @@ function flag(value: unknown, path: string): number {
   if (value === undefined || value === null) return 0;
   if (typeof value !== "boolean") throw new SnapshotValidationError(`${path} must be a boolean`);
   return value ? 1 : 0;
+}
+
+function claim(status: unknown, day: unknown, path: string): { claim_status: string | null; claimed_on: string | null } {
+  if (status === undefined || status === null) return { claim_status: null, claimed_on: null };
+  if (status !== "to_claim" && status !== "claimed") throw new SnapshotValidationError(`${path}.claim_status must be to_claim, claimed or null`);
+  if (status === "to_claim" || day === undefined || day === null) return { claim_status: status, claimed_on: null };
+  return { claim_status: status, claimed_on: isoDate(day, `${path}.claimed_on`) };
 }
 
 function milliunits(value: unknown, path: string): number {

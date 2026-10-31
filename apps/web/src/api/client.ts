@@ -524,7 +524,7 @@ export const api = {
         body: JSON.stringify({ statement_date: statementDate, statement_balance: statementBalance }),
       },
     ),
-  transactions: (planId: string, params: { since_date?: string; until_date?: string; type?: "unapproved"; limit?: number; offset?: number; q?: string }) =>
+  transactions: (planId: string, params: { since_date?: string; until_date?: string; type?: "unapproved" | "needs_confirmation" | "to_claim"; limit?: number; offset?: number; q?: string }) =>
     request<TransactionPage>(
       `${planUrl(planId, "transactions")}${query(params)}`,
     ),
@@ -532,7 +532,7 @@ export const api = {
     request<{ transaction: Transaction }>(
       planUrl(planId, "transactions", transactionId),
     ).then((data) => data.transaction),
-  accountTransactions: (planId: string, accountId: string, params: { since_date?: string; until_date?: string; type?: "unapproved"; limit?: number; offset?: number; q?: string }) =>
+  accountTransactions: (planId: string, accountId: string, params: { since_date?: string; until_date?: string; type?: "unapproved" | "needs_confirmation" | "to_claim"; limit?: number; offset?: number; q?: string }) =>
     request<TransactionPage>(
       `${planUrl(planId, "accounts", accountId, "transactions")}${query(params)}`,
     ),

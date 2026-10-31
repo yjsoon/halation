@@ -11,6 +11,11 @@
 }
 
 @media (max-width: 720px) {
+  .register-compose-row input.payee-combobox-input {
+    padding-right: 18px;
+    background-position: right 5px center;
+  }
+
   .api-docs-header {
     padding-inline: 16px;
   }

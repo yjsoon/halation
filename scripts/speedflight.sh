@@ -53,8 +53,17 @@ LOCK_DIR="${HOWMUCH_XCODE_LOCK_DIR:-$PWD/build/xcode/ios-runner.lock}"
 # A detached exact revision needs an explicit containing origin branch or tag.
 BRANCH="$(git symbolic-ref --quiet --short HEAD || true)"
 COMMIT="$(git rev-parse HEAD)"
-REPO_URL="$(git remote get-url origin 2>/dev/null | sed -E 's#^git@([^:]+):#https://\1/#; s#\.git$##')"
-case "$REPO_URL" in https://*) ;; *) REPO_URL="" ;; esac
+REPO_URL="$(git remote get-url origin 2>/dev/null | bun -e '
+  try {
+    const raw = (await Bun.stdin.text()).trim().replace(/^git@([^:]+):/, "https://$1/");
+    const url = new URL(raw);
+    if (url.protocol === "https:") {
+      url.username = ""; url.password = ""; url.search = ""; url.hash = "";
+      url.pathname = url.pathname.replace(/\.git$/, "");
+      process.stdout.write(url.href);
+    }
+  } catch { /* Optional metadata: omit unparseable origins. */ }
+')"
 if [[ -n "$(git status --porcelain)" ]]; then
   echo "publication prerequisite unmet: working tree must be clean; no commit or push is authorized by this check" >&2
   exit 1

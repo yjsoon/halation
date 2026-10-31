@@ -694,24 +694,169 @@ struct SpendingBreakdownDetailView: View {
   }
 }
 
+/// Pure helpers shared by the Net Worth card and detail screen.
+enum NetWorthMaths {
+  struct AccountGroup: Identifiable {
+    enum Kind {
+      case assets
+      case debts
+      case empty
+    }
+
+    let kind: Kind
+    let total: Int
+    let accounts: [NetWorthAccount]
+
+    var id: String { title }
+
+    var title: String {
+      switch kind {
+      case .assets: "Assets"
+      case .debts: "Debts"
+      case .empty: "Zero balance"
+      }
+    }
+  }
+
+  /// Accounts in credit, then accounts owing, then empty ones, each largest
+  /// first. The first two totals are the headline's Assets and Debts.
+  static func groups(_ accounts: [NetWorthAccount]) -> [AccountGroup] {
+    let bySize = accounts.sorted { abs($0.balance) > abs($1.balance) }
+    let assets = bySize.filter { $0.balance > 0 }
+    let debts = bySize.filter { $0.balance < 0 }
+    let empty = bySize.filter { $0.balance == 0 }
+    var groups: [AccountGroup] = []
+    if !assets.isEmpty {
+      groups.append(AccountGroup(kind: .assets, total: assets.map(\.balance).saturatingSum(), accounts: assets))
+    }
+    if !debts.isEmpty {
+      groups.append(AccountGroup(kind: .debts, total: debts.map(\.balance).saturatingSum(), accounts: debts))
+    }
+    if !empty.isEmpty {
+      groups.append(AccountGroup(kind: .empty, total: 0, accounts: empty))
+    }
+    return groups
+  }
+
+  /// The accounts worth a row. Closed accounts stay in the series for the
+  /// periods they held a balance, but a settled one has nothing to list.
+  static func listed(_ accounts: [NetWorthAccount]) -> [NetWorthAccount] {
+    accounts.filter { $0.closed != true || $0.balance != 0 }
+  }
+
+  /// Assets and debts as shares of everything held, for one stacked bar.
+  static func shares(assets: Int, debts: Int) -> [(isDebt: Bool, fraction: Double)] {
+    let owed = Double(debts.magnitude)
+    let held = Double(assets) + owed
+    guard held > 0 else {
+      return []
+    }
+    var shares: [(isDebt: Bool, fraction: Double)] = []
+    if assets > 0 {
+      shares.append((false, Double(assets) / held))
+    }
+    if owed > 0 {
+      shares.append((true, owed / held))
+    }
+    return shares
+  }
+
+  /// `amount` against the largest of its peers, for a row's meter.
+  static func meterFraction(_ amount: Int, largest: Int) -> Double {
+    guard largest > 0 else {
+      return 0
+    }
+    return min(Double(amount.magnitude) / Double(largest.magnitude), 1)
+  }
+
+  /// A chart value back to milliunits, clamped instead of trapping.
+  static func milliunits(_ value: Double) -> Int {
+    Int(exactly: value.rounded()) ?? (value < 0 ? Int.min : Int.max)
+  }
+
+  /// A tick label for a net worth axis drawn in milliunits.
+  static func axisLabel(_ value: Double, step: Double, currencyFormat: CurrencyFormat?) -> String {
+    MoneyCodec.compactDisplayString(
+      for: milliunits(value), resolution: milliunits(step), currencyFormat: currencyFormat
+    )
+  }
+
+  /// `latest - earlier`, or nil when the difference would overflow.
+  static func change(from earlier: Int, to latest: Int) -> Int? {
+    let difference = latest.subtractingReportingOverflow(earlier)
+    return difference.overflow ? nil : difference.partialValue
+  }
+
+  /// The change as a share of where it started, only when it started in
+  /// credit: a move from a debt or from nothing has no honest percentage.
+  static func percentChange(from earlier: Int, to latest: Int) -> Double? {
+    guard earlier > 0, let change = change(from: earlier, to: latest) else {
+      return nil
+    }
+    return Double(change) / Double(earlier)
+  }
+
+  /// "+3.3%" or "-1.2%"; a flat window reads "0.0%".
+  static func percentLabel(_ fraction: Double) -> String {
+    let label = fraction.formatted(.percent.precision(.fractionLength(1)))
+    return fraction > 0 ? "+\(label)" : label
+  }
+
+  /// True when a month or year period was cut short by the window's end, so
+  /// its figure is a balance part-way through, not the period's close.
+  /// Weekly rows name their end date instead, and a day is never partial.
+  static func isPartial(_ period: NetWorthPeriod, interval: ReportInterval) -> Bool {
+    guard let end = Date(isoDateString: period.endDate) else {
+      return false
+    }
+    switch interval {
+    case .month:
+      // The server's months are Gregorian whatever calendar the device uses.
+      return period.endDate != end.endOfMonth(calendar: Calendar(identifier: .gregorian)).isoDateString
+    case .year:
+      return !period.endDate.hasSuffix("-12-31")
+    case .week, .day:
+      return false
+    }
+  }
+
+  /// "October 2026", "October 2026 · to 23 Oct", "Week to 18 Oct 2026".
+  static func historyTitle(_ period: NetWorthPeriod, interval: ReportInterval) -> (title: String, note: String?) {
+    if interval == .week {
+      return ("Week to \(LedgerDate.shortDateString(fromISO: period.endDate))", nil)
+    }
+    let title = LedgerDate.periodLabel(period.period)
+    return (title, isPartial(period, interval: interval) ? "to \(LedgerDate.dayMonthString(fromISO: period.endDate))" : nil)
+  }
+}
+
 struct NetWorthDetailView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var range = ReportRange(mode: .preset, preset: .lastTwelveMonths)
   @State private var scope = ReportScope()
   @State private var interval: ReportInterval = .month
   @State private var report: NetWorthReport?
+  /// The grouping the shown report was fetched with: the chip can change
+  /// before the next report lands, and the old rows keep their own titles.
+  @State private var reportInterval: ReportInterval = .month
+  /// Whether the shown report was fetched for chosen accounts only.
+  @State private var reportScoped = false
   @State private var phase: LoadPhase = .idle
   @State private var fetchGate = ReportFetchGate()
 
   var body: some View {
+    let today = Date.now.isoDateString
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
-        ReportFilterBar(range: $range, interval: $interval, intervalChoices: [.week, .month], scope: $scope)
+        ReportFilterBar(range: $range, interval: $interval, intervalChoices: [.week, .month, .year], scope: $scope)
 
-        if let report, let latest = report.periods.last {
+        if let report, let latest = report.periods.last, !latest.accounts.isEmpty {
           headlineCard(report: report, latest: latest)
 
-          Text("Accounts")
+          Text(latest.endDate == today
+            ? "Accounts"
+            : "Accounts · as at \(LedgerDate.shortDateString(fromISO: latest.endDate))")
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 4)
@@ -722,6 +867,14 @@ struct NetWorthDetailView: View {
             .foregroundStyle(Theme.textPrimary)
             .padding(.horizontal, 4)
           historyCard(report: report)
+        } else if let report, !report.periods.isEmpty, !reportScoped {
+          // Every period carries the same accounts, so none in the latest
+          // means none at all: an empty ledger, not an empty window.
+          ContentUnavailableView(
+            "No Accounts Yet",
+            systemImage: "building.columns",
+            description: Text("Net worth adds up your account balances. Add an account to start a history.")
+          )
         } else if report != nil, phase != .loading {
           ReflectMaths.emptyRange(title: "No Net Worth History", systemImage: "chart.bar")
         } else {
@@ -742,12 +895,16 @@ struct NetWorthDetailView: View {
   }
 
   private func headlineCard(report: NetWorthReport, latest: NetWorthPeriod) -> some View {
-    let assets = latest.accounts.map(\.balance).filter { $0 > 0 }.saturatingSum()
-    let debts = latest.accounts.map(\.balance).filter { $0 < 0 }.saturatingSum()
-    let change = report.periods.dropLast().last.flatMap { previous -> Int? in
-      let difference = latest.netWorth.subtractingReportingOverflow(previous.netWorth)
-      return difference.overflow ? nil : difference.partialValue
-    }
+    let groups = NetWorthMaths.groups(latest.accounts)
+    let assets = groups.first { $0.kind == .assets }?.total ?? 0
+    let debts = groups.first { $0.kind == .debts }?.total ?? 0
+    let previous = report.periods.dropLast().last
+    let change = previous.flatMap { NetWorthMaths.change(from: $0.netWorth, to: latest.netWorth) }
+    // The first period's figure is its closing balance, so the window's
+    // movement starts there; with two periods it is the step shown above.
+    let first = report.periods.count > 2 ? report.periods.first : nil
+    let windowChange = first.flatMap { NetWorthMaths.change(from: $0.netWorth, to: latest.netWorth) }
+    let windowPercent = first.flatMap { NetWorthMaths.percentChange(from: $0.netWorth, to: latest.netWorth) }
 
     return VStack(spacing: 10) {
       Text("Net Worth · as at \(LedgerDate.friendlyString(fromISO: latest.endDate))")
@@ -760,11 +917,11 @@ struct NetWorthDetailView: View {
         .minimumScaleFactor(0.5)
         .foregroundStyle(Theme.textPrimary)
         .rollingNumber(latest.netWorth)
-      if let change {
-        Text("\(MoneyCodec.signedDisplayString(for: change, currencyFormat: model.currencyFormat)) on previous period")
+      if let previous, let change {
+        Text("\(MoneyCodec.signedDisplayString(for: change, currencyFormat: model.currencyFormat)) since \(LedgerDate.shortDateString(fromISO: previous.endDate))")
           .font(.footnote.weight(.medium))
           .monospacedDigit()
-          .foregroundStyle(Theme.amountColour(change))
+          .foregroundStyle(Theme.signedReportColour(change))
           .rollingNumber(change)
       }
       HStack(spacing: 24) {
@@ -789,12 +946,31 @@ struct NetWorthDetailView: View {
             .rollingNumber(debts)
         }
       }
-      ColumnChart(
-        values: report.periods.map { Double($0.netWorth) },
-        labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
-        voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
-        height: 120
-      )
+      // How much of what is held is owed: the two figures as one bar.
+      let shares = NetWorthMaths.shares(assets: assets, debts: debts)
+      if !shares.isEmpty {
+        StackedShareBar(segments: shares.map { (colour: $0.isDebt ? Theme.outflow : Theme.accent, fraction: $0.fraction) }, height: 8)
+          .frame(maxWidth: 240)
+          .accessibilityHidden(true)
+      }
+      // One period has no trend to draw; the figures above say it all.
+      if report.periods.count > 1 {
+        TrendChart(
+          values: report.periods.map { Double($0.netWorth) },
+          labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
+          voice: .money("Net worth", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+          axisLabel: { NetWorthMaths.axisLabel($0, step: $1, currencyFormat: model.currencyFormat) },
+          height: 120,
+          minimumSpan: 1000
+        )
+      }
+      if let first, let windowChange {
+        let percent = windowPercent.map { " (\(NetWorthMaths.percentLabel($0)))" } ?? ""
+        Text("\(MoneyCodec.signedDisplayString(for: windowChange, currencyFormat: model.currencyFormat))\(percent) since \(LedgerDate.shortDateString(fromISO: first.endDate))")
+          .font(.caption)
+          .monospacedDigit()
+          .foregroundStyle(.secondary)
+      }
     }
     .frame(maxWidth: .infinity)
     .padding(16)
@@ -802,55 +978,129 @@ struct NetWorthDetailView: View {
   }
 
   private func accountsCard(latest: NetWorthPeriod) -> some View {
-    let accounts = latest.accounts.sorted { abs($0.balance) > abs($1.balance) }
+    let listed = NetWorthMaths.listed(latest.accounts)
+    let groups = NetWorthMaths.groups(listed)
+    let largest = listed.map { Int(clamping: $0.balance.magnitude) }.max() ?? 0
     return VStack(spacing: 0) {
-      ForEach(accounts.enumerated(), id: \.element.id) { index, account in
-        HStack {
-          Text(account.accountName)
-            .font(.subheadline)
-            .foregroundStyle(Theme.textPrimary)
-          Spacer()
-          Text(MoneyCodec.displayString(for: account.balance, currencyFormat: model.currencyFormat))
-            .font(.subheadline)
-            .monospacedDigit()
-            .foregroundStyle(account.balance == 0 ? .secondary : Theme.amountColour(account.balance))
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
-        if index < accounts.count - 1 {
-          Divider().padding(.leading, 16)
+      ForEach(groups) { group in
+        accountGroupHeader(group)
+        ForEach(group.accounts.enumerated(), id: \.element.id) { index, account in
+          accountLink(account, largest: largest)
+          if index < group.accounts.count - 1 {
+            Divider().padding(.leading, 16)
+          }
         }
       }
     }
     .ynabCard()
   }
 
+  private func accountGroupHeader(_ group: NetWorthMaths.AccountGroup) -> some View {
+    let colour: Color = switch group.kind {
+    case .assets: Theme.accent
+    case .debts: Theme.outflow
+    case .empty: .secondary
+    }
+    return HStack {
+      Text(group.title)
+        .foregroundStyle(colour)
+      Spacer()
+      if group.kind != .empty {
+        Text(MoneyCodec.displayString(for: group.total, currencyFormat: model.currencyFormat))
+          .monospacedDigit()
+          .foregroundStyle(Theme.textPrimary)
+      }
+    }
+    .font(.footnote.weight(.semibold))
+    .padding(.horizontal, 16)
+    .padding(.vertical, 8)
+    .frame(maxWidth: .infinity)
+    .background(Theme.surfaceMuted.opacity(0.6))
+    .accessibilityElement(children: .combine)
+  }
+
+  /// Each row opens the account's register when the account is known here,
+  /// closed or not; one the model has not loaded still lists, without the link.
+  @ViewBuilder
+  private func accountLink(_ account: NetWorthAccount, largest: Int) -> some View {
+    if model.accounts.contains(where: { $0.id == account.accountID }) {
+      NavigationLink {
+        RegisterView(scope: .account(account.accountID))
+      } label: {
+        accountRow(account, largest: largest, linked: true)
+      }
+      .buttonStyle(.cardRow)
+    } else {
+      accountRow(account, largest: largest, linked: false)
+    }
+  }
+
+  /// Name over a meter against the largest balance listed, so the eye can
+  /// weigh the accounts without reading every figure.
+  private func accountRow(_ account: NetWorthAccount, largest: Int, linked: Bool) -> some View {
+    let balance = Text(MoneyCodec.displayString(for: account.balance, currencyFormat: model.currencyFormat))
+      .font(.subheadline)
+      .monospacedDigit()
+      .foregroundStyle(account.balance == 0 ? .secondary : Theme.amountColour(account.balance))
+    let name = VStack(alignment: .leading, spacing: 6) {
+      Text(account.accountName)
+        .font(.subheadline)
+        .foregroundStyle(Theme.textPrimary)
+      if account.balance != 0 {
+        ShareMeter(
+          fraction: NetWorthMaths.meterFraction(account.balance, largest: largest),
+          colour: account.balance < 0 ? Theme.outflow : Theme.accent
+        )
+        // Up to 120pt, never a hard minimum: a long figure at a large text
+        // size takes the width it needs and the meter gives way.
+        .frame(maxWidth: 120, alignment: .leading)
+        .frame(height: 6)
+      }
+    }
+    // Name and balance are laid out before the spacer, so a name never
+    // wraps while there is room beside it.
+    return HStack {
+      if dynamicTypeSize.isAccessibilitySize {
+        VStack(alignment: .leading, spacing: 4) {
+          name
+          balance
+        }
+      } else {
+        // The balance keeps its full width and is sized first; the name
+        // takes the rest and wraps only when that is not enough.
+        name
+          .layoutPriority(1)
+        Spacer()
+        balance
+          .fixedSize()
+          .layoutPriority(1)
+      }
+      if linked {
+        if dynamicTypeSize.isAccessibilitySize {
+          Spacer()
+        }
+        Image(systemName: "chevron.forward")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(.tertiary)
+          .accessibilityHidden(true)
+      }
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 11)
+    .contentShape(Rectangle())
+    .accessibilityElement(children: .combine)
+  }
+
   private func historyCard(report: NetWorthReport) -> some View {
     let periods = Array(report.periods.reversed())
+    let deltas = periods.indices.map { index -> Int? in
+      guard index + 1 < periods.count else { return nil }
+      return NetWorthMaths.change(from: periods[index + 1].netWorth, to: periods[index].netWorth)
+    }
+    let largestDelta = deltas.compactMap { $0.map { Int(clamping: $0.magnitude) } }.max() ?? 0
     return VStack(spacing: 0) {
       ForEach(periods.enumerated(), id: \.element.id) { index, period in
-        let prior = index + 1 < periods.count ? periods[index + 1] : nil
-        let delta = prior.map { period.netWorth - $0.netWorth }
-        HStack {
-          Text(LedgerDate.periodLabel(period.period))
-            .font(.subheadline)
-            .foregroundStyle(Theme.textPrimary)
-          Spacer()
-          VStack(alignment: .trailing, spacing: 2) {
-            Text(MoneyCodec.displayString(for: period.netWorth, currencyFormat: model.currencyFormat))
-              .font(.subheadline.weight(.medium))
-              .monospacedDigit()
-              .foregroundStyle(Theme.textPrimary)
-            if let delta {
-              Text(MoneyCodec.signedDisplayString(for: delta, currencyFormat: model.currencyFormat))
-                .font(.caption)
-                .monospacedDigit()
-                .foregroundStyle(Theme.amountColour(delta))
-            }
-          }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
+        historyRow(period, delta: deltas[index], largestDelta: largestDelta)
         if index < periods.count - 1 {
           Divider().padding(.leading, 16)
         }
@@ -859,20 +1109,84 @@ struct NetWorthDetailView: View {
     .ynabCard()
   }
 
+  /// Period over a meter of its change against the window's largest, so
+  /// the strong and weak months stand out down the list.
+  private func historyRow(_ period: NetWorthPeriod, delta: Int?, largestDelta: Int) -> some View {
+    let heading = NetWorthMaths.historyTitle(period, interval: reportInterval)
+    // The note holds together, so a tight row breaks before the dot
+    // ("October 2026" over "· to 23 Oct") rather than inside it.
+    let note = heading.note.map { " ·\u{00A0}" + $0.replacingOccurrences(of: " ", with: "\u{00A0}") }
+    let title = VStack(alignment: .leading, spacing: 6) {
+      (Text(heading.title).foregroundStyle(Theme.textPrimary)
+        + Text(note ?? "").foregroundStyle(.secondary))
+        .font(.subheadline)
+      if let delta, delta != 0 {
+        ShareMeter(
+          fraction: NetWorthMaths.meterFraction(delta, largest: largestDelta),
+          colour: delta < 0 ? Theme.outflow : Theme.inflow
+        )
+        .frame(maxWidth: 120, alignment: .leading)
+        .frame(height: 6)
+      }
+    }
+    let figures = VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
+      Text(MoneyCodec.displayString(for: period.netWorth, currencyFormat: model.currencyFormat))
+        .font(.subheadline.weight(.medium))
+        .monospacedDigit()
+        .foregroundStyle(Theme.textPrimary)
+      if let delta {
+        Text(MoneyCodec.signedDisplayString(for: delta, currencyFormat: model.currencyFormat))
+          .font(.caption)
+          .monospacedDigit()
+          .foregroundStyle(Theme.signedReportColour(delta))
+      }
+    }
+    return Group {
+      if dynamicTypeSize.isAccessibilitySize {
+        VStack(alignment: .leading, spacing: 4) {
+          title
+          figures
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      } else {
+        HStack {
+          title
+            .layoutPriority(1)
+          Spacer()
+          figures
+            .fixedSize()
+            .layoutPriority(1)
+        }
+      }
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 11)
+    .accessibilityElement(children: .combine)
+  }
+
   private func fetch() async {
     let token = fetchGate.begin()
+    // What this request asks for, kept with its report: the chips can move
+    // again before the reply lands.
+    let requestedInterval = interval
+    let requestedScope = scope
     phase = .loading
     do {
       let next = try await model.apiClient.fetchNetWorth(
         planID: model.settings.planID,
         from: range.fromISO,
-        to: range.toISO,
-        interval: interval,
-        accountIDs: Array(scope.accountIDs)
+        // All Time sends no end date; the server would fill in today in UTC,
+        // which in Singapore is yesterday until 8am.
+        to: range.toISO ?? Date.now.isoDateString,
+        interval: requestedInterval,
+        accountIDs: Array(requestedScope.accountIDs),
+        includeClosedAccounts: true
       )
       guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
         report = next
+        reportInterval = requestedInterval
+        reportScoped = !requestedScope.accountIDs.isEmpty
         phase = .loaded
       }
     } catch {
@@ -888,42 +1202,88 @@ struct NetWorthDetailView: View {
 }
 
 struct IncomeVsSpendingDetailView: View {
+  /// A report with the window it was fetched for. The rows are zero-filled
+  /// against these, never against the filter bar's current values, so a
+  /// change of interval or range does not re-slice the old report with the
+  /// new keys while the refetch runs.
+  private struct Loaded {
+    var report: IncomeVsSpendingReport
+    var interval: ReportInterval
+    var from: String?
+    var to: String?
+    var scope: ReportScope
+    /// The `fetchKey` this was fetched under.
+    var key: String
+
+    /// Chronological, zero-filled rows.
+    var rows: [IncomeVsSpendingMaths.PeriodRow] {
+      IncomeVsSpendingMaths.zeroFill(periods: report.periods, interval: interval, from: from, to: to)
+    }
+  }
+
   @Environment(AppModel.self) private var model
   @State private var range = ReportRange(mode: .preset, preset: .yearToDate)
   @State private var scope = ReportScope()
   @State private var interval: ReportInterval = .month
-  @State private var report: IncomeVsSpendingReport?
+  @State private var loaded: Loaded?
   @State private var phase: LoadPhase = .idle
   @State private var fetchGate = ReportFetchGate()
 
+  /// Day and week groupings are only offered for windows short enough to
+  /// read; a longer window falls back to the finest grouping it allows.
+  private var intervalChoices: [ReportInterval] {
+    IncomeVsSpendingMaths.allowedIntervals(from: range.fromISO, to: range.toISO)
+  }
+
+  /// `interval` is committed to the fallback in `onChange(of: intervalChoices)`;
+  /// this covers the render in between so the fetch never asks for a grouping
+  /// the window does not offer.
+  private var effectiveInterval: ReportInterval {
+    IncomeVsSpendingMaths.effectiveInterval(interval, allowed: intervalChoices)
+  }
+
+  private var fetchKey: String {
+    range.key + "|" + scope.key + "|" + effectiveInterval.rawValue
+  }
+
   var body: some View {
-    let filled = report.map { displayRows(report: $0) } ?? []
+    let chronological = loaded?.rows ?? []
+    let filled = Array(chronological.reversed())
+    let barScale = IncomeVsSpendingMaths.barScale(rows: chronological)
+    let shownInterval = loaded?.interval ?? effectiveInterval
     let sections = IncomeVsSpendingMaths.yearSections(rows: filled)
-    let showYears = Set(sections.map(\.year)).count > 1
+    // Year rows already name their year; a header above each would repeat it.
+    let showYears = shownInterval != .year && Set(sections.map(\.year)).count > 1
+    // Dim only while a different window loads. The silent refetch on
+    // reappearing (same key) keeps the screen as it is.
+    let stale = phase == .loading && loaded != nil && loaded?.key != fetchKey
+    let settled = phase != .loading || loaded?.key == fetchKey
     ScrollView {
       LazyVStack(alignment: .leading, spacing: 16, pinnedViews: showYears ? [.sectionHeaders] : []) {
         ReportFilterBar(
           range: $range,
           interval: $interval,
-          intervalChoices: [.day, .week, .month, .year],
+          intervalChoices: intervalChoices,
           scope: $scope,
           showsCategories: true
         )
 
-        if let report, !report.periods.isEmpty {
-          totalsCard(report: report)
+        if let loaded, !loaded.report.periods.isEmpty {
+          // While a new window loads, the last one stays readable but dimmed;
+          // its rows still describe the window they were fetched for.
+          dimmed(totalsCard(loaded, chronological: chronological), stale)
           if showYears {
             ForEach(sections) { section in
               Section {
-                periodList(section.rows, allRows: filled)
+                dimmed(periodList(section.rows, allRows: filled, interval: shownInterval, scope: loaded.scope, barScale: barScale), stale)
               } header: {
-                yearHeader(section)
+                yearHeader(section, stale: stale)
               }
             }
           } else {
-            periodList(filled, allRows: filled)
+            dimmed(periodList(filled, allRows: filled, interval: shownInterval, scope: loaded.scope, barScale: barScale), stale)
           }
-        } else if report != nil, phase != .loading {
+        } else if loaded != nil, settled {
           ReflectMaths.emptyRange(title: "No Income or Spending", systemImage: "chart.bar")
         } else {
           PhasePlaceholder(phase: phase) {
@@ -937,32 +1297,73 @@ struct IncomeVsSpendingDetailView: View {
     .background(Theme.canvas)
     .navigationTitle("Income vs Spending")
     .navigationBarTitleDisplayMode(.inline)
-    .task(id: range.key + "|" + scope.key + "|" + interval.rawValue) {
+    .toolbar {
+      ToolbarItem(placement: .topBarTrailing) {
+        IncomeVsSpendingInfoButton()
+      }
+    }
+    .task(id: fetchKey) {
       await fetch()
+    }
+    // A grouping the new window cannot show falls back for good, so the chip
+    // and the stored choice agree and the old choice does not come back by
+    // surprise when the window shrinks again.
+    .onChange(of: intervalChoices) { _, choices in
+      if !choices.contains(interval) {
+        interval = IncomeVsSpendingMaths.effectiveInterval(interval, allowed: choices)
+      }
     }
   }
 
-  private func totalsCard(report: IncomeVsSpendingReport) -> some View {
-    let income = report.periods.map(\.income).saturatingSum()
-    let spending = report.periods.map { abs($0.spending) }.saturatingSum()
+  private func totalsCard(_ loaded: Loaded, chronological: [IncomeVsSpendingMaths.PeriodRow]) -> some View {
+    let income = loaded.report.periods.map(\.income).saturatingSum()
+    let spending = loaded.report.periods.map { abs($0.spending) }.saturatingSum()
     let net = income - spending
     let saved = IncomeVsSpendingMaths.savingsRateLabel(net: net, income: income)
+    var stats = [
+      ReportStatRow.Stat(
+        label: "Income",
+        value: MoneyCodec.displayString(for: income, currencyFormat: model.currencyFormat),
+        colour: income == 0 ? .secondary : Theme.inflow
+      ),
+      ReportStatRow.Stat(
+        label: "Spending",
+        value: MoneyCodec.displayString(for: spending, currencyFormat: model.currencyFormat),
+        colour: spending == 0 ? .secondary : Theme.outflow
+      ),
+      ReportStatRow.Stat(
+        label: "Net",
+        value: MoneyCodec.signedDisplayString(for: net, currencyFormat: model.currencyFormat),
+        colour: Theme.signedReportColour(net)
+      ),
+    ]
+    // Under a category filter "income" is only that category's refunds, so
+    // the ratio says nothing; the filter chips say what the figures cover.
+    if loaded.scope.categoryIDs.isEmpty {
+      stats.append(ReportStatRow.Stat(
+        label: "Savings rate",
+        value: saved,
+        colour: saved == "—" ? .secondary : Theme.signedReportColour(net)
+      ))
+    }
 
-    return VStack(spacing: 12) {
-      HStack {
-        statColumn("Income", MoneyCodec.displayString(for: income, currencyFormat: model.currencyFormat), colour: Theme.inflow)
-        Spacer()
-        statColumn("Spending", MoneyCodec.displayString(for: spending, currencyFormat: model.currencyFormat), colour: Theme.outflow)
-        Spacer()
-        statColumn("Net", MoneyCodec.signedDisplayString(for: net, currencyFormat: model.currencyFormat), colour: Theme.signedReportColour(net))
-        Spacer()
-        statColumn("Savings Rate", saved, colour: saved == "—" ? .secondary : Theme.amountColour(net))
-      }
+    return VStack(alignment: .leading, spacing: 12) {
+      ReportStatRow(stats: stats)
 
+      // The chart reads the zero-filled rows so an empty month keeps its
+      // place on the axis instead of the neighbours closing over it.
+      // Days and weeks are labelled by their dates, as the rows are, not
+      // by week number or a date that no column is wide enough for.
+      let labels = loaded.interval == .week || loaded.interval == .day
+        ? IncomeVsSpendingMaths.startDayAxisLabels(rows: chronological)
+        : LedgerDate.periodAxisLabels(chronological.map(\.period))
+      let names = loaded.interval == .week
+        ? chronological.map { IncomeVsSpendingMaths.spanLabel(from: $0.from, to: $0.to) }
+        : chronological.map { LedgerDate.spokenPeriodLabel($0.period) }
       PairedColumnChart(
-        pairs: report.periods.map { (Double($0.income), Double(abs($0.spending))) },
-        labels: LedgerDate.periodAxisLabels(report.periods.map(\.period)),
-        voice: .money("Income and spending", periods: report.periods.map(\.period), currencyFormat: model.currencyFormat),
+        pairs: chronological.map { (Double($0.income), Double(abs($0.spending))) },
+        labels: labels,
+        voice: .money("Income and spending", periodNames: names, currencyFormat: model.currencyFormat),
         height: 120
       )
       HStack(spacing: 16) {
@@ -974,18 +1375,7 @@ struct IncomeVsSpendingDetailView: View {
     .ynabCard()
   }
 
-  private func displayRows(report: IncomeVsSpendingReport) -> [IncomeVsSpendingMaths.PeriodRow] {
-    Array(
-      IncomeVsSpendingMaths.zeroFill(
-        periods: report.periods,
-        interval: interval,
-        from: range.fromISO,
-        to: range.toISO
-      ).reversed()
-    )
-  }
-
-  private func yearHeader(_ section: IncomeVsSpendingMaths.YearSection) -> some View {
+  private func yearHeader(_ section: IncomeVsSpendingMaths.YearSection, stale: Bool) -> some View {
     HStack {
       Text(section.year)
       Spacer()
@@ -995,15 +1385,25 @@ struct IncomeVsSpendingDetailView: View {
     }
     .font(.footnote.weight(.semibold))
     .foregroundStyle(Theme.textPrimary)
+    // The text dims with the rows it heads; the canvas stays opaque so the
+    // pinned header still covers what scrolls under it.
+    .opacity(stale ? 0.55 : 1)
+    .animation(Theme.Motion.standard, value: stale)
     .padding(.horizontal, 4)
     .padding(.vertical, 6)
     .background(Theme.canvas)
   }
 
-  private func periodList(_ rows: [IncomeVsSpendingMaths.PeriodRow], allRows: [IncomeVsSpendingMaths.PeriodRow]) -> some View {
+  private func periodList(
+    _ rows: [IncomeVsSpendingMaths.PeriodRow],
+    allRows: [IncomeVsSpendingMaths.PeriodRow],
+    interval: ReportInterval,
+    scope: ReportScope,
+    barScale: Int
+  ) -> some View {
     VStack(spacing: 0) {
       ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
-        periodRow(row, allRows: allRows)
+        periodRow(row, allRows: allRows, interval: interval, scope: scope, barScale: barScale)
         if index < rows.count - 1 {
           Divider()
         }
@@ -1013,25 +1413,31 @@ struct IncomeVsSpendingDetailView: View {
   }
 
   @ViewBuilder
-  private func periodRow(_ row: IncomeVsSpendingMaths.PeriodRow, allRows: [IncomeVsSpendingMaths.PeriodRow]) -> some View {
+  private func periodRow(
+    _ row: IncomeVsSpendingMaths.PeriodRow,
+    allRows: [IncomeVsSpendingMaths.PeriodRow],
+    interval: ReportInterval,
+    scope: ReportScope,
+    barScale: Int
+  ) -> some View {
     if row.isEmpty {
-      emptyPeriodRow(row)
+      emptyPeriodRow(row, interval: interval)
     } else {
       IncomeVsSpendingPeriodRow(
         row: row,
         interval: interval,
         allRows: allRows,
+        barScale: barScale,
         scope: scope,
         currencyFormat: model.currencyFormat
       )
     }
   }
 
-  private func emptyPeriodRow(_ row: IncomeVsSpendingMaths.PeriodRow) -> some View {
-    let today = Date.now.isoDateString
-    let current = IncomeVsSpendingMaths.isCurrentPeriod(row.period, interval: interval, today: today)
+  private func emptyPeriodRow(_ row: IncomeVsSpendingMaths.PeriodRow, interval: ReportInterval) -> some View {
+    let title = IncomeVsSpendingMaths.periodTitle(row, interval: interval, today: Date.now.isoDateString)
     return HStack {
-      Text(periodTitle(row.period, current: current))
+      Text(title.display)
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(.secondary)
       Spacer()
@@ -1041,25 +1447,8 @@ struct IncomeVsSpendingDetailView: View {
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 10)
-  }
-
-  private func periodTitle(_ period: String, current: Bool) -> String {
-    let label = LedgerDate.periodLabel(period)
-    return current ? "\(label) · so far" : label
-  }
-
-  private func statColumn(_ label: String, _ value: String, colour: Color) -> some View {
-    VStack(spacing: 2) {
-      Text(label)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      Text(value)
-        .font(.footnote.weight(.semibold))
-        .monospacedDigit()
-        .foregroundStyle(colour)
-        .lineLimit(1)
-        .minimumScaleFactor(0.8)
-    }
+    .accessibilityElement(children: .ignore)
+    .accessibilityLabel("\(title.spoken), no activity")
   }
 
   private func legendDot(colour: Color, label: String) -> some View {
@@ -1073,29 +1462,44 @@ struct IncomeVsSpendingDetailView: View {
     }
   }
 
+  private func dimmed<Content: View>(_ content: Content, _ stale: Bool) -> some View {
+    content
+      .opacity(stale ? 0.55 : 1)
+      .disabled(stale)
+      .animation(Theme.Motion.standard, value: stale)
+  }
+
   private func fetch() async {
     let token = fetchGate.begin()
     phase = .loading
+    let interval = effectiveInterval
+    let from = range.fromISO
+    let to = range.toISO
+    let scope = self.scope
+    let key = fetchKey
     do {
       let next = try await model.apiClient.fetchIncomeVsSpending(
         planID: model.settings.planID,
-        from: range.fromISO,
-        to: range.toISO,
+        from: from,
+        to: to,
         interval: interval,
         accountIDs: Array(scope.accountIDs),
         categoryIDs: Array(scope.categoryIDs)
       )
       guard fetchGate.mayCommit(token) else { return }
       withAnimation(Theme.Motion.arrive) {
-        report = next
+        loaded = Loaded(report: next, interval: interval, from: from, to: to, scope: scope, key: key)
         phase = .loaded
       }
     } catch {
       guard fetchGate.mayCommit(token) else { return }
       // Drop the previous window's figures so they never sit under the new
-      // filter chips; the placeholder offers Retry instead.
+      // filter chips; the placeholder offers Retry instead. A failed refetch
+      // of the same window keeps what is on screen, which is still right.
       withAnimation(Theme.Motion.arrive) {
-        report = nil
+        if loaded?.key != key {
+          loaded = nil
+        }
         phase = .failed(error.localizedDescription)
       }
     }

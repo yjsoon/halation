@@ -202,6 +202,8 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const [authMode, setAuthMode] = useState<"checking" | SignedOutMode | "ready">("checking");
   const [bootstrapRequired, setBootstrapRequired] = useState(true);
   const [generation, setGeneration] = useState(0);
+  const sessionEndedRef = useRef(false);
+  const cancelBootstrapRef = useRef<() => void>(() => {});
   const accountPreferencesControllerRef = useRef<{
     key: string;
     planId: string;
@@ -215,20 +217,30 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const reload = useCallback(() => setGeneration((number) => number + 1), []);
 
   const signOut = useCallback(async () => {
-    await api.logout();
-    accountPreferencesControllerRef.current?.controller.detach();
-    accountPreferencesControllerRef.current = null;
-    // The next person to sign in here should inherit neither this hint nor
-    // any of this user's cached ledger data.
-    savePrefs({ planId: undefined, sessionExpiresAt: undefined });
-    clearReferenceCache();
-    setValue(null);
-    setError(null);
-    setAuthMode("login");
+    // Invalidate synchronously: a response received before logout can finish
+    // after it, even though the server has already revoked the session.
+    sessionEndedRef.current = true;
+    cancelBootstrapRef.current();
+    try {
+      await api.logout();
+    } finally {
+      cancelBootstrapRef.current();
+      accountPreferencesControllerRef.current?.controller.detach();
+      accountPreferencesControllerRef.current = null;
+      // The next person to sign in here should inherit neither this hint nor
+      // any of this user's cached ledger data, even if revocation failed.
+      savePrefs({ planId: undefined, sessionExpiresAt: undefined });
+      clearReferenceCache();
+      setValue(null);
+      setError(null);
+      setAuthMode("login");
+    }
   }, []);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
+      sessionEndedRef.current = true;
+      cancelBootstrapRef.current();
       accountPreferencesControllerRef.current?.controller.detach();
       accountPreferencesControllerRef.current = null;
       savePrefs({ planId: undefined, sessionExpiresAt: undefined });
@@ -258,7 +270,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (sessionEndedRef.current) return;
     let cancelled = false;
+    cancelBootstrapRef.current = () => { cancelled = true; };
     (async () => {
       try {
         // The session check, the plans list and - when a plan is remembered -
@@ -323,6 +337,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         savePrefs({ sessionExpiresAt: status.session_expires_at ?? undefined });
         const session = decideSession(status);
         if (session.kind === "signed-out") {
+          sessionEndedRef.current = true;
           // The sign-in form goes up now. Whatever the two speculative calls
           // return is never awaited, never read, and never reaches state. The
           // cache goes with it: nobody is signed in, so there is no session
@@ -500,6 +515,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       } catch (cause) {
         if (!cancelled) {
           if (cause instanceof ApiError && cause.status === 401) {
+            sessionEndedRef.current = true;
             // The same teardown as `onUnauthorized` and `signOut`. A 401
             // raised here — a speculative call deciding its own, or a read
             // after the session went — ends the session just as surely, so it
@@ -536,6 +552,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         bootstrapRequired={bootstrapRequired}
         error={error}
         onSuccess={() => {
+          sessionEndedRef.current = false;
           setError(null);
           setAuthMode("checking");
           setGeneration((number) => number + 1);

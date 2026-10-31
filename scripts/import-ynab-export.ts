@@ -135,10 +135,15 @@ function readYnabExportZip(zipPath: string): { registerCsv: string; planCsv?: st
 }
 
 function unzip(args: string[]): string {
+  // Each of the two CSV members is capped, bounding their combined output to
+  // 64 MiB. The listing is capped too; compressed size is not a safe bound.
+  const maxBytes = 32 * 1024 * 1024;
   const result = Bun.spawnSync(["unzip", ...args], {
     stdout: "pipe",
     stderr: "pipe",
+    maxBuffer: maxBytes,
   });
+  if (result.stdout.byteLength >= maxBytes) throw new Error("YNAB zip member exceeds the 32 MiB decompressed limit");
   if (!result.success) {
     throw new Error(`unzip failed: ${result.stderr.toString().trim()}`);
   }

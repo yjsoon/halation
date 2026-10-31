@@ -182,6 +182,89 @@ final class OutboxPlannerTests: XCTestCase {
     XCTAssertEqual(queue.map(\.kind), [.update(request(amount: -5_000, cleared: .cleared))])
   }
 
+  func testClearingConfirmsAMarkerAQueuedEditSet() {
+    let base = row(cleared: .uncleared)
+    var marked = request()
+    marked.needsConfirmation = true
+    let queue = enqueueAll([
+      command(.update(marked), base: base),
+      command(.cleared(expected: .uncleared, cleared: .cleared, approve: false), base: base),
+    ])
+    var expected = request(cleared: .cleared)
+    expected.needsConfirmation = false
+    XCTAssertEqual(queue.map(\.kind), [.update(expected)], "sent apart, the toggle would confirm it on the server")
+  }
+
+  func testALaterEditKeepsAQueuedMarker() {
+    var marked = request(amount: -2_000)
+    marked.needsConfirmation = true
+    let queue = enqueueAll([
+      command(.update(marked), base: row()),
+      command(.update(request(amount: -3_000)), base: row()),
+    ])
+    var expected = request(amount: -3_000)
+    expected.needsConfirmation = true
+    XCTAssertEqual(queue.map(\.kind), [.update(expected)])
+  }
+
+  func testConfirmSendsOnlyTheMarkerUnlessItFoldsIntoAnEdit() {
+    XCTAssertEqual(enqueueAll([command(.approve), command(.confirm(approve: false))]).map(\.kind), [.confirm(approve: true)])
+    var expected = request(amount: -2_000)
+    expected.needsConfirmation = false
+    XCTAssertEqual(
+      enqueueAll([command(.update(request(amount: -2_000))), command(.confirm(approve: false))]).map(\.kind),
+      [.update(expected)]
+    )
+  }
+
+  func testADeleteReplacesEverythingQueuedForTheRow() {
+    let base = row(approved: false)
+    let queue = enqueueAll([
+      command(.approve, base: base),
+      command(.confirm(approve: false), base: base),
+      command(.cleared(expected: .uncleared, cleared: .cleared, approve: false), base: base),
+      command(.delete(expectedApproved: nil), base: base),
+    ])
+    XCTAssertEqual(queue.map(\.kind), [.delete(expectedApproved: false)], "guarded against the server's row, with nothing sent first")
+  }
+
+  func testAConfirmWithAFoldedApprovalGoesOnAsTheBatchApprove() {
+    XCTAssertEqual(OutboxPlanner.action(for: .confirm(approve: true), result: .succeeded), .continueAs(.approve))
+    XCTAssertEqual(OutboxPlanner.action(for: .confirm(approve: false), result: .succeeded), .complete)
+  }
+
+  func testUndoingAClearingToggleKeepsAQueuedConfirm() {
+    let queue = enqueueAll([
+      command(.confirm(approve: false)),
+      command(.cleared(expected: .uncleared, cleared: .cleared, approve: false)),
+      command(.cleared(expected: .cleared, cleared: .uncleared, approve: false)),
+    ])
+    XCTAssertEqual(queue.map(\.kind), [.confirm(approve: false)])
+  }
+
+  func testConfirmQueuesBehindAnUnclearingToggle() {
+    let queue = enqueueAll([
+      command(.cleared(expected: .cleared, cleared: .uncleared, approve: false)),
+      command(.confirm(approve: false)),
+    ])
+    XCTAssertEqual(queue.map(\.kind), [.cleared(expected: .cleared, cleared: .uncleared, approve: false), .confirm(approve: false)])
+    XCTAssertEqual(OutboxPlanner.plan(queue).deferred.map(\.kind), [.confirm(approve: false)], "one write per row per pass")
+  }
+
+  func testAnEditThatClearsSendsTheMarkerItKept() {
+    var estimated = row(cleared: .uncleared)
+    estimated.needsConfirmation = true
+    var draft = TransactionDraft(transaction: estimated)
+    XCTAssertNil(draft.writeRequest(includeCleared: false).needsConfirmation, "untouched, the edit leaves it alone")
+    draft.isCleared = true
+    XCTAssertEqual(
+      draft.writeRequest(includeCleared: draft.shouldWriteCleared).needsConfirmation, true,
+      "kept on while clearing, it must be explicit or the server confirms it"
+    )
+    draft.needsConfirmation = false
+    XCTAssertEqual(draft.writeRequest(includeCleared: false).needsConfirmation, false)
+  }
+
   func testClearedToggledBackIsRemoved() {
     let base = row(cleared: .uncleared)
     let queue = enqueueAll([
@@ -312,13 +395,14 @@ final class OutboxPlannerTests: XCTestCase {
         let id = rows.randomElement(using: &generator)!
         let base = row(id, cleared: Bool.random(using: &generator) ? .cleared : .uncleared)
         let kind: OutboxCommand.Kind
-        switch Int.random(in: 0..<5, using: &generator) {
+        switch Int.random(in: 0..<6, using: &generator) {
         case 0: kind = .create(request(amount: Int.random(in: -9...9, using: &generator)))
         case 1: kind = .update(request(amount: Int.random(in: -9...9, using: &generator)))
         case 2:
           let flip = Bool.random(using: &generator)
           kind = .cleared(expected: flip ? .cleared : .uncleared, cleared: flip ? .uncleared : .cleared, approve: false)
         case 3: kind = .approve
+        case 4: kind = .confirm(approve: false)
         default: kind = .delete(expectedApproved: nil)
         }
         queue = OutboxPlanner.enqueue(command(kind, id: id, base: base), onto: queue)
@@ -339,8 +423,12 @@ final class OutboxPlannerTests: XCTestCase {
           inFlightSeen[command.id] = command
         }
         for id in rows {
+          // One queued command per row, plus at most one confirm waiting
+          // beside a cleared toggle.
           let waiting = queue.filter { $0.transactionID == id && !$0.isInFlight }
-          XCTAssertLessThanOrEqual(waiting.count, 1, "row \(id) has \(waiting.count) queued commands")
+          let confirms = waiting.filter(\.kind.isConfirm)
+          XCTAssertLessThanOrEqual(waiting.count - confirms.count, 1, "row \(id) has \(waiting.count) queued commands")
+          XCTAssertLessThanOrEqual(confirms.count, 1, "row \(id) has \(confirms.count) queued confirms")
         }
         XCTAssertEqual(Set(queue.map(\.id)).count, queue.count)
       }

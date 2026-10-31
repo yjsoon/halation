@@ -1262,6 +1262,14 @@ final class CaptureSession: Identifiable {
     turn: CaptureInterpretedTurn,
     changes: [CaptureMappedChange]
   ) -> PreparedUpdates? {
+    let targetsSavedCard = drafts.contains { item in
+      item.committed && (turn.applyToAllDrafts || changes.contains { change in
+        change.targetDraftID == item.id || (change.targetDraftID == nil && drafts.count == 1)
+      })
+    }
+    if targetsSavedCard {
+      return .clarification("That transaction is already saved. Open it in the register to make changes.", shouldHold: false)
+    }
     if turn.applyToAllDrafts {
       var assignments: [(index: Int, change: CaptureMappedChange)] = []
       var splitWarning: String?

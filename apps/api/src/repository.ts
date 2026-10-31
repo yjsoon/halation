@@ -66,6 +66,8 @@ import {
 } from "./category-management";
 import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
 import { cardFlagNames, flagNameForColour } from "./rewards/flag-names";
+import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, CLAIMED_TYPE, TO_CLAIM_TYPE, claimParams, nextClaim, normaliseFollowUpEdit, normaliseFollowUpWords, transferClaim, type TransferClaim } from "./transaction-claim";
+import { CLEARED_CONFIRMS_SQL, NEEDS_CONFIRMATION_CONFLICT_SQL, NEEDS_CONFIRMATION_INSERT_SQL, NEEDS_CONFIRMATION_TYPE, needsConfirmationParam, nextNeedsConfirmation } from "./transaction-confirmation";
 import type { CreditCard } from "./rewards/types";
 import {
   PLAN_NOT_EMPTY_CONDITION,
@@ -238,8 +240,8 @@ export class LedgerRepository {
          SET name = ?,
              first_month = ?,
              last_month = ?,
-             date_format_json = ?,
-             currency_format_json = ?,
+             date_format_json = COALESCE(?, date_format_json),
+             currency_format_json = COALESCE(?, currency_format_json),
              flag_names_json = ?,
              external_ynab_id = ?,
              deleted = ?,
@@ -250,8 +252,8 @@ export class LedgerRepository {
         plan.name ?? existing.name,
         plan.first_month ?? existing.first_month,
         plan.last_month ?? existing.last_month,
-        JSON.stringify(settings?.date_format ?? JSON.parse(existing.date_format_json)),
-        JSON.stringify(settings?.currency_format ?? JSON.parse(existing.currency_format_json)),
+        settings?.date_format == null ? null : JSON.stringify(settings.date_format),
+        settings?.currency_format == null ? null : JSON.stringify(settings.currency_format),
         JSON.stringify(settings?.display?.flag_names ?? JSON.parse(existing.flag_names_json)),
         plan.id ?? existing.external_ynab_id ?? planId,
         bool(plan.deleted),
@@ -387,10 +389,11 @@ export class LedgerRepository {
         // (YNAB imports write accounts before payees). Leave it alone.
         return null;
       }
+      if (byId.plan_id !== planId) throw new ValidationError("Transfer payee belongs to another plan");
       if (byId.transfer_account_id == null) {
         await this.db
-          .query("UPDATE payees SET transfer_account_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-          .run(accountId, byId.id);
+          .query("UPDATE payees SET transfer_account_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?")
+          .run(accountId, byId.id, planId);
         byId.transfer_account_id = accountId;
       }
       payee = byId;
@@ -405,8 +408,8 @@ export class LedgerRepository {
       payee = await this.db.query("SELECT * FROM payees WHERE id = ?").get(payeeId) as Row;
     } else if (payee.name !== expectedName && String(payee.name ?? "").startsWith("Transfer : ")) {
       await this.db
-        .query("UPDATE payees SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-        .run(expectedName, payee.id);
+        .query("UPDATE payees SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?")
+        .run(expectedName, payee.id, planId);
       payee.name = expectedName;
     }
 
@@ -421,6 +424,9 @@ export class LedgerRepository {
   async upsertAccount(planId: string, account: any): Promise<void> {
     await this.ensurePlan(planId);
     await this.assertAccountIdNotInOtherPlan(planId, account.id, "Account belongs to another plan");
+    if (account.transfer_payee_id && await this.db.query("SELECT 1 FROM payees WHERE id = ? AND plan_id <> ?").get(account.transfer_payee_id, planId)) {
+      throw new ValidationError("Transfer payee belongs to another plan");
+    }
     const existing = await this.db.query("SELECT icon FROM accounts WHERE id = ?").get(account.id) as Row | null;
     const presentation = resolveAccountPresentation({
       name: account.name ?? `Account ${account.id}`,
@@ -511,13 +517,15 @@ export class LedgerRepository {
       assignments.push("on_budget = ?");
       values.push(bool(fields.on_budget));
     }
-    await this.db
-      .query(`UPDATE accounts SET ${assignments.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?`)
-      .run(...values, accountId, planId);
-    if (fields.name !== undefined) {
-      await this.ensureTransferPayee(planId, accountId);
-    }
-    await this.touchPlan(planId);
+    await this.db.transaction(async () => {
+      await this.db
+        .query(`UPDATE accounts SET ${assignments.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?`)
+        .run(...values, accountId, planId);
+      if (fields.name !== undefined) {
+        await this.ensureTransferPayee(planId, accountId);
+      }
+      await this.touchPlan(planId);
+    })();
     return this.getAccount(planId, accountId);
   }
 
@@ -646,7 +654,7 @@ export class LedgerRepository {
          VALUES (?,?,?,?,?,?,?)`,
       ).run(auditId, planId, accountId, date, prior, projected, JSON.stringify(ids));
       await this.db.query(
-        "UPDATE transactions SET cleared='reconciled',updated_at=CURRENT_TIMESTAMP WHERE plan_id=? AND account_id=? AND deleted=0 AND cleared='cleared' AND date<=?",
+        "UPDATE transactions SET cleared='reconciled',needs_confirmation=0,updated_at=CURRENT_TIMESTAMP WHERE plan_id=? AND account_id=? AND deleted=0 AND cleared='cleared' AND date<=?",
       ).run(planId, accountId, date);
       await this.recalculateAccount(accountId);
       await this.db.query("UPDATE plans SET server_knowledge=server_knowledge+1,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(planId);
@@ -734,7 +742,7 @@ export class LedgerRepository {
 
   async upsertPayee(planId: string, payee: any): Promise<void> {
     await this.ensurePlan(planId);
-    await this.db
+    const saved = await this.db
       .query(
         `INSERT INTO payees (id, plan_id, name, transfer_account_id, external_ynab_id, deleted, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -743,9 +751,11 @@ export class LedgerRepository {
            transfer_account_id = excluded.transfer_account_id,
            external_ynab_id = excluded.external_ynab_id,
            deleted = excluded.deleted,
-           updated_at = CURRENT_TIMESTAMP`,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE payees.plan_id = excluded.plan_id
+         RETURNING id`,
       )
-      .run(
+      .get(
         payee.id,
         planId,
         payee.name ?? `Payee ${payee.id}`,
@@ -753,6 +763,7 @@ export class LedgerRepository {
         payee.external_ynab_id ?? payee.id,
         bool(payee.deleted),
       );
+    if (!saved) throw new ValidationError("Payee belongs to another plan");
     // Same reason as `upsertAccount`: a renamed or deleted payee must not be
     // servable from a client cache that thinks knowledge has not moved.
     await this.touchPlan(planId);
@@ -805,7 +816,7 @@ export class LedgerRepository {
 
   async upsertCategoryGroup(planId: string, group: any): Promise<void> {
     await this.ensurePlan(planId);
-    await this.db
+    const saved = await this.db
       .query(
         `INSERT INTO category_groups (id, plan_id, name, hidden, internal, external_ynab_id, deleted, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -815,9 +826,11 @@ export class LedgerRepository {
            internal = excluded.internal,
            external_ynab_id = excluded.external_ynab_id,
            deleted = excluded.deleted,
-           updated_at = CURRENT_TIMESTAMP`,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE category_groups.plan_id = excluded.plan_id
+         RETURNING id`,
       )
-      .run(
+      .get(
         group.id,
         planId,
         group.name ?? `Group ${group.id}`,
@@ -826,6 +839,7 @@ export class LedgerRepository {
         group.external_ynab_id ?? group.id,
         bool(group.deleted),
       );
+    if (!saved) throw new ValidationError("Category group belongs to another plan");
   }
 
   async upsertCategory(planId: string, category: any, groupId?: string | null): Promise<void> {
@@ -1009,7 +1023,7 @@ export class LedgerRepository {
         values: [planId],
       },
       {
-        sql: `SELECT id, account_id, date, amount_milli, memo, cleared, approved, flag_color, flag_name, payee_id, payee_name_snapshot, category_id,
+        sql: `SELECT id, account_id, date, amount_milli, memo, cleared, approved, flag_color, flag_name, needs_confirmation, claim_status, claimed_on, payee_id, payee_name_snapshot, category_id,
                 transfer_account_id, transfer_transaction_id, matched_transaction_id, import_id, import_payee_name, import_payee_name_original
               FROM transactions WHERE plan_id = ? AND deleted = 0 ORDER BY id`,
         values: [planId],
@@ -1191,6 +1205,7 @@ export class LedgerRepository {
         categoryName = null;
       }
 
+      const claim = claimParams(input);
       await this.db
         .query(
           `INSERT INTO transactions (
@@ -1198,9 +1213,9 @@ export class LedgerRepository {
              flag_color, flag_name, payee_id, payee_name_snapshot, category_id,
              category_name_snapshot, transfer_account_id, transfer_transaction_id,
              matched_transaction_id, import_id, import_payee_name, import_payee_name_original,
-             source_kind, source_ref, external_ynab_id, deleted, updated_at
+             source_kind, source_ref, external_ynab_id, deleted, needs_confirmation, claim_status, claimed_on, updated_at
            )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${NEEDS_CONFIRMATION_INSERT_SQL}, ${CLAIM_INSERT_SQL}, CURRENT_TIMESTAMP)
            ON CONFLICT(id) DO UPDATE SET
              account_id = excluded.account_id,
              date = excluded.date,
@@ -1224,6 +1239,8 @@ export class LedgerRepository {
              source_ref = excluded.source_ref,
              external_ynab_id = excluded.external_ynab_id,
              deleted = excluded.deleted,
+             ${NEEDS_CONFIRMATION_CONFLICT_SQL},
+             ${CLAIM_CONFLICT_SQL},
              updated_at = CURRENT_TIMESTAMP`,
         )
         .run(
@@ -1251,6 +1268,12 @@ export class LedgerRepository {
           input.source_ref ?? null,
           input.external_ynab_id ?? input.id ?? null,
           bool(input.deleted),
+          needsConfirmationParam(input.needs_confirmation),
+          claim[1],
+          claim[2],
+          needsConfirmationParam(input.needs_confirmation),
+          claim[0],
+          claim[0],
         );
 
       const previousSubs = await this.db
@@ -1377,6 +1400,7 @@ export class LedgerRepository {
           sourceAccountId: input.account_id,
           linkId: transactionId,
           cleared: linkedCleared,
+          claim: transferClaim(input),
         }, plan);
         await this.db
           .query("UPDATE transactions SET transfer_transaction_id = ? WHERE id = ?")
@@ -1391,6 +1415,7 @@ export class LedgerRepository {
           approved: input.approved,
           sourceAccountId: input.account_id,
           accountId: transferAccountId ?? undefined,
+          claim: transferClaim(input),
         }, plan);
       }
 
@@ -1453,8 +1478,8 @@ export class LedgerRepository {
       if (!existing) throw new NotFoundError("Transaction not found");
       if (existing.cleared !== expectedCleared) throw new TransactionStateConflictError();
       await this.db.query(
-        "UPDATE transactions SET cleared=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0 AND cleared=?",
-      ).run(cleared, transactionId, planId, expectedCleared);
+        `UPDATE transactions SET cleared=?,${CLEARED_CONFIRMS_SQL},updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0 AND cleared=?`,
+      ).run(cleared, expectedCleared, cleared, transactionId, planId, expectedCleared);
       plan.accountIdsToRecalculate.add(String(existing.account_id));
       plan.touchedTransactionIds.add(transactionId);
       await this.executeMutationPlan(planId, plan);
@@ -1679,6 +1704,7 @@ export class LedgerRepository {
     if (!existing) {
       throw new NotFoundError("Transaction not found");
     }
+    patch = normaliseFollowUpEdit(existing, patch);
     const existingTransaction = await this.getTransaction(planId, transactionId);
 
     if (existing.cleared === "reconciled" && patch.cleared !== undefined && patch.cleared !== "reconciled") {
@@ -1714,6 +1740,8 @@ export class LedgerRepository {
       approved: patch.approved === undefined ? toBoolean(existing.approved) : patch.approved,
       flag_color: patch.flag_color === undefined ? existing.flag_color : patch.flag_color,
       flag_name: patch.flag_name === undefined ? existing.flag_name : patch.flag_name,
+      needs_confirmation: nextNeedsConfirmation(existing, patch),
+      ...nextClaim(existing, patch),
       transfer_account_id: patch.transfer_account_id === undefined ? existing.transfer_account_id : patch.transfer_account_id,
       transfer_transaction_id:
         patch.transfer_transaction_id === undefined ? existing.transfer_transaction_id : patch.transfer_transaction_id,
@@ -1933,11 +1961,25 @@ export class LedgerRepository {
    * them once, server-side, instead of shipping every row to the client.
    */
   async countUnapprovedTransactions(planId: string, filters: TransactionFilters = {}): Promise<UnapprovedCount> {
+    return this.countTransactionsOfType(planId, filters, "unapproved");
+  }
+
+  /** Size of the to-confirm list, the same rows `?type=needs_confirmation` returns. */
+  async countNeedsConfirmationTransactions(planId: string, filters: TransactionFilters = {}): Promise<UnapprovedCount> {
+    return this.countTransactionsOfType(planId, filters, NEEDS_CONFIRMATION_TYPE);
+  }
+
+  /** Size of the to-claim list, the same rows `?type=to_claim` returns. */
+  async countToClaimTransactions(planId: string, filters: TransactionFilters = {}): Promise<UnapprovedCount> {
+    return this.countTransactionsOfType(planId, filters, TO_CLAIM_TYPE);
+  }
+
+  private async countTransactionsOfType(planId: string, filters: TransactionFilters, type: string): Promise<UnapprovedCount> {
     // `last_knowledge_of_server` would swap "live rows" for "rows changed
     // since", deleted ones included, which does not apply to a badge.
     const { clauses, params } = transactionFilterClauses(planId, {
       ...filters,
-      type: "unapproved",
+      type,
       lastKnowledgeOfServer: null,
     });
     const [knowledgeRows, countRows] = await this.db.batchRead([
@@ -2254,7 +2296,8 @@ export class LedgerRepository {
       ? existing.transaction
       : await this.createTransaction(
         planId,
-        await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId),
+        // A schedule's memo can carry the follow-up words, like any write.
+        normaliseFollowUpWords(await this.prepareScheduledOccurrence(planId, schedule, occurrenceDate, enteredDate, Boolean(options.allowClosedAccount), options.requestOperationId)),
         { autoLink: true, operationId },
       );
     const advanceKind = schedule.frequency === "never" ? "complete" : "advance";
@@ -2333,15 +2376,16 @@ export class LedgerRepository {
     }
 
     let occurrenceCount = 0;
+    let attemptedCount = 0;
     const skippedClosed = new Set<string>();
     const failures = new Set<string>();
 
-    while (occurrenceCount < maximum) {
+    while (attemptedCount < maximum) {
       const schedules = await this.listScheduledTransactions(planId) as EffectiveScheduledTransaction[];
       let progressed = false;
 
       for (const listed of schedules) {
-        if (occurrenceCount >= maximum) break;
+        if (attemptedCount >= maximum) break;
         if (failures.has(listed.id)) continue;
 
         try {
@@ -2356,6 +2400,7 @@ export class LedgerRepository {
             continue;
           }
 
+          attemptedCount += 1;
           const occurrence = await this.materializeScheduledOccurrence(
             planId,
             schedule.id,
@@ -2987,6 +3032,7 @@ export class LedgerRepository {
       cleared?: ClearedState;
       sourceAccountId: string;
       linkId: string;
+      claim?: TransferClaim;
     },
     plan: TransactionMutationPlan,
   ): Promise<string> {
@@ -3015,6 +3061,7 @@ export class LedgerRepository {
         opts.sourceAccountId,
         opts.linkId,
       );
+    if (opts.claim) await this.writeTransferClaim(planId, id, opts.claim);
     plan.accountIdsToRecalculate.add(opts.accountId);
     plan.touchedTransactionIds.add(id);
     return id;
@@ -3031,6 +3078,7 @@ export class LedgerRepository {
       approved?: boolean | null;
       sourceAccountId: string;
       accountId?: string;
+      claim?: TransferClaim;
     },
     plan: TransactionMutationPlan,
   ): Promise<void> {
@@ -3039,6 +3087,7 @@ export class LedgerRepository {
       return;
     }
     const nextAccountId = opts.accountId ?? linked.account_id;
+    await this.requireTransferTarget(planId, opts.sourceAccountId, nextAccountId);
     const payee = await this.ensureTransferPayee(planId, opts.sourceAccountId);
     await this.db
       .query(
@@ -3060,11 +3109,19 @@ export class LedgerRepository {
         linkedTransactionId,
         planId,
       );
+    if (opts.claim) await this.writeTransferClaim(planId, linkedTransactionId, opts.claim);
     plan.accountIdsToRecalculate.add(linked.account_id);
     if (nextAccountId !== linked.account_id) {
       plan.accountIdsToRecalculate.add(nextAccountId);
     }
     plan.touchedTransactionIds.add(linkedTransactionId);
+  }
+
+  /** The claim is the pair's, like the memo: both sides of a transfer hold it. */
+  private async writeTransferClaim(planId: string, id: string, claim: TransferClaim): Promise<void> {
+    await this.db
+      .query("UPDATE transactions SET claim_status = ?, claimed_on = ? WHERE id = ? AND plan_id = ?")
+      .run(claim.claim_status, claim.claimed_on, id, planId);
   }
 
   private async softDeleteLinkedTransaction(
@@ -3358,6 +3415,9 @@ export class LedgerRepository {
       approved: toBoolean(row.approved),
       flag_color: row.flag_color,
       flag_name: row.flag_name,
+      needs_confirmation: toBoolean(row.needs_confirmation),
+      claim_status: row.claim_status ?? null,
+      claimed_on: row.claimed_on ?? null,
       account_id: row.account_id,
       account_name: displayAccountName(row.account_name),
       payee_id: row.payee_id,
@@ -3698,6 +3758,15 @@ function transactionFilterClauses(planId: string, filters: Omit<TransactionFilte
     }
     if (filters.type === "approved") {
       clauses.push("t.approved = 1");
+    }
+    if (filters.type === NEEDS_CONFIRMATION_TYPE) {
+      clauses.push("t.needs_confirmation = 1");
+    }
+    if (filters.type === TO_CLAIM_TYPE) {
+      clauses.push("t.claim_status = 'to_claim'");
+    }
+    if (filters.type === CLAIMED_TYPE) {
+      clauses.push("t.claim_status = 'claimed'");
     }
     if (filters.lastKnowledgeOfServer != null) {
       clauses.push("t.server_knowledge > ?");

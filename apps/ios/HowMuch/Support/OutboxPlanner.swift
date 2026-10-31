@@ -14,8 +14,9 @@ enum OutboxPlanner {
 
   /// Adds `incoming` to `queue`, folding it into the transaction's queued
   /// command when there is one. Keeps at most one command per transaction
-  /// that is not in flight, and never rewrites an in-flight command: a change
-  /// made while one is on the wire queues behind it as a dependent.
+  /// that is not in flight, except that a confirm can wait beside a cleared
+  /// toggle (the two share no body). Never rewrites an in-flight command: a
+  /// change made while one is on the wire queues behind it as a dependent.
   static func enqueue(_ incoming: OutboxCommand, onto queue: [OutboxCommand]) -> [OutboxCommand] {
     let sameRow = queue.filter { $0.rowKey == incoming.rowKey }
     if sameRow.contains(where: { if case .delete = $0.kind { return true }; return false }) {
@@ -28,19 +29,64 @@ enum OutboxPlanner {
     var next = queue
     // An attempted command may already be on the server, so it is treated
     // like one on the wire: never rewritten, never cancelled.
-    guard let index = next.lastIndex(where: {
-      $0.rowKey == incoming.rowKey && !$0.isInFlight && !$0.attempted
-    }) else {
-      var appended = incoming
-      appended.seq = (queue.map(\.seq).max() ?? 0) + 1
-      appended.state = .queued
-      next.append(appended)
-      return next
+    func foldable() -> [Int] {
+      next.indices.filter { next[$0].rowKey == incoming.rowKey && !next[$0].isInFlight && !next[$0].attempted }
+    }
+    if case .delete = incoming.kind {
+      // A delete replaces everything still queued for the row. The earliest
+      // command keeps the server's base, which the delete guards against.
+      let drop = Set(foldable().dropFirst())
+      next = next.indices.filter { !drop.contains($0) }.map { next[$0] }
+    }
+    let candidates = foldable()
+    let confirmIndex = candidates.first(where: { next[$0].kind.isConfirm })
+    let index: Int?
+    if incoming.kind.isConfirm {
+      index = confirmIndex ?? candidates.last
+    } else {
+      index = candidates.last(where: { !next[$0].kind.isConfirm }) ?? candidates.last
+    }
+    guard let index else {
+      return appending(incoming, to: next)
     }
 
     let existing = next[index]
-    guard let kind = merged(existing, incoming) else {
+    // A confirm and a cleared toggle are separate writes with no shared
+    // body; they queue one behind the other, so undoing the toggle cannot
+    // take the confirm with it.
+    if keepsApart(existing.kind, incoming.kind) {
+      return appending(incoming, to: next)
+    }
+    guard var kind = merged(existing, incoming) else {
       next.remove(at: index)
+      return next
+    }
+    // An approval already on its way (in flight, or attempted) lands before
+    // this delete, so guarding against the unapproved base would refuse it.
+    if case .delete = kind,
+       next.contains(where: { $0.rowKey == incoming.rowKey && ($0.isInFlight || $0.attempted) && $0.carriesApproval }) {
+      kind = .delete(expectedApproved: nil)
+    }
+    // An edit folded in beside a waiting confirm takes the confirm with it,
+    // so the two cannot land out of order: the newest say on the marker wins.
+    if let confirmIndex, confirmIndex != index,
+       case .confirm(let approve) = next[confirmIndex].kind,
+       case .update(let request) = kind {
+      let incomingMarker: Bool? = {
+        if case .update(let edit) = incoming.kind { return edit.needsConfirmation }
+        return nil
+      }()
+      let confirmIsNewer = next[confirmIndex].seq > existing.seq
+      let marker = incomingMarker ?? (confirmIsNewer ? false : request.needsConfirmation ?? false)
+      kind = .update(request.replacing(
+        approved: approve ? true : nil,
+        needsConfirmation: .some(marker)
+      ))
+      var folded = existing
+      folded.kind = kind
+      folded.state = .queued
+      next[index] = folded
+      next.remove(at: confirmIndex)
       return next
     }
     var folded = existing
@@ -48,6 +94,23 @@ enum OutboxPlanner {
     folded.state = .queued
     next[index] = folded
     return next
+  }
+
+  private static func appending(_ incoming: OutboxCommand, to queue: [OutboxCommand]) -> [OutboxCommand] {
+    var appended = incoming
+    appended.seq = (queue.map(\.seq).max() ?? 0) + 1
+    appended.state = .queued
+    return queue + [appended]
+  }
+
+  /// A confirm next to a cleared toggle.
+  private static func keepsApart(_ existing: OutboxCommand.Kind, _ incoming: OutboxCommand.Kind) -> Bool {
+    switch (existing, incoming) {
+    case (.cleared, .confirm), (.confirm, .cleared):
+      return true
+    default:
+      return false
+    }
   }
 
   /// The kind the queued command becomes once `incoming` is folded in, or
@@ -67,20 +130,42 @@ enum OutboxPlanner {
     case (.create(let request), .update(let edit)):
       return .create(edit.replacing(
         cleared: .some(edit.cleared ?? request.cleared),
-        importID: .some(request.importID ?? edit.importID)
+        importID: .some(request.importID ?? edit.importID),
+        needsConfirmation: .some(edit.needsConfirmation ?? request.needsConfirmation),
+        claim: edit.claim(over: request)
       ))
     case (.create(let request), .cleared(_, let cleared, let approve)):
-      return .create(request.replacing(cleared: .some(cleared), approved: approve ? true : nil))
+      // Clearing confirms the amount, as it would on the server.
+      let confirms = (request.cleared ?? .uncleared) == .uncleared && cleared != .uncleared
+      return .create(request.replacing(
+        cleared: .some(cleared),
+        approved: approve ? true : nil,
+        needsConfirmation: confirms ? .some(nil) : .none
+      ))
     case (.create(let request), .approve):
       return .create(request.replacing(approved: true))
+    case (.create(let request), .confirm(let approve)):
+      return .create(request.replacing(approved: approve ? true : nil, needsConfirmation: .some(nil)))
 
     case (.update(let request), .update(let edit)):
-      return .update(edit.cleared == nil ? edit.replacing(cleared: .some(request.cleared)) : edit)
-    case (.update(let request), .cleared(_, let cleared, let approve)):
+      let carriedMarker = edit.needsConfirmation ?? request.needsConfirmation
+      return .update(edit.cleared == nil
+        ? edit.replacing(cleared: .some(request.cleared), needsConfirmation: .some(carriedMarker), claim: edit.claim(over: request))
+        : edit.replacing(needsConfirmation: .some(carriedMarker), claim: edit.claim(over: request)))
+    case (.update(let request), .cleared(let expected, let cleared, let approve)):
       let carried: ClearedState? = cleared == base?.cleared ? nil : cleared
-      return .update(request.replacing(cleared: .some(carried), approved: approve ? true : nil))
+      // Clearing confirms the amount, even one the queued edit marked. With
+      // no marker in the edit, the carried status confirms on the server.
+      let confirms = expected == .uncleared && cleared != .uncleared
+      return .update(request.replacing(
+        cleared: .some(carried),
+        approved: approve ? true : nil,
+        needsConfirmation: confirms && request.needsConfirmation != nil ? .some(false) : .none
+      ))
     case (.update(let request), .approve):
       return .update(request.replacing(approved: true))
+    case (.update(let request), .confirm(let approve)):
+      return .update(request.replacing(approved: approve ? true : nil, needsConfirmation: .some(false)))
 
     case (.cleared(let expected, let cleared, let approve), .update(let edit)):
       let carried = edit.cleared ?? (cleared == expected ? nil : cleared)
@@ -92,6 +177,9 @@ enum OutboxPlanner {
       return .cleared(expected: expected, cleared: cleared, approve: approve || alsoApprove)
     case (.cleared(let expected, let cleared, _), .approve):
       return .cleared(expected: expected, cleared: cleared, approve: true)
+    case (.cleared, .confirm), (.confirm, .cleared):
+      // Kept apart by `keepsApart`; never folded.
+      return existing.kind
 
     case (.approve, .update(let edit)):
       return .update(edit.replacing(approved: true))
@@ -99,12 +187,25 @@ enum OutboxPlanner {
       return .cleared(expected: expected, cleared: cleared, approve: true)
     case (.approve, .approve):
       return .approve
+    case (.approve, .confirm):
+      return .confirm(approve: true)
+
+    case (.confirm(let approve), .update(let edit)):
+      return .update(edit.replacing(
+        approved: approve ? true : nil,
+        needsConfirmation: .some(edit.needsConfirmation ?? false)
+      ))
+    case (.confirm, .approve):
+      return .confirm(approve: true)
+    case (.confirm(let approve), .confirm(let alsoApprove)):
+      return .confirm(approve: approve || alsoApprove)
     }
   }
 
   enum Stage: Int, CaseIterable, Comparable {
     case create
     case update
+    case confirm
     case cleared
     case approve
     case delete
@@ -120,7 +221,7 @@ enum OutboxPlanner {
   }
 
   struct Plan: Equatable {
-    /// Non-empty batches in send order: creates, updates, cleared (bulk),
+    /// Non-empty batches in send order: creates, updates, confirms, cleared (bulk),
     /// approve (batch), delete (bulk). Each batch is in queue order.
     let batches: [Batch]
     /// Queued behind an in-flight command for the same row; they go on the
@@ -170,6 +271,7 @@ enum OutboxPlanner {
     switch kind {
     case .create: return .create
     case .update: return .update
+    case .confirm: return .confirm
     case .cleared: return .cleared
     case .approve: return .approve
     case .delete: return .delete
@@ -200,7 +302,12 @@ enum OutboxPlanner {
   static func action(for kind: OutboxCommand.Kind, result: ServerResult) -> Action {
     switch result {
     case .succeeded:
+      // An approval folded into a status change goes on as the batch
+      // approve, which handles linked rows and transfer graphs.
       if case .cleared(_, _, true) = kind {
+        return .continueAs(.approve)
+      }
+      if case .confirm(true) = kind {
         return .continueAs(.approve)
       }
       return .complete
@@ -271,7 +378,7 @@ enum OutboxPlanner {
           after = Shape(request: request, previous: previous, payees: transferAccountIDsByPayeeID)
         case .cleared(_, let cleared, _):
           after?.cleared = cleared
-        case .approve:
+        case .approve, .confirm:
           break
         case .delete:
           after = nil

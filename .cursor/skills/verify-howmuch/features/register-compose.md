@@ -9,6 +9,7 @@ On a register, **+ Add transaction** opens an inline row. The posting account is
 - `compose-save` saves an outflow and shows the new row on that register.
 - `compose-flag` can set a colour on the compose actions row before Save.
 - `compose-add-another` keeps the row open after **Save and add another**.
+- `compose-transfer` on Everyday Account, opening Payee shows a **Transfers** section with `Rainy Day Saver` and `Travel Card`. Choosing one sets the payee to `Transfer : <account>`, the category cell reads Transfer, and Save posts a transfer.
 - `compose-all-accounts` on Ledger (every account) requires an account in the row before Save.
 
 ## How to get to it (user POV)

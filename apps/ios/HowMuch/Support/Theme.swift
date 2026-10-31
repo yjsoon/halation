@@ -99,6 +99,13 @@ enum Theme {
     return inflow.opacity(steps[index % steps.count])
   }
 
+  /// "To confirm" amber, the same ink and wash as the web's `--tone-needs`.
+  static let toConfirm = Color(light: 0x9A5410, dark: 0xF1B566)
+  static let toConfirmWash = Color(light: 0xFBE2C2, dark: 0x46351A)
+
+  /// "To claim" blue, the blue flag's hue.
+  static let toClaim = Color.blue
+
   static func flagColour(named name: String?) -> Color? {
     switch name {
     case "red": .red

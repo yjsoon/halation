@@ -125,6 +125,10 @@ final class AppModel {
   @ObservationIgnored var cardDrainResults: [String: CardDrainResult] = [:]
   private(set) var hasMoreTransactions = false
   private(set) var nextTransactionOffset: Int?
+  /// The oldest date on the plan-wide cursor's latest page: how far back Load
+  /// older has searched. Focused-account fills and unsent edits can hold older
+  /// rows, so the loaded rows' own oldest date would overstate it.
+  private(set) var ledgerCursorOldestDate: String?
   private(set) var isLoadingOlderTransactions = false
   private(set) var isFillingHorizon = false
   /// Nested plan-wide and focused-account fills share the spinner; each push
@@ -268,6 +272,11 @@ final class AppModel {
   /// loaded. Matching values mean a refetch would return what is on screen.
   private var reportsKnowledge: Int?
   private var reportsGenerationAtLastFetch: Int?
+  /// When the reports in force were requested.
+  private var reportsFetchedAt: Date?
+  /// The running report fetch, if any.
+  @ObservationIgnored private var reportsFetchInFlight: (token: Int, generation: Int, task: Task<Bool, Never>)?
+  private var reportsFetchToken = 0
   /// Refresh debouncing: one run at a time, with later requests merged into a
   /// single queued request that runs once the in-flight one finishes.
   @ObservationIgnored private var inFlightRefresh: Task<Void, Never>?
@@ -495,7 +504,10 @@ final class AppModel {
     scheduledTransactions = snapshot.scheduledTransactions
     lastSyncedAccountPreferences = snapshot.accountPreferences
     serverKnowledge = snapshot.serverKnowledge
-    snapshotKnowledge = snapshot.serverKnowledge
+    // An older compatible cache can render offline, but its cursor cannot
+    // validate fields that schema never stored. Apply the first online page.
+    snapshotKnowledge = snapshot.schemaVersion == ReferenceSnapshot.currentSchemaVersion
+      ? snapshot.serverKnowledge : nil
     if let unapprovedCount = snapshot.unapprovedCount {
       serverUnapprovedCount = unapprovedCount
     }
@@ -508,6 +520,7 @@ final class AppModel {
       provisionalLedgerRowIDs = serverTransactions.map(\.id)
       hasMoreTransactions = page.hasMore && page.nextOffset != nil
       nextTransactionOffset = hasMoreTransactions ? page.nextOffset : nil
+      ledgerCursorOldestDate = page.transactions.last?.date
       lastLedgerFirstPage = page
       ledgerIsProvisional = true
       ledgerPhase = .loaded
@@ -646,6 +659,12 @@ final class AppModel {
     ledgerPhase = .idle
     scheduledTransactionsPhase = .idle
     reportsPhase = .idle
+    // A report fetch still running must not land on the signed-out screen.
+    reportsGeneration &+= 1
+    reportsFetchInFlight = nil
+    reportsKnowledge = nil
+    reportsGenerationAtLastFetch = nil
+    reportsFetchedAt = nil
     ledgerPageGeneration += 1
     ledgerReadGeneration &+= 1
     inFlightLedgerReads.removeAll()
@@ -1520,6 +1539,8 @@ final class AppModel {
         action = cleared == .cleared ? "Cleared" : "Uncleared"
       case .approve:
         action = "Approve"
+      case .confirm:
+        action = "Confirm"
       case .delete:
         action = "Delete"
       }
@@ -2186,13 +2207,34 @@ final class AppModel {
   /// refetch when neither the plan cursor nor this device's own writes have
   /// moved since the last successful fetch.
   func refreshReportsIfNeeded(force: Bool = false) async {
+    // A quiet refetch leaves the phase at `.loaded`, and a loud one blocks
+    // the policy with `.loading`, so neither shows a later call whether the
+    // running fetch still answers it. Wait for it, then ask the policy
+    // again: it was stamped when it started, so a write, a day change or
+    // its age since then still earns a fresh fetch.
+    if !force, let running = reportsFetchInFlight {
+      let succeeded = await running.task.value
+      // A failure with nothing changed since would only fail again: leave
+      // the retry to the next appearance, pull or Retry.
+      if !succeeded, running.generation == reportsRefreshGeneration {
+        return
+      }
+      // A caller whose view has gone (Reflect left while it waited) must not
+      // start a fetch nobody will see.
+      guard !Task.isCancelled else {
+        return
+      }
+      await refreshReportsIfNeeded()
+      return
+    }
     guard ReportsRefreshPolicy.shouldFetch(
       phase: reportsPhase,
       force: force,
       lastKnowledge: reportsKnowledge,
       currentKnowledge: serverKnowledge,
       lastMutationGeneration: reportsGenerationAtLastFetch,
-      currentMutationGeneration: reportsRefreshGeneration
+      currentMutationGeneration: reportsRefreshGeneration,
+      lastFetchedAt: reportsFetchedAt
     ) else {
       return
     }
@@ -2200,10 +2242,30 @@ final class AppModel {
     // is in flight must leave the cached reports looking stale.
     let knowledgeAtStart = serverKnowledge
     let generationAtStart = reportsRefreshGeneration
-    if await refreshReflectOverview(quiet: reportsPhase == .loaded) {
-      reportsKnowledge = knowledgeAtStart
-      reportsGenerationAtLastFetch = generationAtStart
+    let startedAt = Date.now
+    // Quiet whenever reports are on screen, so a failed refetch (offline,
+    // say) keeps them up with the stale note instead of flashing a spinner.
+    let quiet = reportsPhase == .loaded || spendingBreakdown != nil
+    reportsFetchToken &+= 1
+    let token = reportsFetchToken
+    // The model owns the fetch, so a caller that goes away (Reflect leaving
+    // the screen) does not cancel it under a later caller waiting on it. It
+    // clears its own record before finishing, so a waiter never finds it.
+    let task = Task { @MainActor [weak self] () -> Bool in
+      guard let self else { return false }
+      let succeeded = await self.refreshReflectOverview(quiet: quiet)
+      if succeeded {
+        self.reportsKnowledge = knowledgeAtStart
+        self.reportsGenerationAtLastFetch = generationAtStart
+        self.reportsFetchedAt = startedAt
+      }
+      if self.reportsFetchInFlight?.token == token {
+        self.reportsFetchInFlight = nil
+      }
+      return succeeded
     }
+    reportsFetchInFlight = (token, generationAtStart, task)
+    _ = await task.value
   }
 
   /// Validates the saved plan against the authenticated plan list before any
@@ -2592,6 +2654,7 @@ final class AppModel {
     acknowledgedBalanceDeltas = []
     hasMoreTransactions = false
     nextTransactionOffset = nil
+    ledgerCursorOldestDate = nil
     isLoadingOlderTransactions = false
     isFillingHorizon = false
     horizonFillCount = 0
@@ -2617,6 +2680,8 @@ final class AppModel {
     serverKnowledge = nil
     reportsKnowledge = nil
     reportsGenerationAtLastFetch = nil
+    reportsFetchedAt = nil
+    reportsFetchInFlight = nil
     queuedRefresh = .none
     // ReflectView's only trigger is `.task(id: reportsRefreshGeneration)`, so
     // without this a plan switch made while Reflect is visible leaves it
@@ -3063,6 +3128,7 @@ final class AppModel {
   private func applyTransactionPageCursor(_ page: TransactionPage) {
     hasMoreTransactions = page.hasMore && page.nextOffset != nil
     nextTransactionOffset = hasMoreTransactions ? page.nextOffset : nil
+    ledgerCursorOldestDate = page.cursorDate
   }
 
   private func applyOlderTransactionPage(_ page: TransactionPage) {
@@ -3097,7 +3163,7 @@ final class AppModel {
     do {
       let now = Date.now
       let monthStart = now.startOfMonth()
-      let yearStart = Calendar.current.date(byAdding: .month, value: -11, to: monthStart) ?? monthStart
+      let yearStart = LedgerDate.gregorian.date(byAdding: .month, value: -11, to: monthStart) ?? monthStart
       let today = now.isoDateString
 
       async let spending = client.fetchSpendingBreakdown(
@@ -3107,7 +3173,8 @@ final class AppModel {
         planID: planID, from: yearStart.isoDateString, to: today, interval: .month
       )
       async let worth = client.fetchNetWorth(
-        planID: planID, from: yearStart.isoDateString, to: today, interval: .month
+        planID: planID, from: yearStart.isoDateString, to: today, interval: .month,
+        includeClosedAccounts: true
       )
       async let age = client.fetchAgeOfMoney(planID: planID, interval: .month)
       async let daily = client.fetchIncomeVsSpending(
@@ -3150,10 +3217,11 @@ final class AppModel {
       else {
         return false
       }
-      // The first fetch now runs from ReflectView's own task, so leaving the
-      // tab cancels it. That is not a failure the reader should be shown, and
+      // A cancelled fetch is not a failure the reader should be shown, and
       // leaving the phase at `.loading` would lock the gate against ever
       // retrying: return it to `.idle` so the next appearance fetches again.
+      // (`refreshReportsIfNeeded` runs it in a task of its own, which nothing
+      // cancels today; this keeps any other caller safe.)
       if Task.isCancelled {
         if reportsPhase == .loading {
           reportsPhase = .idle
@@ -3239,6 +3307,24 @@ final class AppModel {
       ),
     ])
     showSaveMessage(cleared == .cleared ? "Marked transaction cleared" : "Marked transaction uncleared")
+  }
+
+  /// Clears the "To confirm" marker and keeps the amount as it stands. Only
+  /// the marker is sent, so a stale copy cannot overwrite newer fields.
+  func confirmTransactionAmount(_ transaction: Transaction) throws {
+    let current = displayedRow(transaction.id) ?? transaction
+    guard current.isToConfirm else {
+      return
+    }
+    try enqueueOutbox([
+      makeCommand(
+        transactionID: current.id,
+        kind: .confirm(approve: false),
+        base: serverRow(current.id) ?? transaction
+      ),
+    ])
+    let payee = current.payeeName?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    showSaveMessage("\(payee.isEmpty ? "Transaction" : payee) confirmed.")
   }
 
   func deleteTransaction(_ transaction: Transaction) async throws {
@@ -3511,7 +3597,7 @@ final class AppModel {
   private enum WireResult {
     /// The server has what the command asked for; the row when it sent one.
     case done(Transaction?)
-    /// A delete found the row already gone.
+    /// A delete or a confirm found the row already gone.
     case gone
     /// A status change found the row changed underneath; the row as it is.
     case conflict(Transaction?)
@@ -3826,6 +3912,18 @@ final class AppModel {
         }
         return .failed(.status(reply.status, message: reply.message))
 
+      case .confirm:
+        let reply = try await client.outboxConfirm(planID: planID, transactionID: command.transactionID)
+        if reply.isSuccess {
+          return .done(client.outboxTransaction(in: reply))
+        }
+        // Deleted elsewhere: settle it as a delete, which drops anything
+        // else queued for the row and removes it locally.
+        if Self.isTransactionNotFound(reply) {
+          return .gone
+        }
+        return .failed(.status(reply.status, message: reply.message))
+
       case .approve:
         // Sent in batches by `sendApprovals`.
         return .failed(.offline)
@@ -3944,6 +4042,12 @@ final class AppModel {
         tally.editedMovedAccount = true
       case .cleared:
         tally.cleared = true
+      case .confirm:
+        if let existing, existing.isToConfirm {
+          var confirmed = existing
+          confirmed.needsConfirmation = false
+          applyAcknowledgedRow(confirmed, replacing: existing)
+        }
       case .approve, .delete:
         break
       }
@@ -3967,6 +4071,8 @@ final class AppModel {
       applyAcknowledgedRow(row, replacing: existing)
     case .cleared:
       tally.cleared = true
+      applyAcknowledgedRow(row, replacing: existing)
+    case .confirm:
       applyAcknowledgedRow(row, replacing: existing)
     case .approve, .delete:
       break
@@ -4375,7 +4481,8 @@ final class AppModel {
       ),
       hasMore: page.hasMore,
       nextOffset: page.nextOffset,
-      serverKnowledge: page.serverKnowledge
+      serverKnowledge: page.serverKnowledge,
+      cursorDate: page.cursorDate
     )
   }
 

@@ -13,6 +13,11 @@ struct OutboxCommand: Codable, Equatable, Identifiable {
     /// status change lands.
     case cleared(expected: ClearedState, cleared: ClearedState, approve: Bool)
     case approve
+    /// Clears the "To confirm" marker and nothing else, so a stale copy of
+    /// the row cannot overwrite a newer amount or memo. `approve` is true
+    /// when an approval was folded in; it is sent as a follow-up approve
+    /// once the confirm lands.
+    case confirm(approve: Bool)
     /// `expectedApproved` follows the register's convention: `false` guards
     /// an unapproved row, nil sends no guard.
     case delete(expectedApproved: Bool?)
@@ -110,12 +115,20 @@ struct OutboxCommand: Codable, Equatable, Identifiable {
 }
 
 extension TransactionWriteRequest {
+  /// The claim this request carries, or failing that the one `earlier` did:
+  /// a later edit that left the chip alone must not drop an earlier claim.
+  func claim(over earlier: TransactionWriteRequest) -> (status: ClaimWrite?, claimedOn: String?) {
+    claimStatus == nil ? (earlier.claimStatus, earlier.claimedOn) : (claimStatus, claimedOn)
+  }
+
   /// A copy with the status fields swapped. The planner uses it to fold a
   /// cleared toggle or an approval into a queued create or edit.
   func replacing(
     cleared: ClearedState?? = .none,
     approved: Bool? = nil,
-    importID: String?? = .none
+    importID: String?? = .none,
+    needsConfirmation: Bool?? = .none,
+    claim: (status: ClaimWrite?, claimedOn: String?)? = nil
   ) -> TransactionWriteRequest {
     TransactionWriteRequest(
       accountID: accountID,
@@ -130,7 +143,10 @@ extension TransactionWriteRequest {
       flagColor: flagColor,
       subtransactions: subtransactions,
       importID: importID ?? self.importID,
-      id: id
+      id: id,
+      needsConfirmation: needsConfirmation ?? self.needsConfirmation,
+      claimStatus: claim.map(\.status) ?? self.claimStatus,
+      claimedOn: claim.map(\.claimedOn) ?? self.claimedOn
     )
   }
 }

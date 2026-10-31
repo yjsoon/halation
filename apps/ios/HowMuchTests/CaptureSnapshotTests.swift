@@ -227,7 +227,7 @@ final class CaptureSnapshotTests: XCTestCase {
         "the old in-row chat bubble must be gone"
       )
       XCTAssertNil(surface.addTransactionsManualAction(), "Add has no tap-and-hold or extra VoiceOver action")
-      for label in ["Accounts", "Rewards", "Reflect"] {
+      for label in ["Accounts", "Rewards", "Insights"] {
         guard let destination = surface.firstControl(label: label) else {
           XCTFail("root tab missing \(label)")
           continue

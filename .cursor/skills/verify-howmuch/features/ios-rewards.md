@@ -15,7 +15,7 @@ Rewards is a tab. It shows imported Rewards Tracker cards against the HowMuch le
 
 - Choose **Rewards** in the tab bar.
 - From an empty Rewards screen, choose **Add card** or **Rewards import**, or open **More → Settings → Rewards import & export**.
-- Assistant is not an iPhone tab. Choose **More**, then **Assistant**. On iPad regular width it is a sidebar destination. Reflect is a tab.
+- Assistant is not an iPhone tab. Choose **More**, then **Assistant**. On iPad regular width it is a sidebar destination. Insights is a tab.
 
 ## Driving it with control-howmuch
 
@@ -62,4 +62,4 @@ Store screenshots, recordings and dumps under `.amp/in/artifacts/rewards-exposur
 - Demo rows are dated 2026-03-01 through 2026-05-24. `This Month` is empty unless today falls in that span. Stay on `All Time`.
 - The tab reads the HowMuch ledger, not a second YNAB sync. Import the settings export first.
 - Linux CI cannot run Simulator. Native `RewardsReportTests` plus `control-howmuch http` are the proof this VM can produce.
-- Do not look for Rewards on Reflect. Reflect still has four report cards only.
+- Do not look for Rewards on Insights. Insights still has four report cards only.

@@ -1,7 +1,9 @@
 import { isStorableMilliunits } from "@howmuch/money";
 import { ValidationError } from "./repository";
+import { isClaimDay } from "./transaction-claim";
 import {
   MAX_TRANSACTION_WRITE_BATCH,
+  type ClaimStatus,
   type ClearedState,
   type NonEmpty,
   type SubtransactionInput,
@@ -145,9 +147,11 @@ export function assertTransactionFieldTypes(value: unknown, label = "transaction
   for (const field of ["payee_id", "category_id"] as const) {
     if (value[field] === "") throw new ValidationError(`${label}.${field} must be a non-empty string or null`);
   }
-  for (const field of ["approved", "deleted"] as const) {
+  for (const field of ["approved", "deleted", "needs_confirmation"] as const) {
     if (value[field] != null && typeof value[field] !== "boolean") throw new ValidationError(`${label}.${field} must be a boolean or null`);
   }
+  if (Object.hasOwn(value, "claim_status")) claimStatus(value.claim_status, `${label}.claim_status`);
+  if (Object.hasOwn(value, "claimed_on")) claimedOn(value.claimed_on, `${label}.claimed_on`);
   if (value.subtransactions == null) return;
   if (!Array.isArray(value.subtransactions)) throw new ValidationError(`${label}.subtransactions must be an array`);
   value.subtransactions.forEach((sub, index) => {
@@ -202,6 +206,9 @@ function parseKnownFields(value: Record<string, unknown>): Partial<TransactionIn
   if (Object.hasOwn(value, "approved")) patch.approved = nullableBoolean(value.approved, "approved");
   if (Object.hasOwn(value, "flag_color")) patch.flag_color = nullableString(value.flag_color, "flag_color");
   if (Object.hasOwn(value, "flag_name")) patch.flag_name = nullableString(value.flag_name, "flag_name");
+  if (Object.hasOwn(value, "needs_confirmation")) patch.needs_confirmation = nullableBoolean(value.needs_confirmation, "needs_confirmation");
+  if (Object.hasOwn(value, "claim_status")) patch.claim_status = claimStatus(value.claim_status, "claim_status");
+  if (Object.hasOwn(value, "claimed_on")) patch.claimed_on = claimedOn(value.claimed_on, "claimed_on");
   if (Object.hasOwn(value, "transfer_account_id")) patch.transfer_account_id = nullableString(value.transfer_account_id, "transfer_account_id");
   if (Object.hasOwn(value, "transfer_transaction_id")) patch.transfer_transaction_id = nullableString(value.transfer_transaction_id, "transfer_transaction_id");
   if (Object.hasOwn(value, "matched_transaction_id")) patch.matched_transaction_id = nullableString(value.matched_transaction_id, "matched_transaction_id");
@@ -217,6 +224,18 @@ function parseKnownFields(value: Record<string, unknown>): Partial<TransactionIn
     patch.subtransactions = value.subtransactions.map(parseSubtransaction);
   }
   return patch;
+}
+
+function claimStatus(value: unknown, label: string): ClaimStatus | null {
+  if (value === null) return null;
+  if (value === "to_claim" || value === "claimed") return value;
+  throw new ValidationError(`${label} must be to_claim, claimed or null`);
+}
+
+function claimedOn(value: unknown, label: string): string | null {
+  if (value === null) return null;
+  if (isClaimDay(value)) return value;
+  throw new ValidationError(`${label} must be a valid YYYY-MM-DD date or null`);
 }
 
 function parseSubtransaction(value: unknown): SubtransactionInput {

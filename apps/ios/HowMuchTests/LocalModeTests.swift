@@ -38,6 +38,33 @@ final class LocalModeTests: XCTestCase {
     }
   }
 
+  func testStoredTransactionIDsCannotRedirectAnOutboxDelete() async throws {
+    let settings = APISettings.local(in: defaults)
+    let client = APIClient(settings: settings)
+    try await LocalEngine.shared.prepare(config: settings.localEngineConfig)
+    let account = try await client.createAccount(
+      planID: settings.planID, name: "Synthetic", type: "checking", balance: 0, icon: nil, onBudget: true)
+    for id in ["victim", "../transactions/victim"] {
+      let body = try JSONSerialization.data(withJSONObject: ["transaction": [
+        "id": id, "account_id": account.id, "date": "2026-01-01", "amount": -1000,
+      ]])
+      let reply = try await LocalEngine.shared.handle(config: settings.localEngineConfig, method: "POST",
+        path: "/v1/plans/\(settings.planID)/transactions", query: nil,
+        headers: ["Authorization": "Bearer \(settings.sessionToken)"], body: body)
+      XCTAssertEqual(reply.status, 201)
+    }
+    let deleted = try await client.outboxDelete(
+      planID: settings.planID, transactionID: "../transactions/victim", expectedApproved: nil)
+    XCTAssertTrue(deleted.isSuccess)
+    let victim = try await client.outboxFetch(planID: settings.planID, transactionID: "victim")
+    XCTAssertTrue(victim.isSuccess, "Deleting an opaque ID must leave its apparent path target untouched")
+    guard victim.isSuccess else { return }
+    let row = try JSONSerialization.jsonObject(with: victim.data) as! [String: Any]
+    let data = row["data"] as! [String: Any]
+    let transaction = data["transaction"] as! [String: Any]
+    XCTAssertEqual(transaction["deleted"] as? Bool, false)
+  }
+
   private func starterNames(_ client: APIClient, planID: String) async throws -> [String] {
     try await client.fetchCategories(planID: planID)
       .filter { !$0.isQuiet }
