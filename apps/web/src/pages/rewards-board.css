@@ -796,6 +796,21 @@
   font: 600 10px var(--font-ui);
 }
 
+/* Manual order adds the move buttons: the badge moves left of all three, and the name stops short of it. */
+@media (max-width: 999px) {
+  .rw-card[data-size]:has(.rw-order) .rw-face[data-variant="strip"] > .rw-badge-pin {
+    right: 116px;
+  }
+
+  .rw-card[data-size] .rw-face[data-variant="strip"]:has(> .rw-badge-pin) .rw-face-name {
+    max-width: calc(100% - 156px);
+  }
+
+  .rw-card[data-size]:has(.rw-order) .rw-face[data-variant="strip"]:has(> .rw-badge-pin) .rw-face-name {
+    max-width: calc(100% - 226px);
+  }
+}
+
 .rw-strip-foot {
   z-index: 1;
   color: var(--face-foot-ink);
@@ -1160,6 +1175,8 @@
 .rw-card[data-size][data-open] {
   background: var(--rw-open-bg);
   box-shadow: var(--rw-open-shadow);
+  /* Faint ink on the open surface (the slip, and the wide window's ledger and columns) keeps 4.5:1. */
+  --ink-faint: var(--rw-open-ink-faint);
 }
 
 /* Selection and the update pulse wrap the whole stacked card at every width: the strip or the window and
@@ -1177,7 +1194,9 @@
 }
 
 .rw-card[data-size][data-just-updated] {
-  animation: rw-pulse-row var(--dur-pulse) var(--ease-out) 1;
+  /* The entry animation stays first in the list, so adding and removing the pulse never restarts it. */
+  animation: rw-arrive var(--dur-arrive) var(--ease-out) backwards, rw-pulse-row var(--dur-pulse) var(--ease-out) 1;
+  animation-delay: calc(var(--i, 0) * var(--stagger)), 0s;
 }
 
 .rw-card[data-size][data-just-updated] .rw-face {
@@ -1333,7 +1352,6 @@
   grid-template-rows: 0fr;
   visibility: hidden;
   color: var(--ink);
-  --ink-faint: var(--rw-open-ink-faint);
   transition: grid-template-rows var(--dur-standard) var(--ease-out), visibility 0s linear var(--dur-standard);
 }
 
@@ -1596,6 +1614,26 @@
 /* Spend has reached the minimum but the card holds it back (a monthly qualification or a tier): dashed, not amber. */
 .rw-targets [data-state="pending"] .rw-target-mark {
   border-style: dashed;
+}
+
+/* A missed month: the failed tone, struck through, never the urgent amber. */
+.rw-targets [data-state="failed"] .rw-target-mark {
+  border-color: var(--tone-failed);
+}
+
+.rw-targets [data-state="failed"] .rw-target-mark::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: calc(50% - 0.75px);
+  height: 1.5px;
+  background: var(--tone-failed);
+  rotate: -45deg;
+}
+
+.rw-cat[data-excluded] :is(.rw-cat-name, .rw-cat-spend, .rw-cat-rate) {
+  color: var(--ink-soft);
 }
 
 .rw-target-label {
@@ -1942,17 +1980,25 @@
     display: none;
   }
 
-  /* The columns: fixed shares of the ledger, which is the same width on every row, so a figure sits at the
-     same x down the board. Four columns on a narrow ledger; Period joins from 400px. */
+  /* The columns: shares of the ledger, which is the same width on every row, so a figure sits at the same x
+     down the board. A column never narrows below its figure: a figure too long for its share widens it, and
+     when the row cannot hold them all the columns wrap to a second line rather than overprint. Four columns
+     on a narrow ledger; Period joins from 440px. */
   .rw-columns {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1.15fr) minmax(0, 1fr);
-    gap: 0 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 10px;
     margin: 4px 0 0;
   }
 
   .rw-columns > div {
-    min-width: 0;
+    flex: 1 1 0;
+    min-width: max-content;
+  }
+
+  .rw-columns > div:nth-child(2),
+  .rw-columns > div:nth-child(3) {
+    flex-grow: 1.15;
   }
 
   .rw-columns dt {
@@ -1983,6 +2029,16 @@
     display: none;
   }
 
+  .rw-columns > .rw-col-period {
+    flex: 1.4 1 0;
+    min-width: 96px;
+  }
+
+  /* A range row has three columns: the range's spend and earnings, and Period reading "range". */
+  .rw-columns[data-range] > div {
+    flex-grow: 1;
+  }
+
   .rw-mini-rail {
     position: relative;
     display: block;
@@ -2005,11 +2061,7 @@
     box-shadow: 0 0 0 1.5px var(--sun-rim);
   }
 
-  @container ledger (min-width: 400px) {
-    .rw-columns {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 1.15fr) minmax(0, 1fr) minmax(96px, 1.4fr);
-    }
-
+  @container ledger (min-width: 440px) {
     .rw-col-period {
       display: block;
     }
@@ -2017,7 +2069,7 @@
 
   @container ledger (min-width: 560px) {
     .rw-columns {
-      gap: 0 14px;
+      gap: 2px 14px;
     }
 
     .rw-columns dd {
@@ -2027,8 +2079,12 @@
 
   @container ledger (min-width: 700px) {
     .rw-columns {
-      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.1fr) minmax(0, 1fr) minmax(150px, 1.6fr);
-      gap: 0 16px;
+      gap: 2px 16px;
+    }
+
+    .rw-columns > .rw-col-period {
+      flex-grow: 1.6;
+      min-width: 150px;
     }
 
     .rw-columns dd {

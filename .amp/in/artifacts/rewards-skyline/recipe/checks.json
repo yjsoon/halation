@@ -1,5 +1,5 @@
 {
- "web": "http://127.0.0.1:49633",
+ "web": "http://127.0.0.1:38683",
  "checks": [
   {
    "name": "owner setup",
@@ -150,6 +150,11 @@
    "name": "range: Period column reads range",
    "ok": true,
    "detail": "range"
+  },
+  {
+   "name": "range: columns are the range totals, no period minimum or cap",
+   "ok": true,
+   "detail": "Spent in range | Earned in range | Period"
   },
   {
    "name": "range: slip names the range and the latest period",

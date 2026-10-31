@@ -28,6 +28,7 @@ ok   reduced motion: no unfold transition
 ok   register opened /transactions?accounts=acct-credit&range=all
 ok   range: historical range pressed 
 ok   range: Period column reads range range
+ok   range: columns are the range totals, no period minimum or cap Spent in range | Earned in range | Period
 ok   range: slip names the range and the latest period 
 ok   range: no day rail 
 ok   range: targets from the cutoff period 
@@ -57,4 +58,4 @@ ok   badge clear of the name at 1440 {"badgeBox":{"left":567.953125,"right":661,
 ok   hidden dims window and ledger at 1440 0.55 0.55
 ok   unhidden 
 ok   no page errors 
-59/59 checks passed
+60/60 checks passed

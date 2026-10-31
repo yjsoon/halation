@@ -579,7 +579,7 @@ function RewardCard(p: RewardCardProps) {
       style={{ "--rw-h": picture?.pose.h ?? 1, "--rw-v": picture?.pose.v ?? 0, "--i": Math.min(index, 12), "--vt-name": vt } as CSSProperties}>
       {p.stacked
         ? <SkylineRow row={row} search={p.search} asOf={p.asOf} hiddenUntil={until} projection={p.projection} index={index} memoryKey={p.memoryKey}
-            open={open} onToggle={() => setOpen(!open)} range={p.projection.action.kind === "range"} actions={controls} />
+            open={open} onToggle={() => setOpen(!open)} range={p.projection.action.kind === "range"} actions={controls} today={p.today} />
         : <>
             <RewardTile row={row} search={p.search} asOf={p.asOf} hiddenUntil={until} projection={p.projection} index={index} memoryKey={p.memoryKey} />
             {controls}
@@ -890,7 +890,8 @@ function earnedWords(calc: Row["calculation"]): string {
 }
 
 /** The period as a rail of days: filled to today, a tick per day, a mark on the day the minimum was met. */
-function DayRail({ period }: { period: PeriodDays }) {
+/** `live` when the as-of day is today; a past as-of day reads "as of · N". */
+function DayRail({ period, live }: { period: PeriodDays; live: boolean }) {
   const rail = useRef<HTMLDivElement>(null);
   const [cover, setCover] = useState<{ start: boolean; end: boolean }>({ start: false, end: false });
   // The today label hides the nearer end's date when they would touch (measured: visibility keeps the boxes).
@@ -926,7 +927,7 @@ function DayRail({ period }: { period: PeriodDays }) {
       </span>
       <span className="rw-rail-labels">
         <span className="rw-rail-start">{dayMonth(period.start)}</span>
-        <span className="rw-rail-now" data-edge={edge(today)}>today · {period.day}</span>
+        <span className="rw-rail-now" data-edge={edge(today)}>{live ? "today" : "as of"} · {period.day}</span>
         <span className="rw-rail-end">{dayMonth(period.end)}</span>
       </span>
     </div>
@@ -945,20 +946,32 @@ function LedgerColumns({ calc, period, month, range, asOf }: {
   const monthly = month?.minimumSpend ?? calc.monthly_minimum_spend ?? 0;
   const cap = calc.maximum_spend ?? 0;
   const ended = Boolean(asOf && calc.periods?.length && calc.periods.every((entry) => entry.end < asOf));
+  const earned = calc.reward_type === "miles"
+    ? <>{Math.round(calc.reward_earned).toLocaleString("en-GB")} <small>mi</small></> : dollars(calc.reward_earned);
+  // A range row sums spend and earnings over the range; the minimum and cap belong to one card period, so
+  // they stay in the slip (under the latest period) rather than beside the range's spend.
+  if (range) {
+    return (
+      <dl className="rw-columns" data-range>
+        <div><dt>Spent in range</dt><dd>{dollars(calc.total_spend)}</dd></div>
+        <div><dt>Earned in range</dt><dd>{earned}</dd></div>
+        <div className="rw-col-period"><dt>Period</dt><dd data-none>range</dd></div>
+      </dl>
+    );
+  }
   return (
     <dl className="rw-columns">
       <div><dt>Spent</dt><dd>{dollars(calc.total_spend)}</dd></div>
       <div><dt>Minimum</dt><dd data-none={(min <= 0 && monthly <= 0) || undefined}>{min > 0 ? dollars(min)
         : monthly > 0 ? <>{dollars(monthly)}<small>/mo</small></> : "none"}</dd></div>
       <div><dt>Bonus cap</dt><dd data-none={cap <= 0 || undefined}>{cap > 0 ? dollars(cap) : "none"}</dd></div>
-      <div><dt>Earned</dt><dd>{calc.reward_type === "miles"
-        ? <>{Math.round(calc.reward_earned).toLocaleString("en-GB")} <small>mi</small></> : dollars(calc.reward_earned)}</dd></div>
+      <div><dt>Earned</dt><dd>{earned}</dd></div>
       <div className="rw-col-period">
         <dt>Period</dt>
         {period
           ? <dd>{period.day} <small>of {period.total} days</small>
               <span className="rw-mini-rail" aria-hidden="true" style={{ "--today": period.total <= 1 ? 1 : (period.day - 1) / (period.total - 1) } as CSSProperties} /></dd>
-          : <dd data-none>{range ? "range" : ended ? "ended" : "none"}</dd>}
+          : <dd data-none>{ended ? "ended" : "none"}</dd>}
       </div>
     </dl>
   );
@@ -970,20 +983,27 @@ function Targets({ calc, metOn, month }: { calc: Row["calculation"]; metOn: stri
   const cap = calc.maximum_spend ?? 0;
   const spend = calc.total_spend;
   const categoryCaps = calc.flags.some((flag) => (flag.maximumSpend ?? 0) > 0);
-  const items: Array<{ key: string; state: "met" | "open" | "pending" | "none"; label: string; amount?: string; note: ReactNode; urgent?: boolean }> = [];
+  const items: Array<{ key: string; state: "met" | "open" | "pending" | "failed" | "none"; label: string; amount?: string; note: ReactNode; urgent?: boolean }> = [];
+  // Once a month is missed the period cannot qualify: nothing is urged in amber (as iOS).
+  const failed = calc.qualification_status === "failed";
   if (min > 0) {
     items.push(calc.minimum_spend_met
       ? { key: "min", state: "met", label: "Minimum", amount: dollars(min), note: metOn ? `met ${dayMonth(metOn)}` : "met" }
       // Spend can reach the minimum while a monthly qualification (or an unmet tier) still holds it back.
       : spend >= min
-        ? { key: "min", state: "pending", label: "Minimum", amount: dollars(min), note: calc.qualification_status === "failed"
+        ? { key: "min", state: "pending", label: "Minimum", amount: dollars(min), note: failed
             ? "reached, a month was missed" : calc.qualification_status === "pending" ? "reached, needs this month's minimum" : "reached" }
-        : { key: "min", state: "open", label: "Minimum", amount: dollars(min), note: `${dollars(roundedUpToCent(min - spend))} to go`, urgent: true });
+        : failed
+          ? { key: "min", state: "pending", label: "Minimum", amount: dollars(min), note: `${dollars(roundedUpToCent(min - spend))} short, a month was missed` }
+          : { key: "min", state: "open", label: "Minimum", amount: dollars(min), note: `${dollars(roundedUpToCent(min - spend))} to go`, urgent: true });
   }
   if (month) {
     const met = month.spend >= month.minimumSpend;
-    items.push({ key: "month", state: met ? "met" : "open", label: "This month", amount: dollars(month.minimumSpend),
-      note: met ? "met" : `${dollars(roundedUpToCent(month.minimumSpend - month.spend))} to go`, urgent: !met });
+    const left = dollars(roundedUpToCent(month.minimumSpend - month.spend));
+    items.push(met ? { key: "month", state: "met", label: "This month", amount: dollars(month.minimumSpend), note: "met" }
+      : month.status === "failed" ? { key: "month", state: "failed", label: "This month", amount: dollars(month.minimumSpend), note: "missed" }
+      : failed ? { key: "month", state: "pending", label: "This month", amount: dollars(month.minimumSpend), note: `${left} to go` }
+      : { key: "month", state: "open", label: "This month", amount: dollars(month.minimumSpend), note: `${left} to go`, urgent: true });
   }
   const threshold = calc.next_spending_tier_threshold;
   if (calc.has_next_spending_tier && threshold != null && threshold > spend) {
@@ -1014,24 +1034,30 @@ function Targets({ calc, metOn, month }: { calc: Row["calculation"]; metOn: stri
   );
 }
 
-function Categories({ calc }: { calc: Row["calculation"] }) {
-  const scale = Math.max(0, ...calc.flags.map((flag) => Math.max(flag.totalSpend, flag.maximumSpend ?? 0)));
+/** The categories with their spend, bar, rate and cap. A category the card excludes from rewards (the card's
+ *  `subcategories[].excludeFromRewards`, as iOS's RewardCategoryUsage) has no cap, an empty bar and rate "none",
+ *  and sorts after the earning ones; the rest sort by spend. */
+function Categories({ calc, excluded }: { calc: Row["calculation"]; excluded: ReadonlySet<string> }) {
+  const flags = [...calc.flags].sort((a, b) => Number(excluded.has(a.subcategoryId)) - Number(excluded.has(b.subcategoryId))
+    || b.totalSpend - a.totalSpend || (a.subcategoryId < b.subcategoryId ? -1 : a.subcategoryId > b.subcategoryId ? 1 : 0));
+  const scale = Math.max(0, ...flags.map((flag) => Math.max(flag.totalSpend, excluded.has(flag.subcategoryId) ? 0 : flag.maximumSpend ?? 0)));
   const share = (value: number) => (scale > 0 ? clampUnit(value / scale) : 0);
   const rate = (value?: number) => (value == null ? "" : calc.reward_type === "cashback" ? `${value}%` : `${value} mi/$`);
   return (
     <ul className="rw-cats">
-      {calc.flags.map((flag) => {
-        const cap = flag.maximumSpend ?? 0;
+      {flags.map((flag) => {
+        const out = excluded.has(flag.subcategoryId);
+        const cap = out ? 0 : flag.maximumSpend ?? 0;
         const spend = flag.totalSpend;
         const beyond = beyondCap(spend, cap);
         const over = beyond > 0;
         const earned = formatReward(flag.rewardEarned, calc.reward_type);
-        const note = cap <= 0 ? `no cap · ${earned} earned`
+        const note = out ? "Excluded from rewards" : cap <= 0 ? `no cap · ${earned} earned`
           : over ? <>{dollars(cap)} cap · <b>{dollars(beyond)}</b> beyond cap · {earned} earned</>
           : `${dollars(Math.min(flag.countedSpend ?? spend, cap))} of ${dollars(cap)} cap · ${earned} earned`;
         return (
-          <li key={flag.subcategoryId} className="rw-cat" data-over={over || undefined}
-            style={{ "--fill": share(cap > 0 ? Math.min(spend, cap) : spend), "--over": over ? share(beyond) : 0, "--cap": cap > 0 ? share(cap) : 0 } as CSSProperties}>
+          <li key={flag.subcategoryId} className="rw-cat" data-over={over || undefined} data-excluded={out || undefined}
+            style={{ "--fill": out ? 0 : share(cap > 0 ? Math.min(spend, cap) : spend), "--over": over ? share(beyond) : 0, "--cap": cap > 0 ? share(cap) : 0 } as CSSProperties}>
             <span className="rw-cat-name">
               {isFlagColour(flag.flagColor) && <span className="rw-cat-dot" style={{ background: `var(--flag-${flag.flagColor})` }} aria-hidden="true" />}
               {flag.name}
@@ -1039,7 +1065,7 @@ function Categories({ calc }: { calc: Row["calculation"] }) {
             <span className="rw-cat-figs">
               <span className="rw-cat-spend">{dollars(spend)}</span>
               <span className="rw-cat-bar" aria-hidden="true"><span className="rw-cat-fill" />{over && <span className="rw-cat-over" />}{cap > 0 && <span className="rw-cat-tick" />}</span>
-              <span className="rw-cat-rate">{rate(flag.rewardRate)}</span>
+              <span className="rw-cat-rate">{out ? "none" : rate(flag.rewardRate)}</span>
             </span>
             <span className="rw-cat-note">{note}</span>
           </li>
@@ -1051,7 +1077,7 @@ function Categories({ calc }: { calc: Row["calculation"] }) {
 
 /** A stacked board row: a strip sized by urgency (gate tall, climb standard, noon slim), or from 1000px a
  *  sunrise window beside aligned columns. Its toggle opens the slip in place, under the row, in the same card. */
-export function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, index, memoryKey, open, onToggle, range, actions }: {
+export function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, index, memoryKey, open, onToggle, range, actions, today }: {
   row: Row;
   search: string;
   asOf?: string;
@@ -1065,6 +1091,8 @@ export function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, inde
   range: boolean;
   /** The card's actions, placed between the row and the slip so Tab reaches them before the slip. */
   actions: ReactNode;
+  /** The live (Singapore) date, so the rail says "today" only on it. */
+  today?: string;
 }) {
   const calc = row.calculation;
   const id = useId();
@@ -1082,6 +1110,7 @@ export function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, inde
   const month = own ? activeMonth(own, asOf) : null;
   const metOn = range ? (own?.minimum_spend_met ? own.minimum_met_on ?? null : null) : period?.metOn ?? null;
   const [rangeFrom, rangeTo] = range && RANGE_PERIOD.test(calc.period) ? calc.period.split(":") : [undefined, undefined];
+  const excluded = new Set((row.card.subcategories ?? []).filter((entry) => entry.excludeFromRewards === true).map((entry) => entry.id));
   const ownMeta = (target: Row["calculation"]) =>
     `${dollars(target.total_spend)} spent · ${formatReward(target.reward_earned, target.reward_type)} earned`;
   const beyond = p.action.kind === "capReached" ? p.action.beyond : 0;
@@ -1141,7 +1170,7 @@ export function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, inde
             <h4 id={`${id}-period`}>Period</h4>
             {period ? <>
               <p className="rw-open-dates"><span>{dayMonth(period.start)} to {dayMonth(period.end)}</span><span className="rw-open-day">day {period.day} of {period.total}</span></p>
-              <DayRail period={period} />
+              <DayRail period={period} live={asOf === today} />
             </> : range ? <>
               <p className="rw-open-dates"><span>{rangeFrom && rangeTo ? `${dayMonth(rangeFrom)} to ${dayMonth(rangeTo)}` : calc.period}</span><span className="rw-open-day">historical range</span></p>
               {cutoff && <p className="rw-open-meta">Latest card period {dayMonth(cutoff.start)} to {dayMonth(cutoff.end)}</p>}
@@ -1161,7 +1190,7 @@ export function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, inde
               : own.flags.length
               ? <>
                   <p className="rw-open-meta">{own.flags.length} {range ? "in the latest card period" : "this period"} · {ownMeta(own)}</p>
-                  <Categories calc={own} />
+                  <Categories calc={own} excluded={excluded} />
                 </>
               : <p className="rw-open-meta">No category rates on this card · {ownMeta(own)}{range ? " in the latest card period" : ""}</p>}
           </section>

@@ -53,3 +53,32 @@ test("a stacked range row's targets read the cutoff period, not the range sums a
   expect(html).toContain("For the latest card period, 1 May to 31 May");
   expect(html).not.toContain("rw-rail");
 });
+
+test("after a missed month the slip urges nothing, and an excluded category earns nothing", async () => {
+  const { SkylineRow } = await import("../pages/Rewards");
+  const { projectRow } = await import("./reward-row-projection");
+  const calc: RewardsReport["cards"][number]["calculation"] = {
+    period: "May", total_spend: 300, counted_spend: 300, eligible_spend: 300,
+    reward_earned: 0, reward_earned_dollars: 0, reward_type: "cashback",
+    minimum_spend: 900, minimum_spend_met: false, minimum_spend_progress: 33,
+    maximum_spend: null, maximum_spend_progress: null, maximum_spend_exceeded: false,
+    qualification_status: "failed",
+    monthly_qualifications: [{ start: "2026-05-01", end: "2026-05-31", spend: 100, minimumSpend: 400, status: "failed" }],
+    flags: [{ subcategoryId: "dining", name: "Dining", flagColor: "red", totalSpend: 80, eligibleSpend: 0, rewardEarned: 0, rewardRate: 2 }],
+  };
+  const row: RewardsReport["cards"][number] = {
+    card: { id: "c", name: "C", issuer: "Bank", type: "cashback", ynabAccountId: "a", featured: false, subcategories: [{ id: "dining", excludeFromRewards: true }] },
+    account_id: "a", account_name: "A",
+    calculation: { ...calc, periods: [{ start: "2026-05-01", end: "2026-05-31", calculation: calc }] },
+  };
+  const html = renderToStaticMarkup(createElement(MemoryRouter, null, createElement(SkylineRow, {
+    row, search: "", asOf: "2026-05-24", projection: projectRow(row, "2026-05-24", false, "2026-10-31"),
+    index: 0, memoryKey: "test", open: true, onToggle: () => {}, range: false, actions: null, today: "2026-10-31",
+  })));
+  const targets = html.slice(html.indexOf("rw-targets"), html.indexOf("rw-open-cats"));
+  expect(targets).toContain("600.00 short, a month was missed");
+  expect(targets).toContain(">missed<");
+  expect(targets).not.toContain("data-urgent");
+  expect(html).toContain("Excluded from rewards");
+  expect(html).toContain("as of · 24");
+});

@@ -251,7 +251,7 @@ export function projectRow(row: RewardsRow, asOf: string | null | undefined, isR
   if (!calc.maximum_spend_exceeded) {
     const atCap = calc.flags.filter((f) => (f.maximumSpend ?? 0) > 0 && f.maximumSpendExceeded === true);
     if (atCap.length) {
-      exceptions.push({ kind: "categoriesAtCap", names: atCap.map((f) => f.name), over: atCap.some((f) => (f.totalSpend ?? 0) > (f.maximumSpend ?? 0)) });
+      exceptions.push({ kind: "categoriesAtCap", names: atCap.map((f) => f.name), over: atCap.some((f) => beyondCap(f.totalSpend ?? 0, f.maximumSpend) > 0) });
     }
   }
   if (calc.minimum_spend_met) {

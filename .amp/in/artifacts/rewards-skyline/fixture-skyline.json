@@ -81,7 +81,8 @@
      "priority": 2,
      "active": true,
      "createdAt": "2026-01-15T00:00:00.000Z",
-     "updatedAt": "2026-01-15T00:00:00.000Z"
+     "updatedAt": "2026-01-15T00:00:00.000Z",
+     "excludeFromRewards": true
     }
    ]
   },
@@ -126,6 +127,38 @@
     "anchorDate": "2026-05-01",
     "monthlyMinimumSpend": 400
    }
+  },
+  {
+   "id": "c-long",
+   "name": "Long Figures 1111",
+   "type": "miles",
+   "earningRate": 40,
+   "minimumSpend": 12345.67,
+   "maximumSpend": 23456.78,
+   "issuer": "Sample",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false
+  },
+  {
+   "id": "c-longmonth",
+   "name": "Missed Month 2222",
+   "type": "cashback",
+   "earningRate": 1.5,
+   "minimumSpend": 9000,
+   "rewardPeriod": {
+    "monthCount": 3,
+    "anchorDate": "2026-04-01",
+    "monthlyMinimumSpend": 1000
+   },
+   "issuer": "Sample",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false
   }
  ],
  "rules": [],
