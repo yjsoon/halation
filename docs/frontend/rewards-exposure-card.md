@@ -461,7 +461,7 @@ The foot inks resolve by appearance: dark in light mode, on the light ground; li
 - **The slip.** Below the hero, in the same clear section, on the grouped background:
   - a caps line (issuer · type, plus "Featured" when the card is featured), in IBM Plex Sans SemiBold 11pt tracked 0.14em, `Theme.rowSecondary`;
   - then today's headline line, the basis line and the exceptions.
-- The name stays in the navigation title.
+- The name is a wrapping heading above the hero, in Instrument Serif Italic, and the navigation bar carries no title (21 Oct 2026): an inline title between Done and Edit Rewards truncated every longer name, and at accessibility sizes even short ones. The heading carries the header trait, so it is the first entry on VoiceOver's headings rotor.
 - The in-frame label and tick are fixed-size art annotations that repeat the slip. They are hidden from VoiceOver, and hidden altogether at accessibility text sizes.
 
 ### What collapses when
@@ -1002,7 +1002,7 @@ Also fix the list-wide `.animation(Theme.Motion.arrive, value: model.rewardsPhas
 - **Contrast on the faces.** See the contrast tables, one per appearance. Text sits only on the sky above the target horizon or on the spend ridge, and never across a crest stroke or over rings 1 and 2. In dark mode the dusk veil is capped so dark ink keeps 6.6:1 on it, and the night print's pour stops short of the name. In light mode the cool dim is 15%: dark ink keeps at least 5.8:1 on every sky, gold or blue, and the foot inks at least 4.7:1 on the ground, lit or not.
 - **Increase Contrast.** Today's 1pt outline at `Color.primary` 30% stays, on the strip and on the print. The High Contrast colour sets darken the dark-mode ridges and lighten its foot inks, and in light mode lighten the ground and darken its foot inks. The crest strokes and the marker draw at their Increase Contrast opacities.
 - **Differentiate Without Colour.** Each state differs in shape and luminance, not just colour: the marker's position, the lit edge (a luminance step, and in light mode a hue step as well), the ridge gap, the sun's place (on the horizon, resting, halfway, gone), the ring size, a sun or none, plus the headline words.
-- **Smart Invert.** Faces ignore invert, like photographs.
+- **Smart Invert.** Faces ignore invert, like photographs. A strip's words ignore it with their face (its Increase Contrast outline inverts with the board), and on the sheet the print's label and tick ignore it with the print; the border around the print inverts with the sheet.
 - **Reduce Transparency.** Nothing to change: there is no material, and figures stay on opaque surfaces.
 
 ## Web parity
@@ -1110,7 +1110,7 @@ iOS checks run on the Mac runner through `scripts/ios-xcodebuild.sh` and the Sim
 | # | Failure mode | Caught by |
 | --- | --- | --- |
 | 1 | Picture and figure disagree: `h` from anything but the projection's `fill`, `fill` from server progress fields, a capped card drawn below the top, or a figure bent to match the picture | iOS: the existing projection tests, where fill and basis share one source. Web: the port's tests, written first. E2E: measure each fixture card's marker x (`h × W`) and sun centre against its expected pose. |
-| 2 | Web precedence wrong: intermediate cap set as complete, failure shown before its month closes, rewards implied unlocked | The port's tests, written first; E2E cards E, J, K and L |
+| 2 | Web precedence wrong: intermediate cap set as complete, failure shown before its month closes, rewards implied unlocked | The port's tests, written first (no fixture card reaches the tier-cap, withheld or locked slips; the port's and the iOS projection tests do); E2E cards J and K |
 | 3 | The journeys mixed or the climb mis-measured: a tier drawn in the minimum journey, the cap climb read from 0 (a jump at the minimum), the reached tier ignored (a jump at the tier), a further tier sinking the sun, any value falling as spend grows | **The isolated mapping walk, written first** (below). E2E cards O and P show one point each. |
 | 4 | Picture data missing or out of step with the report: no minimum amount or reached tier, a next tier at or below the minimum, a cap at or below the foot of the climb, counted spend lagging raw spend, refunds below zero, amounts that are not finite | **The isolated edge cases, written first** (below). No fixture reaches them. |
 | 5 | Time leaks back into the art: equal `h` drawn at different places in rows with different dates | E2E: cards A and B share $315.50 / $500.00 with different periods and deadlines. Their marker x and sun centre must match within 1pt. |
@@ -1191,13 +1191,15 @@ Expected values are worked out by hand from those numbers. Before taking screens
 | I Exposure Open | Cashback, no minimum or cap | No cap · Resets in 8 days | $315.50 spent · … | Calm: even, softer light; the sun resting; 1 ring |
 | J Exposure Failed | Miles, 3-month period from 1 Mar, monthly minimum 100 | March minimum missed · Resets in 8 days | $830.80 spent · … | Monochrome and overcast, no sun, no marker, ridges apart, veiled throughout |
 | K Exposure Monthly | Cashback, 3-month period from 1 Apr, monthly minimum 400 | $84.50 to monthly minimum · 8 days left | $315.50 / $400.00 | Gate, `h` 0.789, spend line 79% of the way up |
-| L Exposure Locked | Cashback, 3-month period from 1 Apr, monthly minimum 300 | No cap · Resets in 38 days, slip "Rewards unlock after 30 Jun" | $315.50 spent · … | Calm. Confirm the month list and status. |
+| L Exposure Locked | Cashback, 3-month period from 1 Apr, monthly minimum 300 | No cap · Resets in 38 days, no slip (see the note below) | $315.50 spent · … | Calm. The server reads `met`: April and May are both met. |
 | M Exposure Category | Miles, minimum 200, Online capped at 200 | Minimum met · Resets in 8 days, slip "Online over cap" | $315.50 / $200.00 · … | Rest, `v` 0 |
 | N A long name, such as "Exposure Long Name Preferred Platinum Rewards" | As A | As A, name on two lines | As A | As A, ridges lower; the marker crosses the name |
 | O Exposure Step | Cashback, minimum 200, one tier at 400 | $84.50 to next tier · 8 days left | $315.50 / $400.00 | Climb from the minimum: `v` 0.289 (half of 115.50 / 200), rings at 21%; merged and fully lit, because a met minimum keeps the light |
 | P Exposure Journey | Cashback, minimum 100, one tier at 200, maximum 500 at both levels | $184.50 left before bonus cap · 8 days left | $315.50 / $500.00 | Climb past halfway: `v` 0.693 (0.5 + 0.5 × 115.50 / 300; the tier at 200 is reached), rings at 31% |
 
 The performance variant (`fixtures/rewards-exposure-states-30.json`) holds each card twice.
+
+Checked against the local API on 21 Oct 2026: every card matches the table. Row L records the server's reading rather than the configuration's intent: the server counts only months that have started, so as of 24 May card L reads `met` (April and May both met), and the row is calm "No cap · Resets in 38 days" with no slip. The projection only shows "Rewards unlock after …" while the status is pending, which no three-month configuration reaches on 24 May without also showing a monthly minimum. L stays as configured, as a calm card; the locked slip is covered by the projection tests in `RewardsReportTests.swift` (`.rewardsLocked`).
 
 ### iOS recipe: `.cursor/skills/verify-howmuch/features/ios-rewards.md`
 

@@ -1,0 +1,722 @@
+{
+  "ynab": {
+    "selectedBudgetId": "local-plan",
+    "selectedBudgetName": "HowMuch Demo",
+    "trackedAccountIds": [
+      "acct-credit"
+    ]
+  },
+  "cards": [
+    {
+      "id": "card-exposure-a",
+      "name": "Exposure Below",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 500
+    },
+    {
+      "id": "card-exposure-b",
+      "name": "Exposure Urgent",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "billing",
+        "dayOfMonth": 26
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 500
+    },
+    {
+      "id": "card-travel",
+      "name": "Travel Card",
+      "issuer": "DBS",
+      "type": "miles",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1.2,
+      "minimumSpend": 200,
+      "subcategoriesEnabled": true,
+      "subcategories": [
+        {
+          "id": "subcat-dining",
+          "name": "Dining",
+          "flagColor": "red",
+          "rewardValue": 4,
+          "priority": 1,
+          "active": true,
+          "createdAt": "2026-01-15T00:00:00.000Z",
+          "updatedAt": "2026-01-15T00:00:00.000Z"
+        },
+        {
+          "id": "subcat-online",
+          "name": "Online",
+          "flagColor": "blue",
+          "rewardValue": 3,
+          "priority": 2,
+          "active": true,
+          "createdAt": "2026-01-15T00:00:00.000Z",
+          "updatedAt": "2026-01-15T00:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "card-exposure-d",
+      "name": "Exposure Headroom",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "maximumSpend": 1000
+    },
+    {
+      "id": "card-exposure-e",
+      "name": "Exposure Tier",
+      "issuer": "Example Bank",
+      "type": "miles",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "spendingTiers": [
+        {
+          "id": "tier-exposure-e",
+          "spendThreshold": 400,
+          "earningRate": 1.5
+        }
+      ]
+    },
+    {
+      "id": "card-exposure-f",
+      "name": "Exposure Capped",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "maximumSpend": 300
+    },
+    {
+      "id": "card-exposure-g",
+      "name": "Exposure Block",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "maximumSpend": 314,
+      "earningBlockSize": 5
+    },
+    {
+      "id": "card-exposure-h",
+      "name": "Exposure Top",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 300,
+      "spendingTiers": [
+        {
+          "id": "tier-exposure-h",
+          "spendThreshold": 300,
+          "earningRate": 1.5
+        }
+      ]
+    },
+    {
+      "id": "card-exposure-i",
+      "name": "Exposure Open",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": []
+    },
+    {
+      "id": "card-exposure-j",
+      "name": "Exposure Failed",
+      "issuer": "Example Bank",
+      "type": "miles",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "rewardPeriod": {
+        "monthCount": 3,
+        "anchorDate": "2026-03-01",
+        "monthlyMinimumSpend": 100
+      }
+    },
+    {
+      "id": "card-exposure-k",
+      "name": "Exposure Monthly",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "rewardPeriod": {
+        "monthCount": 3,
+        "anchorDate": "2026-04-01",
+        "monthlyMinimumSpend": 400
+      }
+    },
+    {
+      "id": "card-exposure-l",
+      "name": "Exposure Locked",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "rewardPeriod": {
+        "monthCount": 3,
+        "anchorDate": "2026-04-01",
+        "monthlyMinimumSpend": 300
+      }
+    },
+    {
+      "id": "card-exposure-m",
+      "name": "Exposure Category",
+      "issuer": "Example Bank",
+      "type": "miles",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": true,
+      "subcategories": [
+        {
+          "id": "subcat-exposure-m-dining",
+          "name": "Dining",
+          "flagColor": "red",
+          "rewardValue": 4,
+          "priority": 1,
+          "active": true,
+          "createdAt": "2026-01-15T00:00:00.000Z",
+          "updatedAt": "2026-01-15T00:00:00.000Z"
+        },
+        {
+          "id": "subcat-exposure-m-online",
+          "name": "Online",
+          "flagColor": "blue",
+          "rewardValue": 3,
+          "maximumSpend": 200,
+          "priority": 2,
+          "active": true,
+          "createdAt": "2026-01-15T00:00:00.000Z",
+          "updatedAt": "2026-01-15T00:00:00.000Z"
+        }
+      ],
+      "minimumSpend": 200
+    },
+    {
+      "id": "card-exposure-n",
+      "name": "Exposure Long Name Preferred Platinum Rewards",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 500
+    },
+    {
+      "id": "card-exposure-o",
+      "name": "Exposure Step",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 200,
+      "spendingTiers": [
+        {
+          "id": "tier-exposure-o",
+          "spendThreshold": 400,
+          "earningRate": 1.5
+        }
+      ]
+    },
+    {
+      "id": "card-exposure-p",
+      "name": "Exposure Journey",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 100,
+      "maximumSpend": 500,
+      "spendingTiers": [
+        {
+          "id": "tier-exposure-p",
+          "spendThreshold": 200,
+          "earningRate": 1.5,
+          "maximumSpend": 500
+        }
+      ]
+    },
+    {
+      "id": "card-exposure-a-2",
+      "name": "Exposure Below 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 500
+    },
+    {
+      "id": "card-exposure-b-2",
+      "name": "Exposure Urgent 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "billing",
+        "dayOfMonth": 26
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 500
+    },
+    {
+      "id": "card-travel-2",
+      "name": "Travel Card 2",
+      "issuer": "DBS",
+      "type": "miles",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1.2,
+      "minimumSpend": 200,
+      "subcategoriesEnabled": true,
+      "subcategories": [
+        {
+          "id": "subcat-dining-2",
+          "name": "Dining",
+          "flagColor": "red",
+          "rewardValue": 4,
+          "priority": 1,
+          "active": true,
+          "createdAt": "2026-01-15T00:00:00.000Z",
+          "updatedAt": "2026-01-15T00:00:00.000Z"
+        },
+        {
+          "id": "subcat-online-2",
+          "name": "Online",
+          "flagColor": "blue",
+          "rewardValue": 3,
+          "priority": 2,
+          "active": true,
+          "createdAt": "2026-01-15T00:00:00.000Z",
+          "updatedAt": "2026-01-15T00:00:00.000Z"
+        }
+      ]
+    },
+    {
+      "id": "card-exposure-d-2",
+      "name": "Exposure Headroom 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "maximumSpend": 1000
+    },
+    {
+      "id": "card-exposure-e-2",
+      "name": "Exposure Tier 2",
+      "issuer": "Example Bank",
+      "type": "miles",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "spendingTiers": [
+        {
+          "id": "tier-exposure-e-2",
+          "spendThreshold": 400,
+          "earningRate": 1.5
+        }
+      ]
+    },
+    {
+      "id": "card-exposure-f-2",
+      "name": "Exposure Capped 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "maximumSpend": 300
+    },
+    {
+      "id": "card-exposure-g-2",
+      "name": "Exposure Block 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "maximumSpend": 314,
+      "earningBlockSize": 5
+    },
+    {
+      "id": "card-exposure-h-2",
+      "name": "Exposure Top 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 300,
+      "spendingTiers": [
+        {
+          "id": "tier-exposure-h-2",
+          "spendThreshold": 300,
+          "earningRate": 1.5
+        }
+      ]
+    },
+    {
+      "id": "card-exposure-i-2",
+      "name": "Exposure Open 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": []
+    },
+    {
+      "id": "card-exposure-j-2",
+      "name": "Exposure Failed 2",
+      "issuer": "Example Bank",
+      "type": "miles",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "rewardPeriod": {
+        "monthCount": 3,
+        "anchorDate": "2026-03-01",
+        "monthlyMinimumSpend": 100
+      }
+    },
+    {
+      "id": "card-exposure-k-2",
+      "name": "Exposure Monthly 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "rewardPeriod": {
+        "monthCount": 3,
+        "anchorDate": "2026-04-01",
+        "monthlyMinimumSpend": 400
+      }
+    },
+    {
+      "id": "card-exposure-l-2",
+      "name": "Exposure Locked 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "rewardPeriod": {
+        "monthCount": 3,
+        "anchorDate": "2026-04-01",
+        "monthlyMinimumSpend": 300
+      }
+    },
+    {
+      "id": "card-exposure-m-2",
+      "name": "Exposure Category 2",
+      "issuer": "Example Bank",
+      "type": "miles",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": true,
+      "subcategories": [
+        {
+          "id": "subcat-exposure-m-dining-2",
+          "name": "Dining",
+          "flagColor": "red",
+          "rewardValue": 4,
+          "priority": 1,
+          "active": true,
+          "createdAt": "2026-01-15T00:00:00.000Z",
+          "updatedAt": "2026-01-15T00:00:00.000Z"
+        },
+        {
+          "id": "subcat-exposure-m-online-2",
+          "name": "Online",
+          "flagColor": "blue",
+          "rewardValue": 3,
+          "maximumSpend": 200,
+          "priority": 2,
+          "active": true,
+          "createdAt": "2026-01-15T00:00:00.000Z",
+          "updatedAt": "2026-01-15T00:00:00.000Z"
+        }
+      ],
+      "minimumSpend": 200
+    },
+    {
+      "id": "card-exposure-n-2",
+      "name": "Exposure Long Name Preferred Platinum Rewards 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 500
+    },
+    {
+      "id": "card-exposure-o-2",
+      "name": "Exposure Step 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 200,
+      "spendingTiers": [
+        {
+          "id": "tier-exposure-o-2",
+          "spendThreshold": 400,
+          "earningRate": 1.5
+        }
+      ]
+    },
+    {
+      "id": "card-exposure-p-2",
+      "name": "Exposure Journey 2",
+      "issuer": "Example Bank",
+      "type": "cashback",
+      "ynabAccountId": "acct-credit",
+      "billingCycle": {
+        "type": "calendar"
+      },
+      "featured": true,
+      "earningRate": 1,
+      "subcategoriesEnabled": false,
+      "subcategories": [],
+      "minimumSpend": 100,
+      "maximumSpend": 500,
+      "spendingTiers": [
+        {
+          "id": "tier-exposure-p-2",
+          "spendThreshold": 200,
+          "earningRate": 1.5,
+          "maximumSpend": 500
+        }
+      ]
+    }
+  ],
+  "rules": [],
+  "tagMappings": [
+    {
+      "id": "map-dining",
+      "cardId": "card-travel",
+      "ynabTag": "red",
+      "rewardCategory": "Dining"
+    },
+    {
+      "id": "map-online",
+      "cardId": "card-travel",
+      "ynabTag": "blue",
+      "rewardCategory": "Online"
+    },
+    {
+      "id": "map-exposure-m-dining",
+      "cardId": "card-exposure-m",
+      "ynabTag": "red",
+      "rewardCategory": "Dining"
+    },
+    {
+      "id": "map-exposure-m-online",
+      "cardId": "card-exposure-m",
+      "ynabTag": "blue",
+      "rewardCategory": "Online"
+    },
+    {
+      "id": "map-dining-2",
+      "cardId": "card-travel-2",
+      "ynabTag": "red",
+      "rewardCategory": "Dining"
+    },
+    {
+      "id": "map-online-2",
+      "cardId": "card-travel-2",
+      "ynabTag": "blue",
+      "rewardCategory": "Online"
+    },
+    {
+      "id": "map-exposure-m-dining-2",
+      "cardId": "card-exposure-m-2",
+      "ynabTag": "red",
+      "rewardCategory": "Dining"
+    },
+    {
+      "id": "map-exposure-m-online-2",
+      "cardId": "card-exposure-m-2",
+      "ynabTag": "blue",
+      "rewardCategory": "Online"
+    }
+  ],
+  "calculations": [],
+  "themeGroups": [],
+  "hiddenCards": [],
+  "settings": {
+    "theme": "auto",
+    "currency": "SGD",
+    "milesValuation": 0.015,
+    "dashboardViewMode": "summary",
+    "groupCardsByType": true
+  }
+}

@@ -149,11 +149,25 @@ struct RewardsView: View {
   @Environment(AppModel.self) private var model
   @Environment(RootChromeState.self) private var chrome: RootChromeState?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+
+  /// Room under the last card: clear of the sidebar's floating Add (as the save toast is), or on a
+  /// phone clear of the floating Assistant above Add (the compact 64 checked on an iPhone simulator, 21 Oct 2026).
+  private var bottomRoom: CGFloat {
+    let idiom = UIDevice.current.userInterfaceIdiom
+    return RootChrome.usesSidebar(idiom: idiom, horizontalSizeClass: horizontalSizeClass)
+      ? RootChrome.toastBottomPadding(idiom: idiom, horizontalSizeClass: horizontalSizeClass)
+      : 64
+  }
   @State private var filter: RewardsReportFilter
   @State private var sheet: RewardsSheet?
   @State private var route: RewardsRoute?
   @State private var preferencesByPlan: [String: RewardsBoardPreferences] = [:]
   @State private var rewardAccountIDsByPlan: [String: Set<String>] = [:]
+
+  /// Rows are capped and centred on wide screens.
+  static let rowMaxWidth: CGFloat = 640
 
   init(filter: RewardsReportFilter = RewardsReportFilter()) {
     var board = filter
@@ -193,6 +207,9 @@ struct RewardsView: View {
     .animation(reduceMotion ? nil : Theme.Motion.arrive, value: model.rewardsPhase)
     .listStyle(.plain)
     .scrollContentBackground(.hidden)
+    // Room below the last card for the floating buttons: the Assistant above Add on a phone, and
+    // the floating Add in the sidebar layout, which reaches a capped row on a narrow iPad.
+    .contentMargins(.bottom, bottomRoom, for: .scrollContent)
     .background(Theme.canvas)
     .navigationTitle("Rewards")
     .navigationBarTitleDisplayMode(.large)
@@ -373,6 +390,9 @@ struct RewardsView: View {
         index: index)
     }
     .buttonStyle(.plain)
+    // On iPad the board has no readable-width limit, and a 700pt strip turns into a thin ribbon.
+    .frame(maxWidth: Self.rowMaxWidth)
+    .frame(maxWidth: .infinity)
     .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
     .listRowBackground(Color.clear)
     .listRowSeparator(.hidden)
@@ -441,22 +461,35 @@ struct RewardsView: View {
     .accessibilityHint("Opens totals and the breakdown.")
   }
 
+  /// Side by side, and stacked at accessibility sizes so no word is split.
+  @ViewBuilder
   private func pastDateBanner(_ asOf: String) -> some View {
-    HStack(spacing: 8) {
-      Label(
-        "Showing \(RewardsCalendar.shortLabel(asOf, referenceISO: RewardsCalendar.today()))",
-        systemImage: "clock.arrow.circlepath"
-      )
-      .font(.subheadline)
-      .foregroundStyle(Theme.textPrimary)
-      Spacer(minLength: 8)
-      Button("Back to Today") {
-        backToToday()
+    let label = Label(
+      "Showing \(RewardsCalendar.shortLabel(asOf, referenceISO: RewardsCalendar.today()))",
+      systemImage: "clock.arrow.circlepath"
+    )
+    .font(.subheadline)
+    .foregroundStyle(Theme.textPrimary)
+    let back = Button("Back to Today") {
+      backToToday()
+    }
+    .buttonStyle(.borderless)
+    .font(.subheadline.weight(.semibold))
+    .tint(Theme.accent)
+    .frame(minHeight: 44)
+    Group {
+      if dynamicTypeSize.isAccessibilitySize {
+        VStack(alignment: .leading, spacing: 4) {
+          label
+          back
+        }
+      } else {
+        HStack(spacing: 8) {
+          label
+          Spacer(minLength: 8)
+          back
+        }
       }
-      .buttonStyle(.borderless)
-      .font(.subheadline.weight(.semibold))
-      .tint(Theme.accent)
-      .frame(minHeight: 44)
     }
     .listRowBackground(Color.clear)
     .listRowSeparator(.hidden)
@@ -808,19 +841,31 @@ enum RewardCardEditorDestination: Identifiable {
 }
 
 struct RewardFilledRow: View {
+  /// Where the row is drawn, which picks its layout (spec "What collapses when").
+  enum Placement {
+    /// The Rewards board: the strip, or the paper row with a scene band at accessibility sizes.
+    case board
+    /// An account's register: the paper row with a small print, or with a band at accessibility sizes.
+    case register
+    /// The detail sheet: the 3:2 hero over the slip. The sheet names the card itself.
+    case sheet
+  }
+
   let projection: RewardRowProjection
   var icon: String?
   let currencyFormat: CurrencyFormat?
-  /// Off in the detail sheet, whose navigation title already names the card.
-  var showsTitle = true
+  var placement: Placement = .board
   /// Which list this row is in, so the same card remembers its pose separately in each.
   var memoryScope = "board"
   /// The row's place in its list, for the staggered first showing.
   var index = 0
+  /// The sheet slip's caps line: issuer, type and "Featured" when it is.
+  var capsLine: String?
 
   @Environment(\.colorSchemeContrast) private var contrast
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.legibilityWeight) private var legibilityWeight
   /// Optional so a row drawn outside the app (a snapshot) still works; it only scopes the animation memory.
   @Environment(AppModel.self) private var model: AppModel?
   @ScaledMetric(relativeTo: .body) private var stripPadding = 9.0
@@ -829,6 +874,8 @@ struct RewardFilledRow: View {
   /// The icon's two rising slopes: the target horizon 14pt to 2pt under the name, the spend ridge
   /// lifting towards it, and a 10pt half-sun on the horizon at the right.
   @ScaledMetric(relativeTo: .body) private var skyBand = 34.0
+  /// The caps line's 0.14em tracking, scaling with its text.
+  @ScaledMetric(relativeTo: .caption2) private var capsTracking = 1.54
   /// The ridges follow the measured bottom of the name and top of the headline.
   @State private var nameBottom: CGFloat?
   @State private var footTop: CGFloat?
@@ -840,6 +887,13 @@ struct RewardFilledRow: View {
   private static let space = "rewardExposure"
   /// The scene band above the words at accessibility sizes, in points: art, so it does not scale.
   private static let bandHeight: CGFloat = 64
+  /// The register's thumbnail print, in points: art, so it does not scale.
+  private static let printSize = CGSize(width: 90, height: 60)
+  /// The hero's width on a wide sheet (iPad).
+  private static let heroMaxWidth: CGFloat = 520
+
+  private var bold: Bool { legibilityWeight == .bold }
+  private var showsTitle: Bool { placement != .sheet }
 
   /// What the words sit on, which sets their inks.
   private enum Surface {
@@ -852,10 +906,21 @@ struct RewardFilledRow: View {
     let text = RewardRowText(projection, currencyFormat: currencyFormat)
     Group {
       if let exposure = RewardExposure(projection) {
-        if dynamicTypeSize.isAccessibilitySize {
-          bandRow(text, exposure: exposure)
-        } else {
-          stripRow(text, exposure: exposure)
+        switch placement {
+        case .board:
+          if dynamicTypeSize.isAccessibilitySize {
+            bandRow(text, exposure: exposure)
+          } else {
+            stripRow(text, exposure: exposure)
+          }
+        case .register:
+          if dynamicTypeSize.isAccessibilitySize {
+            bandRow(text, exposure: exposure)
+          } else {
+            printRow(text, exposure: exposure)
+          }
+        case .sheet:
+          heroRow(text, exposure: exposure)
         }
       } else {
         paperRow(text)
@@ -889,6 +954,8 @@ struct RewardFilledRow: View {
       }
       .coordinateSpace(.named(Self.space))
       .clipShape(.rect(cornerRadius: Theme.Radius.card, style: .continuous))
+      // The words are inked for the face behind them, so Smart Invert leaves them together.
+      .accessibilityIgnoresInvertColors(true)
       .overlay { outline }
     }
   }
@@ -906,6 +973,96 @@ struct RewardFilledRow: View {
     .overlay { outline }
   }
 
+  /// The register: today's words on paper, with a small print of the whole scene on the trailing side,
+  /// top-aligned with the name.
+  private func printRow(_ text: RewardRowText, exposure: RewardExposure) -> some View {
+    HStack(alignment: .top, spacing: 12) {
+      paperText(text)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      RewardExposureAnimator(exposure: exposure, layout: .photo, key: memoryKey, index: index)
+        .frame(width: Self.printSize.width, height: Self.printSize.height)
+        .clipShape(.rect(cornerRadius: Theme.Radius.inset, style: .continuous))
+        .overlay {
+          RoundedRectangle(cornerRadius: Theme.Radius.inset, style: .continuous)
+            .strokeBorder(Color.primary.opacity(0.12), lineWidth: 0.5)
+        }
+    }
+    .padding(.vertical, paperPadding)
+    .padding(.horizontal, horizontalPadding)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Theme.card)
+    .clipShape(.rect(cornerRadius: Theme.Radius.card, style: .continuous))
+    .overlay { outline }
+  }
+
+  /// The detail sheet: a 3:2 print in a 6pt border, so it reads as a photograph, not a payment card,
+  /// and the slip below it on the grouped background.
+  private func heroRow(_ text: RewardRowText, exposure: RewardExposure) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+      RewardExposureAnimator(exposure: exposure, layout: .photo, key: memoryKey, index: index)
+        .aspectRatio(3 / 2, contentMode: .fit)
+        .overlay(alignment: .topLeading) {
+          // Fixed-size art that repeats the slip: hidden from VoiceOver, and at accessibility sizes.
+          if !dynamicTypeSize.isAccessibilitySize {
+            minimumTick(exposure)
+          }
+        }
+        .overlay(alignment: .topLeading) {
+          if let label = text.targetLabel, !dynamicTypeSize.isAccessibilitySize {
+            Text(label)
+              .font(CardType.fixedMono(11))
+              .foregroundStyle(titleInk(.ridge))
+              .padding(.leading, 10)
+              .padding(.top, 8)
+              .accessibilityHidden(true)
+          }
+        }
+        .clipShape(.rect(cornerRadius: 10, style: .continuous))
+        // The print and its annotations are a picture, so Smart Invert leaves them together.
+        .accessibilityIgnoresInvertColors(true)
+        .padding(6)
+        .background(Theme.card, in: .rect(cornerRadius: Theme.Radius.card, style: .continuous))
+        .overlay {
+          RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+            .strokeBorder(Color.primary.opacity(contrast == .increased ? 0.3 : 0.12), lineWidth: contrast == .increased ? 1 : 0.5)
+        }
+      VStack(alignment: .leading, spacing: 3) {
+        if let capsLine, !capsLine.isEmpty {
+          Text(capsLine)
+            .font(CardType.sans(.semibold, 11, relativeTo: .caption2, bold: bold))
+            .tracking(capsTracking)
+            .textCase(.uppercase)
+            .foregroundStyle(Theme.rowSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        foot(text, surface: .paper)
+        exceptions(text, surface: .paper)
+      }
+      .padding(.horizontal, 4)
+    }
+    // On a wide sheet the print and its slip stay one column, centred.
+    .frame(maxWidth: Self.heroMaxWidth)
+    .frame(maxWidth: .infinity)
+  }
+
+  /// In the minimum journey, a 4pt tick on the target horizon at the sun's column: where the sun will
+  /// rest. Fixed-size art, hidden with the label at accessibility sizes.
+  @ViewBuilder
+  private func minimumTick(_ exposure: RewardExposure) -> some View {
+    if exposure.stage == .gate {
+      GeometryReader { proxy in
+        let x = RewardExposure.column * proxy.size.width
+        let y = proxy.size.height * BrandRise.at(BrandRise.backCrest, RewardExposure.column)
+        Path { path in
+          path.move(to: CGPoint(x: x, y: y))
+          path.addLine(to: CGPoint(x: x, y: y + 4))
+        }
+        .stroke(Theme.Face.crest.opacity(0.6), lineWidth: 1)
+      }
+      .accessibilityHidden(true)
+    }
+  }
+
   private func paperRow(_ text: RewardRowText) -> some View {
     paperContent(text)
       .background(Theme.card)
@@ -914,6 +1071,13 @@ struct RewardFilledRow: View {
   }
 
   private func paperContent(_ text: RewardRowText) -> some View {
+    paperText(text)
+      .padding(.vertical, paperPadding)
+      .padding(.horizontal, horizontalPadding)
+      .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  private func paperText(_ text: RewardRowText) -> some View {
     VStack(alignment: .leading, spacing: 3) {
       if showsTitle {
         titleLine(surface: .paper)
@@ -921,14 +1085,11 @@ struct RewardFilledRow: View {
       foot(text, surface: .paper)
       exceptions(text, surface: .paper)
     }
-    .padding(.vertical, paperPadding)
-    .padding(.horizontal, horizontalPadding)
-    .frame(maxWidth: .infinity, alignment: .leading)
   }
 
   /// The name may run to 72% of the width: the sun's column at 85% stays clear of it, and a half-sun
-  /// riding under the name's tail only grazes the line box. Without a name (the detail sheet) it is
-  /// an empty line, so the ridges still have a sky.
+  /// riding under the name's tail only grazes the line box. Without a name it is an empty line, so
+  /// the ridges still have a sky.
   @ViewBuilder
   private var nameBox: some View {
     if showsTitle {
@@ -947,6 +1108,8 @@ struct RewardFilledRow: View {
     }
   }
 
+  /// Two lines on the strip, then a tail truncation; at accessibility sizes the paper row has the
+  /// whole width and the name wraps as far as it needs.
   private func titleLine(surface: Surface) -> some View {
     HStack(alignment: .firstTextBaseline, spacing: 6) {
       if let icon {
@@ -955,9 +1118,10 @@ struct RewardFilledRow: View {
           .accessibilityHidden(true)
       }
       Text(projection.title)
-        .font(.system(.title3, design: .serif).italic())
+        .font(CardType.name())
         .foregroundStyle(titleInk(surface))
-        .lineLimit(2)
+        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
+        .fixedSize(horizontal: false, vertical: true)
     }
   }
 
@@ -966,7 +1130,7 @@ struct RewardFilledRow: View {
       actionLine(text, surface: surface)
       if let basis = text.basisLine {
         Text(basis)
-          .font(.system(.caption, design: .monospaced))
+          .font(CardType.mono(.regular, 12, relativeTo: .caption, bold: bold))
           .foregroundStyle(secondaryInk(surface))
           .fixedSize(horizontal: false, vertical: true)
       }
@@ -988,7 +1152,7 @@ struct RewardFilledRow: View {
           .fixedSize(horizontal: false, vertical: true)
       }
       .foregroundStyle(exceptionInk(at: index, surface: surface))
-      .font(.footnote.weight(.medium))
+      .font(CardType.sans(.medium, 13, relativeTo: .footnote, bold: bold))
       .padding(.top, surface == .ridge ? 4 : 2)
     }
   }
@@ -1035,7 +1199,7 @@ struct RewardFilledRow: View {
     let headline = headlineText(text, surface: surface)
     let deadline = text.deadline.map { value in
       Text(value)
-        .font(.footnote.weight(text.isUrgent ? .semibold : .regular))
+        .font(CardType.sans(text.isUrgent ? .semibold : .regular, 13, relativeTo: .footnote, bold: bold))
         .foregroundStyle(text.isUrgent ? urgentInk(surface) : secondaryInk(surface))
     }
     let stacked = VStack(alignment: .leading, spacing: 2) {
@@ -1063,14 +1227,14 @@ struct RewardFilledRow: View {
   private func headlineText(_ text: RewardRowText, surface: Surface) -> Text {
     let ink = headlineInk(surface)
     if let amount = text.amount {
-      let figure = Text(amount).font(.system(.headline, design: .monospaced).weight(.medium))
+      let figure = Text(amount).font(CardType.mono(.medium, 17, relativeTo: .headline, bold: bold))
         .foregroundStyle(projection.tone == .needsMinimum ? urgentInk(surface) : ink)
       return Text("\(figure) \(text.actionLabel)")
-        .font(.subheadline)
+        .font(CardType.sans(.regular, 15, relativeTo: .subheadline, bold: bold))
         .foregroundStyle(ink)
     }
     return Text(text.actionLabel)
-      .font(.headline)
+      .font(CardType.sans(.semibold, 17, relativeTo: .headline, bold: bold))
       .foregroundStyle(ink)
   }
 }
@@ -1108,10 +1272,17 @@ struct RewardCardDetailSheet: View {
     NavigationStack {
       List {
         Section {
-          RewardFilledRow(
-            projection: projection, icon: icon, currencyFormat: currencyFormat, showsTitle: false, memoryScope: "sheet"
-          )
-          .listRowInsets(EdgeInsets())
+          VStack(alignment: .leading, spacing: 12) {
+            heading
+            RewardFilledRow(
+              projection: projection, icon: icon, currencyFormat: currencyFormat, placement: .sheet,
+              memoryScope: "sheet", capsLine: capsLine
+            )
+          }
+          // On a wide sheet the heading, print and slip share one centred column.
+          .frame(maxWidth: 520)
+          .frame(maxWidth: .infinity)
+          .listRowInsets(EdgeInsets(top: 4, leading: 0, bottom: 4, trailing: 0))
           .listRowBackground(Color.clear)
         }
         .listSectionSpacing(12)
@@ -1145,8 +1316,11 @@ struct RewardCardDetailSheet: View {
       } action: { _, height in
         if height > 0 { contentHeight = height }
       }
+      // The name is the heading above the hero, where it can wrap; an inline bar title between Done
+      // and Edit Rewards truncates any longer name.
       .navigationTitle(row.card.name)
       .navigationBarTitleDisplayMode(.inline)
+      .toolbar(removing: .title)
       .toolbar {
         ToolbarItem(placement: .cancellationAction) {
           Button("Done") { dismiss() }
@@ -1162,6 +1336,33 @@ struct RewardCardDetailSheet: View {
   }
 
   private var calc: RewardsCalculation { row.calculation }
+
+  private var heading: some View {
+    HStack(alignment: .firstTextBaseline, spacing: 8) {
+      if let icon {
+        Text(icon)
+          .font(.title3)
+          .accessibilityHidden(true)
+      }
+      Text(row.card.name)
+        .font(CardType.name(26, relativeTo: .title2))
+        .foregroundStyle(Theme.textPrimary)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(.horizontal, 4)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .accessibilityElement(children: .combine)
+    .accessibilityAddTraits(.isHeader)
+  }
+
+  /// "DBS · Miles · Featured": the slip's caps line.
+  private var capsLine: String {
+    let type = row.card.type == .miles ? "Miles" : "Cashback"
+    let issuer = row.card.issuer.trimmingCharacters(in: .whitespacesAndNewlines)
+    return ([issuer.isEmpty ? nil : issuer, type, row.card.featured ? "Featured" : nil] as [String?])
+      .compactMap { $0 }
+      .joined(separator: " · ")
+  }
 
   private var currentPeriod: RewardsCalculationPeriod? {
     guard let asOf else { return calc.periods?.last }
@@ -1820,7 +2021,8 @@ struct RegisterRewardRow: View {
     Button {
       sheet = .detail
     } label: {
-      RewardFilledRow(projection: projection, currencyFormat: model.currencyFormat, memoryScope: "register")
+      RewardFilledRow(
+        projection: projection, currencyFormat: model.currencyFormat, placement: .register, memoryScope: "register")
     }
     .buttonStyle(.plain)
     .accessibilityLabel("Rewards, \(projection.title)")
