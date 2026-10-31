@@ -114,6 +114,20 @@ struct RewardRowProjection: Equatable {
     let target: Double
   }
 
+  /// Where the as-of day sits in the current period, for the day rail. Days count from 1.
+  struct PeriodPosition: Equatable {
+    let start: String
+    let end: String
+    let length: Int
+    let day: Int
+    /// The day the minimum was met, when it was met inside this period and the day is known.
+    let metDay: Int?
+    /// Nil whenever `metDay` is, so the rail and the targets agree.
+    let metOn: String?
+    /// The as-of day is the live date, not a past one.
+    let isLive: Bool
+  }
+
   enum Exception: Equatable {
     case categoriesAtCap(names: [String], over: Bool)
     case categoriesBelowMinimum(names: [String])
@@ -145,6 +159,8 @@ struct RewardRowProjection: Equatable {
   let reachedTierThreshold: Double
   /// Where in the period the minimum was met, 0…1 by day; nil when it was not, or is unknown. Picture only.
   var minimumMetAt: Double? = nil
+  /// The current period and the as-of day in it; nil for ranges and without an as-of day.
+  var period: PeriodPosition? = nil
 
   var isBelowMinimum: Bool {
     switch action {
@@ -172,6 +188,19 @@ struct RewardRowProjection: Equatable {
       else { return nil }
       return min(1, max(0, Double(at + 1) / Double(length + 1)))
     }()
+    let position: PeriodPosition? = {
+      guard let asOf, let current = calc.periods?.last(where: { $0.start <= asOf && asOf <= $0.end }),
+        let span = RewardsCalendar.days(from: current.start, to: current.end), span >= 0,
+        let at = RewardsCalendar.days(from: current.start, to: asOf)
+      else { return nil }
+      let length = span + 1
+      let metOn = calc.minimumSpendMet ? (current.calculation.minimumMetOn ?? calc.minimumMetOn) : nil
+      let metDay = metOn.flatMap { RewardsCalendar.days(from: current.start, to: $0) }.map { $0 + 1 }
+        .flatMap { (1...length).contains($0) ? $0 : nil }
+      return PeriodPosition(
+        start: current.start, end: current.end, length: length, day: min(length, max(1, at + 1)),
+        metDay: metDay, metOn: metDay == nil ? nil : metOn, isLive: asOf == RewardsCalendar.today())
+    }()
     func build(
       _ action: Action,
       _ tone: Tone,
@@ -197,7 +226,8 @@ struct RewardRowProjection: Equatable {
         missedMinimumPeriod: missedMinimumPeriod,
         minimumAmount: minimumAmount,
         reachedTierThreshold: reachedTierThreshold,
-        minimumMetAt: isRange ? nil : metAt
+        minimumMetAt: isRange ? nil : metAt,
+        period: isRange ? nil : position
       )
     }
 
@@ -268,7 +298,7 @@ struct RewardRowProjection: Equatable {
       // The flag is authoritative: it fires once headroom is below one block.
       let terminal = calc.shouldStopUsing == true || calc.hasNextSpendingTier != true
       let maximum = calc.maximumSpend ?? 0
-      action = .capReached(beyond: maximum > 0 ? max(0, calc.totalSpend - maximum) : 0, terminal: terminal)
+      action = .capReached(beyond: maximum > 0 ? beyondCap(spend: calc.totalSpend, cap: maximum) : 0, terminal: terminal)
       tone = terminal ? .complete : .earning
       if maximum > 0 {
         basis = Basis(spend: min(calc.countedSpend, maximum), target: maximum)
@@ -314,7 +344,7 @@ struct RewardRowProjection: Equatable {
     if !calc.maximumSpendExceeded {
       let atCap = calc.flags.filter { ($0.maximumSpend ?? 0) > 0 && $0.maximumSpendExceeded == true }
       if !atCap.isEmpty {
-        let over = atCap.contains { ($0.totalSpend ?? 0) > ($0.maximumSpend ?? 0) }
+        let over = atCap.contains { beyondCap(spend: $0.totalSpend ?? 0, cap: $0.maximumSpend ?? 0) > 0 }
         exceptions.append(.categoriesAtCap(names: atCap.map(\.name), over: over))
       }
     }
@@ -327,6 +357,13 @@ struct RewardRowProjection: Equatable {
 
     return build(action, tone, basis: basis, fill: fill, deadline: due, exceptions: exceptions,
       missedMinimumPeriod: failedMonth.map { $0.start...$0.end })
+  }
+
+  /// Spend past a cap, or 0 under half a cent, so a cap met exactly (which can sum to 50.00000000000001)
+  /// never shows or speaks "$0.00 beyond".
+  static func beyondCap(spend: Double, cap: Double) -> Double {
+    let beyond = spend - cap
+    return beyond >= 0.005 ? beyond : 0
   }
 
   /// A plain amount for the picture: finite and positive, else 0.
@@ -357,6 +394,11 @@ struct RewardRowText {
   let basisLine: String?
   let exceptionLines: [String]
   let accessibilityValue: String
+  /// What the card has earned this period: money for cashback, "1,200 miles" for miles.
+  let earned: String
+  /// The pace to make an unmet minimum: what is left over the days left, to the cent. Nil without a
+  /// deadline, and on the last day, when the amount itself is the pace.
+  let pacePerDay: String?
   /// The hero's in-frame label, the basis target and its kind ("$500.00 minimum"): art that repeats
   /// the slip, never spoken. Nil outside the minimum journey and the climb.
   let targetLabel: String?
@@ -368,6 +410,7 @@ struct RewardRowText {
       MoneyCodec.displayString(forCurrencyUnits: value, currencyFormat: currencyFormat)
     }
     let earned = Self.reward(projection.earned, projection.rewardType, currencyFormat: currencyFormat)
+    self.earned = earned
 
     switch projection.action {
     case .qualificationFailed:
@@ -434,6 +477,18 @@ struct RewardRowText {
       }
     }
 
+    switch projection.action {
+    case .minimum(let remaining), .monthlyMinimum(let remaining):
+      if let due = projection.deadline, due.kind == .ends, due.days >= 2, remaining > 0 {
+        // Up to the cent, so a few cents left never reads as "$0.00 a day".
+        pacePerDay = money(Self.roundedUpToCent(Self.roundedUpToCent(remaining) / Double(due.days)))
+      } else {
+        pacePerDay = nil
+      }
+    default:
+      pacePerDay = nil
+    }
+
     switch (projection.action, projection.basis) {
     case (.minimum, let basis?): targetLabel = "\(money(basis.target)) minimum"
     case (.monthlyMinimum, let basis?): targetLabel = "\(money(basis.target)) monthly minimum"
@@ -456,11 +511,18 @@ struct RewardRowText {
     if let basis = projection.basis, basis.target > 0, projection.action != .range {
       let percent = Int((min(1, max(0, basis.spend / basis.target)) * 100).rounded())
       spoken.append("\(money(basis.spend)) of \(money(basis.target)), \(percent) per cent")
+      // The basis line says this on the strip; the slim row and the iPad statement leave it to the slip.
+      if case .capReached(let beyond, _) = projection.action, beyond > 0 {
+        spoken.append("\(money(beyond)) beyond cap")
+      }
     } else if let basisLine {
       spoken.append(basisLine)
     }
     if let due = projection.deadline, let deadline {
       spoken.append("\(deadline), \(due.kind == .ends ? "ends" : "period ends") \(RewardsCalendar.shortLabel(due.end))")
+    }
+    if let pace = pacePerDay {
+      spoken.append("About \(pace) a day to make it")
     }
     if projection.action != .range {
       spoken.append("\(earned) earned")

@@ -346,7 +346,7 @@ private struct ExposurePainter {
   private func drawGround(in context: inout GraphicsContext) {
     if daytime {
       return
-    } else if case .strip(_, let footTop) = scene.layout {
+    } else if case .strip(_, let footTop, _, _) = scene.layout {
       let top = (footTop ?? 0.54 * height) - 8
       let scrim = Gradient(colors: [Theme.Face.ridgeFront.opacity(0), Theme.Face.ridgeFront.opacity(0.55)])
       context.fill(

@@ -237,6 +237,8 @@ export interface RewardsReport {
       featured: boolean;
       /** The server sends the full CreditCard; the board reads the tiers for their labels. */
       spendingTiers?: Array<{ id: string; spendThreshold: number; earningRate?: number | null; maximumSpend?: number | null }>;
+      /** The card's reward categories; the slip reads which are excluded from rewards. */
+      subcategories?: Array<{ id: string; excludeFromRewards?: boolean }>;
     };
     account_id: string;
     account_name: string;

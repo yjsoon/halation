@@ -1,0 +1,189 @@
+{
+ "ynab": {
+  "selectedBudgetId": "local-plan",
+  "selectedBudgetName": "HowMuch Demo",
+  "trackedAccountIds": [
+   "acct-credit"
+  ]
+ },
+ "cards": [
+  {
+   "id": "c-gate87",
+   "name": "Gate Eighty 8787",
+   "issuer": "Sample",
+   "type": "cashback",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false,
+   "earningRate": 1.5,
+   "minimumSpend": 363
+  },
+  {
+   "id": "c-cap",
+   "name": "Headroom Cashback 1234",
+   "issuer": "Sample",
+   "type": "cashback",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false,
+   "earningRate": 1.5,
+   "minimumSpend": 100,
+   "maximumSpend": 600
+  },
+  {
+   "id": "c-capped",
+   "name": "Capped Card 2468",
+   "issuer": "Sample",
+   "type": "cashback",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false,
+   "earningRate": 1.5,
+   "minimumSpend": 50,
+   "maximumSpend": 300
+  },
+  {
+   "id": "c-rest",
+   "name": "Minimum Met 1357",
+   "issuer": "Sample",
+   "type": "cashback",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false,
+   "earningRate": 1.5,
+   "minimumSpend": 200,
+   "subcategoriesEnabled": true,
+   "subcategories": [
+    {
+     "id": "s-onlinex",
+     "name": "ONLINEX",
+     "flagColor": "blue",
+     "rewardValue": 4,
+     "priority": 1,
+     "active": true,
+     "createdAt": "2026-01-15T00:00:00.000Z",
+     "updatedAt": "2026-01-15T00:00:00.000Z",
+     "maximumSpend": 50
+    },
+    {
+     "id": "s-dining",
+     "name": "Dining",
+     "flagColor": "red",
+     "rewardValue": 2,
+     "priority": 2,
+     "active": true,
+     "createdAt": "2026-01-15T00:00:00.000Z",
+     "updatedAt": "2026-01-15T00:00:00.000Z",
+     "excludeFromRewards": true
+    }
+   ]
+  },
+  {
+   "id": "c-gate30",
+   "name": "Gate Thirty 4321",
+   "issuer": "Sample",
+   "type": "miles",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false,
+   "earningRate": 1.5,
+   "minimumSpend": 1052
+  },
+  {
+   "id": "c-calm",
+   "name": "Calm Miles 9999",
+   "issuer": "Sample",
+   "type": "miles",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false,
+   "earningRate": 1.5
+  },
+  {
+   "id": "c-month",
+   "name": "Monthly Gate 5555",
+   "issuer": "Sample",
+   "type": "cashback",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false,
+   "earningRate": 1.5,
+   "rewardPeriod": {
+    "monthCount": 3,
+    "anchorDate": "2026-05-01",
+    "monthlyMinimumSpend": 400
+   }
+  },
+  {
+   "id": "c-long",
+   "name": "Long Figures 1111",
+   "type": "miles",
+   "earningRate": 40,
+   "minimumSpend": 12345.67,
+   "maximumSpend": 23456.78,
+   "issuer": "Sample",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false
+  },
+  {
+   "id": "c-longmonth",
+   "name": "Missed Month 2222",
+   "type": "cashback",
+   "earningRate": 1.5,
+   "minimumSpend": 9000,
+   "rewardPeriod": {
+    "monthCount": 3,
+    "anchorDate": "2026-04-01",
+    "monthlyMinimumSpend": 1000
+   },
+   "issuer": "Sample",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": false
+  }
+ ],
+ "rules": [],
+ "tagMappings": [
+  {
+   "id": "m1",
+   "cardId": "c-rest",
+   "ynabTag": "blue",
+   "rewardCategory": "ONLINEX"
+  },
+  {
+   "id": "m2",
+   "cardId": "c-rest",
+   "ynabTag": "red",
+   "rewardCategory": "Dining"
+  }
+ ],
+ "calculations": [],
+ "themeGroups": [],
+ "hiddenCards": [],
+ "settings": {
+  "theme": "auto",
+  "currency": "SGD",
+  "milesValuation": 0.015,
+  "dashboardViewMode": "summary",
+  "groupCardsByType": true
+ }
+}

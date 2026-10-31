@@ -1,0 +1,685 @@
+{
+ "results": [
+  {
+   "width": 1000,
+   "mode": "light",
+   "scrollW": 1000,
+   "clientW": 1000,
+   "cards": [
+    {
+     "name": "Capped Card 2468",
+     "size": "noon",
+     "stage": "capped",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 481,
+      "w": 656,
+      "h": 92
+     },
+     "card": {
+      "x": 312,
+      "y": 481,
+      "w": 656,
+      "h": 92
+     }
+    },
+    {
+     "name": "Gate Eighty 8787",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 583,
+      "w": 656,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 583,
+      "w": 656,
+      "h": 176
+     }
+    },
+    {
+     "name": "Headroom Cashback 1234",
+     "size": "climb",
+     "stage": "climb",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 769,
+      "w": 656,
+      "h": 116
+     },
+     "card": {
+      "x": 312,
+      "y": 769,
+      "w": 656,
+      "h": 116
+     }
+    },
+    {
+     "name": "Minimum Met 1357",
+     "size": "noon",
+     "stage": "rest",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 895,
+      "w": 656,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 895,
+      "w": 656,
+      "h": 84
+     }
+    },
+    {
+     "name": "Missed Month 2222",
+     "size": "noon",
+     "stage": "failed",
+     "open": true,
+     "row": {
+      "x": 312,
+      "y": 989,
+      "w": 656,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 989,
+      "w": 656,
+      "h": 410
+     }
+    },
+    {
+     "name": "Monthly Gate 5555",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1408,
+      "w": 656,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1408,
+      "w": 656,
+      "h": 176
+     }
+    },
+    {
+     "name": "Calm Miles 9999",
+     "size": "noon",
+     "stage": "calm",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1664,
+      "w": 656,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 1664,
+      "w": 656,
+      "h": 84
+     }
+    },
+    {
+     "name": "Gate Thirty 4321",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1758,
+      "w": 656,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1758,
+      "w": 656,
+      "h": 176
+     }
+    },
+    {
+     "name": "Long Figures 1111",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1944,
+      "w": 656,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1944,
+      "w": 656,
+      "h": 176
+     }
+    }
+   ]
+  },
+  {
+   "width": 1016,
+   "mode": "light",
+   "scrollW": 1016,
+   "clientW": 1016,
+   "cards": [
+    {
+     "name": "Capped Card 2468",
+     "size": "noon",
+     "stage": "capped",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 482,
+      "w": 672,
+      "h": 92
+     },
+     "card": {
+      "x": 312,
+      "y": 482,
+      "w": 672,
+      "h": 92
+     }
+    },
+    {
+     "name": "Gate Eighty 8787",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 584,
+      "w": 672,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 584,
+      "w": 672,
+      "h": 176
+     }
+    },
+    {
+     "name": "Headroom Cashback 1234",
+     "size": "climb",
+     "stage": "climb",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 770,
+      "w": 672,
+      "h": 116
+     },
+     "card": {
+      "x": 312,
+      "y": 770,
+      "w": 672,
+      "h": 116
+     }
+    },
+    {
+     "name": "Minimum Met 1357",
+     "size": "noon",
+     "stage": "rest",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 896,
+      "w": 672,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 896,
+      "w": 672,
+      "h": 84
+     }
+    },
+    {
+     "name": "Missed Month 2222",
+     "size": "noon",
+     "stage": "failed",
+     "open": true,
+     "row": {
+      "x": 312,
+      "y": 990,
+      "w": 672,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 990,
+      "w": 672,
+      "h": 410
+     }
+    },
+    {
+     "name": "Monthly Gate 5555",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1410,
+      "w": 672,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1410,
+      "w": 672,
+      "h": 176
+     }
+    },
+    {
+     "name": "Calm Miles 9999",
+     "size": "noon",
+     "stage": "calm",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1665,
+      "w": 672,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 1665,
+      "w": 672,
+      "h": 84
+     }
+    },
+    {
+     "name": "Gate Thirty 4321",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1759,
+      "w": 672,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1759,
+      "w": 672,
+      "h": 176
+     }
+    },
+    {
+     "name": "Long Figures 1111",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1945,
+      "w": 672,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1945,
+      "w": 672,
+      "h": 176
+     }
+    }
+   ]
+  },
+  {
+   "width": 1100,
+   "mode": "light",
+   "scrollW": 1100,
+   "clientW": 1100,
+   "cards": [
+    {
+     "name": "Capped Card 2468",
+     "size": "noon",
+     "stage": "capped",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 431,
+      "w": 756,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 431,
+      "w": 756,
+      "h": 84
+     }
+    },
+    {
+     "name": "Gate Eighty 8787",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 525,
+      "w": 756,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 525,
+      "w": 756,
+      "h": 176
+     }
+    },
+    {
+     "name": "Headroom Cashback 1234",
+     "size": "climb",
+     "stage": "climb",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 711,
+      "w": 756,
+      "h": 116
+     },
+     "card": {
+      "x": 312,
+      "y": 711,
+      "w": 756,
+      "h": 116
+     }
+    },
+    {
+     "name": "Minimum Met 1357",
+     "size": "noon",
+     "stage": "rest",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 837,
+      "w": 756,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 837,
+      "w": 756,
+      "h": 84
+     }
+    },
+    {
+     "name": "Missed Month 2222",
+     "size": "noon",
+     "stage": "failed",
+     "open": true,
+     "row": {
+      "x": 312,
+      "y": 931,
+      "w": 756,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 931,
+      "w": 756,
+      "h": 389
+     }
+    },
+    {
+     "name": "Monthly Gate 5555",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1330,
+      "w": 756,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1330,
+      "w": 756,
+      "h": 176
+     }
+    },
+    {
+     "name": "Calm Miles 9999",
+     "size": "noon",
+     "stage": "calm",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1586,
+      "w": 756,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 1586,
+      "w": 756,
+      "h": 84
+     }
+    },
+    {
+     "name": "Gate Thirty 4321",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1680,
+      "w": 756,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1680,
+      "w": 756,
+      "h": 176
+     }
+    },
+    {
+     "name": "Long Figures 1111",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1866,
+      "w": 756,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1866,
+      "w": 756,
+      "h": 176
+     }
+    }
+   ]
+  },
+  {
+   "width": 1122,
+   "mode": "light",
+   "scrollW": 1122,
+   "clientW": 1122,
+   "cards": [
+    {
+     "name": "Capped Card 2468",
+     "size": "noon",
+     "stage": "capped",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 432,
+      "w": 778,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 432,
+      "w": 778,
+      "h": 84
+     }
+    },
+    {
+     "name": "Gate Eighty 8787",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 526,
+      "w": 778,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 526,
+      "w": 778,
+      "h": 176
+     }
+    },
+    {
+     "name": "Headroom Cashback 1234",
+     "size": "climb",
+     "stage": "climb",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 712,
+      "w": 778,
+      "h": 116
+     },
+     "card": {
+      "x": 312,
+      "y": 712,
+      "w": 778,
+      "h": 116
+     }
+    },
+    {
+     "name": "Minimum Met 1357",
+     "size": "noon",
+     "stage": "rest",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 838,
+      "w": 778,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 838,
+      "w": 778,
+      "h": 84
+     }
+    },
+    {
+     "name": "Missed Month 2222",
+     "size": "noon",
+     "stage": "failed",
+     "open": true,
+     "row": {
+      "x": 312,
+      "y": 932,
+      "w": 778,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 932,
+      "w": 778,
+      "h": 389
+     }
+    },
+    {
+     "name": "Monthly Gate 5555",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1331,
+      "w": 778,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1331,
+      "w": 778,
+      "h": 176
+     }
+    },
+    {
+     "name": "Calm Miles 9999",
+     "size": "noon",
+     "stage": "calm",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1586,
+      "w": 778,
+      "h": 84
+     },
+     "card": {
+      "x": 312,
+      "y": 1586,
+      "w": 778,
+      "h": 84
+     }
+    },
+    {
+     "name": "Gate Thirty 4321",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1680,
+      "w": 778,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1680,
+      "w": 778,
+      "h": 176
+     }
+    },
+    {
+     "name": "Long Figures 1111",
+     "size": "gate",
+     "stage": "gate",
+     "open": false,
+     "row": {
+      "x": 312,
+      "y": 1866,
+      "w": 778,
+      "h": 176
+     },
+     "card": {
+      "x": 312,
+      "y": 1866,
+      "w": 778,
+      "h": 176
+     }
+    }
+   ]
+  }
+ ],
+ "errors": []
+}

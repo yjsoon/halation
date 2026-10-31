@@ -1,0 +1,1218 @@
+{
+ "overlaps": [],
+ "period": {
+  "name-1000": {
+   "ledger": 374,
+   "period": false
+  },
+  "name-1002": {
+   "ledger": 376,
+   "period": false
+  },
+  "name-1004": {
+   "ledger": 378,
+   "period": false
+  },
+  "name-1006": {
+   "ledger": 380,
+   "period": false
+  },
+  "name-1008": {
+   "ledger": 382,
+   "period": false
+  },
+  "name-1010": {
+   "ledger": 384,
+   "period": false
+  },
+  "name-1012": {
+   "ledger": 386,
+   "period": false
+  },
+  "name-1014": {
+   "ledger": 388,
+   "period": false
+  },
+  "name-1016": {
+   "ledger": 390,
+   "period": false
+  },
+  "name-1018": {
+   "ledger": 392,
+   "period": false
+  },
+  "name-1020": {
+   "ledger": 394,
+   "period": false
+  },
+  "name-1022": {
+   "ledger": 396,
+   "period": false
+  },
+  "name-1024": {
+   "ledger": 398,
+   "period": false
+  },
+  "name-1026": {
+   "ledger": 400,
+   "period": false
+  },
+  "name-1028": {
+   "ledger": 402,
+   "period": false
+  },
+  "name-1030": {
+   "ledger": 404,
+   "period": false
+  },
+  "name-1032": {
+   "ledger": 406,
+   "period": false
+  },
+  "name-1034": {
+   "ledger": 408,
+   "period": false
+  },
+  "name-1036": {
+   "ledger": 410,
+   "period": false
+  },
+  "name-1038": {
+   "ledger": 412,
+   "period": false
+  },
+  "name-1040": {
+   "ledger": 414,
+   "period": false
+  },
+  "name-1042": {
+   "ledger": 416,
+   "period": false
+  },
+  "name-1044": {
+   "ledger": 418,
+   "period": false
+  },
+  "name-1046": {
+   "ledger": 420,
+   "period": false
+  },
+  "name-1048": {
+   "ledger": 422,
+   "period": false
+  },
+  "name-1050": {
+   "ledger": 424,
+   "period": false
+  },
+  "name-1052": {
+   "ledger": 426,
+   "period": false
+  },
+  "name-1054": {
+   "ledger": 428,
+   "period": false
+  },
+  "name-1056": {
+   "ledger": 430,
+   "period": false
+  },
+  "name-1058": {
+   "ledger": 432,
+   "period": false
+  },
+  "name-1060": {
+   "ledger": 434,
+   "period": false
+  },
+  "name-1062": {
+   "ledger": 436,
+   "period": false
+  },
+  "name-1064": {
+   "ledger": 438,
+   "period": false
+  },
+  "name-1066": {
+   "ledger": 440,
+   "period": false
+  },
+  "name-1068": {
+   "ledger": 442,
+   "period": false
+  },
+  "name-1070": {
+   "ledger": 444,
+   "period": false
+  },
+  "name-1072": {
+   "ledger": 446,
+   "period": false
+  },
+  "name-1074": {
+   "ledger": 448,
+   "period": false
+  },
+  "name-1076": {
+   "ledger": 450,
+   "period": false
+  },
+  "name-1078": {
+   "ledger": 452,
+   "period": false
+  },
+  "name-1080": {
+   "ledger": 454,
+   "period": false
+  },
+  "name-1082": {
+   "ledger": 456,
+   "period": false
+  },
+  "name-1084": {
+   "ledger": 458,
+   "period": false
+  },
+  "name-1086": {
+   "ledger": 460,
+   "period": false
+  },
+  "name-1088": {
+   "ledger": 462,
+   "period": false
+  },
+  "name-1090": {
+   "ledger": 464,
+   "period": false
+  },
+  "name-1092": {
+   "ledger": 466,
+   "period": false
+  },
+  "name-1094": {
+   "ledger": 468,
+   "period": false
+  },
+  "name-1096": {
+   "ledger": 470,
+   "period": false
+  },
+  "name-1098": {
+   "ledger": 472,
+   "period": false
+  },
+  "name-1100": {
+   "ledger": 474,
+   "period": false
+  },
+  "name-1102": {
+   "ledger": 476,
+   "period": false
+  },
+  "name-1104": {
+   "ledger": 478,
+   "period": false
+  },
+  "name-1106": {
+   "ledger": 480,
+   "period": false
+  },
+  "name-1108": {
+   "ledger": 482,
+   "period": false
+  },
+  "name-1110": {
+   "ledger": 484,
+   "period": false
+  },
+  "name-1112": {
+   "ledger": 486,
+   "period": false
+  },
+  "name-1114": {
+   "ledger": 488,
+   "period": false
+  },
+  "name-1116": {
+   "ledger": 490,
+   "period": false
+  },
+  "name-1118": {
+   "ledger": 492,
+   "period": false
+  },
+  "name-1120": {
+   "ledger": 494,
+   "period": false
+  },
+  "name-1122": {
+   "ledger": 496,
+   "period": false
+  },
+  "name-1124": {
+   "ledger": 498,
+   "period": false
+  },
+  "name-1126": {
+   "ledger": 500,
+   "period": false
+  },
+  "name-1128": {
+   "ledger": 502,
+   "period": false
+  },
+  "name-1130": {
+   "ledger": 504,
+   "period": false
+  },
+  "name-1132": {
+   "ledger": 506,
+   "period": false
+  },
+  "name-1134": {
+   "ledger": 508,
+   "period": true
+  },
+  "name-1136": {
+   "ledger": 510,
+   "period": true
+  },
+  "name-1138": {
+   "ledger": 512,
+   "period": true
+  },
+  "name-1140": {
+   "ledger": 514,
+   "period": true
+  },
+  "name-1142": {
+   "ledger": 516,
+   "period": true
+  },
+  "name-1144": {
+   "ledger": 518,
+   "period": true
+  },
+  "name-1146": {
+   "ledger": 520,
+   "period": true
+  },
+  "name-1148": {
+   "ledger": 522,
+   "period": true
+  },
+  "name-1150": {
+   "ledger": 524,
+   "period": true
+  },
+  "name-1152": {
+   "ledger": 526,
+   "period": true
+  },
+  "name-1154": {
+   "ledger": 528,
+   "period": true
+  },
+  "name-1156": {
+   "ledger": 530,
+   "period": true
+  },
+  "name-1158": {
+   "ledger": 532,
+   "period": true
+  },
+  "name-1160": {
+   "ledger": 534,
+   "period": true
+  },
+  "name-1162": {
+   "ledger": 536,
+   "period": true
+  },
+  "name-1164": {
+   "ledger": 538,
+   "period": true
+  },
+  "name-1166": {
+   "ledger": 540,
+   "period": true
+  },
+  "name-1168": {
+   "ledger": 542,
+   "period": true
+  },
+  "name-1170": {
+   "ledger": 544,
+   "period": true
+  },
+  "name-1172": {
+   "ledger": 546,
+   "period": true
+  },
+  "name-1174": {
+   "ledger": 548,
+   "period": true
+  },
+  "name-1176": {
+   "ledger": 550,
+   "period": true
+  },
+  "name-1178": {
+   "ledger": 552,
+   "period": true
+  },
+  "name-1180": {
+   "ledger": 554,
+   "period": true
+  },
+  "name-1182": {
+   "ledger": 556,
+   "period": true
+  },
+  "name-1184": {
+   "ledger": 558,
+   "period": true
+  },
+  "name-1186": {
+   "ledger": 560,
+   "period": true
+  },
+  "name-1188": {
+   "ledger": 562,
+   "period": true
+  },
+  "name-1190": {
+   "ledger": 564,
+   "period": true
+  },
+  "name-1192": {
+   "ledger": 566,
+   "period": true
+  },
+  "name-1194": {
+   "ledger": 568,
+   "period": true
+  },
+  "name-1196": {
+   "ledger": 570,
+   "period": true
+  },
+  "name-1198": {
+   "ledger": 572,
+   "period": true
+  },
+  "name-1200": {
+   "ledger": 574,
+   "period": true
+  },
+  "name-1202": {
+   "ledger": 576,
+   "period": true
+  },
+  "name-1204": {
+   "ledger": 578,
+   "period": true
+  },
+  "name-1206": {
+   "ledger": 580,
+   "period": true
+  },
+  "name-1208": {
+   "ledger": 582,
+   "period": true
+  },
+  "name-1210": {
+   "ledger": 584,
+   "period": true
+  },
+  "name-1212": {
+   "ledger": 586,
+   "period": true
+  },
+  "name-1214": {
+   "ledger": 588,
+   "period": true
+  },
+  "name-1216": {
+   "ledger": 590,
+   "period": true
+  },
+  "name-1218": {
+   "ledger": 592,
+   "period": true
+  },
+  "name-1220": {
+   "ledger": 594,
+   "period": true
+  },
+  "name-1222": {
+   "ledger": 596,
+   "period": true
+  },
+  "name-1224": {
+   "ledger": 598,
+   "period": true
+  },
+  "name-1226": {
+   "ledger": 600,
+   "period": true
+  },
+  "name-1228": {
+   "ledger": 602,
+   "period": true
+  },
+  "name-1230": {
+   "ledger": 604,
+   "period": true
+  },
+  "name-1232": {
+   "ledger": 606,
+   "period": true
+  },
+  "name-1234": {
+   "ledger": 608,
+   "period": true
+  },
+  "name-1236": {
+   "ledger": 610,
+   "period": true
+  },
+  "name-1238": {
+   "ledger": 612,
+   "period": true
+  },
+  "name-1240": {
+   "ledger": 614,
+   "period": true
+  },
+  "name-1242": {
+   "ledger": 616,
+   "period": true
+  },
+  "name-1244": {
+   "ledger": 618,
+   "period": true
+  },
+  "name-1246": {
+   "ledger": 620,
+   "period": true
+  },
+  "name-1248": {
+   "ledger": 622,
+   "period": true
+  },
+  "name-1250": {
+   "ledger": 624,
+   "period": true
+  },
+  "name-1252": {
+   "ledger": 626,
+   "period": true
+  },
+  "name-1254": {
+   "ledger": 628,
+   "period": true
+  },
+  "name-1256": {
+   "ledger": 630,
+   "period": true
+  },
+  "name-1258": {
+   "ledger": 632,
+   "period": true
+  },
+  "name-1260": {
+   "ledger": 634,
+   "period": true
+  },
+  "name-1262": {
+   "ledger": 636,
+   "period": true
+  },
+  "name-1264": {
+   "ledger": 638,
+   "period": true
+  },
+  "name-1266": {
+   "ledger": 640,
+   "period": true
+  },
+  "name-1268": {
+   "ledger": 642,
+   "period": true
+  },
+  "name-1270": {
+   "ledger": 644,
+   "period": true
+  },
+  "name-1272": {
+   "ledger": 646,
+   "period": true
+  },
+  "name-1274": {
+   "ledger": 648,
+   "period": true
+  },
+  "name-1276": {
+   "ledger": 650,
+   "period": true
+  },
+  "name-1278": {
+   "ledger": 652,
+   "period": true
+  },
+  "name-1280": {
+   "ledger": 574,
+   "period": true
+  },
+  "name-1282": {
+   "ledger": 576,
+   "period": true
+  },
+  "name-1284": {
+   "ledger": 578,
+   "period": true
+  },
+  "name-1286": {
+   "ledger": 580,
+   "period": true
+  },
+  "name-1288": {
+   "ledger": 582,
+   "period": true
+  },
+  "name-1290": {
+   "ledger": 584,
+   "period": true
+  },
+  "name-1292": {
+   "ledger": 586,
+   "period": true
+  },
+  "name-1294": {
+   "ledger": 588,
+   "period": true
+  },
+  "name-1296": {
+   "ledger": 590,
+   "period": true
+  },
+  "name-1298": {
+   "ledger": 592,
+   "period": true
+  },
+  "name-1300": {
+   "ledger": 594,
+   "period": true
+  },
+  "manual-1000": {
+   "ledger": 374,
+   "period": false
+  },
+  "manual-1002": {
+   "ledger": 376,
+   "period": false
+  },
+  "manual-1004": {
+   "ledger": 378,
+   "period": false
+  },
+  "manual-1006": {
+   "ledger": 380,
+   "period": false
+  },
+  "manual-1008": {
+   "ledger": 382,
+   "period": false
+  },
+  "manual-1010": {
+   "ledger": 384,
+   "period": false
+  },
+  "manual-1012": {
+   "ledger": 386,
+   "period": false
+  },
+  "manual-1014": {
+   "ledger": 388,
+   "period": false
+  },
+  "manual-1016": {
+   "ledger": 390,
+   "period": false
+  },
+  "manual-1018": {
+   "ledger": 392,
+   "period": false
+  },
+  "manual-1020": {
+   "ledger": 394,
+   "period": false
+  },
+  "manual-1022": {
+   "ledger": 396,
+   "period": false
+  },
+  "manual-1024": {
+   "ledger": 398,
+   "period": false
+  },
+  "manual-1026": {
+   "ledger": 400,
+   "period": false
+  },
+  "manual-1028": {
+   "ledger": 402,
+   "period": false
+  },
+  "manual-1030": {
+   "ledger": 404,
+   "period": false
+  },
+  "manual-1032": {
+   "ledger": 406,
+   "period": false
+  },
+  "manual-1034": {
+   "ledger": 408,
+   "period": false
+  },
+  "manual-1036": {
+   "ledger": 410,
+   "period": false
+  },
+  "manual-1038": {
+   "ledger": 412,
+   "period": false
+  },
+  "manual-1040": {
+   "ledger": 414,
+   "period": false
+  },
+  "manual-1042": {
+   "ledger": 416,
+   "period": false
+  },
+  "manual-1044": {
+   "ledger": 418,
+   "period": false
+  },
+  "manual-1046": {
+   "ledger": 420,
+   "period": false
+  },
+  "manual-1048": {
+   "ledger": 422,
+   "period": false
+  },
+  "manual-1050": {
+   "ledger": 424,
+   "period": false
+  },
+  "manual-1052": {
+   "ledger": 426,
+   "period": false
+  },
+  "manual-1054": {
+   "ledger": 428,
+   "period": false
+  },
+  "manual-1056": {
+   "ledger": 430,
+   "period": false
+  },
+  "manual-1058": {
+   "ledger": 432,
+   "period": false
+  },
+  "manual-1060": {
+   "ledger": 434,
+   "period": false
+  },
+  "manual-1062": {
+   "ledger": 436,
+   "period": false
+  },
+  "manual-1064": {
+   "ledger": 438,
+   "period": false
+  },
+  "manual-1066": {
+   "ledger": 440,
+   "period": false
+  },
+  "manual-1068": {
+   "ledger": 442,
+   "period": false
+  },
+  "manual-1070": {
+   "ledger": 444,
+   "period": false
+  },
+  "manual-1072": {
+   "ledger": 446,
+   "period": false
+  },
+  "manual-1074": {
+   "ledger": 448,
+   "period": false
+  },
+  "manual-1076": {
+   "ledger": 450,
+   "period": false
+  },
+  "manual-1078": {
+   "ledger": 452,
+   "period": false
+  },
+  "manual-1080": {
+   "ledger": 454,
+   "period": false
+  },
+  "manual-1082": {
+   "ledger": 456,
+   "period": false
+  },
+  "manual-1084": {
+   "ledger": 458,
+   "period": false
+  },
+  "manual-1086": {
+   "ledger": 460,
+   "period": false
+  },
+  "manual-1088": {
+   "ledger": 462,
+   "period": false
+  },
+  "manual-1090": {
+   "ledger": 464,
+   "period": false
+  },
+  "manual-1092": {
+   "ledger": 466,
+   "period": false
+  },
+  "manual-1094": {
+   "ledger": 468,
+   "period": false
+  },
+  "manual-1096": {
+   "ledger": 470,
+   "period": false
+  },
+  "manual-1098": {
+   "ledger": 472,
+   "period": false
+  },
+  "manual-1100": {
+   "ledger": 474,
+   "period": false
+  },
+  "manual-1102": {
+   "ledger": 476,
+   "period": false
+  },
+  "manual-1104": {
+   "ledger": 478,
+   "period": false
+  },
+  "manual-1106": {
+   "ledger": 480,
+   "period": false
+  },
+  "manual-1108": {
+   "ledger": 482,
+   "period": false
+  },
+  "manual-1110": {
+   "ledger": 484,
+   "period": false
+  },
+  "manual-1112": {
+   "ledger": 486,
+   "period": false
+  },
+  "manual-1114": {
+   "ledger": 488,
+   "period": false
+  },
+  "manual-1116": {
+   "ledger": 490,
+   "period": false
+  },
+  "manual-1118": {
+   "ledger": 492,
+   "period": false
+  },
+  "manual-1120": {
+   "ledger": 494,
+   "period": false
+  },
+  "manual-1122": {
+   "ledger": 496,
+   "period": false
+  },
+  "manual-1124": {
+   "ledger": 498,
+   "period": false
+  },
+  "manual-1126": {
+   "ledger": 500,
+   "period": false
+  },
+  "manual-1128": {
+   "ledger": 502,
+   "period": false
+  },
+  "manual-1130": {
+   "ledger": 504,
+   "period": false
+  },
+  "manual-1132": {
+   "ledger": 506,
+   "period": false
+  },
+  "manual-1134": {
+   "ledger": 508,
+   "period": false
+  },
+  "manual-1136": {
+   "ledger": 510,
+   "period": false
+  },
+  "manual-1138": {
+   "ledger": 512,
+   "period": false
+  },
+  "manual-1140": {
+   "ledger": 514,
+   "period": false
+  },
+  "manual-1142": {
+   "ledger": 516,
+   "period": false
+  },
+  "manual-1144": {
+   "ledger": 518,
+   "period": false
+  },
+  "manual-1146": {
+   "ledger": 520,
+   "period": false
+  },
+  "manual-1148": {
+   "ledger": 522,
+   "period": false
+  },
+  "manual-1150": {
+   "ledger": 524,
+   "period": false
+  },
+  "manual-1152": {
+   "ledger": 526,
+   "period": false
+  },
+  "manual-1154": {
+   "ledger": 528,
+   "period": false
+  },
+  "manual-1156": {
+   "ledger": 530,
+   "period": false
+  },
+  "manual-1158": {
+   "ledger": 532,
+   "period": false
+  },
+  "manual-1160": {
+   "ledger": 534,
+   "period": false
+  },
+  "manual-1162": {
+   "ledger": 536,
+   "period": false
+  },
+  "manual-1164": {
+   "ledger": 538,
+   "period": false
+  },
+  "manual-1166": {
+   "ledger": 540,
+   "period": false
+  },
+  "manual-1168": {
+   "ledger": 542,
+   "period": false
+  },
+  "manual-1170": {
+   "ledger": 544,
+   "period": false
+  },
+  "manual-1172": {
+   "ledger": 546,
+   "period": false
+  },
+  "manual-1174": {
+   "ledger": 548,
+   "period": false
+  },
+  "manual-1176": {
+   "ledger": 550,
+   "period": false
+  },
+  "manual-1178": {
+   "ledger": 552,
+   "period": false
+  },
+  "manual-1180": {
+   "ledger": 554,
+   "period": false
+  },
+  "manual-1182": {
+   "ledger": 556,
+   "period": false
+  },
+  "manual-1184": {
+   "ledger": 558,
+   "period": false
+  },
+  "manual-1186": {
+   "ledger": 560,
+   "period": false
+  },
+  "manual-1188": {
+   "ledger": 562,
+   "period": false
+  },
+  "manual-1190": {
+   "ledger": 564,
+   "period": false
+  },
+  "manual-1192": {
+   "ledger": 566,
+   "period": false
+  },
+  "manual-1194": {
+   "ledger": 568,
+   "period": false
+  },
+  "manual-1196": {
+   "ledger": 570,
+   "period": false
+  },
+  "manual-1198": {
+   "ledger": 572,
+   "period": false
+  },
+  "manual-1200": {
+   "ledger": 574,
+   "period": false
+  },
+  "manual-1202": {
+   "ledger": 576,
+   "period": true
+  },
+  "manual-1204": {
+   "ledger": 578,
+   "period": true
+  },
+  "manual-1206": {
+   "ledger": 580,
+   "period": true
+  },
+  "manual-1208": {
+   "ledger": 582,
+   "period": true
+  },
+  "manual-1210": {
+   "ledger": 584,
+   "period": true
+  },
+  "manual-1212": {
+   "ledger": 586,
+   "period": true
+  },
+  "manual-1214": {
+   "ledger": 588,
+   "period": true
+  },
+  "manual-1216": {
+   "ledger": 590,
+   "period": true
+  },
+  "manual-1218": {
+   "ledger": 592,
+   "period": true
+  },
+  "manual-1220": {
+   "ledger": 594,
+   "period": true
+  },
+  "manual-1222": {
+   "ledger": 596,
+   "period": true
+  },
+  "manual-1224": {
+   "ledger": 598,
+   "period": true
+  },
+  "manual-1226": {
+   "ledger": 600,
+   "period": true
+  },
+  "manual-1228": {
+   "ledger": 602,
+   "period": true
+  },
+  "manual-1230": {
+   "ledger": 604,
+   "period": true
+  },
+  "manual-1232": {
+   "ledger": 606,
+   "period": true
+  },
+  "manual-1234": {
+   "ledger": 608,
+   "period": true
+  },
+  "manual-1236": {
+   "ledger": 610,
+   "period": true
+  },
+  "manual-1238": {
+   "ledger": 612,
+   "period": true
+  },
+  "manual-1240": {
+   "ledger": 614,
+   "period": true
+  },
+  "manual-1242": {
+   "ledger": 616,
+   "period": true
+  },
+  "manual-1244": {
+   "ledger": 618,
+   "period": true
+  },
+  "manual-1246": {
+   "ledger": 620,
+   "period": true
+  },
+  "manual-1248": {
+   "ledger": 622,
+   "period": true
+  },
+  "manual-1250": {
+   "ledger": 624,
+   "period": true
+  },
+  "manual-1252": {
+   "ledger": 626,
+   "period": true
+  },
+  "manual-1254": {
+   "ledger": 628,
+   "period": true
+  },
+  "manual-1256": {
+   "ledger": 630,
+   "period": true
+  },
+  "manual-1258": {
+   "ledger": 632,
+   "period": true
+  },
+  "manual-1260": {
+   "ledger": 634,
+   "period": true
+  },
+  "manual-1262": {
+   "ledger": 636,
+   "period": true
+  },
+  "manual-1264": {
+   "ledger": 638,
+   "period": true
+  },
+  "manual-1266": {
+   "ledger": 640,
+   "period": true
+  },
+  "manual-1268": {
+   "ledger": 642,
+   "period": true
+  },
+  "manual-1270": {
+   "ledger": 644,
+   "period": true
+  },
+  "manual-1272": {
+   "ledger": 646,
+   "period": true
+  },
+  "manual-1274": {
+   "ledger": 648,
+   "period": true
+  },
+  "manual-1276": {
+   "ledger": 650,
+   "period": true
+  },
+  "manual-1278": {
+   "ledger": 652,
+   "period": true
+  },
+  "manual-1280": {
+   "ledger": 574,
+   "period": false
+  },
+  "manual-1282": {
+   "ledger": 576,
+   "period": true
+  },
+  "manual-1284": {
+   "ledger": 578,
+   "period": true
+  },
+  "manual-1286": {
+   "ledger": 580,
+   "period": true
+  },
+  "manual-1288": {
+   "ledger": 582,
+   "period": true
+  },
+  "manual-1290": {
+   "ledger": 584,
+   "period": true
+  },
+  "manual-1292": {
+   "ledger": 586,
+   "period": true
+  },
+  "manual-1294": {
+   "ledger": 588,
+   "period": true
+  },
+  "manual-1296": {
+   "ledger": 590,
+   "period": true
+  },
+  "manual-1298": {
+   "ledger": 592,
+   "period": true
+  },
+  "manual-1300": {
+   "ledger": 594,
+   "period": true
+  }
+ },
+ "contrast": {
+  "dt": "rgb(170, 164, 155)",
+  "none": "rgb(170, 164, 155)",
+  "bg": "rgb(50, 49, 42)"
+ }
+}

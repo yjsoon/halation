@@ -112,6 +112,10 @@ describe("RewardRowProjectionTests: tiers and caps", () => {
     expect(t.amount).toBeNull();
     expect(t.deadline).toBe("Resets in 8 days");
     expect(t.basisLine).toBe("$2,000.00 / $2,000.00 · $80.00 earned · $150.00 beyond cap");
+    expect(t.accessibilityValue).toContain("$2,000.00 of $2,000.00, 100 per cent. $150.00 beyond cap. Resets in 8 days");
+    // Float noise past the cap is not spend beyond it.
+    expect(project({ total_spend: 2000.0000001, counted_spend: 2000, maximum_spend: 2000, maximum_spend_exceeded: true, should_stop_using: true }).action)
+      .toEqual({ kind: "capReached", beyond: 0, terminal: true });
   });
 
   test("testTopTierWithoutCardCapIsEarningAndFull", () => {
@@ -366,7 +370,9 @@ describe("RewardRowProjectionTests: range, summary", () => {
 
   test("testAccessibilityValueStatesTargetProgressAndDeadline", () => {
     const p = project({ minimum_spend: 500, total_spend: 300, reward_earned: 1300, reward_type: "miles" });
-    expect(text(p).accessibilityValue).toBe("$200.00 to minimum. $300.00 of $500.00, 60 per cent. 8 days left, ends 30 Sep. 1,300 miles earned");
+    expect(text(p).accessibilityValue).toBe("$200.00 to minimum. $300.00 of $500.00, 60 per cent. 8 days left, ends 30 Sep. About $25.00 a day to make it. 1,300 miles earned");
+    // A few cents over eight days rounds up, never to "$0.00 a day".
+    expect(text(project({ minimum_spend: 500, total_spend: 499.97 })).pacePerDay).toBe("$0.01");
   });
 });
 
