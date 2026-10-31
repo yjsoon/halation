@@ -409,6 +409,11 @@ struct RegisterView: View {
           .accessibilityHint("Search transactions or amounts.")
         }
       }
+      if let selection {
+        ToolbarItem(placement: .topBarLeading) {
+          selectAllButton(selection, listed: selectableRows(snapshot))
+        }
+      }
       ToolbarItemGroup(placement: .topBarTrailing) {
         if selection != nil {
           Button("Done") {
@@ -420,6 +425,8 @@ struct RegisterView: View {
         }
       }
     }
+    // Select All takes the back button's place; Done is the way out.
+    .navigationBarBackButtonHidden(selection != nil)
     .safeAreaInset(edge: .bottom) {
       if let selection {
         selectionBar(selection, visible: transactions)
@@ -624,6 +631,31 @@ struct RegisterView: View {
       Label("Select Transactions", systemImage: "checklist")
     }
     .accessibilityHint("Pick transactions to add up.")
+  }
+
+  /// The rows a reader can see and tick: today and back, plus the scheduled
+  /// ones only while that disclosure is open.
+  private func selectableRows(_ snapshot: RegisterSnapshot) -> [Transaction] {
+    let sections = snapshot.currentDateSections + (isScheduledExpanded ? snapshot.disclosureDateSections : [])
+    return sections.flatMap(\.transactions)
+  }
+
+  /// Picks every listed row, or unpicks them once all are picked. Picks
+  /// hidden by a search or filter are left alone either way.
+  private func selectAllButton(_ selection: [String: Transaction], listed: [Transaction]) -> some View {
+    let allPicked = !listed.isEmpty && listed.allSatisfy { selection[$0.id] != nil }
+    return Button(allPicked ? "Deselect All" : "Select All") {
+      withAnimation(Theme.Motion.standard) {
+        for row in listed {
+          if allPicked {
+            self.selection?.removeValue(forKey: row.id)
+          } else {
+            self.selection?[row.id] = row
+          }
+        }
+      }
+    }
+    .disabled(listed.isEmpty)
   }
 
   private func toggleSelection(_ transaction: Transaction) {
