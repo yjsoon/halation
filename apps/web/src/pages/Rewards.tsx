@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useId, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import type { CreditCard, RewardsReport } from "../api/types";
@@ -12,6 +12,7 @@ import { formatAmount } from "../lib/money";
 import { rewardCardAccountChoices } from "../lib/reward-card-accounts";
 import { exposure, stillExposure } from "../lib/reward-exposure";
 import { boardSummary, projectRow, rowText, type RewardRowProjection, type RowText, type Tone } from "../lib/reward-row-projection";
+import { dayMonth, periodDays, rowSize, type PeriodDays } from "../lib/reward-skyline";
 import { useDismiss } from "../lib/use-dismiss";
 import { useIsPhone } from "../lib/use-is-phone";
 import { withViewTransition } from "../lib/view-transition";
@@ -46,7 +47,7 @@ type BoardPreferences = {
   order: "manual" | "name" | "value" | "spend";
   cardOrder: string[];
   grouped: boolean;
-  /** Grid: the 3:2 faces in columns. Stacked: full-width sunrise bands, one per row. */
+  /** Grid: the 3:2 faces in columns. Stacked: Skyline rows sized by urgency, opening in place; from 1000px a sunrise window beside aligned columns. */
   layout: "grid" | "stacked";
   collapsedGroups: string[];
 };
@@ -552,16 +553,21 @@ type RewardCardProps = {
 
 function RewardCard(p: RewardCardProps) {
   const { row, index, selecting, selected } = p;
+  const [open, setOpen] = useState(false);
   // View-transition names must be idents; ids can start with a digit. Used only while html[data-vt="board"].
   const vt = `rw-${row.card.id.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
   const until = !p.permanentlyHidden && (p.hiddenUntil ?? "") > p.today ? p.hiddenUntil : undefined;
   const picture = exposure(p.projection);
   return (
     <article className="rw-card" data-type={row.card.type} data-tone={p.projection.tone} data-stage={picture?.stage ?? "range"}
+      data-size={p.stacked ? rowSize(picture?.stage) : undefined} data-open={(p.stacked && open) || undefined}
       data-mono={picture?.stage === "failed" || undefined} data-selected={selected || undefined}
       data-hidden={p.hidden || undefined} data-just-updated={p.justUpdated || undefined}
       style={{ "--rw-h": picture?.pose.h ?? 1, "--rw-v": picture?.pose.v ?? 0, "--i": Math.min(index, 12), "--vt-name": vt } as CSSProperties}>
-      <RewardTile row={row} search={p.search} asOf={p.asOf} hiddenUntil={until} projection={p.projection} index={index} memoryKey={p.memoryKey} stacked={p.stacked} />
+      {p.stacked
+        ? <SkylineRow row={row} search={p.search} asOf={p.asOf} hiddenUntil={until} projection={p.projection} index={index} memoryKey={p.memoryKey}
+            open={open} onToggle={() => setOpen(!open)} />
+        : <RewardTile row={row} search={p.search} asOf={p.asOf} hiddenUntil={until} projection={p.projection} index={index} memoryKey={p.memoryKey} />}
       {selecting
         ? <label className="rw-card-select">
             <input type="checkbox" disabled={p.busy} checked={selected} onChange={(event) => p.onSelect(event.target.checked)} />
@@ -739,7 +745,7 @@ function FlagList({ calc }: { calc: Row["calculation"] }) {
 }
 
 // Signature stays compatible with lib/rewards-tile.test.ts: ({ row, search, asOf }) still works.
-export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, index = 0, memoryKey, stacked = false }: {
+export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, index = 0, memoryKey }: {
   row: Row;
   search: string;
   asOf?: string;
@@ -748,24 +754,14 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
   range?: boolean;
   index?: number;
   memoryKey?: string;
-  /** Full-width band on a wide screen: the phone strip's layout, with the type line beside the name. */
-  stacked?: boolean;
 }) {
   const calc = row.calculation;
   const id = useId();
-  const narrow = useIsPhone();
-  const phone = narrow || stacked;
+  const phone = useIsPhone();
   const p = projection ?? projectRow(row, asOf, range ?? RANGE_PERIOD.test(calc.period));
   const text = rowText(p);
   const picture = exposure(p) ?? stillExposure(p.rewardType === "miles");
-  // Historical amounts are range-attributed, while qualification belongs to the
-  // cutoff period. An earlier promotion may sort after that calendar period.
-  const fullPeriod = calc.periods?.filter((period) => asOf && period.start <= asOf && period.end >= asOf).at(-1)?.calculation;
-  const min = calc.minimum_spend;
-  const max = calc.maximum_spend ?? 0;
-  const minimumLeads = p.action.kind === "minimum" || p.action.kind === "monthlyMinimum";
-  const capDone = p.action.kind === "capReached" && p.action.terminal;
-  const caps = [row.card.issuer, row.card.type === "miles" ? "Miles" : "Cashback", !narrow && row.card.featured ? "Featured" : null]
+  const caps = [row.card.issuer, row.card.type === "miles" ? "Miles" : "Cashback", !phone && row.card.featured ? "Featured" : null]
     .filter(Boolean).join(" · ");
   const badge = hiddenUntil && (
     <span className={phone ? "rw-badge rw-badge-pin" : "rw-badge"} title={`Hidden until ${hiddenUntil} (Singapore)`}>
@@ -778,7 +774,7 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
         <ExposureFace exposure={picture} variant={phone ? "strip" : "face"} index={index} memoryKey={memoryKey}>
           {phone ? (
             <>
-              <h3 className="rw-face-name" id={`${id}-name`} data-rw="name">{row.card.name}{!narrow && <span className="rw-strip-caps">{[row.account_name, caps].filter(Boolean).join(" · ")}</span>}</h3>
+              <h3 className="rw-face-name" id={`${id}-name`} data-rw="name">{row.card.name}</h3>
               {badge}
               <div className="rw-strip-foot" data-rw="foot"><Statement text={text} /><Exceptions lines={text.exceptionLines} /></div>
             </>
@@ -804,56 +800,317 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
       </Link>
       <details className="rw-more">
         <summary>Targets, periods and tiers</summary>
-        {min != null && min > 0 && (
-          <ExposureMeter
-            primary={minimumLeads || max <= 0}
-            tone={calc.minimum_spend_met ? "earning" : "needs"}
-            label={fullPeriod ? (calc.minimum_spend_met ? "Full-period minimum met" : "Full-period minimum") : (calc.minimum_spend_met ? "Minimum met" : "Minimum spend")}
-            figure={`${dollars(fullPeriod?.total_spend ?? calc.total_spend)} / ${dollars(min)}`}
-            value={(calc.minimum_spend_progress ?? 0) / 100}
-            ariaLabel="Minimum spend progress"
-          />
-        )}
-        {max > 0 && (
-          <ExposureMeter
-            primary={!minimumLeads}
-            tone={capDone ? "complete" : "earning"}
-            label={calc.maximum_spend_exceeded ? "Cap reached" : "Bonus cap"}
-            figure={`${dollars(Math.min(calc.counted_spend, max))} / ${dollars(max)}`}
-            value={calc.counted_spend / max}
-            ariaLabel="Bonus cap used"
-          />
-        )}
-        {calc.has_next_spending_tier && calc.next_spending_tier_threshold != null && <p className="rw-line">Next tier at {dollars(calc.next_spending_tier_threshold)}</p>}
-        {calc.should_stop_using && <p className="rw-line rw-line-strong">Consider another card</p>}
-        <dl className="rw-stats">
-          <div>
-            <dt>Spend</dt>
-            <dd>{dollars(calc.total_spend)}</dd>
-          </div>
-          <div>
-            <dt>Eligible</dt>
-            <dd>{dollars(calc.eligible_spend)}</dd>
-          </div>
-          <div>
-            <dt>Value</dt>
-            <dd>{dollars(calc.reward_earned_dollars)}</dd>
-          </div>
-        </dl>
-        {phone && <FlagList calc={calc} />}
-        <p>Period: {calc.periods?.map((period) => `${formatDate(period.start)} – ${formatDate(period.end)}`).join("; ") || calc.period}</p>
-        {calc.qualification_status && <p>Monthly qualification: {calc.qualification_status.replaceAll("_", " ")}</p>}
-        {calc.monthly_qualifications?.length ? (
-          <ol className="rw-months">
-            {calc.monthly_qualifications.map((month) => (
-              <li key={month.start} data-status={month.status}>
-                {formatDate(month.start)} – {formatDate(month.end)}: {dollars(month.spend)} / {dollars(month.minimumSpend)} · {month.status}
-              </li>
-            ))}
-          </ol>
-        ) : null}
-        {calc.active_spending_tier_id != null && <p>Active tier: {tierLabel(row.card.spendingTiers, calc.active_spending_tier_id, calc.reward_type)}</p>}
+        <DisclosureBody row={row} projection={p} asOf={asOf} flags={phone} />
       </details>
+    </>
+  );
+}
+
+/** The meters, totals, periods, qualifications and tier: the grid's "Targets, periods and tiers", and the open Skyline slip's "More". */
+function DisclosureBody({ row, projection: p, asOf, flags }: { row: Row; projection: RewardRowProjection; asOf?: string; flags: boolean }) {
+  const calc = row.calculation;
+  // Historical amounts are range-attributed, while qualification belongs to the
+  // cutoff period. An earlier promotion may sort after that calendar period.
+  const fullPeriod = calc.periods?.filter((period) => asOf && period.start <= asOf && period.end >= asOf).at(-1)?.calculation;
+  const min = calc.minimum_spend;
+  const max = calc.maximum_spend ?? 0;
+  const minimumLeads = p.action.kind === "minimum" || p.action.kind === "monthlyMinimum";
+  const capDone = p.action.kind === "capReached" && p.action.terminal;
+  return (
+    <>
+      {min != null && min > 0 && (
+        <ExposureMeter
+          primary={minimumLeads || max <= 0}
+          tone={calc.minimum_spend_met ? "earning" : "needs"}
+          label={fullPeriod ? (calc.minimum_spend_met ? "Full-period minimum met" : "Full-period minimum") : (calc.minimum_spend_met ? "Minimum met" : "Minimum spend")}
+          figure={`${dollars(fullPeriod?.total_spend ?? calc.total_spend)} / ${dollars(min)}`}
+          value={(calc.minimum_spend_progress ?? 0) / 100}
+          ariaLabel="Minimum spend progress"
+        />
+      )}
+      {max > 0 && (
+        <ExposureMeter
+          primary={!minimumLeads}
+          tone={capDone ? "complete" : "earning"}
+          label={calc.maximum_spend_exceeded ? "Cap reached" : "Bonus cap"}
+          figure={`${dollars(Math.min(calc.counted_spend, max))} / ${dollars(max)}`}
+          value={calc.counted_spend / max}
+          ariaLabel="Bonus cap used"
+        />
+      )}
+      {calc.has_next_spending_tier && calc.next_spending_tier_threshold != null && <p className="rw-line">Next tier at {dollars(calc.next_spending_tier_threshold)}</p>}
+      {calc.should_stop_using && <p className="rw-line rw-line-strong">Consider another card</p>}
+      <dl className="rw-stats">
+        <div>
+          <dt>Spend</dt>
+          <dd>{dollars(calc.total_spend)}</dd>
+        </div>
+        <div>
+          <dt>Eligible</dt>
+          <dd>{dollars(calc.eligible_spend)}</dd>
+        </div>
+        <div>
+          <dt>Value</dt>
+          <dd>{dollars(calc.reward_earned_dollars)}</dd>
+        </div>
+      </dl>
+      {flags && <FlagList calc={calc} />}
+      <p>Period: {calc.periods?.map((period) => `${formatDate(period.start)} – ${formatDate(period.end)}`).join("; ") || calc.period}</p>
+      {calc.qualification_status && <p>Monthly qualification: {calc.qualification_status.replaceAll("_", " ")}</p>}
+      {calc.monthly_qualifications?.length ? (
+        <ol className="rw-months">
+          {calc.monthly_qualifications.map((month) => (
+            <li key={month.start} data-status={month.status}>
+              {formatDate(month.start)} – {formatDate(month.end)}: {dollars(month.spend)} / {dollars(month.minimumSpend)} · {month.status}
+            </li>
+          ))}
+        </ol>
+      ) : null}
+      {calc.active_spending_tier_id != null && <p>Active tier: {tierLabel(row.card.spendingTiers, calc.active_spending_tier_id, calc.reward_type)}</p>}
+    </>
+  );
+}
+
+const WIDE_QUERY = "(min-width: 1000px)";
+function subscribeWide(onChange: () => void): () => void {
+  const query = window.matchMedia?.(WIDE_QUERY);
+  query?.addEventListener("change", onChange);
+  return () => query?.removeEventListener("change", onChange);
+}
+/** From 1000px a stacked row is a sunrise window beside aligned columns; narrower it is the Skyline strip. */
+function useIsWide(): boolean {
+  return useSyncExternalStore(subscribeWide, () => window.matchMedia?.(WIDE_QUERY).matches ?? false, () => false);
+}
+
+function earnedWords(calc: Row["calculation"]): string {
+  return calc.reward_type === "miles" ? `${Math.round(calc.reward_earned).toLocaleString("en-GB")} miles` : dollars(calc.reward_earned);
+}
+
+/** The period as a rail of days: filled to today, a tick per day, a mark on the day the minimum was met. */
+function DayRail({ period }: { period: PeriodDays }) {
+  const at = (day: number) => (period.total <= 1 ? 1 : (day - 1) / (period.total - 1));
+  const today = at(period.day);
+  const met = period.metDay != null ? at(period.metDay) : null;
+  const edge = (share: number) => (share < 0.16 ? "start" : share > 0.84 ? "end" : undefined);
+  return (
+    <div className="rw-rail" data-near={today > 0.7 ? "end" : today < 0.3 ? "start" : undefined}
+      style={{ "--today": today, "--met": met ?? 0, "--days": Math.max(1, period.total - 1) } as CSSProperties}>
+      {met != null && period.metOn && <span className="rw-rail-met-label" data-edge={edge(met)}>min met · {dayMonth(period.metOn)}</span>}
+      <span className="rw-rail-line" aria-hidden="true">
+        {period.total <= 62 && <span className="rw-rail-ticks" />}
+        <span className="rw-rail-fill" />
+        {met != null && <span className="rw-rail-met" />}
+        <span className="rw-rail-today" />
+      </span>
+      <span className="rw-rail-labels">
+        <span className="rw-rail-start">{dayMonth(period.start)}</span>
+        <span className="rw-rail-now" data-edge={edge(today)}>today · {period.day}</span>
+        <span className="rw-rail-end">{dayMonth(period.end)}</span>
+      </span>
+    </div>
+  );
+}
+
+/** The figures as columns that sit at the same x on every row of a wide stacked board. */
+function LedgerColumns({ calc, period }: { calc: Row["calculation"]; period: PeriodDays | null }) {
+  const min = calc.minimum_spend ?? 0;
+  const cap = calc.maximum_spend ?? 0;
+  return (
+    <dl className="rw-columns">
+      <div><dt>Spent</dt><dd>{dollars(calc.total_spend)}</dd></div>
+      <div><dt>Minimum</dt><dd data-none={min <= 0 || undefined}>{min > 0 ? dollars(min) : "none"}</dd></div>
+      <div><dt>Bonus cap</dt><dd data-none={cap <= 0 || undefined}>{cap > 0 ? dollars(cap) : "none"}</dd></div>
+      <div><dt>Earned</dt><dd>{calc.reward_type === "miles"
+        ? <>{Math.round(calc.reward_earned).toLocaleString("en-GB")} <small>mi</small></> : dollars(calc.reward_earned)}</dd></div>
+      <div className="rw-col-period">
+        <dt>Period</dt>
+        {period
+          ? <dd>{period.day} <small>of {period.total} days</small>
+              <span className="rw-mini-rail" aria-hidden="true" style={{ "--today": period.total <= 1 ? 1 : (period.day - 1) / (period.total - 1) } as CSSProperties} /></dd>
+          : <dd data-none>range</dd>}
+      </div>
+    </dl>
+  );
+}
+
+function Targets({ row, period }: { row: Row; period: PeriodDays | null }) {
+  const calc = row.calculation;
+  const min = calc.minimum_spend ?? 0;
+  const cap = calc.maximum_spend ?? 0;
+  const spend = calc.total_spend;
+  const categoryCaps = calc.flags.some((flag) => (flag.maximumSpend ?? 0) > 0);
+  const items: Array<{ key: string; state: "met" | "open" | "none"; label: string; amount?: string; note: ReactNode; urgent?: boolean }> = [];
+  if (min > 0) {
+    items.push(calc.minimum_spend_met
+      ? { key: "min", state: "met", label: "Minimum", amount: dollars(min), note: period?.metOn ? `met ${dayMonth(period.metOn)}` : "met" }
+      : { key: "min", state: "open", label: "Minimum", amount: dollars(min), note: `${dollars(Math.max(0, min - spend))} to go`, urgent: true });
+  }
+  if (calc.has_next_spending_tier && calc.next_spending_tier_threshold != null) {
+    const threshold = calc.next_spending_tier_threshold;
+    items.push({ key: "tier", state: "open", label: "Next tier", amount: dollars(threshold), note: `${dollars(Math.max(0, threshold - spend))} to go` });
+  }
+  if (cap > 0) {
+    const beyond = Math.max(0, spend - cap);
+    items.push(calc.maximum_spend_exceeded
+      ? { key: "cap", state: "met", label: "Cap", amount: dollars(cap), note: beyond > 0 ? `reached, ${dollars(beyond)} beyond` : "reached" }
+      : { key: "cap", state: "open", label: "Cap", amount: dollars(cap), note: `${dollars(Math.max(0, cap - calc.counted_spend))} left` });
+  } else {
+    items.push({ key: "cap", state: "none", label: "Cap", note: categoryCaps ? "none on the card, categories cap" : "none, keeps earning" });
+  }
+  return (
+    <>
+      <ul className="rw-targets">
+        {items.map((item) => (
+          <li key={item.key} data-state={item.state}>
+            <span className="rw-target-mark" aria-hidden="true" />
+            <span className="rw-target-label">{item.label}</span>
+            {item.amount && <span className="rw-target-amount">{item.amount}</span>}
+            <span className="rw-target-note" data-urgent={item.urgent || undefined}>{item.note}</span>
+          </li>
+        ))}
+      </ul>
+      {calc.should_stop_using && <p className="rw-line rw-line-strong">Consider another card</p>}
+    </>
+  );
+}
+
+function Categories({ calc }: { calc: Row["calculation"] }) {
+  const scale = Math.max(0, ...calc.flags.map((flag) => Math.max(flag.totalSpend, flag.maximumSpend ?? 0)));
+  const share = (value: number) => (scale > 0 ? clampUnit(value / scale) : 0);
+  const rate = (value?: number) => (value == null ? "" : calc.reward_type === "cashback" ? `${value}%` : `${value} mi/$`);
+  return (
+    <ul className="rw-cats">
+      {calc.flags.map((flag) => {
+        const cap = flag.maximumSpend ?? 0;
+        const spend = flag.totalSpend;
+        const over = cap > 0 && spend > cap;
+        const earned = formatReward(flag.rewardEarned, calc.reward_type);
+        const note = cap <= 0 ? `no cap · ${earned} earned`
+          : over ? <>{dollars(cap)} cap · <b>{dollars(spend - cap)}</b> beyond cap · {earned} earned</>
+          : `${dollars(Math.min(flag.countedSpend ?? spend, cap))} of ${dollars(cap)} cap · ${earned} earned`;
+        return (
+          <li key={flag.subcategoryId} className="rw-cat" data-over={over || undefined}
+            style={{ "--fill": share(cap > 0 ? Math.min(spend, cap) : spend), "--over": over ? share(spend - cap) : 0, "--cap": cap > 0 ? share(cap) : 0 } as CSSProperties}>
+            <span className="rw-cat-name">
+              {isFlagColour(flag.flagColor) && <span className="rw-cat-dot" style={{ background: `var(--flag-${flag.flagColor})` }} aria-hidden="true" />}
+              {flag.name}
+            </span>
+            <span className="rw-cat-figs">
+              <span className="rw-cat-spend">{dollars(spend)}</span>
+              <span className="rw-cat-bar" aria-hidden="true"><span className="rw-cat-fill" />{over && <span className="rw-cat-over" />}{cap > 0 && <span className="rw-cat-tick" />}</span>
+              <span className="rw-cat-rate">{rate(flag.rewardRate)}</span>
+            </span>
+            <span className="rw-cat-note">{note}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** A stacked board row: a strip sized by urgency (gate tall, climb standard, noon slim), or from 1000px a
+ *  sunrise window beside aligned columns. Its toggle opens the slip in place, under the row, in the same card. */
+function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, index, memoryKey, open, onToggle }: {
+  row: Row;
+  search: string;
+  asOf?: string;
+  hiddenUntil?: string;
+  projection: RewardRowProjection;
+  index: number;
+  memoryKey: string;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const calc = row.calculation;
+  const id = useId();
+  const wide = useIsWide();
+  const text = rowText(p);
+  const ex = exposure(p);
+  const picture = ex ?? stillExposure(p.rewardType === "miles");
+  const size = rowSize(ex?.stage);
+  const pace = size === "gate" ? text.pacePerDay : null;
+  const period = periodDays(calc, asOf);
+  const beyond = p.action.kind === "capReached" ? p.action.beyond : 0;
+  const tail = size !== "noon" ? null : p.action.kind === "range" ? `${dollars(calc.total_spend)} spent` : `${earnedWords(calc)} earned`;
+  const badge = hiddenUntil && (
+    <span className="rw-badge rw-badge-pin" title={`Hidden until ${hiddenUntil} (Singapore)`}>
+      Back {formatDate(hiddenUntil)}<span className="sr-only"> Hidden until {hiddenUntil} (Singapore)</span>
+    </span>
+  );
+  const headline = (
+    <div className="rw-headline">
+      <span className="rw-lead">
+        {text.amount != null && <b className="rw-amount">{text.amount}</b>}
+        <span className="rw-action">{text.actionLabel}</span>
+        {!wide && tail && <span className="rw-tail"> · {tail}</span>}
+        {wide && beyond > 0 && <span className="rw-beyond">{dollars(beyond)} beyond cap</span>}
+      </span>
+      {wide && <Exceptions lines={text.exceptionLines} />}
+      {text.deadline && <span className="rw-deadline" data-urgent={text.isUrgent || undefined}>{text.deadline}</span>}
+    </div>
+  );
+  const paceLine = pace && <p className="rw-pace">about <b>{pace}</b> a day to make it</p>;
+  return (
+    <>
+      <div className="rw-row">
+        <Link to={{ pathname: `/rewards/${row.card.id}`, search }} className="rw-tile" aria-labelledby={`${id}-name`} aria-describedby={`${id}-value`}>
+          <ExposureFace exposure={picture} variant="strip" index={index} memoryKey={memoryKey}>
+            <h3 className="rw-face-name" id={`${id}-name`} data-rw="name">{row.card.name}</h3>
+            {badge}
+            {wide
+              ? <p className="rw-window-foot" data-rw="foot">{row.account_name}</p>
+              : <div className="rw-strip-foot" data-rw="foot">
+                  {headline}
+                  {paceLine}
+                  {size !== "noon" && <p className="rw-basis">{text.basisLine}</p>}
+                  <Exceptions lines={text.exceptionLines} />
+                </div>}
+          </ExposureFace>
+          {wide && (
+            <div className="rw-ledger">
+              {headline}
+              {paceLine}
+              <LedgerColumns calc={calc} period={period} />
+            </div>
+          )}
+          <span id={`${id}-value`} className="sr-only">{text.accessibilityValue}</span>
+        </Link>
+        <button type="button" className="rw-open-toggle" aria-expanded={open} aria-controls={`${id}-open`}
+          aria-label={`Details for ${row.card.name}`} onClick={onToggle}>
+          <span className="rw-open-chevron" aria-hidden="true" />
+        </button>
+      </div>
+      <div className="rw-open" id={`${id}-open`} role="region" aria-label={`${row.card.name} details`} data-open={open || undefined} inert={!open}>
+        <div className="rw-open-body"><div className="rw-open-grid">
+          <section className="rw-open-period" aria-labelledby={`${id}-period`}>
+            <h4 id={`${id}-period`}>Period</h4>
+            {period ? <>
+              <p className="rw-open-dates"><span>{dayMonth(period.start)} to {dayMonth(period.end)}</span><span className="rw-open-day">day {period.day} of {period.total}</span></p>
+              <DayRail period={period} />
+            </> : <p className="rw-open-dates">{calc.periods?.map((entry) => `${formatDate(entry.start)} to ${formatDate(entry.end)}`).join("; ") || calc.period}</p>}
+          </section>
+          <Link className="rw-open-link" to={`/transactions?accounts=${encodeURIComponent(row.account_id)}&range=all`}>
+            View transactions<span className="rw-open-link-chevron" aria-hidden="true" />
+          </Link>
+          <section className="rw-open-targets" aria-labelledby={`${id}-targets`}>
+            <h4 id={`${id}-targets`}>Targets</h4>
+            <Targets row={row} period={period} />
+          </section>
+          <section className="rw-open-cats" aria-labelledby={`${id}-cats`}>
+            <h4 id={`${id}-cats`}>Categories</h4>
+            {calc.flags.length
+              ? <>
+                  <p className="rw-open-meta">{calc.flags.length} this period · {dollars(calc.total_spend)} spent · {formatReward(calc.reward_earned, calc.reward_type)} earned</p>
+                  <Categories calc={calc} />
+                </>
+              : <p className="rw-open-meta">No category rates on this card · {dollars(calc.total_spend)} spent · {formatReward(calc.reward_earned, calc.reward_type)} earned</p>}
+          </section>
+          <details className="rw-open-more">
+            <summary>Totals, qualifications and tiers</summary>
+            <DisclosureBody row={row} projection={p} asOf={asOf} flags={false} />
+          </details>
+        </div></div>
+      </div>
     </>
   );
 }

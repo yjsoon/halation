@@ -1,0 +1,216 @@
+{
+ "web": "http://127.0.0.1:52521",
+ "checks": [
+  {
+   "name": "owner setup",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "sign in",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "title",
+   "ok": true,
+   "detail": "Rewards · Halation"
+  },
+  {
+   "name": "card periods pressed",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "add card",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "masthead sky drawn",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "import lists Travel Card",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "date face",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "today enabled",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "miles group",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "stage rest, noon row",
+   "ok": true,
+   "detail": "{\"stage\":\"rest\",\"size\":\"noon\",\"h\":\"1\",\"v\":\"0\",\"window\":360,\"headline\":\"Minimum metResets in 8 days\",\"columns\":[\"Spent=$315.50\",\"Minimum=$200.00\",\"Bonus cap=none\",\"Earned=1,033 mi\",\"Period=24 of 31 days\"]}"
+  },
+  {
+   "name": "pose inline",
+   "ok": true,
+   "detail": "1 0"
+  },
+  {
+   "name": "window 360px at 1440",
+   "ok": true,
+   "detail": "360"
+  },
+  {
+   "name": "headline",
+   "ok": true,
+   "detail": "Minimum metResets in 8 days"
+  },
+  {
+   "name": "columns",
+   "ok": true,
+   "detail": "Spent=$315.50 | Minimum=$200.00 | Bonus cap=none | Earned=1,033 mi | Period=24 of 31 days"
+  },
+  {
+   "name": "qualifying spend above zero",
+   "ok": true,
+   "detail": "$315.50"
+  },
+  {
+   "name": "slip folded and hidden at first",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "Enter opens",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "region visible",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "slip period",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "slip targets",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "slip categories",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "open surface #EBEBE6",
+   "ok": true,
+   "detail": "rgb(235, 235, 230)"
+  },
+  {
+   "name": "more holds the full-period meter",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "view transactions href",
+   "ok": true,
+   "detail": "/transactions?accounts=acct-credit&range=all"
+  },
+  {
+   "name": "Space closes",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "reduced motion: no unfold transition",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "register opened",
+   "ok": true,
+   "detail": "/transactions?accounts=acct-credit&range=all"
+  },
+  {
+   "name": "phone strip",
+   "ok": true,
+   "detail": "{\"variant\":\"strip\",\"foot\":\"Minimum met · 1,033 miles earnedResets in 8 days\",\"height\":84}"
+  },
+  {
+   "name": "phone opens",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "no horizontal scroll at 390",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "grid faces",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "stacked again",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "payee groups",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "card menu items",
+   "ok": true,
+   "detail": "Edit cardView transactionsHideOn this deviceHide until next periodNo upcoming period boundary in this report"
+  },
+  {
+   "name": "batch applied",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "http: earning rate 1.5",
+   "ok": true,
+   "detail": "1.5"
+  },
+  {
+   "name": "http: Candlenut group",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "hidden",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "badge",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "unhidden",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "no page errors",
+   "ok": true,
+   "detail": ""
+  }
+ ],
+ "errors": []
+}

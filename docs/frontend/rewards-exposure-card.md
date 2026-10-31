@@ -248,7 +248,7 @@ The "✦" after "DBS · MILES" on the web face and in the lab is the Featured fl
 | **Paper row, plain** | Range Report "Cards" section | As today, no picture |
 | **Hero** | Detail sheet header | A 3:2 print with a 6pt border |
 
-On the web the desktop board defaults to **Stacked** (Arrange → Layout): each card is the strip at the full board width, one per row, with the account and type line beside the name and, from 1000px wide, the closed "Targets, periods and tiers" disclosure at the end of the basis line (narrower, it stays under the band as on a phone). **Grid** keeps the 3:2 faces in columns. Phones always show the strip.
+On the web the board defaults to **Stacked** (Arrange → Layout), the Skyline board described in [Skyline: the stacked board](#skyline-the-stacked-board): rows sized by urgency that open in place, a strip below 1000px wide and a sunrise window beside aligned columns from 1000px. **Grid** keeps the 3:2 faces in columns with the "Targets, periods and tiers" disclosure under each (on a phone, the strip with that disclosure).
 
 ### The scene
 
@@ -474,6 +474,50 @@ The foot inks resolve by appearance: dark in light mode, on the light ground; li
 | AX1 to AX5 | Paper row with band: a full-width 64pt scene band (radius 16 on the top corners), with the text below on paper, full width | Paper row with band | Hero without the in-frame label; the slip text scales |
 
 Estimates: the strip is about 114pt at `.large` and 140 to 160pt at xxxLarge; the band row is about 280pt at AX1 with a two-line name. **Widths:** iPhone SE (3rd generation) gives W 343, iPhone 16 gives 361 and Pro Max gives 398. On iPad the row content is capped at 640pt and centred, because the board has no readable-width limit today and a 700pt-wide strip turns into a thin ribbon.
+
+## Skyline: the stacked board
+
+The owner chose "Skyline" for the Rewards list after three rounds of mockups (Oct 2026). It changes the list, not the picture: every stage, pose and word above still holds. The web board's **Stacked** layout is built to it (`SkylineRow` in `apps/web/src/pages/Rewards.tsx`, the rules in `apps/web/src/lib/reward-skyline.ts`, the styles in the Skyline section of `rewards-board.css`). iOS follows the same rules in its own row.
+
+### Rows sized by urgency
+
+| Size | Stages | Phone strip | Wide row (from 1000px) |
+| --- | --- | --- | --- |
+| **Gate** | gate | About 152px: the sky band 46px deeper than the standard strip; the headline amount at 26px in the urgent amber; the pace line; the basis line | 176px; the headline amount at 28px; the pace line over the columns |
+| **Climb** | climb | About 116px: the standard strip (headline, basis line) | 116px |
+| **Noon** | rest, capped, calm, failed, and range rows | At least 72px: the name in a thin sky; one line on the ground: the status, `·` the earned amount (range rows: the spend), and the deadline | 84px: the status (capped adds "$15.50 beyond cap") and any exception as a chip, the deadline, the columns |
+
+Heights are minimums: longer text, a wrapped deadline or exception lines grow a row, never clip it.
+
+**The pace line.** On a gate row only: "about **$5.94** a day to make it", the amount left to the minimum (or the monthly minimum) as the headline shows it (rounded up to the cent), divided by the days left (`deadline.days`, which counts today), to the nearest cent. It is left out when the days are unknown, on the last day (one day left) and once the period has ended. `rowText` carries it as `pacePerDay` and adds "About $5.94 a day to make it" to the spoken value after the deadline, as iOS does.
+
+**The strip scene.** The scene still places the two slopes from the measured bottom of the name and top of the foot. The standard band between them is 34px. A taller band (the gate strip, the wide window) drops both slopes by the difference, so the extra height is sky and the sun sits lower on its horizon; a shorter band (the noon strip) presses the slopes flatter in proportion, keeping their shape (`exposureScene`, `skyDrop` and `squeeze`).
+
+### Wide: the sunrise window and the columns
+
+From 1000px each row is a sunrise window on the left (the strip scene with the name on the sky and the account in caps on the ground; noon rows leave the account out) and the figures on paper to its right. The window is 280px wide up to 1279px and 360px from 1280px, a step rather than a share so the sun stays round. The ledger sets the headline and deadline on one line, the pace line under it on a gate row, then the columns **Spent**, **Minimum**, **Bonus cap**, **Earned** and **Period** (day N of M over a small rail with a bead at today). The columns are fixed shares of the ledger, which is the same width on every row, so each figure sits at the same x down the board. On a ledger narrower than 400px (about 1000 to 1060px wide) **Period** is dropped, and figures step from 13px to 15px as the ledger widens (container queries on `.rw-ledger`). A card with no minimum or cap reads "none" in that column.
+
+### Opening in place
+
+Every stacked row has a toggle, a chevron on the ground at the row's bottom right (a `<button>` with `aria-expanded`, `aria-controls` and the name "Details for {card}"), clear of the card's actions (⋯) at the top right. The card itself still links to `/rewards/:id`. The toggle unfolds the slip under the row inside the same card: the row and slip become one lifted card on the open surface, `--rw-open-bg` (light `#EBEBE6`, dark `#32312A`, the owner's pick) with `--rw-open-shadow`. Folded, the slip is `visibility: hidden` and `inert`, so it is out of the tab order and the accessibility tree; open, it is a region named "{card} details" with an `h4` per section. The slip holds:
+
+1. **Period**: the dates ("1 May to 31 May · day 24 of 31") and the day rail: a tick per day (up to 62 days), filled to today, a sun bead at today labelled "today · 24", a ring on the day the minimum was met labelled "min met · 4 May" when `minimum_met_on` falls in the period. On a rail under 440px wide the far end's date gives way to the today label when they would touch.
+2. **View transactions**: the account's register (`/transactions?accounts={account}&range=all`, the card menu's link).
+3. **Targets**: Minimum (met on its day, or the amount to go in the urgent amber), Next tier when there is one, and Cap (reached and what is beyond, the headroom left, or "none, keeps earning"; "none on the card, categories cap" when only categories cap). "Consider another card" follows when the server says so.
+4. **Categories**: the calculation's per-category flags (`calculation.flags`), each with its spend, a short bar (scaled to the largest spend or cap among them), its rate, and a note with its cap and earnings. A category over its cap turns the urgent amber, the bar hatched beyond a tick at the cap, with "$178.90 beyond cap". A card with no category rates says so with its spend and earnings.
+5. **Totals, qualifications and tiers**: a nested disclosure with the grid's disclosure body (the full-period minimum and cap meters, Spend, Eligible and Value, the periods, monthly qualification and its months, the active tier).
+
+Below 1000px the sections stack. From 1000px Period and Targets sit side by side with View transactions as a button at the right, and the categories become a row of tiles on the card paper.
+
+**Motion.** The chevron turns, the card's tint and shadow fade in, and the slip unfolds (`grid-template-rows` 0fr to 1fr) over `--dur-standard` with `--ease-out`, its content fading in just after. Under reduced motion the tokens are 0ms, so it opens and closes at once. The sun does not move on the web.
+
+### The masthead sky
+
+The Rewards masthead is a quiet sky (`--rw-sky` and `--rw-sky-glow`, a faint contrail): it reaches the content area's top and side edges and fades into the page about 260px down (200px on a phone), running on behind the toolbar, which is positioned to paint over it. It is a backdrop, not data: no sun, no figures. The hero's figure labels use the soft ink there, since the faint ink falls under 4.5:1 on the sky. Between 721 and 1023px the four figures go under the title instead of beside it.
+
+### Contrast on the open surface
+
+Light `#EBEBE6` (Dusk Ridge inks): the ink 13.9:1, the soft ink 6.1:1, the faint ink 4.9:1 and the urgent amber `#9A5410` 4.8:1; the other looks stay at or above 5.2:1 soft and 4.6:1 faint. Dark `#32312A`: the ink 11.1:1, the soft ink 6.1:1 and the urgent amber 7.2:1, but the faint ink would be 4.1:1 (3.8:1 in Overexposed), so the slip sets it to `#AAA49B` (5.3:1) through `--rw-open-ink-faint`. On the masthead sky the soft ink is at least 4.5:1 at the top of the light sky and 5.2:1 on the dark.
 
 ## SwiftUI architecture
 
@@ -1249,7 +1293,7 @@ A screenshot alone does not prove step 6: the GET output does.
 
 ### Web recipe: `.cursor/skills/verify-howmuch/features/rewards.md`
 
-- **Open filled.** The face's headline now reads "Minimum met · Resets in 8 days" with the basis line. "Full-period minimum met" moves inside **Targets, periods and tiers**.
+- **Open filled.** The face's headline now reads "Minimum met · Resets in 8 days" with the basis line. "Full-period minimum met" moves inside **Targets, periods and tiers** (on the Stacked board, inside the open slip's **Totals, qualifications and tiers**).
 - **New `rewards-exposure-states`.** Import the states fixture through Settings → Rewards import and open `/rewards?to=2026-05-24`. For each card:
   - check the slip text and the `data-stage` and `data-mono` attributes against the fixture table;
   - check the marker line's x against `h × W` and the sun's centre against its pose.

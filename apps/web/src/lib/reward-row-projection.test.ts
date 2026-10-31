@@ -366,7 +366,7 @@ describe("RewardRowProjectionTests: range, summary", () => {
 
   test("testAccessibilityValueStatesTargetProgressAndDeadline", () => {
     const p = project({ minimum_spend: 500, total_spend: 300, reward_earned: 1300, reward_type: "miles" });
-    expect(text(p).accessibilityValue).toBe("$200.00 to minimum. $300.00 of $500.00, 60 per cent. 8 days left, ends 30 Sep. 1,300 miles earned");
+    expect(text(p).accessibilityValue).toBe("$200.00 to minimum. $300.00 of $500.00, 60 per cent. 8 days left, ends 30 Sep. About $25.00 a day to make it. 1,300 miles earned");
   });
 });
 

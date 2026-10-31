@@ -275,6 +275,9 @@ export interface RowText {
   isUrgent: boolean;
   basisLine: string;
   exceptionLines: string[];
+  /** The gate row's pace, "$5.94" for "about $5.94 a day to make it": the amount to the minimum (rounded up to
+   *  the cent) over the days left, to the nearest cent. Null without an ending deadline of two days or more. */
+  pacePerDay: string | null;
   accessibilityValue: string;
 }
 
@@ -353,6 +356,12 @@ export function rowText(p: RewardRowProjection, today: string = singaporeToday()
     basisLine = `${money(p.totalSpend)} spent · ${earned} earned`;
   }
 
+  let pacePerDay: string | null = null;
+  if ((p.action.kind === "minimum" || p.action.kind === "monthlyMinimum") && p.action.remaining > 0
+    && p.deadline?.kind === "ends" && p.deadline.days >= 2) {
+    pacePerDay = money(Math.round((roundedUpToCent(p.action.remaining) / p.deadline.days) * 100) / 100);
+  }
+
   const allExceptions = p.exceptions.map(exceptionText);
   const exceptionLines = allExceptions.length > VISIBLE_EXCEPTION_LIMIT
     ? [...allExceptions.slice(0, VISIBLE_EXCEPTION_LIMIT), `+${allExceptions.length - VISIBLE_EXCEPTION_LIMIT} more`]
@@ -366,10 +375,11 @@ export function rowText(p: RewardRowProjection, today: string = singaporeToday()
     spoken.push(basisLine);
   }
   if (p.deadline && deadline) spoken.push(`${deadline}, ${p.deadline.kind === "ends" ? "ends" : "period ends"} ${shortLabel(p.deadline.end)}`);
+  if (pacePerDay) spoken.push(`About ${pacePerDay} a day to make it`);
   if (p.action.kind !== "range") spoken.push(`${earned} earned`);
   spoken.push(...allExceptions);
 
-  return { amount: amountText, actionLabel, deadline, isUrgent, basisLine, exceptionLines, accessibilityValue: spoken.join(". ") };
+  return { amount: amountText, actionLabel, deadline, isUrgent, basisLine, exceptionLines, pacePerDay, accessibilityValue: spoken.join(". ") };
 }
 
 // --------------------------------------------------------------------- summary
