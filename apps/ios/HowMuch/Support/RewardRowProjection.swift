@@ -122,7 +122,10 @@ struct RewardRowProjection: Equatable {
     let day: Int
     /// The day the minimum was met, when it was met inside this period and the day is known.
     let metDay: Int?
+    /// Nil whenever `metDay` is, so the rail and the targets agree.
     let metOn: String?
+    /// The as-of day is the live date, not a past one.
+    let isLive: Bool
   }
 
   enum Exception: Equatable {
@@ -193,9 +196,10 @@ struct RewardRowProjection: Equatable {
       let length = span + 1
       let metOn = calc.minimumSpendMet ? (current.calculation.minimumMetOn ?? calc.minimumMetOn) : nil
       let metDay = metOn.flatMap { RewardsCalendar.days(from: current.start, to: $0) }.map { $0 + 1 }
+        .flatMap { (1...length).contains($0) ? $0 : nil }
       return PeriodPosition(
         start: current.start, end: current.end, length: length, day: min(length, max(1, at + 1)),
-        metDay: metDay.flatMap { (1...length).contains($0) ? $0 : nil }, metOn: metOn)
+        metDay: metDay, metOn: metDay == nil ? nil : metOn, isLive: asOf == RewardsCalendar.today())
     }()
     func build(
       _ action: Action,
@@ -340,7 +344,7 @@ struct RewardRowProjection: Equatable {
     if !calc.maximumSpendExceeded {
       let atCap = calc.flags.filter { ($0.maximumSpend ?? 0) > 0 && $0.maximumSpendExceeded == true }
       if !atCap.isEmpty {
-        let over = atCap.contains { ($0.totalSpend ?? 0) > ($0.maximumSpend ?? 0) }
+        let over = atCap.contains { beyondCap(spend: $0.totalSpend ?? 0, cap: $0.maximumSpend ?? 0) > 0 }
         exceptions.append(.categoriesAtCap(names: atCap.map(\.name), over: over))
       }
     }

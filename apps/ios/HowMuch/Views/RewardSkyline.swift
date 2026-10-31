@@ -45,7 +45,7 @@ struct RewardsSky: View {
 }
 
 /// The period as a rail of days: a tick for each day, the elapsed part filled, a marker on the day the
-/// minimum was met and the sun at today. `compact` is the iPad statement's short rail with no ticks.
+/// minimum was met and the sun at the as-of day. `compact` is the iPad statement's short rail with no ticks.
 struct RewardPeriodRail: View {
   enum Style {
     case full
@@ -90,7 +90,7 @@ struct RewardPeriodRail: View {
               .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { endWidth = $0 }
               .alignmentGuide(.leading) { $0.width - railWidth }
               .opacity(todayLeft + todayWidth + 6 <= railWidth - endWidth ? 1 : 0)
-            label("today · \(position.day)")
+            label("\(position.isLive ? "today" : "as of") · \(position.day)")
               .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { todayWidth = $0 }
               .alignmentGuide(.leading) { centred(at: today, width: $0.width) }
           }
@@ -387,6 +387,8 @@ struct RewardCardSlip: View {
 
   private enum TargetState {
     case met, pending, open, done, none
+    /// A month that closed below its minimum: past mending, so never urgent.
+    case missed
   }
 
   private struct Target: Identifiable {
@@ -405,6 +407,8 @@ struct RewardCardSlip: View {
   private var targets: [Target] {
     var list: [Target] = []
     let minimum = calc.minimumSpend ?? 0
+    // A missed month forfeits the period, so nothing left to spend is urgent any more.
+    let periodFailed = calc.qualificationStatus == "failed"
     if minimum > 0 {
       if calc.minimumSpendMet {
         let met = projection.period?.metOn.map { "met \(short($0))" } ?? "met"
@@ -420,16 +424,31 @@ struct RewardCardSlip: View {
         list.append(Target(id: "minimum", label: "Minimum", amount: money(minimum), state: state, status: .open))
       } else {
         let left = RewardRowText.roundedUpToCent(minimum - calc.totalSpend)
-        list.append(Target(
-          id: "minimum", label: "Minimum", amount: money(minimum), state: "\(money(left)) to go", status: .pending))
+        list.append(periodFailed
+          ? Target(
+            id: "minimum", label: "Minimum", amount: money(minimum),
+            state: "\(money(left)) short, a month was missed", status: .open)
+          : Target(
+            id: "minimum", label: "Minimum", amount: money(minimum), state: "\(money(left)) to go", status: .pending))
       }
     }
     if let month = activeMonth {
       let met = month.spend >= month.minimumSpend
       let left = RewardRowText.roundedUpToCent(month.minimumSpend - month.spend)
+      let state: String
+      let status: TargetState
+      if met {
+        state = "met"
+        status = .met
+      } else if month.status == "failed" {
+        state = "missed"
+        status = .missed
+      } else {
+        state = "\(money(left)) to go"
+        status = periodFailed ? .open : .pending
+      }
       list.append(Target(
-        id: "month", label: "This month", amount: money(month.minimumSpend),
-        state: met ? "met" : "\(money(left)) to go", status: met ? .met : .pending))
+        id: "month", label: "This month", amount: money(month.minimumSpend), state: state, status: status))
     }
     if calc.hasNextSpendingTier == true, let threshold = calc.nextSpendingTierThreshold, threshold > calc.totalSpend {
       let left = RewardRowText.roundedUpToCent(threshold - calc.totalSpend)
@@ -481,6 +500,8 @@ struct RewardCardSlip: View {
       symbol = "circle.dashed"; ink = urgent
     case .open, .none:
       symbol = "circle.dashed"; ink = Theme.rowSecondary
+    case .missed:
+      symbol = "xmark.circle"; ink = Theme.rowSecondary
     }
     let label = Text(target.label)
       .font(.body)
@@ -489,6 +510,8 @@ struct RewardCardSlip: View {
       Text($0)
         .font(.system(.body, design: .monospaced).weight(.medium))
         .foregroundStyle(Theme.textPrimary)
+        .lineLimit(1)
+        .fixedSize()
     }
     let state = Text(target.state)
       .font(.subheadline.weight(target.status == .pending ? .medium : .regular))
@@ -509,6 +532,11 @@ struct RewardCardSlip: View {
             label
             amount
           }
+          state
+        }
+        VStack(alignment: .leading, spacing: 2) {
+          label
+          amount
           state
         }
       }
