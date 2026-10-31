@@ -1,6 +1,6 @@
 # Capture saved-card lock: stale tests aligned
 
-Revision tested: `975fd374213027f3b54dec75e8215a19dcef15cd` (branch `claude/project-thread-1r6208`). App code equals main `a9a7252`; only `apps/ios/HowMuchTests/CaptureSessionTests.swift` and `docs/frontend/intake-ui.md` differ.
+Revision tested: `31e089d8d288e33e14aeddee5c1b6276c6e4cb57` (branch `claude/project-thread-1r6208`, includes origin/main `0ebf0bc`). Against main, the branch changes only the capture tests, the interpreter prompt wording (`apps/ios/HowMuch/Capture/CaptureInterpreter.swift`), `docs/frontend/intake-ui.md` and this file.
 
 Run on the Devin macOS runner (session 8dfc1153d2784dc5bd6c723b16051a36), 31 Oct 2026.
 
@@ -13,10 +13,12 @@ Command:
 DEVELOPER_DIR=/Applications/Xcode-27.0-RC.app/Contents/Developer SIMULATOR_UDID=<sim> scripts/ios-xcodebuild.sh test
 ```
 
-Expected: full suite passes, including CaptureSessionTests `testChooseTargetDraftCannotUpdateASavedCard`, `testEmptyModelRenameStillRenamesTheVisibleCard`, `testPayeeOnlyAddBecomesUpdateWhenADraftAlreadyExists`, and CaptureConversationTests `testModelUpdatesCannotModifySavedCardsIndividuallyOrInBulk`.
+Expected: full suite passes, including CaptureConversationTests `testModelUpdatesCannotModifySavedCardsIndividuallyOrInBulk` (now also an untargeted change at a lone saved card) and CaptureSessionTests `testChooseTargetDraftCannotUpdateASavedCard`.
 
-Observed: TEST EXECUTE SUCCEEDED. XCTest 815 executed, 1 skipped (opt-in live Foundation Models test), 0 failures. Swift Testing 3/3 passed.
+Observed: TEST EXECUTE SUCCEEDED. XCTest 815 executed, 1 skipped (opt-in live test), 0 failures. Swift Testing 3/3 passed.
 
-Context: on main the old saved-card rename tests failed against b1472ec's lock. An earlier attempt on this branch (cdd62d8) restored chat edits to saved cards; it broke the security reproduction `testModelUpdatesCannotModifySavedCardsIndividuallyOrInBulk` (99000 vs 12000) and was reverted in 975fd37.
+Opt-in live test `testLiveFoundationModelsCoffeeAddUpdateAndTodayQuery` (HOWMUCH_LIVE_MODEL_VERIFY=1 injected into the xctestrun): could not run to its saved-card step. It fails at the first add, `ModelManagerError error 1019`, with `Asset com.apple.gm.safety_deny.input.foundation_models_framework.api not found in Model Catalog`: the simulator has no Apple Intelligence model assets. Its updated saved-card assertions are unexecuted; they need a device with Apple Intelligence.
 
-No E2E UI drive: the change is test and doc only, with app code identical to main.
+History: an earlier attempt (cdd62d8) restored chat edits to saved cards and failed the security reproduction above (99000 vs 12000); it was reverted in 975fd37.
+
+No E2E UI drive: app behaviour is unchanged from main apart from model prompt wording, which only the live model exercises.
