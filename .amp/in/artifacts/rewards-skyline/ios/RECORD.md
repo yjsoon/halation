@@ -24,3 +24,12 @@
 
 - iPad: the floating + button covers the last category's rate when scrolled to the bottom.
 - AX3: "View Transactions" hyphenates, and some secondary lines truncate with an ellipsis.
+
+## After merging main (the Sun Arc card)
+
+- Revisions: `dab390c` (merge) and `3992624` (merge review fixes), on the Devin macOS runner, same invented data.
+- `dab390c`: clean build; RewardsReportTests and RewardExposureTests 25/25, RewardDraftPeriodTests 3/3; full suite 816 executed, 1 skipped, the same 3 `CaptureSessionTests` failures as `main`. Both board OCR tests pass with the Plex figures.
+- `3992624`: clean build; the same targeted tests 25/25 and 3/3, both OCR board tests pass. The full suite was not rerun on this revision (the change from `dab390c` is three Smart Invert modifiers, a test regex and docs).
+- `merge-*.jpg`: iPhone board closed (light, dark), Gate Eighty open, the Sun Arc detail sheet through Show Details, the register row, AX3 open; iPad Pro 13 open (light, dark) and with Smart Invert on, where the window rows' names stay readable on the inverted art.
+- Main's bottom room clears the floating + button: Dining's rate is no longer covered on iPhone or iPad.
+- Still open: at AX3 "View Transactions" breaks as "Transaction / s", and some secondary figures truncate.
