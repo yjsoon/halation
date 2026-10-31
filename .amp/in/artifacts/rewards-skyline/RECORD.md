@@ -1,6 +1,6 @@
 # Rewards web: Skyline stacked board
 
-- Revision: working tree on `191e00d` (branch `claude/project-thread-ubyyr9`). HEAD moved to `67a20b3` (iOS review fixes; it touches no web files) during the run, so the web files here are the working tree on either. To be replaced by the commit SHA once the lead commits these fixes.
+- Revision: `6a1b47c` (branch `claude/project-thread-ubyyr9`). The run used the working tree that became this commit; the web files are identical.
 - Working tree (web, review round 1): `apps/web/src/pages/Rewards.tsx`, `apps/web/src/pages/rewards-board.css`, `apps/web/src/lib/reward-skyline.ts`, `apps/web/src/lib/reward-row-projection.ts` and its test (one pace assertion added), `docs/frontend/rewards-exposure-card.md`, `.cursor/skills/verify-howmuch/features/rewards.md`, and this folder.
 - Stack: `control-howmuch cleanup`, `launch` and `doctor` (all ok), one fresh disposable stack, demo ledger seeded.
 - Fixtures (synthetic): `fixtures/rewards-tracker-export.json` (the recipe's Travel Card, imported through Settings > Rewards import), `fixture-skyline.json` here (the mockups' six cards plus Monthly Gate 5555, a $400.00 monthly minimum over May to July, all on the demo Travel Card account; Minimum Met 1357 has ONLINEX, capped at $50.00, and Dining), and `../rewards-stacked/fixture-longflag.json` (long card and category names). Those two are imported with `POST /api/import/rewards-tracker` and `authorization: Bearer howmuch-verify-bootstrap`.
