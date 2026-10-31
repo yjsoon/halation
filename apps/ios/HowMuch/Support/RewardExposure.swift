@@ -151,9 +151,14 @@ enum ExposureLayout: Equatable {
   /// A board row: the ridges follow the measured bottom of the name's line box and
   /// top of the headline, so long names and large text move the ridges rather than
   /// overlap them. Nil falls back to estimates until the first measurement.
-  case strip(nameBottom: Double?, footTop: Double?)
+  /// `drop` lowers the horizon below the name (the board's tall gate row has more sky) and `relief` is the
+  /// horizon's rise across the width (the slim noon row's is shallower).
+  case strip(nameBottom: Double?, footTop: Double?, drop: Double = 0, relief: Double = 12)
   /// The 64pt scene band above the text at accessibility sizes.
   case band
+  /// The iPad board's sunrise window: the name in its sky and no words on the ground, so the horizon sits
+  /// at about a third of the window's height and the ground fills the rest.
+  case window(nameBottom: Double?)
 }
 
 /// The brand ridges' rise (the app icon's two slopes), sampled at 65 even x from the web's shipped
@@ -183,7 +188,7 @@ struct ExposureScene {
   /// The sun's radius.
   var sunRadius: Double {
     switch layout {
-    case .strip: return 10
+    case .strip, .window: return 10
     case .band: return 7
     }
   }
@@ -193,10 +198,13 @@ struct ExposureScene {
   /// name to 2pt under it.
   private var horizonRange: (high: Double, low: Double) {
     switch layout {
-    case .strip(let nameBottom, _):
-      let name = nameBottom ?? 0.28 * height
-      return (name + 2, name + 14)
+    case .strip(let nameBottom, _, let drop, let relief):
+      let name = (nameBottom ?? 0.28 * height) + max(0, drop)
+      return (name + 2, name + 2 + max(0, relief))
     case .band: return (0.42 * height, 0.56 * height)
+    case .window(let nameBottom):
+      let high = max((nameBottom ?? 0.25 * height) + 2, 0.36 * height)
+      return (high, high + 12)
     }
   }
 
@@ -205,10 +213,13 @@ struct ExposureScene {
   /// there and its far end rises as the minimum fills.
   private var floorGap: Double {
     switch layout {
-    case .strip(_, let footTop):
+    case .strip(_, let footTop, _, _):
       let foot = footTop ?? 0.58 * height
       return max(4, foot - 3 - horizonRange.low)
     case .band: return 0.26 * height
+    case .window:
+      // The strip's gap at its default text size, kept clear of the bottom edge.
+      return max(4, min(17, height - 6 - horizonRange.low))
     }
   }
 

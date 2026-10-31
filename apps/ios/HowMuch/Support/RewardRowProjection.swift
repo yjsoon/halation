@@ -114,6 +114,17 @@ struct RewardRowProjection: Equatable {
     let target: Double
   }
 
+  /// Where the as-of day sits in the current period, for the day rail. Days count from 1.
+  struct PeriodPosition: Equatable {
+    let start: String
+    let end: String
+    let length: Int
+    let day: Int
+    /// The day the minimum was met, when it was met inside this period and the day is known.
+    let metDay: Int?
+    let metOn: String?
+  }
+
   enum Exception: Equatable {
     case categoriesAtCap(names: [String], over: Bool)
     case categoriesBelowMinimum(names: [String])
@@ -145,6 +156,8 @@ struct RewardRowProjection: Equatable {
   let reachedTierThreshold: Double
   /// Where in the period the minimum was met, 0…1 by day; nil when it was not, or is unknown. Picture only.
   var minimumMetAt: Double? = nil
+  /// The current period and the as-of day in it; nil for ranges and without an as-of day.
+  var period: PeriodPosition? = nil
 
   var isBelowMinimum: Bool {
     switch action {
@@ -172,6 +185,18 @@ struct RewardRowProjection: Equatable {
       else { return nil }
       return min(1, max(0, Double(at + 1) / Double(length + 1)))
     }()
+    let position: PeriodPosition? = {
+      guard let asOf, let current = calc.periods?.last(where: { $0.start <= asOf && asOf <= $0.end }),
+        let span = RewardsCalendar.days(from: current.start, to: current.end), span >= 0,
+        let at = RewardsCalendar.days(from: current.start, to: asOf)
+      else { return nil }
+      let length = span + 1
+      let metOn = calc.minimumSpendMet ? (current.calculation.minimumMetOn ?? calc.minimumMetOn) : nil
+      let metDay = metOn.flatMap { RewardsCalendar.days(from: current.start, to: $0) }.map { $0 + 1 }
+      return PeriodPosition(
+        start: current.start, end: current.end, length: length, day: min(length, max(1, at + 1)),
+        metDay: metDay.flatMap { (1...length).contains($0) ? $0 : nil }, metOn: metOn)
+    }()
     func build(
       _ action: Action,
       _ tone: Tone,
@@ -197,7 +222,8 @@ struct RewardRowProjection: Equatable {
         missedMinimumPeriod: missedMinimumPeriod,
         minimumAmount: minimumAmount,
         reachedTierThreshold: reachedTierThreshold,
-        minimumMetAt: isRange ? nil : metAt
+        minimumMetAt: isRange ? nil : metAt,
+        period: isRange ? nil : position
       )
     }
 
@@ -357,6 +383,11 @@ struct RewardRowText {
   let basisLine: String?
   let exceptionLines: [String]
   let accessibilityValue: String
+  /// What the card has earned this period: money for cashback, "1,200 miles" for miles.
+  let earned: String
+  /// The pace to make an unmet minimum: what is left over the days left, to the cent. Nil without a
+  /// deadline, and on the last day, when the amount itself is the pace.
+  let pacePerDay: String?
 
   static let visibleExceptionLimit = 2
 
@@ -365,6 +396,7 @@ struct RewardRowText {
       MoneyCodec.displayString(forCurrencyUnits: value, currencyFormat: currencyFormat)
     }
     let earned = Self.reward(projection.earned, projection.rewardType, currencyFormat: currencyFormat)
+    self.earned = earned
 
     switch projection.action {
     case .qualificationFailed:
@@ -431,6 +463,18 @@ struct RewardRowText {
       }
     }
 
+    switch projection.action {
+    case .minimum(let remaining), .monthlyMinimum(let remaining):
+      if let due = projection.deadline, due.kind == .ends, due.days >= 2, remaining > 0 {
+        let perDay = (Self.roundedUpToCent(remaining) / Double(due.days) * 100).rounded() / 100
+        pacePerDay = money(perDay)
+      } else {
+        pacePerDay = nil
+      }
+    default:
+      pacePerDay = nil
+    }
+
     let allExceptions = projection.exceptions.map { Self.exceptionText($0) }
     if allExceptions.count > Self.visibleExceptionLimit {
       exceptionLines = Array(allExceptions.prefix(Self.visibleExceptionLimit))
@@ -450,6 +494,9 @@ struct RewardRowText {
     }
     if let due = projection.deadline, let deadline {
       spoken.append("\(deadline), \(due.kind == .ends ? "ends" : "period ends") \(RewardsCalendar.shortLabel(due.end))")
+    }
+    if let pace = pacePerDay {
+      spoken.append("About \(pace) a day to make it")
     }
     if projection.action != .range {
       spoken.append("\(earned) earned")

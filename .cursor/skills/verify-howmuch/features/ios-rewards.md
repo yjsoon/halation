@@ -9,6 +9,7 @@ Rewards is a tab. It shows imported Rewards Tracker cards against the HowMuch le
 - `ios-rewards-import-then-view` after importing `fixtures/rewards-tracker-export.json` shows Travel Card on All Time.
 - `ios-rewards-flags` lists Dining and Online flag rows on Travel Card.
 - `ios-rewards-group` switches Group to Payee and lists Candlenut.
+- `ios-rewards-skyline` sizes board rows by urgency and opens a card in place (below).
 
 ## How to get to it (user POV)
 
@@ -38,8 +39,21 @@ Preconditions:
 - Dismiss with **Done**, then repeat and swipe down to dismiss. Both paths return to the same account register with its search/filter state intact.
 - Open the bar again and choose **Edit**. The editor replaces the details sheet. Cancel returns directly to the account, not to another sheet or the Rewards tab.
 - Edit again, change the card name to `Travel Card Edited`, and save. The account's rewards bar updates. Reopen it and check the detail title. Confirm the stored name through `GET /api/import/rewards-tracker?plan_id=local-plan`.
-- Explicitly select **Rewards** and open the same card. Its existing details and **View Transactions** link still work.
+- Explicitly select **Rewards** and tap the same card. It opens in place (see below) and its **View Transactions** link still works. Long-press it and choose **Show Details** for the full sheet, which keeps **Edit Rewards**.
 - Save the revision, patch hash, fixture setup, executed steps, expected/observed outcomes, accessibility output showing the selected tab and register, screenshots, and persisted API result under `.amp/in/artifacts/ios-register-rewards/`.
+
+## Board rows open in place (Skyline)
+
+Rows on the Rewards board stand as tall as their urgency: a card still short of its minimum is a tall row (about 152pt at the default text size) with the figure set large and a pace line such as `about $5.94 a day to make it` (left to the minimum over the days left; none on the last day); a card climbing to a tier or cap is the standard strip (about 100pt); met, capped, no-cap and failed cards are slim rows (about 66pt) with one line, `<status> · <earned> earned` and the reset. Rows grow with the text size; at accessibility sizes every row falls back to the scene band above the words.
+
+- **Open.** Tap a row. The detail unfolds under it inside one lifted card (light `#EBEBE6`, dark `#32312A`): **Period** with the dates, `day N of M` and a day rail (a marker labelled `min met · <date>` when the minimum was met this period), **View Transactions**, **Targets** (Minimum and Cap, each with its met or remaining state) and **Categories** (spend, a bar and the rate; a category over its cap is amber with `<cap> cap · <amount> beyond`). The rows below slide down. VoiceOver reads the row with `Expanded` and the hint `Collapses the details.`; closed it reads `Collapsed` and `Expands to show the period, targets and categories.`
+- **One at a time.** Tap another row: the first closes as the second opens. Tap the open row to close it.
+- **View Transactions.** Choose it in the open card. The Accounts tab opens on that account's register.
+- **Show Details.** Long-press a row and choose **Show Details**. The full detail sheet opens with **Edit Rewards**; the VoiceOver actions on the row include **Show Details**, **Edit Rewards** and **Hide**.
+- **Reduce Motion.** With Reduce Motion on, the detail cross-fades instead of springing open.
+- **iPad.** At regular width with the board at least 760pt wide, each row is a sunrise window on the left (248pt at 820 wide, up to 336pt at 1024) with the statement on the right: headline with days left (and the pace line on a tall row), **Earned**, and **Period** as `N of M days` with a short rail. The open card lays Period, Targets and Categories side by side (Categories drops under the other two below about 950pt). Slide Over, a narrow split and accessibility text sizes use the phone rows.
+- **Sky.** A quiet sky sits behind the large title and the summary line and fades into the page within about 190pt; it scrolls away with the list.
+- **Proof.** Screenshot the board in light and dark with one card open, on iPhone and on iPad landscape and portrait (`artifacts/ios-rewards/skyline-{iphone,ipad-1024,ipad-820}-{light,dark}.png`).
 
 ## Gotchas
 

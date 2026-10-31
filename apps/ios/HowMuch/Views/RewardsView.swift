@@ -149,8 +149,14 @@ struct RewardsView: View {
   @Environment(AppModel.self) private var model
   @Environment(RootChromeState.self) private var chrome: RootChromeState?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var filter: RewardsReportFilter
   @State private var sheet: RewardsSheet?
+  /// The one card open in place, if any.
+  @State private var openCardID: String?
+  @State private var boardWidth: CGFloat = 0
+  @State private var skyScroll = RewardsSkyScroll()
   @State private var route: RewardsRoute?
   @State private var preferencesByPlan: [String: RewardsBoardPreferences] = [:]
   @State private var rewardAccountIDsByPlan: [String: Set<String>] = [:]
@@ -193,6 +199,16 @@ struct RewardsView: View {
     .animation(reduceMotion ? nil : Theme.Motion.arrive, value: model.rewardsPhase)
     .listStyle(.plain)
     .scrollContentBackground(.hidden)
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { boardWidth = $0 }
+    .onScrollGeometryChange(for: CGFloat.self) { geometry in
+      geometry.contentOffset.y + geometry.contentInsets.top
+    } action: { _, offset in
+      skyScroll.offset = offset
+    }
+    .background {
+      RewardsSky(scroll: skyScroll)
+        .ignoresSafeArea(edges: .top)
+    }
     .background(Theme.canvas)
     .navigationTitle("Rewards")
     .navigationBarTitleDisplayMode(.large)
@@ -363,17 +379,78 @@ struct RewardsView: View {
     }
   }
 
+  /// iPad regular width: the sunrise window's width, 248pt at 820 wide up to 336pt at 1024. Nil keeps the
+  /// phone's strips, as on a compact width (Slide Over, a narrow split) and at accessibility text sizes.
+  private var windowWidth: CGFloat? {
+    guard usesWindowRows else { return nil }
+    let content = boardWidth - 2 * rowGutter
+    return min(336, max(248, (248 + (content - 776) * 0.43).rounded()))
+  }
+
+  /// A regular-width iPad board wide enough for a window and a readable statement beside it.
+  private var usesWindowRows: Bool {
+    RootChrome.usesSidebar(idiom: UIDevice.current.userInterfaceIdiom, horizontalSizeClass: horizontalSizeClass)
+      && !dynamicTypeSize.isAccessibilitySize && boardWidth >= 760
+  }
+
+  private var rowGutter: CGFloat { usesWindowRows ? 24 : 16 }
+
+  private var slipArrangement: RewardCardSlip.Arrangement {
+    guard windowWidth != nil else { return .stacked }
+    return boardWidth - 2 * rowGutter >= 900 ? .threeColumns : .twoColumns
+  }
+
+  private func toggle(_ cardID: String) {
+    let next = openCardID == cardID ? nil : cardID
+    withAnimation(reduceMotion ? .easeInOut(duration: 0.2) : Theme.Motion.unfold) {
+      openCardID = next
+    }
+  }
+
   private func boardRow(_ projection: RewardRowProjection, index: Int) -> some View {
     let text = RewardRowText(projection, currencyFormat: model.currencyFormat)
-    return Button {
-      sheet = .detail(projection.cardID)
-    } label: {
-      RewardFilledRow(
-        projection: projection, icon: icon(for: projection.accountID), currencyFormat: model.currencyFormat,
-        index: index)
+    let isOpen = openCardID == projection.cardID
+    let row = isOpen ? currentReport?.cards.first(where: { $0.id == projection.cardID }) : nil
+    return VStack(spacing: 0) {
+      Button {
+        toggle(projection.cardID)
+      } label: {
+        RewardFilledRow(
+          projection: projection, icon: icon(for: projection.accountID), currencyFormat: model.currencyFormat,
+          index: index, sizing: .urgency, isOpen: isOpen, windowWidth: windowWidth)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel(projection.title)
+      .accessibilityValue("\(text.accessibilityValue). \(isOpen ? "Expanded" : "Collapsed")")
+      .accessibilityHint(isOpen ? "Collapses the details." : "Expands to show the period, targets and categories.")
+      .accessibilityAction(named: "Show Details") {
+        sheet = .detail(projection.cardID)
+      }
+      .accessibilityAction(named: "Edit Rewards") {
+        sheet = .editor(.edit(projection.cardID))
+      }
+      .accessibilityAction(named: "Hide") {
+        hide(projection.cardID)
+      }
+      if let row {
+        RewardCardSlip(
+          row: row, projection: projection, asOf: currentReport?.asOf, currencyFormat: model.currencyFormat,
+          arrangement: slipArrangement,
+          onOpenAccount: chrome == nil ? nil : { chrome?.showAccount(row.accountId) }
+        )
+        .transition(.opacity)
+      }
     }
-    .buttonStyle(.plain)
-    .listRowInsets(EdgeInsets(top: 5, leading: 16, bottom: 5, trailing: 16))
+    .background {
+      if isOpen {
+        RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+          .fill(Theme.openCard)
+          .shadow(color: Theme.openCardShadow, radius: 14, x: 0, y: 10)
+          .transition(.opacity)
+      }
+    }
+    // The open card is lifted: the margin below gives its shadow room.
+    .listRowInsets(EdgeInsets(top: isOpen ? 8 : 5, leading: rowGutter, bottom: isOpen ? 16 : 5, trailing: rowGutter))
     .listRowBackground(Color.clear)
     .listRowSeparator(.hidden)
     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
@@ -407,15 +484,6 @@ struct RewardsView: View {
       } label: {
         Label("Hide on This Device", systemImage: "eye.slash")
       }
-    }
-    .accessibilityLabel(projection.title)
-    .accessibilityValue(text.accessibilityValue)
-    .accessibilityHint("Shows details.")
-    .accessibilityAction(named: "Edit Rewards") {
-      sheet = .editor(.edit(projection.cardID))
-    }
-    .accessibilityAction(named: "Hide") {
-      hide(projection.cardID)
     }
   }
 
@@ -807,6 +875,13 @@ enum RewardCardEditorDestination: Identifiable {
   }
 }
 
+/// How tall a row stands. The board sizes rows by urgency (Skyline); everywhere else every row is the
+/// standard strip.
+enum RewardRowSizing {
+  case uniform
+  case urgency
+}
+
 struct RewardFilledRow: View {
   let projection: RewardRowProjection
   var icon: String?
@@ -817,18 +892,37 @@ struct RewardFilledRow: View {
   var memoryScope = "board"
   /// The row's place in its list, for the staggered first showing.
   var index = 0
+  var sizing: RewardRowSizing = .uniform
+  /// Board rows only: whether the card is open in place, which turns the chevron and squares the bottom
+  /// corners onto the slip. Nil draws no chevron.
+  var isOpen: Bool? = nil
+  /// iPad regular width: the sunrise window's width, with the statement to its right. Nil keeps the strip.
+  var windowWidth: CGFloat? = nil
 
   @Environment(\.colorSchemeContrast) private var contrast
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   /// Optional so a row drawn outside the app (a snapshot) still works; it only scopes the animation memory.
   @Environment(AppModel.self) private var model: AppModel?
-  @ScaledMetric(relativeTo: .body) private var stripPadding = 9.0
-  @ScaledMetric(relativeTo: .body) private var paperPadding = 14.0
-  @ScaledMetric(relativeTo: .body) private var horizontalPadding = 16.0
+  @ScaledMetric(relativeTo: .body) private var stripPadding: CGFloat = 9
+  @ScaledMetric(relativeTo: .body) private var slimPadding: CGFloat = 6
+  @ScaledMetric(relativeTo: .body) private var paperPadding: CGFloat = 14
+  @ScaledMetric(relativeTo: .body) private var horizontalPadding: CGFloat = 16
   /// The icon's two rising slopes: the target horizon 14pt to 2pt under the name, the spend ridge
   /// lifting towards it, and a 10pt half-sun on the horizon at the right.
-  @ScaledMetric(relativeTo: .body) private var skyBand = 34.0
+  @ScaledMetric(relativeTo: .body) private var skyBand: CGFloat = 34
+  /// Skyline's three skies: the gate's tall dawn (with the horizon lowered by `gateDrop`), the climb's
+  /// standard strip and the slim noon row, about 152pt, 100pt and 66pt tall at the default text size.
+  @ScaledMetric(relativeTo: .body) private var gateSky: CGFloat = 44
+  @ScaledMetric(relativeTo: .body) private var gateDrop: CGFloat = 14
+  @ScaledMetric(relativeTo: .body) private var climbSky: CGFloat = 26
+  @ScaledMetric(relativeTo: .body) private var noonSky: CGFloat = 15
+  /// The iPad window's least height per stature; the statement can make the row taller.
+  @ScaledMetric(relativeTo: .body) private var windowTall: CGFloat = 152
+  @ScaledMetric(relativeTo: .body) private var windowStandard: CGFloat = 100
+  @ScaledMetric(relativeTo: .body) private var windowSlim: CGFloat = 66
+  @ScaledMetric(relativeTo: .body) private var earnedColumn: CGFloat = 96
+  @ScaledMetric(relativeTo: .body) private var periodColumn: CGFloat = 124
   /// The ridges follow the measured bottom of the name and top of the headline.
   @State private var nameBottom: CGFloat?
   @State private var footTop: CGFloat?
@@ -848,12 +942,29 @@ struct RewardFilledRow: View {
     case paper
   }
 
+  /// Skyline's row heights: a gate still working to its minimum stands tall, a climb is the standard
+  /// strip, and met, capped, calm and failed cards are slim noon rows.
+  private enum Stature {
+    case tall, standard, slim
+  }
+
+  private func rowStature(_ exposure: RewardExposure) -> Stature {
+    guard sizing == .urgency else { return .standard }
+    switch exposure.stage {
+    case .gate: return .tall
+    case .climb: return .standard
+    case .rest, .capped, .calm, .failed: return .slim
+    }
+  }
+
   var body: some View {
     let text = RewardRowText(projection, currencyFormat: currencyFormat)
     Group {
       if let exposure = RewardExposure(projection) {
         if dynamicTypeSize.isAccessibilitySize {
           bandRow(text, exposure: exposure)
+        } else if let windowWidth {
+          windowRow(text, exposure: exposure, windowWidth: windowWidth)
         } else {
           stripRow(text, exposure: exposure)
         }
@@ -867,29 +978,67 @@ struct RewardFilledRow: View {
     .accessibilityValue(text.accessibilityValue)
   }
 
+  /// Square at the bottom while the card is open, so the row and its slip read as one card.
+  private var rowShape: UnevenRoundedRectangle {
+    let radius = Theme.Radius.card
+    let bottom: CGFloat = isOpen == true ? 0 : radius
+    return UnevenRoundedRectangle(
+      topLeadingRadius: radius, bottomLeadingRadius: bottom, bottomTrailingRadius: bottom,
+      topTrailingRadius: radius, style: .continuous)
+  }
+
   private func stripRow(_ text: RewardRowText, exposure: RewardExposure) -> some View {
-    VStack(spacing: 0) {
+    let stature = rowStature(exposure)
+    let band: CGFloat
+    let drop: CGFloat
+    let relief: Double
+    let vertical: CGFloat
+    switch stature {
+    case .tall:
+      band = gateSky; drop = gateDrop; relief = 12; vertical = stripPadding
+    case .standard:
+      band = sizing == .urgency ? climbSky : skyBand; drop = 0; relief = 12; vertical = stripPadding
+    case .slim:
+      band = noonSky; drop = 0; relief = 6; vertical = slimPadding
+    }
+    return VStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 0) {
         nameBox
           .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).maxY } action: { nameBottom = $0 }
-          .padding(.bottom, skyBand)
-        foot(text, surface: .ridge)
+          .padding(.bottom, band)
+        footBlock(text, stature: stature)
           .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).minY } action: { footTop = $0 }
         exceptions(text, surface: .ridge)
       }
       .padding(.horizontal, horizontalPadding)
-      .padding(.vertical, stripPadding)
+      .padding(.vertical, vertical)
       .frame(maxWidth: .infinity, alignment: .leading)
       .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
       .background {
         RewardExposureAnimator(
           exposure: exposure,
-          layout: .strip(nameBottom: nameBottom.map { Double($0) }, footTop: footTop.map { Double($0) }),
+          layout: .strip(
+            nameBottom: nameBottom.map { Double($0) }, footTop: footTop.map { Double($0) },
+            drop: Double(drop), relief: relief),
           key: memoryKey, index: index)
       }
       .coordinateSpace(.named(Self.space))
-      .clipShape(.rect(cornerRadius: Theme.Radius.card, style: .continuous))
+      .clipShape(rowShape)
       .overlay { outline }
+      .overlay(alignment: .topTrailing) {
+        chevron(ink: titleInk(.ridge))
+          .padding(.top, vertical + 6)
+          .padding(.trailing, 12)
+      }
+    }
+  }
+
+  @ViewBuilder
+  private func footBlock(_ text: RewardRowText, stature: Stature) -> some View {
+    switch stature {
+    case .tall: foot(text, surface: .ridge, tall: true)
+    case .standard: foot(text, surface: .ridge)
+    case .slim: noonFoot(text, surface: .ridge)
     }
   }
 
@@ -899,26 +1048,34 @@ struct RewardFilledRow: View {
         exposure: exposure, layout: .band, key: memoryKey, index: index
       )
       .frame(height: Self.bandHeight)
-      paperContent(text)
+      paperContent(text, pace: rowStature(exposure) == .tall)
     }
-    .background(Theme.card)
-    .clipShape(.rect(cornerRadius: Theme.Radius.card, style: .continuous))
+    .background(paperFill)
+    .clipShape(rowShape)
     .overlay { outline }
+    .overlay(alignment: .topTrailing) {
+      chevron(ink: titleInk(.ridge))
+        .padding(.top, 10)
+        .padding(.trailing, 12)
+    }
   }
 
   private func paperRow(_ text: RewardRowText) -> some View {
     paperContent(text)
-      .background(Theme.card)
-      .clipShape(.rect(cornerRadius: Theme.Radius.card, style: .continuous))
+      .background(paperFill)
+      .clipShape(rowShape)
       .overlay { outline }
   }
 
-  private func paperContent(_ text: RewardRowText) -> some View {
+  /// An open card's own paper takes the open surface, so the row reads as the head of its slip.
+  private var paperFill: Color { isOpen == true ? Theme.openCard : Theme.card }
+
+  private func paperContent(_ text: RewardRowText, pace: Bool = false) -> some View {
     VStack(alignment: .leading, spacing: 3) {
       if showsTitle {
         titleLine(surface: .paper)
       }
-      foot(text, surface: .paper)
+      foot(text, surface: .paper, pace: pace)
       exceptions(text, surface: .paper)
     }
     .padding(.vertical, paperPadding)
@@ -926,24 +1083,187 @@ struct RewardFilledRow: View {
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 
+  // MARK: iPad window row
+
+  /// The sunrise window on the left with the name in its sky, and the statement on paper to its right:
+  /// the headline with its days left, Earned, and Period as a count and a short rail.
+  private func windowRow(_ text: RewardRowText, exposure: RewardExposure, windowWidth: CGFloat) -> some View {
+    let stature = rowStature(exposure)
+    let least: CGFloat
+    switch stature {
+    case .tall: least = windowTall
+    case .standard: least = windowStandard
+    case .slim: least = windowSlim
+    }
+    return HStack(spacing: 0) {
+      VStack(alignment: .leading, spacing: 0) {
+        nameColumn(maxWidth: windowWidth - 2 * horizontalPadding)
+          .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named(Self.space)).maxY } action: { nameBottom = $0 }
+        Spacer(minLength: 0)
+      }
+      .padding(.horizontal, horizontalPadding)
+      .padding(.top, stripPadding)
+      .frame(width: windowWidth, alignment: .topLeading)
+      .frame(minHeight: least, maxHeight: .infinity, alignment: .top)
+      .background {
+        RewardExposureAnimator(
+          exposure: exposure, layout: .window(nameBottom: nameBottom.map { Double($0) }),
+          key: memoryKey, index: index)
+      }
+      .coordinateSpace(.named(Self.space))
+      statement(text, stature: stature)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .background(paperFill)
+    }
+    .fixedSize(horizontal: false, vertical: true)
+    .clipShape(rowShape)
+    .overlay { outline }
+  }
+
+  private func statement(_ text: RewardRowText, stature: Stature) -> some View {
+    HStack(alignment: .center, spacing: 16) {
+      VStack(alignment: .leading, spacing: 3) {
+        statementHeadline(text, stature: stature)
+        exceptions(text, surface: .paper)
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+      earnedFigures(text)
+        .frame(width: earnedColumn, alignment: .leading)
+      Group {
+        if let period = projection.period {
+          periodFigures(period)
+        } else {
+          Color.clear.frame(height: 1)
+        }
+      }
+      .frame(width: periodColumn, alignment: .leading)
+      chevron(ink: Theme.rowSecondary)
+    }
+    .padding(.leading, 20)
+    .padding(.trailing, 14)
+    .padding(.vertical, paperPadding)
+  }
+
+  @ViewBuilder
+  private func statementHeadline(_ text: RewardRowText, stature: Stature) -> some View {
+    if stature == .slim {
+      ViewThatFits(in: .horizontal) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          headlineText(text, surface: .paper).lineLimit(1)
+          Spacer(minLength: 8)
+          deadlineText(text, surface: .paper)
+        }
+        VStack(alignment: .leading, spacing: 2) {
+          headlineText(text, surface: .paper).fixedSize(horizontal: false, vertical: true)
+          deadlineText(text, surface: .paper)
+        }
+      }
+    } else {
+      VStack(alignment: .leading, spacing: 3) {
+        headlineText(text, surface: .paper, tall: stature == .tall)
+          .fixedSize(horizontal: false, vertical: true)
+        statementDeadline(text, pace: stature == .tall)
+        if let basis = projection.basis {
+          Text("\(money(basis.spend)) / \(money(basis.target))")
+            .font(.system(.footnote, design: .monospaced))
+            .foregroundStyle(Theme.rowSecondary)
+        }
+      }
+    }
+  }
+
+  /// "8 days left · about $5.94 a day to make it" on the gate; the days left alone elsewhere.
+  @ViewBuilder
+  private func statementDeadline(_ text: RewardRowText, pace: Bool) -> some View {
+    let paceText: Text? = pace ? text.pacePerDay.map { paceLine($0, surface: .paper, style: .subheadline) } : nil
+    if let deadline = text.deadline, let paceText {
+      Text("\(Text(deadline).font(.subheadline.weight(.medium)).foregroundStyle(text.isUrgent ? urgentInk(.paper) : Theme.textPrimary)) · \(paceText)")
+        .font(.subheadline)
+        .foregroundStyle(Theme.rowSecondary)
+        .fixedSize(horizontal: false, vertical: true)
+    } else if let deadline = text.deadline {
+      Text(deadline)
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(text.isUrgent ? urgentInk(.paper) : Theme.textPrimary)
+    } else if let paceText {
+      paceText.font(.subheadline).foregroundStyle(Theme.rowSecondary)
+    }
+  }
+
+  private func earnedFigures(_ text: RewardRowText) -> some View {
+    VStack(alignment: .leading, spacing: 3) {
+      columnLabel("Earned")
+      Text(projection.rewardType == .miles ? "\(RewardRowText.milesString(projection.earned)) mi" : text.earned)
+        .font(.system(.title3, design: .monospaced).weight(.medium))
+        .foregroundStyle(Theme.textPrimary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.7)
+      if case .capReached(let beyond, _) = projection.action, beyond > 0 {
+        Text("\(money(beyond)) beyond cap")
+          .font(.caption)
+          .foregroundStyle(Theme.rowSecondary)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+  }
+
+  private func periodFigures(_ period: RewardRowProjection.PeriodPosition) -> some View {
+    VStack(alignment: .leading, spacing: 5) {
+      columnLabel("Period")
+      Text("\(Text("\(period.day)").font(.system(.title3, design: .monospaced).weight(.medium))) of \(period.length) days")
+        .font(.subheadline)
+        .foregroundStyle(Theme.textPrimary)
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
+      RewardPeriodRail(position: period, style: .compact)
+    }
+  }
+
+  private func columnLabel(_ title: String) -> some View {
+    Text(title.uppercased())
+      .font(.caption2.weight(.medium))
+      .tracking(1.2)
+      .foregroundStyle(Theme.rowSecondary)
+  }
+
+  private func money(_ value: Double) -> String {
+    MoneyCodec.displayString(forCurrencyUnits: value, currencyFormat: currencyFormat)
+  }
+
+  // MARK: Words
+
   /// The name may run to 72% of the width: the sun's column at 85% stays clear of it, and a half-sun
   /// riding under the name's tail only grazes the line box. Without a name (the detail sheet) it is
   /// an empty line, so the ridges still have a sky.
-  @ViewBuilder
   private var nameBox: some View {
+    nameColumn(maxWidth: width)
+  }
+
+  @ViewBuilder
+  private func nameColumn(maxWidth: CGFloat) -> some View {
     if showsTitle {
       titleLine(surface: .ridge)
-        .frame(maxWidth: width > 0 ? width * 0.72 : .infinity, alignment: .leading)
+        .frame(maxWidth: maxWidth > 0 ? maxWidth * 0.72 : .infinity, alignment: .leading)
     } else {
       Color.clear.frame(height: 0)
     }
   }
 
   @ViewBuilder
+  private func chevron(ink: Color) -> some View {
+    if let isOpen {
+      Image(systemName: "chevron.forward")
+        .font(.footnote.weight(.semibold))
+        .foregroundStyle(ink.opacity(0.75))
+        .rotationEffect(.degrees(isOpen ? 90 : 0))
+        .accessibilityHidden(true)
+    }
+  }
+
+  @ViewBuilder
   private var outline: some View {
     if contrast == .increased {
-      RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-        .strokeBorder(Color.primary.opacity(0.3), lineWidth: 1)
+      rowShape.stroke(Color.primary.opacity(0.3), lineWidth: 1)
     }
   }
 
@@ -961,14 +1281,49 @@ struct RewardFilledRow: View {
     }
   }
 
-  private func foot(_ text: RewardRowText, surface: Surface) -> some View {
+  private func foot(_ text: RewardRowText, surface: Surface, tall: Bool = false, pace: Bool = false) -> some View {
     VStack(alignment: .leading, spacing: 2) {
-      actionLine(text, surface: surface)
+      actionLine(text, surface: surface, tall: tall)
+      if tall || pace, let perDay = text.pacePerDay {
+        paceLine(perDay, surface: surface)
+          .font(.footnote)
+          .foregroundStyle(secondaryInk(surface))
+          .fixedSize(horizontal: false, vertical: true)
+      }
       if let basis = text.basisLine {
         Text(basis)
           .font(.system(.caption, design: .monospaced))
           .foregroundStyle(secondaryInk(surface))
           .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .contentTransition(.opacity)
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: text.accessibilityValue)
+  }
+
+  /// "about $5.94 a day to make it": the figure in the headline's ink, the words in the caller's.
+  private func paceLine(_ perDay: String, surface: Surface, style: Font.TextStyle = .footnote) -> Text {
+    let figure = Text(perDay)
+      .font(.system(style, design: .monospaced).weight(.medium))
+      .foregroundStyle(headlineInk(surface))
+    return Text("about \(figure) a day to make it")
+  }
+
+  /// The slim noon row's one line: status and earnings, with the reset at the right.
+  private func noonFoot(_ text: RewardRowText, surface: Surface) -> some View {
+    let status = Text("\(Text(text.actionLabel).font(.subheadline.weight(.semibold))) · \(Text(text.earned).font(.system(.subheadline, design: .monospaced).weight(.medium))) earned")
+      .font(.subheadline)
+      .foregroundStyle(headlineInk(surface))
+    let deadline = deadlineText(text, surface: surface)
+    return ViewThatFits(in: .horizontal) {
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        status.lineLimit(1)
+        Spacer(minLength: 8)
+        deadline
+      }
+      VStack(alignment: .leading, spacing: 2) {
+        status.fixedSize(horizontal: false, vertical: true)
+        deadline
       }
     }
     .contentTransition(.opacity)
@@ -1030,14 +1385,18 @@ struct RewardFilledRow: View {
     surface == .ridge ? Theme.Face.urgentInk : RewardTonePalette.palette(for: projection.tone).ink
   }
 
-  @ViewBuilder
-  private func actionLine(_ text: RewardRowText, surface: Surface) -> some View {
-    let headline = headlineText(text, surface: surface)
-    let deadline = text.deadline.map { value in
+  private func deadlineText(_ text: RewardRowText, surface: Surface) -> Text? {
+    text.deadline.map { value in
       Text(value)
         .font(.footnote.weight(text.isUrgent ? .semibold : .regular))
         .foregroundStyle(text.isUrgent ? urgentInk(surface) : secondaryInk(surface))
     }
+  }
+
+  @ViewBuilder
+  private func actionLine(_ text: RewardRowText, surface: Surface, tall: Bool = false) -> some View {
+    let headline = headlineText(text, surface: surface, tall: tall)
+    let deadline = deadlineText(text, surface: surface)
     let stacked = VStack(alignment: .leading, spacing: 2) {
       headline
         .fixedSize(horizontal: false, vertical: true)
@@ -1059,14 +1418,15 @@ struct RewardFilledRow: View {
   }
 
   /// An unmet minimum's figure takes the urgent amber, the ink the deadline takes in its last days:
-  /// the reward is at stake, not just a bonus.
-  private func headlineText(_ text: RewardRowText, surface: Surface) -> Text {
+  /// the reward is at stake, not just a bonus. The gate's figure is set large.
+  private func headlineText(_ text: RewardRowText, surface: Surface, tall: Bool = false) -> Text {
     let ink = headlineInk(surface)
     if let amount = text.amount {
-      let figure = Text(amount).font(.system(.headline, design: .monospaced).weight(.medium))
+      let figure = Text(amount)
+        .font(.system(tall ? .title2 : .headline, design: .monospaced).weight(.medium))
         .foregroundStyle(projection.tone == .needsMinimum ? urgentInk(surface) : ink)
       return Text("\(figure) \(text.actionLabel)")
-        .font(.subheadline)
+        .font(tall ? .headline : .subheadline)
         .foregroundStyle(ink)
     }
     return Text(text.actionLabel)
