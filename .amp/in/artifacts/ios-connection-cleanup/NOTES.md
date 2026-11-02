@@ -2,8 +2,8 @@
 
 ## Revision
 
-- Code under test: commit `49083b4` on local branch `ios-bare-host-url`, parent `6fb4347` (main at branch time). The app and tests ran on the working tree that became `49083b4`; the only later edits in that commit are the verify recipe docs under `.cursor/skills/verify-howmuch/`.
-- Not pushed or merged. `origin/main` has since moved to `90e5497` (AGENTS.md only, no overlap).
+- Code under test: commit `3728406` on local branch `ios-bare-host-url`, on top of `origin/main` `90e5497` (rebased from `49083b4`, whose `apps/` and `.cursor/` trees are identical).
+- At `3728406`: full suite, and E2E steps 1 to 8 rerun on a fresh Amp Mac satellite (see "Rerun at 3728406"). Steps 9 to 11 and the large-text screenshots come from the first run at `49083b4`.
 
 ## Environment
 
@@ -37,3 +37,11 @@
 
 - Physical device, iPad layout and the upload-confirmation step itself.
 - A real public HTTPS host: the bare-host path was proven against `localhost:8443` with a simulator-trusted throwaway CA.
+
+## Rerun at 3728406
+
+- New Mac satellite (macos-27, Xcode 27.2), same simulator model and UDID. The first full-suite run gave 822 tests with 6 `CaptureSnapshotTests` failures (`accessibilityLabels() == []`), the fresh-simulator case documented in `apps/ios/AGENTS.md`. After enabling simulator accessibility as documented there: 822 tests, 0 failures, 1 skipped (`full-suite.txt`, `api-settings-tests.txt`: 18 passed).
+- Fresh verify stack with `TYPESAFE_API_KEY=verify-dummy`, new throwaway CA and HTTPS proxy on `localhost:8443`.
+- Typed `  localhost:8443 `: no error, Sign in enabled. Sign in reached `https://localhost:8443/api/auth/status`, `/api/auth/token` and `/v1/plans` (`proxy-requests.log`). Signed-in card and collapsed Details shown, no password field (`03-signed-in.png`); Details expands to `server-categoriser-details` (`04-details-open.png`). Sign in as someone else shows empty Password and Keep signed in as verifier (`05-change-account.png`); keeping returns to the card with Save enabled.
+- Save: persisted `baseURLString` is `https://localhost:8443`, session token empty in UserDefaults; ledger requests go to `https://localhost:8443/v1/plans/local-plan/...`. Reopened Connection shows `https://localhost:8443` and the signed-in card.
+- `http://ledger.example.test`: `HTTP works only on this device or your local network.`, Save and Sign in disabled (`10-public-http.png`). `ftp://ledger.example.test`: `Enter a server address, like halation.example.com.`, both disabled.
