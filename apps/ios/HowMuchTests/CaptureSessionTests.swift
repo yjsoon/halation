@@ -377,7 +377,9 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertEqual(session.messages.last?.updatedDraftIDs, [session.drafts[1].id])
   }
 
-  func testChooseTargetDraftRecordsUpdatedIDsOnCommittedCard() {
+  // Saved cards are already in the ledger. A model edit chosen through the
+  // "which transaction?" prompt must not change them (b1472ec trust boundary).
+  func testChooseTargetDraftLeavesSavedCardUnchanged() {
     let session = Self.session(accountID: "acct-everyday")
     var lunch = Self.draft(payee: "Lunch", amount: 12_000)
     lunch.accountID = "acct-everyday"
@@ -412,9 +414,11 @@ final class CaptureSessionTests: XCTestCase {
     )
     XCTAssertFalse(session.pendingTargetDraftIDs.isEmpty)
     session.chooseTargetDraft(session.drafts[1].id)
-    XCTAssertEqual(session.drafts[1].draft.payeeName, "Capture Rename Verify")
+    XCTAssertEqual(session.drafts[1].draft.payeeName, "Coffee")
     XCTAssertEqual(session.drafts[0].draft.payeeName, "Lunch")
-    XCTAssertEqual(session.messages.last?.updatedDraftIDs, [session.drafts[1].id])
+    XCTAssertEqual(session.messages.last?.updatedDraftIDs, [])
+    XCTAssertTrue(session.messages.last?.text.contains("already saved") ?? false)
+    XCTAssertTrue(session.pendingTargetDraftIDs.isEmpty)
     XCTAssertTrue(session.drafts[1].committed)
   }
 
@@ -448,7 +452,7 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.direction, .outflow)
   }
 
-  func testPayeeOnlyRenameUpdatesSavedConversationCard() {
+  func testPayeeOnlyRenameLeavesSavedConversationCardUnchanged() {
     let session = Self.session(accountID: "acct-posb")
     var draft = Self.draft(payee: "POSB", amount: 54_530)
     draft.direction = .inflow
@@ -478,9 +482,10 @@ final class CaptureSessionTests: XCTestCase {
       ),
       mapped: [mapped]
     )
-    XCTAssertEqual(session.drafts[0].draft.payeeName, "POSB rebate")
+    XCTAssertEqual(session.drafts[0].draft.payeeName, "POSB")
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 54_530)
     XCTAssertEqual(session.drafts[0].draft.direction, .inflow)
+    XCTAssertTrue(session.messages.last?.text.contains("already saved") ?? false)
     XCTAssertTrue(session.drafts[0].committed)
   }
 
@@ -518,7 +523,33 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.direction, .inflow)
   }
 
-  func testEmptyModelRenameStillRenamesTheVisibleCard() {
+  func testInferredRenameRenamesUnsavedDraft() {
+    let session = Self.session(accountID: "acct-posb")
+    var draft = Self.draft(payee: "POSB", amount: 54_530)
+    draft.direction = .inflow
+    draft.accountID = "acct-posb"
+    session.replaceDrafts([CaptureDraftItem(draft: draft)])
+    session.appendUserMessage("Name POSB rebate")
+    session.apply(
+      turn: CaptureInterpretedTurn(
+        intent: .add,
+        feedback: "It's a draft ready for review and not saved yet, mate. We can't invent the incoming payments, though.",
+        mutations: [],
+        query: nil,
+        applyToAllDrafts: false
+      ),
+      mapped: []
+    )
+    XCTAssertEqual(session.drafts.count, 1)
+    XCTAssertEqual(session.drafts[0].draft.payeeName, "POSB rebate")
+    XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 54_530)
+    XCTAssertEqual(session.drafts[0].draft.direction, .inflow)
+    XCTAssertFalse(session.drafts[0].committed)
+  }
+
+  // The rename inferred from the typed reply goes through the same saved-card
+  // guard as a model mutation, so it is refused rather than applied.
+  func testInferredRenameLeavesSavedCardUnchanged() {
     let session = Self.session(accountID: "acct-posb")
     var draft = Self.draft(payee: "POSB", amount: 54_530)
     draft.direction = .inflow
@@ -537,9 +568,10 @@ final class CaptureSessionTests: XCTestCase {
       mapped: []
     )
     XCTAssertEqual(session.drafts.count, 1)
-    XCTAssertEqual(session.drafts[0].draft.payeeName, "POSB rebate")
+    XCTAssertEqual(session.drafts[0].draft.payeeName, "POSB")
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 54_530)
     XCTAssertEqual(session.drafts[0].draft.direction, .inflow)
+    XCTAssertTrue(session.messages.last?.text.contains("already saved") ?? false)
     XCTAssertTrue(session.drafts[0].committed)
   }
 

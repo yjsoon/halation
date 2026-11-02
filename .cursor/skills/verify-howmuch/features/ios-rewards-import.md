@@ -23,7 +23,7 @@ Preconditions:
 - `control-howmuch doctor` passes.
 - [iOS connection](./ios-connection.md) signed in as `verifier` against this stack.
 - Use the repo file `fixtures/rewards-tracker-export.json`. Do not invent a different export.
-- Xcode Simulator is running HowMuch (`sg.soon.howmuch`). If Simulator is missing, skip this whole file.
+- Xcode Simulator is running HowMuch (`com.tinkertanker.halation`). If Simulator is missing, skip this whole file.
 
 - **Open page.** More → `Settings` → `Rewards import & export`. Navigation title is `Rewards import`. Empty copy is `No Rewards Tracker cards stored yet.` The tab bar has no `Rewards import` item.
 - **Choose file.** Choose `Choose export`. Pick `fixtures/rewards-tracker-export.json`. Status is `Selected rewards-tracker-export.json`. `Import export` is enabled.

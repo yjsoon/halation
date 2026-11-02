@@ -71,7 +71,7 @@ Production is a one-time YNAB cutover: the imported source mirror is lossless an
 
 ### Naming
 
-The product name is Halation; `howmuch` remains its compatibility identity. Keep the existing URLs, iOS bundle ID `sg.soon.howmuch`, signing team, app group, `howmuch://` links, storage keys and paths, API formats and infrastructure names unchanged. These preserve installed apps, saved data, credentials and integrations. The repository, packages and Xcode project and scheme also keep their existing names; do not globally replace them when updating branding.
+The product name is Halation; `howmuch` remains its compatibility identity. The iOS bundle ID is `com.tinkertanker.halation` (builds up to 17 shipped as `sg.soon.howmuch`, a separate app on the phone). Keep the existing URLs, signing team, app group, `howmuch://` links, storage keys and paths, API formats and infrastructure names unchanged. These preserve installed apps, saved data, credentials and integrations. The repository, packages and Xcode project and scheme also keep their existing names; do not globally replace them when updating branding.
 
 ## Licence
 

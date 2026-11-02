@@ -25,7 +25,7 @@ Preconditions:
 - `control-howmuch doctor` passes.
 - [iOS connection](./ios-connection.md) signed in as `verifier` against this stack.
 - Demo ledger still contains Travel Card spends (Grab, Scoot, MUJI, Candlenut).
-- Xcode Simulator is running HowMuch (`sg.soon.howmuch`). If Simulator is missing, skip this whole file.
+- Xcode Simulator is running HowMuch (`com.tinkertanker.halation`). If Simulator is missing, skip this whole file.
 
 - **Open empty.** Choose tab `Rewards`. Navigation title `Rewards`. Status is `No Reward Cards`. Buttons **Set Up Rewards** and **Import Rewards** are present.
 - **Import.** Choose `Rewards import`, or Settings → `Rewards import & export`. Choose `fixtures/rewards-tracker-export.json`. Choose `Import export`. Stored cards lists `Travel Card`.
