@@ -202,6 +202,9 @@ struct SettingsView: View {
   @State private var planRequestID = UUID()
   @State private var isEditingConnection = false
   @State private var isConfirmingSignOut = false
+  /// The user asked to sign in as someone else while signed in. The session
+  /// stays until a new sign-in succeeds or the edits are discarded.
+  @State private var isChangingAccount = false
   /// The settings a sign-in on the Connection form returned, exactly as that
   /// server issued them. Later edits to the draft never touch it, so cleanup
   /// only ever sends the session back to the server that issued it.
@@ -559,7 +562,7 @@ struct SettingsView: View {
   private var connectionForm: some View {
     Form {
       Section {
-        TextField("https://halation.example.com", text: $draft.baseURLString)
+        TextField("halation.example.com", text: $draft.baseURLString)
           .keyboardType(.URL)
           .textInputAutocapitalization(.never)
           .autocorrectionDisabled()
@@ -569,10 +572,10 @@ struct SettingsView: View {
         if !draft.trimmedBaseURL.isEmpty && !draft.isConfigured {
           Text(draft.refusesPublicHTTP
             ? "HTTP works only on this device or your local network."
-            : "Enter a complete HTTP or HTTPS address with a host.")
+            : "Enter a server address, like halation.example.com.")
             .foregroundStyle(Theme.outflow)
         } else {
-          Text("The address of your own Halation server. HTTP works only on this device or your local network.")
+          Text("Your Halation server address.")
         }
       }
       .disabled(isTesting)
@@ -595,49 +598,10 @@ struct SettingsView: View {
         }
       }
 
-      Section {
-        TextField("Username", text: $draft.username)
-          .textContentType(.username)
-          .textInputAutocapitalization(.never)
-          .autocorrectionDisabled()
-        SecureField("Password", text: $password)
-          .textContentType(.password)
-      } header: {
-        Text("Account")
-      } footer: {
-        Text("Halation keeps a sign-in session in this device’s Keychain. Your password is never saved.")
-      }
-      .disabled(isTesting)
-
-      Section {
-        Button {
-          signIn()
-        } label: {
-          HStack {
-            Text(sessionMatchesDraft ? "Sign in again" : "Sign in")
-            Spacer()
-            if isTesting {
-              ProgressView()
-            } else if let testResult {
-              switch testResult {
-              case .success:
-                Image(systemName: "checkmark.circle.fill")
-                  .foregroundStyle(Theme.inflow)
-              case .failure:
-                Image(systemName: "xmark.circle.fill")
-                  .foregroundStyle(Theme.outflow)
-              }
-            }
-          }
-        }
-        .disabled(isTesting || setupState == .checking || setupState == .required || !draft.isConfigured || draft.username.isEmpty || password.isEmpty)
-      } footer: {
-        if case .failure(let message) = testResult {
-          Text(message)
-            .foregroundStyle(Theme.outflow)
-        } else if sessionMatchesDraft {
-          Text(testResult == .success ? "Signed in successfully." : "Signed in as \(draft.username).")
-        }
+      if showsCredentialFields {
+        credentialSections
+      } else {
+        signedInAccountSection
       }
 
       if sessionMatchesDraft {
@@ -673,14 +637,105 @@ struct SettingsView: View {
         Button("Save") {
           Task {
             isSaving = true
-            await onSave(draft)
-            saved = draft
+            // Store the address the session and requests use, so a bare host
+            // is saved with the https:// it was checked with. The draft keeps
+            // what was typed; both resolve to the same address.
+            var normalised = draft
+            normalised.baseURLString = draft.trimmedBaseURL
+            await onSave(normalised)
+            saved = normalised
             formSession = nil
             isSaving = false
             dismiss()
           }
         }
         .disabled(isSaving || isTesting || !draft.isConfigured || !sessionMatchesDraft || !hasValidPlanSelection)
+      }
+    }
+  }
+
+  /// Credentials are asked for only to sign in: first time, after the server
+  /// or username changes, or when the user asks to switch accounts. A signed-in
+  /// form shows the account instead of an empty password field.
+  private var showsCredentialFields: Bool {
+    !sessionMatchesDraft || isChangingAccount
+  }
+
+  private var signedInAccountSection: some View {
+    Section {
+      HStack(spacing: 12) {
+        Image(systemName: "checkmark.circle.fill")
+          .font(.title2)
+          .foregroundStyle(Theme.inflow)
+          .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(draft.username)
+            .font(.headline)
+            .foregroundStyle(Theme.textPrimary)
+          Text("Signed in")
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        }
+      }
+      .accessibilityElement(children: .combine)
+      .accessibilityLabel("Signed in as \(draft.username)")
+      .accessibilityIdentifier("connection-signed-in-account")
+      Button("Sign in as someone else") {
+        password = ""
+        testResult = nil
+        isChangingAccount = true
+      }
+      .disabled(isTesting || isSaving)
+    } header: {
+      Text("Account")
+    }
+  }
+
+  @ViewBuilder
+  private var credentialSections: some View {
+    Section {
+      TextField("Username", text: $draft.username)
+        .textContentType(.username)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+      SecureField("Password", text: $password)
+        .textContentType(.password)
+    } header: {
+      Text("Account")
+    } footer: {
+      Text("Your password isn’t saved.")
+    }
+    .disabled(isTesting)
+
+    Section {
+      Button {
+        signIn()
+      } label: {
+        HStack {
+          Text("Sign in")
+          Spacer()
+          if isTesting {
+            ProgressView()
+          } else if case .failure = testResult {
+            Image(systemName: "xmark.circle.fill")
+              .foregroundStyle(Theme.outflow)
+          }
+        }
+      }
+      .disabled(isTesting || setupState == .checking || setupState == .required || !draft.isConfigured || draft.username.isEmpty || password.isEmpty)
+      if isChangingAccount {
+        Button("Keep signed in as \(authenticatedUsername)") {
+          draft.username = authenticatedUsername
+          password = ""
+          testResult = nil
+          isChangingAccount = false
+        }
+        .disabled(isTesting || draft.trimmedBaseURL != authenticatedBaseURL)
+      }
+    } footer: {
+      if case .failure(let message) = testResult {
+        Text(message)
+          .foregroundStyle(Theme.outflow)
       }
     }
   }
@@ -783,6 +838,7 @@ struct SettingsView: View {
         authenticatedUsername = draft.username
         password = ""
         testResult = .success
+        isChangingAccount = false
         let requestID = UUID()
         planRequestID = requestID
         planState = .loading
@@ -914,6 +970,7 @@ struct SettingsView: View {
     authenticatedUsername = saved.username
     password = ""
     testResult = nil
+    isChangingAccount = false
     checkSetupStatus()
     loadPlans()
   }

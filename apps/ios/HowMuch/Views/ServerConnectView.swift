@@ -33,15 +33,35 @@ enum ServerSignIn {
 /// Says that a server sends new transactions to TypeSafe for a category.
 /// Shown only when the server reports it; older servers never do.
 struct CategoriserNoticeSection: View {
+  /// Spells out what is sent without a tap. Use it where the user is about to
+  /// move their records to this server; elsewhere the details fold away.
+  var showsDetails = false
+  @State private var isExpanded = false
+
+  static let details = "This server sends each new transaction that has a payee but no category to TypeSafe, an outside AI service, to pick one. It sends the payee, memo, amount, date and account name, your category and group names, and similar past transactions with their payees, memos, amounts, dates and categories. Confident picks are saved without review."
+
   var body: some View {
     Section {
-      Text("This server sends each new transaction that has a payee but no category to TypeSafe, an outside AI service, to pick one. It sends the payee, memo, amount, date and account name, your category and group names, and similar past transactions with their payees, memos, amounts, dates and categories. Confident picks are saved without review.")
-        .font(.footnote)
-        .foregroundStyle(.secondary)
+      Text("TypeSafe uses transaction data to categorise automatically.")
         .accessibilityIdentifier("server-categoriser-notice")
+      if showsDetails {
+        detailsText
+      } else {
+        DisclosureGroup("Details", isExpanded: $isExpanded) {
+          detailsText
+        }
+      }
     } header: {
       Text("Automatic categories")
     }
+  }
+
+  private var detailsText: some View {
+    Text(Self.details)
+      .font(.footnote)
+      .foregroundStyle(.secondary)
+      .fixedSize(horizontal: false, vertical: true)
+      .accessibilityIdentifier("server-categoriser-details")
   }
 }
 
@@ -451,7 +471,7 @@ struct ServerConnectView: View {
           Text("The records also stay on this \(device). After the upload, Halation uses the server.")
         }
         if flow.categoriserEnabled {
-          CategoriserNoticeSection()
+          CategoriserNoticeSection(showsDetails: true)
         }
         Section {
           Button("Upload") {
@@ -467,7 +487,7 @@ struct ServerConnectView: View {
             .foregroundStyle(Theme.textPrimary)
         }
         if flow.categoriserEnabled {
-          CategoriserNoticeSection()
+          CategoriserNoticeSection(showsDetails: true)
         }
         Section {
           Button("Use the data on the server") {
@@ -528,7 +548,7 @@ struct ServerConnectView: View {
   @ViewBuilder
   private var signInSections: some View {
     Section {
-      TextField("https://howmuch.example.com", text: $flow.draft.baseURLString)
+      TextField("halation.example.com", text: $flow.draft.baseURLString)
         .keyboardType(.URL)
         .textContentType(.URL)
         .textInputAutocapitalization(.never)
@@ -538,8 +558,8 @@ struct ServerConnectView: View {
     } footer: {
       if !flow.draft.trimmedBaseURL.isEmpty && !flow.draft.isConfigured {
         Text(flow.draft.refusesPublicHTTP
-          ? "HTTP is only for this device or this LAN."
-          : "Enter a complete HTTP or HTTPS URL with a host.")
+          ? "HTTP works only on this device or your local network."
+          : "Enter a server address, like halation.example.com.")
           .foregroundStyle(Theme.outflow)
       } else {
         Text("A Halation server that you or your organisation runs.")
