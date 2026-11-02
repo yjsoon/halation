@@ -13,4 +13,11 @@
 6. `simctl get_app_container ... group.sg.soon.howmuch`: resolves to a shared AppGroup container for the new app ID.
 7. `pluginkit -m -v -i com.tinkertanker.halation.share`: 1 plug-in registered, version 0.1.0.
 
+## Round 2 (after review)
+
+- Revision: 1968097 (clean orb worktree mirrored to the Mac).
+- Added `testInferredRenameRenamesUnsavedDraft`. Mutation check: with the `synthesizedPayeeUpdate` call disabled, it fails (payee stays "POSB") together with the saved-card variant; restored, `CaptureSessionTests` 41/41 pass.
+- `scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests` at 1968097: 817 tests, 1 skipped, 0 failures, `** TEST EXECUTE SUCCEEDED **`.
+- Bundle identity, install, launch, share-extension and app-group checks above are unchanged by this round (test and doc edits only).
+
 Not covered: a full share-sheet hand-off through the Inbox (ios-share-and-screenshots recipe) and physical-device install.
