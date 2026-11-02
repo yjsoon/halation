@@ -523,6 +523,30 @@ final class CaptureSessionTests: XCTestCase {
     XCTAssertEqual(session.drafts[0].draft.direction, .inflow)
   }
 
+  func testInferredRenameRenamesUnsavedDraft() {
+    let session = Self.session(accountID: "acct-posb")
+    var draft = Self.draft(payee: "POSB", amount: 54_530)
+    draft.direction = .inflow
+    draft.accountID = "acct-posb"
+    session.replaceDrafts([CaptureDraftItem(draft: draft)])
+    session.appendUserMessage("Name POSB rebate")
+    session.apply(
+      turn: CaptureInterpretedTurn(
+        intent: .add,
+        feedback: "It's a draft ready for review and not saved yet, mate. We can't invent the incoming payments, though.",
+        mutations: [],
+        query: nil,
+        applyToAllDrafts: false
+      ),
+      mapped: []
+    )
+    XCTAssertEqual(session.drafts.count, 1)
+    XCTAssertEqual(session.drafts[0].draft.payeeName, "POSB rebate")
+    XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 54_530)
+    XCTAssertEqual(session.drafts[0].draft.direction, .inflow)
+    XCTAssertFalse(session.drafts[0].committed)
+  }
+
   // The rename inferred from the typed reply goes through the same saved-card
   // guard as a model mutation, so it is refused rather than applied.
   func testInferredRenameLeavesSavedCardUnchanged() {
