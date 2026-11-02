@@ -53,3 +53,10 @@ Both reviewers found that the connect flow saved the address as typed, and that 
 - Red first: new `testTypedAddressFindsAndForgetsItsSession` (` /ledger.example.test/ `) failed with 3 assertion failures at `8f739d8` plus the test.
 - Green at `dbbf5e4`: `APISettingsTests` 19 passed; full suite 823 tests, 0 failures, 1 skipped (`full-suite.txt`, `api-settings-tests.txt`). The first full run on this Mac again hit the 6 fresh-simulator `CaptureSnapshotTests` accessibility failures; after re-enabling accessibility per `apps/ios/AGENTS.md`, 0 failures.
 - E2E at `dbbf5e4`, fresh verify stack and HTTPS proxy: fresh install, Start on this iPhone, Settings, Connect to a server, Server ` /localhost:8443/ `, `verifier`. The "already has records" step shows the full disclosure (`15-connect-slash-has-data.png`). Use the data on the server lands on Accounts with the demo ledger (`16-adopted.png`). Persisted `baseURLString` is `https://localhost:8443` (previously the raw typed text on this path), session token empty in UserDefaults. After terminate and relaunch the ledger loads again, so the Keychain session is found under that scope. All requests in `proxy-requests-connect.log` are `https://localhost:8443/...`.
+
+## After merging main at c18c479
+
+Both reviewers returned no findings that held up on the fix diff `8f739d8...37f92d1`. `origin/main` then moved to `617dde0` (Insights implicit range, including `apps/ios/HowMuch/Engine/howmuch-engine.js`), so `origin/main` was merged into the branch as `c18c479`. It merged cleanly: `git show --remerge-diff c18c479` shows no resolution.
+
+- Full suite at `c18c479`, simulator accessibility enabled: 823 tests, 0 failures, 1 skipped (`full-suite-merge.txt`).
+- E2E at `c18c479`, fresh verify stack and HTTPS proxy: Server `  localhost:8443 `, Sign in. Shows the signed-in card, Sign in as someone else and the short TypeSafe line, with no password field (`merge-signed-in.png`). Save persisted `baseURLString` `https://localhost:8443` with an empty token in UserDefaults. After a relaunch, Accounts shows Everyday Account. All 26 logged requests were `https://localhost:8443/...` (`proxy-requests-merge.log`).
