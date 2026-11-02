@@ -1,1 +1,1 @@
-	 Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 215.753 (216.083) seconds
+	 Executed 823 tests, with 1 test skipped and 0 failures (0 unexpected) in 180.287 (180.607) seconds
