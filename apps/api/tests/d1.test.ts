@@ -218,7 +218,7 @@ describe("D1 foundation", () => {
       HOWMUCH_TIME_ZONE: "Asia/Singapore",
       HOWMUCH_REDIRECT_TARGET: "https://howmuch.tk.sg",
       // Apple fetches the association file from the redirect host and will not follow redirects.
-      HOWMUCH_APPLE_APP_IDS: "PQ6U5ESLN2.sg.soon.howmuch",
+      HOWMUCH_APPLE_APP_IDS: "PQ6U5ESLN2.com.tinkertanker.halation,PQ6U5ESLN2.sg.soon.howmuch",
     });
     expect(wranglerConfig.triggers.crons).toEqual([]);
     expect(wranglerConfig.routes).toEqual([{ pattern: "howmuch.soon.sg", custom_domain: true }]);
@@ -234,7 +234,7 @@ describe("D1 foundation", () => {
       HOWMUCH_TIME_ZONE: "Asia/Singapore",
       HOWMUCH_YNAB_PLAN_ID: "",
       HOWMUCH_TRANSITION_READ_ONLY: "false",
-      HOWMUCH_APPLE_APP_IDS: "PQ6U5ESLN2.sg.soon.howmuch",
+      HOWMUCH_APPLE_APP_IDS: "PQ6U5ESLN2.com.tinkertanker.halation,PQ6U5ESLN2.sg.soon.howmuch",
     });
     expect(wranglerConfig.env.tk.vars).not.toHaveProperty("HOWMUCH_REDIRECT_TARGET");
     // preview env stays in the YJ account.
@@ -245,7 +245,7 @@ describe("D1 foundation", () => {
       HOWMUCH_DEFAULT_PLAN_ID: "80bc6db0-d926-4635-a37a-1ba0787c4c4e",
       HOWMUCH_TIME_ZONE: "Asia/Singapore",
       HOWMUCH_TRANSITION_READ_ONLY: "false",
-      HOWMUCH_APPLE_APP_IDS: "PQ6U5ESLN2.sg.soon.howmuch",
+      HOWMUCH_APPLE_APP_IDS: "PQ6U5ESLN2.com.tinkertanker.halation,PQ6U5ESLN2.sg.soon.howmuch",
     });
   });
 

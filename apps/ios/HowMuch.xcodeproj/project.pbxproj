@@ -1136,7 +1136,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = sg.soon.howmuch;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tinkertanker.halation;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1167,7 +1167,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = sg.soon.howmuch;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tinkertanker.halation;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -1192,7 +1192,7 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = sg.soon.howmuch.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tinkertanker.halation.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -1217,7 +1217,7 @@
 					"@loader_path/Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = sg.soon.howmuch.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tinkertanker.halation.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -1244,7 +1244,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = sg.soon.howmuch.share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tinkertanker.halation.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -1271,7 +1271,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = sg.soon.howmuch.share;
+				PRODUCT_BUNDLE_IDENTIFIER = com.tinkertanker.halation.share;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

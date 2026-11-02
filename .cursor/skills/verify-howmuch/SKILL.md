@@ -85,7 +85,7 @@ Then install and launch the built app on that same simulator:
 ```sh
 UDID="$(scripts/ios-xcodebuild.sh destination)"
 xcrun simctl install "$UDID" "$(scripts/ios-xcodebuild.sh app-path)"
-xcrun simctl launch "$UDID" sg.soon.howmuch
+xcrun simctl launch "$UDID" com.tinkertanker.halation
 ```
 
 Computer-use drives the Simulator window, not `{web_url}`. This local installation does not prove or authorize physical-device distribution.

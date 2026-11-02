@@ -48,7 +48,7 @@ Cold launch: `perform()` on iOS 26 uses `static let supportedModes: IntentModes 
 
 ## v1 intent
 
-One intent, main target `sg.soon.howmuch`. Not a split “Add Expense” / “Add Income”.
+One intent, main target `com.tinkertanker.halation`. Not a split “Add Expense” / “Add Income”.
 
 | | |
 | --- | --- |

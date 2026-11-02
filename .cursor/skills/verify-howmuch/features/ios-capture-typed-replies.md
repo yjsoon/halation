@@ -30,7 +30,7 @@ Preconditions:
 SIMULATOR_UDID=<udid> scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests/CaptureAssistantPresenceTests
 ```
 
-Then `simctl install` that `app-path` onto the same UDID and `simctl launch … sg.soon.howmuch`.
+Then `simctl install` that `app-path` onto the same UDID and `simctl launch … com.tinkertanker.halation`.
 
 - On-device Apple Intelligence on that Verification Simulator is a **dead end** (`FoundationModels.LanguageModelSession.GenerationError error -1`). Do not retry on-device there.
 - A working **remote** capture model is required to re-drive `typed-reply-complete`. Connection stays on the verify API. In Add Transactions, open **AI provider**, pick a provider, paste an API key supplied by the operator, Save AI settings. There is no key in this repo. Unsigned `CODE_SIGNING_ALLOWED=NO` builds cannot store the key. Financial text is sendable as soon as a provider and key are saved; there is no consent switch. Do not invent a key. Do not use production HowMuch.

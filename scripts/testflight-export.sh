@@ -31,8 +31,8 @@ cd "${HOWMUCH_REPO:-$(dirname "$0")/..}"
 PROJECT="apps/ios/HowMuch.xcodeproj"
 SCHEME="HowMuch"
 TEAM_ID="PQ6U5ESLN2"
-APP_ID="sg.soon.howmuch"
-SHARE_ID="sg.soon.howmuch.share"
+APP_ID="com.tinkertanker.halation"
+SHARE_ID="com.tinkertanker.halation.share"
 PROFILE_PREFIX="Halation TestFlight"
 OUT="$PWD/build/testflight"
 DERIVED_DATA="$PWD/build/xcode/DerivedData-testflight"
@@ -90,8 +90,8 @@ xcodebuild -project "$PROJECT" -scheme "$SCHEME" \
   DEVELOPMENT_TEAM="$TEAM_ID" \
   CODE_SIGN_STYLE=Manual \
   CODE_SIGN_IDENTITY="Apple Distribution" \
-  HALATION_TF_PROFILE_sg_soon_howmuch="$PROFILE_PREFIX $APP_ID" \
-  HALATION_TF_PROFILE_sg_soon_howmuch_share="$PROFILE_PREFIX $SHARE_ID" \
+  HALATION_TF_PROFILE_com_tinkertanker_halation="$PROFILE_PREFIX $APP_ID" \
+  HALATION_TF_PROFILE_com_tinkertanker_halation_share="$PROFILE_PREFIX $SHARE_ID" \
   'PROVISIONING_PROFILE_SPECIFIER=$(HALATION_TF_PROFILE_$(PRODUCT_BUNDLE_IDENTIFIER:c99extidentifier))' \
   OTHER_CODE_SIGN_FLAGS="--keychain $KC" \
   COMPILER_INDEX_STORE_ENABLE=NO \
