@@ -1,0 +1,27 @@
+proxy up
+2026-11-02T23:58:45.751Z GET https://localhost:8443/api/auth/status
+2026-11-02T23:59:14.604Z GET https://localhost:8443/api/auth/status
+2026-11-02T23:59:14.612Z POST https://localhost:8443/api/auth/token
+2026-11-02T23:59:14.699Z GET https://localhost:8443/v1/plans
+2026-11-02T23:59:20.898Z GET https://localhost:8443/v1/plans
+2026-11-02T23:59:20.936Z GET https://localhost:8443/v1/plans/local-plan/settings
+2026-11-02T23:59:20.943Z GET https://localhost:8443/v1/plans/local-plan/account_preferences
+2026-11-02T23:59:20.953Z GET https://localhost:8443/v1/plans/local-plan/transactions?limit=100&offset=0
+2026-11-02T23:59:20.955Z GET https://localhost:8443/v1/plans/local-plan/payees
+2026-11-02T23:59:20.957Z GET https://localhost:8443/v1/plans/local-plan/scheduled_transactions
+2026-11-02T23:59:20.959Z GET https://localhost:8443/v1/plans/local-plan/accounts
+2026-11-02T23:59:20.962Z GET https://localhost:8443/v1/plans/local-plan/categories
+2026-11-02T23:59:20.969Z GET https://localhost:8443/v1/plans/local-plan/transactions/unapproved_count
+2026-11-02T23:59:20.977Z GET https://localhost:8443/v1/plans/local-plan/card_payment_terms
+2026-11-02T23:59:20.977Z GET https://localhost:8443/v1/plans/local-plan/card_payments?as_of=2026-11-02
+2026-11-02T23:59:29.019Z GET https://localhost:8443/v1/plans
+2026-11-02T23:59:29.039Z GET https://localhost:8443/v1/plans/local-plan/accounts
+2026-11-02T23:59:29.048Z GET https://localhost:8443/v1/plans/local-plan/account_preferences
+2026-11-02T23:59:29.069Z GET https://localhost:8443/v1/plans/local-plan/categories
+2026-11-02T23:59:29.070Z GET https://localhost:8443/v1/plans/local-plan/settings
+2026-11-02T23:59:29.071Z GET https://localhost:8443/v1/plans/local-plan/scheduled_transactions
+2026-11-02T23:59:29.072Z GET https://localhost:8443/v1/plans/local-plan/transactions?limit=100&offset=0
+2026-11-02T23:59:29.073Z GET https://localhost:8443/v1/plans/local-plan/payees
+2026-11-02T23:59:29.078Z GET https://localhost:8443/v1/plans/local-plan/transactions/unapproved_count
+2026-11-02T23:59:29.081Z GET https://localhost:8443/v1/plans/local-plan/card_payment_terms
+2026-11-02T23:59:29.081Z GET https://localhost:8443/v1/plans/local-plan/card_payments?as_of=2026-11-02

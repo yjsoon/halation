@@ -164,6 +164,82 @@ final class APISettingsTests: XCTestCase {
     XCTAssertEqual(APISettings.localPlanID(in: defaults, livePlanIDs: []), "plan_db")
   }
 
+  /// The Connection field rejected `halation.tinkertanker.com`: every URL
+  /// check parsed the typed text as-is, and a bare host has no scheme.
+  func testBareHostDefaultsToHTTPSEverywhereTheURLIsUsed() {
+    let settings = APISettings(baseURLString: "  Halation.Tinkertanker.com/  ")
+
+    XCTAssertTrue(settings.isConfigured)
+    XCTAssertEqual(settings.baseURL?.scheme, "https")
+    XCTAssertEqual(settings.baseURL?.host()?.lowercased(), "halation.tinkertanker.com")
+    XCTAssertEqual(settings.normalisedBaseURLString, "https://halation.tinkertanker.com")
+    XCTAssertEqual(
+      APISettings.normalisedBaseURLString(from: "halation.tinkertanker.com"),
+      APISettings.normalisedBaseURLString(from: "https://halation.tinkertanker.com")
+    )
+    XCTAssertFalse(settings.refusesPublicHTTP)
+  }
+
+  func testBareHostKeepsItsPortAndPath() {
+    let settings = APISettings(baseURLString: "ledger.example.test:8443/halation/")
+
+    XCTAssertEqual(settings.baseURL?.absoluteString, "https://ledger.example.test:8443/halation")
+  }
+
+  /// A typed scheme is the user's choice. Plain HTTP is never guessed, so a
+  /// local server without TLS still needs `http://` typed out.
+  func testExplicitSchemesAreKeptAndBareLocalHostsGetHTTPS() {
+    XCTAssertEqual(APISettings(baseURLString: "http://192.168.1.5:8787").baseURL?.absoluteString, "http://192.168.1.5:8787")
+    XCTAssertEqual(APISettings(baseURLString: "HTTPS://ledger.example.test").baseURL?.scheme?.lowercased(), "https")
+    XCTAssertEqual(APISettings(baseURLString: "192.168.1.5:8787").baseURL?.absoluteString, "https://192.168.1.5:8787")
+    XCTAssertEqual(APISettings(baseURLString: "localhost:8787").baseURL?.absoluteString, "https://localhost:8787")
+
+    let publicHTTP = APISettings(baseURLString: "http://ledger.example.test")
+    XCTAssertFalse(publicHTTP.isConfigured)
+    XCTAssertTrue(publicHTTP.refusesPublicHTTP)
+  }
+
+  func testUnsupportedOrMalformedAddressesStayRejected() {
+    for value in [
+      "", "   ", "ftp://ledger.example.test", "javascript:alert(1)", "mailto:owner@example.test",
+      "owner@ledger.example.test", "owner:secret@ledger.example.test", "ledger.example.test?x=1",
+      "ledger.example.test#top", "https://", "https:", "ledger.example.test:port", "[::1",
+    ] {
+      let settings = APISettings(baseURLString: value)
+      XCTAssertFalse(settings.isConfigured, value)
+      XCTAssertNil(settings.baseURL, value)
+      XCTAssertNil(APISettings.normalisedBaseURLString(from: value), value)
+    }
+  }
+
+  func testBareHostSessionIsScopedToTheHTTPSServer() throws {
+    try requireUsableKeychain()
+
+    var signedIn = APISettings(baseURLString: "ledger.example.test")
+    signedIn.sessionToken = "bare-host-token"
+    signedIn.save(to: defaults)
+
+    XCTAssertEqual(APISettings.load(from: defaults).sessionToken, "bare-host-token")
+    XCTAssertEqual(APISettings.savedSessionToken(forBaseURL: "https://ledger.example.test"), "bare-host-token")
+  }
+
+  /// The connect flow looks up and forgets a session by the address as typed.
+  /// That lookup must land on the scope the session was saved under, or a
+  /// stray slash leaves a live token behind in the Keychain.
+  func testTypedAddressFindsAndForgetsItsSession() throws {
+    try requireUsableKeychain()
+
+    let typed = " /ledger.example.test/ "
+    var signedIn = APISettings(baseURLString: typed)
+    signedIn.sessionToken = "typed-token"
+    signedIn.save(to: defaults)
+
+    XCTAssertEqual(APISettings.normalisedBaseURLString(from: typed), signedIn.normalisedBaseURLString)
+    XCTAssertEqual(APISettings.savedSessionToken(forBaseURL: typed), "typed-token")
+    APISettings.forgetSavedSession(forBaseURL: typed)
+    XCTAssertNil(APISettings.savedSessionToken(forBaseURL: "https://ledger.example.test"))
+  }
+
   /// The app-hosted test bundle can run with no usable Keychain — the same
   /// limitation that fails `CaptureAITests`' independent round-trip — so probe
   /// first and skip rather than report a false migration failure.

@@ -40,8 +40,34 @@ struct APISettings: Codable, Equatable {
     mode == .local
   }
 
+  /// The typed server address with outer whitespace and slashes removed,
+  /// and `https://` added when no scheme was typed. Every URL check, the
+  /// session scope and requests read this, so they agree on one address.
   var trimmedBaseURL: String {
-    baseURLString.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    Self.withDefaultScheme(baseURLString)
+  }
+
+  /// Trims outer whitespace and slashes, then adds `https://` to a bare host
+  /// such as `halation.example.com` or `host:8443/path`. A typed scheme is
+  /// kept as it is, so `http://` stays a choice and anything else (`mailto:`,
+  /// `ftp://`) is still rejected later. Plain HTTP is never guessed. The
+  /// static session lookups use this too, so they find the same scope.
+  static func withDefaultScheme(_ value: String) -> String {
+    let value = value.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    guard !value.isEmpty, !value.contains("://") else {
+      return value
+    }
+    if let colon = value.firstIndex(of: ":") {
+      let head = value[..<colon]
+      let port = value[value.index(after: colon)...].prefix { $0 != "/" }
+      let looksLikeScheme = head.first.map { $0.isASCII && $0.isLetter } == true
+        && head.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber || "+.-".contains($0)) }
+      let isPort = !port.isEmpty && port.allSatisfy { $0.isASCII && $0.isNumber }
+      if looksLikeScheme && !isPort {
+        return value
+      }
+    }
+    return "https://" + value
   }
 
   /// A stable identity for the server that owns this session. The value is
@@ -53,7 +79,7 @@ struct APISettings: Codable, Equatable {
   }
 
   static func normalisedBaseURLString(from value: String) -> String? {
-    let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let value = withDefaultScheme(value)
     guard
       let components = URLComponents(string: value),
       let scheme = components.scheme?.lowercased(),

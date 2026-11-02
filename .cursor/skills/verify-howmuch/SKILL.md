@@ -164,8 +164,8 @@ Stable iOS handles:
 | New account | Accounts trailing `New Account` (plus). Sheet title `New Account` |
 | More | `More` (ellipsis). iPhone items `Assistant`, `Settings`. iPad regular: `Settings` only |
 | Connection | `Settings` (inside More). Sheet title `Settings` (signed in) or `Connection` (signed out) |
-| Server field | placeholder `https://howmuch.example.com` when connecting, `https://halation.example.com` in Settings |
-| Access | `Username`, `Password`, button `Sign in` / `Sign in again` |
+| Server field | placeholder `halation.example.com`. A bare host is saved and used as `https://`; `http://` must be typed |
+| Access | `Username`, `Password`, button `Sign in`. Once signed in: `connection-signed-in-account` and `Sign in as someone else` (then `Keep signed in as {user}`) |
 | Sign out | `Sign out`, then confirm `Sign out` |
 | Capture | tab-row `Add Transaction` (manual form), floating `Assistant` (chat), or home-screen Quick Action `Add Expense` |
 | Capture title | `Add Transaction` (edit is `Transaction`) |
