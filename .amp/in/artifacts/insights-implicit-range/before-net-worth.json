@@ -1,0 +1,1 @@
+{"error":{"id":"400","name":"bad_request","detail":"Reports support at most 3660 periods; use a coarser interval or shorter range"}}
