@@ -1,0 +1,43 @@
+{
+  "periods_count": 3661,
+  "first": {
+    "period": "0010-04",
+    "age_of_money_days": null,
+    "spent": 0,
+    "unmatched_spending": 12340
+  },
+  "last": {
+    "period": "2026-11",
+    "age_of_money_days": null,
+    "spent": 0,
+    "unmatched_spending": 0
+  },
+  "demo_window": [
+    {
+      "period": "2026-03",
+      "age_of_money_days": 2.3352612393681653,
+      "spent": 2057500,
+      "unmatched_spending": 0
+    },
+    {
+      "period": "2026-04",
+      "age_of_money_days": 41.47254150702427,
+      "spent": 783000,
+      "unmatched_spending": 0
+    },
+    {
+      "period": "2026-05",
+      "age_of_money_days": 67.36033643204958,
+      "spent": 451800,
+      "unmatched_spending": 0
+    }
+  ],
+  "mistyped_period": [
+    {
+      "period": "0010-04",
+      "age_of_money_days": null,
+      "spent": 0,
+      "unmatched_spending": 12340
+    }
+  ]
+}

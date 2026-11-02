@@ -1,0 +1,76 @@
+{
+  "periods_count": 3660,
+  "first": {
+    "period": "1721-12",
+    "end_date": "1721-12-31",
+    "net_worth": 540987660,
+    "delta": null,
+    "accounts": [
+      {
+        "account_id": "acct-everyday",
+        "account_name": "Everyday Account",
+        "closed": false,
+        "balance": 184987660
+      },
+      {
+        "account_id": "acct-saver",
+        "account_name": "Rainy Day Saver",
+        "closed": false,
+        "balance": 420000000
+      },
+      {
+        "account_id": "acct-credit",
+        "account_name": "Travel Card",
+        "closed": false,
+        "balance": -64000000
+      }
+    ]
+  },
+  "last": {
+    "period": "2026-11",
+    "end_date": "2026-11-02",
+    "net_worth": 554665360,
+    "delta": 0,
+    "accounts": [
+      {
+        "account_id": "acct-everyday",
+        "account_name": "Everyday Account",
+        "closed": false,
+        "balance": 197996160
+      },
+      {
+        "account_id": "acct-saver",
+        "account_name": "Rainy Day Saver",
+        "closed": false,
+        "balance": 421500000
+      },
+      {
+        "account_id": "acct-credit",
+        "account_name": "Travel Card",
+        "closed": false,
+        "balance": -64830800
+      }
+    ]
+  },
+  "demo_window": [
+    {
+      "period": "2026-03",
+      "end_date": "2026-03-31",
+      "net_worth": 544430160,
+      "delta": 3442500
+    },
+    {
+      "period": "2026-04",
+      "end_date": "2026-04-30",
+      "net_worth": 549417160,
+      "delta": 4987000
+    },
+    {
+      "period": "2026-05",
+      "end_date": "2026-05-31",
+      "net_worth": 554665360,
+      "delta": 5248200
+    }
+  ],
+  "mistyped_period": []
+}

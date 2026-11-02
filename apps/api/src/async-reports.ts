@@ -5,7 +5,7 @@ import {
 } from "./account-month-balances";
 import type { AsyncSqlDatabase } from "./async-sql";
 import { assembleIncomeVsSpendingGroups } from "./income-vs-spending-groups";
-import { validateReportPeriods } from "./report-periods";
+import { implicitReportStart, validateReportPeriods } from "./report-periods";
 import { buildRewardsReport } from "./rewards/build";
 import { parseAppSettings, parseCreditCards, parseRewardGroupBy } from "./rewards/parse";
 import { mapRewardTransactionRow } from "./rewards/rows";
@@ -174,9 +174,8 @@ export class AsyncReportService {
   }
 
   async netWorth(planId: string, filters: ReportFilters = {}): Promise<any> {
-    let from = filters.from ?? (await earliestDate(this.db, planId)) ?? todayIso();
     const to = filters.to ?? todayIso();
-    if (filters.from == null && from > to) from = to;
+    const from = filters.from ?? implicitReportStart((await earliestDate(this.db, planId)) ?? todayIso(), to, filters.interval ?? "month");
     const periods = buildPeriods(from, to, filters.interval ?? "month");
     if (periods.length === 0) return { periods: [] };
 
@@ -245,9 +244,8 @@ export class AsyncReportService {
   async ageOfMoney(planId: string, filters: ReportFilters = {}): Promise<any> {
     const cacheable = ageOfMoneyCacheable(filters);
     const knowledge = cacheable ? await planKnowledge(this.db, planId) : null;
-    let from = filters.from ?? (await earliestDate(this.db, planId)) ?? todayIso();
     const to = filters.to ?? todayIso();
-    if (filters.from == null && from > to) from = to;
+    const from = filters.from ?? implicitReportStart((await earliestDate(this.db, planId)) ?? todayIso(), to, filters.interval ?? "month");
     const key = reportCacheKey("age-of-money", { ...filters, from, to, interval: filters.interval ?? "month" });
 
     if (knowledge != null) {
