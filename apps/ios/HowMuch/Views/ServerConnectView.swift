@@ -23,6 +23,9 @@ enum ServerSignIn {
     }
     let session = try await client.login(username: draft.username, password: password)
     var signedIn = draft
+    // Both Settings and the connect flow save this, so store the address the
+    // session was checked against rather than what was typed.
+    signedIn.baseURLString = draft.trimmedBaseURL
     signedIn.sessionToken = session.token
     signedIn.authenticatedUserID = session.user.id
     signedIn.username = session.user.username ?? draft.username

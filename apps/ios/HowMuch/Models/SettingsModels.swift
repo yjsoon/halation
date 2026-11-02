@@ -44,17 +44,16 @@ struct APISettings: Codable, Equatable {
   /// and `https://` added when no scheme was typed. Every URL check, the
   /// session scope and requests read this, so they agree on one address.
   var trimmedBaseURL: String {
-    Self.withDefaultScheme(
-      baseURLString.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-    )
+    Self.withDefaultScheme(baseURLString)
   }
 
-  /// Adds `https://` to a bare host such as `halation.example.com` or
-  /// `host:8443/path`. A typed scheme is kept as it is, so `http://` stays a
-  /// choice and anything else (`mailto:`, `ftp://`) is still rejected later.
-  /// Plain HTTP is never guessed.
+  /// Trims outer whitespace and slashes, then adds `https://` to a bare host
+  /// such as `halation.example.com` or `host:8443/path`. A typed scheme is
+  /// kept as it is, so `http://` stays a choice and anything else (`mailto:`,
+  /// `ftp://`) is still rejected later. Plain HTTP is never guessed. The
+  /// static session lookups use this too, so they find the same scope.
   static func withDefaultScheme(_ value: String) -> String {
-    let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    let value = value.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
     guard !value.isEmpty, !value.contains("://") else {
       return value
     }

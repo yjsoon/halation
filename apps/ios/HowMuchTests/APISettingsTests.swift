@@ -223,6 +223,23 @@ final class APISettingsTests: XCTestCase {
     XCTAssertEqual(APISettings.savedSessionToken(forBaseURL: "https://ledger.example.test"), "bare-host-token")
   }
 
+  /// The connect flow looks up and forgets a session by the address as typed.
+  /// That lookup must land on the scope the session was saved under, or a
+  /// stray slash leaves a live token behind in the Keychain.
+  func testTypedAddressFindsAndForgetsItsSession() throws {
+    try requireUsableKeychain()
+
+    let typed = " /ledger.example.test/ "
+    var signedIn = APISettings(baseURLString: typed)
+    signedIn.sessionToken = "typed-token"
+    signedIn.save(to: defaults)
+
+    XCTAssertEqual(APISettings.normalisedBaseURLString(from: typed), signedIn.normalisedBaseURLString)
+    XCTAssertEqual(APISettings.savedSessionToken(forBaseURL: typed), "typed-token")
+    APISettings.forgetSavedSession(forBaseURL: typed)
+    XCTAssertNil(APISettings.savedSessionToken(forBaseURL: "https://ledger.example.test"))
+  }
+
   /// The app-hosted test bundle can run with no usable Keychain — the same
   /// limitation that fails `CaptureAITests`' independent round-trip — so probe
   /// first and skip rather than report a false migration failure.
