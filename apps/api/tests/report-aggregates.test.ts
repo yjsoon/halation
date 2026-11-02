@@ -215,6 +215,34 @@ describe("report aggregates", () => {
     expect(counting.mutations()).toEqual([]);
   });
 
+  test("an implausibly early transaction date never makes an all-history report exceed the period limit", async () => {
+    // A mistyped year (0010) once broke every Insights load: with no `from`,
+    // the range started at the earliest transaction, 24,000 months back.
+    const db = await schema();
+    db.run("INSERT INTO plans (id, name) VALUES ('p', 'Plan')");
+    db.run("INSERT INTO accounts (id, plan_id, name, opening_balance_milli) VALUES ('cash','p','Cash',1000)");
+    const repo = new D1LedgerRepository(new D1Database(fakeD1Binding(db)), PLAN);
+    await repo.createTransaction(PLAN, { id: "typo", account_id: "cash", date: "0010-04-26", amount: -5000 });
+    await repo.createTransaction(PLAN, { id: "pay", account_id: "cash", date: "2026-01-05", amount: 100000 });
+    await repo.createTransaction(PLAN, { id: "spend", account_id: "cash", date: "2026-01-20", amount: -40000 });
+
+    const filters = { to: "2026-03-31", interval: "month" } as const;
+    for (const reports of [new ReportService(db), new D1ReportService(fakeD1Binding(db))]) {
+      const age = await reports.ageOfMoney(PLAN, filters);
+      expect(age.periods.length).toBeLessThanOrEqual(3661);
+      expect(age.periods.at(-1).period).toBe("2026-03");
+      expect(age.periods.find((period: any) => period.period === "2026-01").age_of_money_days).toBe(15);
+      // The mistyped row stays visible as unmatched spending rather than vanishing.
+      expect(age.periods.find((period: any) => period.period === "0010-04").unmatched_spending).toBe(5000);
+
+      const worth = await reports.netWorth(PLAN, filters);
+      expect(worth.periods.length).toBeLessThanOrEqual(3660);
+      expect(worth.periods.at(-1).period).toBe("2026-03");
+      // History before the clamped window still counts towards the balance.
+      expect(worth.periods.at(-1).net_worth).toBe(1000 - 5000 + 100000 - 40000);
+    }
+  });
+
   test("net worth reads rows proportional to months times accounts", async () => {
     const { db } = await syntheticLedger();
     const counting = new CountingD1Database(fakeD1Binding(db));
