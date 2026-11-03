@@ -49,7 +49,7 @@ struct WelcomeView: View {
           Image("WelcomeLandscape")
             .resizable()
             .scaledToFill()
-            .frame(width: geometry.size.width, height: min(380, max(240, geometry.size.height * 0.38)), alignment: .trailing)
+            .frame(width: geometry.size.width, height: min(380, max(240, geometry.size.height * 0.38)), alignment: .bottomTrailing)
             .clipped()
             .mask {
               LinearGradient(stops: [
@@ -65,7 +65,7 @@ struct WelcomeView: View {
       .scrollIndicators(.hidden)
     }
     .background(paper.ignoresSafeArea())
-    .ignoresSafeArea(edges: .bottom)
+    .ignoresSafeArea(edges: [.horizontal, .bottom])
   }
 
   private var actions: some View {
