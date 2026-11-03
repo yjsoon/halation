@@ -29,6 +29,8 @@ Step 2 also checked the compose row's accessibility tree: 4 of the options Groce
 
 Follow-up in this commit: the helper marks the plan pending before it reads categories, so a failed read straight after the first account still retries on the next load.
 
+Final rerun: all five steps repeated on fresh databases at merge fdf7e8b (origin/main 754c643 merged in, disjoint iOS release-script changes), with the same results as above.
+
 ## Other checks
 
 - `cd apps/web && bunx tsc --noEmit`: clean.
