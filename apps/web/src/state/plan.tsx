@@ -29,6 +29,7 @@ import {
 import { configureDateFormat } from "../lib/dates";
 import { configureMoney } from "../lib/money";
 import type { NewAccountBody } from "../lib/new-account";
+import { seedStarterCategories, starterCategoriesPending } from "../lib/starter-categories";
 import { parseTransactionDeepLink } from "../lib/transaction-deep-link";
 import { HalationMark } from "../components/Brand";
 import { SignInPage } from "../components/SignInPage";
@@ -433,6 +434,12 @@ export function PlanProvider({ children }: { children: ReactNode }) {
           accountPreferences: accountPreferencesSnapshot ?? validCache?.data.accountPreferences ?? null,
         }, epochAtRequest);
         const categories = categoryGroups.flatMap((group) => group.categories ?? []);
+        if (starterCategoriesPending(planId)) {
+          // The first account starts these; a reload or closed tab can cut that short.
+          void seedStarterCategories(planId).catch(() => false).then((seeded) => {
+            if (seeded && !cancelled) reload();
+          });
+        }
         let accountPreferencesSync: AccountPreferencesState;
         let accountPreferencesController = existingController;
         if (!accountPreferencesController && accountPreferencesSnapshot) {
@@ -500,10 +507,19 @@ export function PlanProvider({ children }: { children: ReactNode }) {
             }
           },
           createAccount: async (account) => {
+            const first = accountsSnapshot.accounts.every((existing) => existing.deleted);
             const created = await api.createAccount(planId, account);
             setValue((current) => current?.planId === planId
               ? { ...current, accounts: [...current.accounts.filter((existing) => existing.id !== created.id), created] }
               : current);
+            if (first) {
+              // Not at setup: an empty plan is what an iPhone ledger upload or
+              // an archive restore needs, and categories alone would end that.
+              // The web has no category editor, so the first transaction needs these.
+              void seedStarterCategories(planId).catch(() => false).then((seeded) => {
+                if (seeded) reload();
+              });
+            }
             return created;
           },
           retryAccountPreferences: () => accountPreferencesController?.retry(),

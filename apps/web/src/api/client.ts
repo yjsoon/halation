@@ -464,6 +464,18 @@ export const api = {
     request<{ category_groups: CategoryGroup[] }>(planUrl(planId, "categories"), undefined, options).then(
       (d) => d.category_groups,
     ),
+  createCategoryGroup: (planId: string, id: string, name: string) =>
+    request<unknown>(planUrl(planId, "category_groups"), {
+      method: "POST",
+      headers: { "Idempotency-Key": id },
+      body: JSON.stringify({ category_group: { id, name } }),
+    }),
+  createCategory: (planId: string, id: string, groupId: string, name: string) =>
+    request<unknown>(planUrl(planId, "categories"), {
+      method: "POST",
+      headers: { "Idempotency-Key": id },
+      body: JSON.stringify({ category: { id, category_group_id: groupId, name } }),
+    }),
   payees: (planId: string) =>
     request<{ payees: Payee[] }>(planUrl(planId, "payees")).then((d) => d.payees),
   scheduledTransactions: (planId: string) =>
