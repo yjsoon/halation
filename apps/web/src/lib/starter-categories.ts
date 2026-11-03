@@ -34,9 +34,10 @@ function readMarker(planId: string): string | null {
   }
 }
 
-function writeMarker(planId: string, value: "pending" | "done"): void {
+function writeMarker(planId: string, value: "pending" | "done" | null): void {
   try {
-    localStorage.setItem(markerKey(planId), value);
+    if (value) localStorage.setItem(markerKey(planId), value);
+    else localStorage.removeItem(markerKey(planId));
   } catch {
     // Storage unavailable: the ids still keep a repeat from duplicating.
   }
@@ -47,14 +48,22 @@ export function starterCategoriesPending(planId: string): boolean {
   return readMarker(planId) === "pending";
 }
 
-/** A 409 conflict means the id is already taken: made earlier, or deleted since. */
-async function created(write: Promise<unknown>): Promise<boolean> {
+type Outcome = "present" | "retry" | "refused";
+
+/**
+ * A 409 conflict means the id is already taken: made earlier, or deleted
+ * since. Other 4xx answers (a YNAB mirror plan, a viewer) will not change on
+ * a retry; a network failure, 5xx, timeout, rate limit or lapsed session may.
+ */
+async function create(write: Promise<unknown>): Promise<Outcome> {
   try {
     await write;
-    return true;
+    return "present";
   } catch (cause) {
-    if (cause instanceof ApiError && cause.status === 409 && cause.code === "conflict") return true;
-    return false;
+    if (!(cause instanceof ApiError)) return "retry";
+    if (cause.status === 409 && cause.code === "conflict") return "present";
+    const transient = cause.status >= 500 || [401, 408, 429].includes(cause.status);
+    return transient ? "retry" : "refused";
   }
 }
 
@@ -62,37 +71,39 @@ async function created(write: Promise<unknown>): Promise<boolean> {
  * Creates whatever part of the starter set is missing. Best effort: an empty
  * category list is still a working ledger. The plan stays pending until every
  * step has succeeded, so a later load finishes a run cut short; once done it
- * is never seeded again. A plan that already has categories of its own, such
- * as an imported ledger, is left alone. Resolves true when it created any.
+ * is never seeded again. A plan with no live account is left empty, and one
+ * that already has categories of its own, such as an imported ledger, is left
+ * alone. Resolves true when it created any.
  */
 export async function seedStarterCategories(planId: string): Promise<boolean> {
   if (readMarker(planId) === "done") return false;
   const prefix = `starter:${planId}:`;
   writeMarker(planId, "pending");
-  const existing = await api.categories(planId);
+  const [{ accounts }, existing] = await Promise.all([api.accounts(planId), api.categories(planId)]);
+  if (!accounts.some((account) => !account.deleted)) {
+    // Not this plan's first account yet, or a recreated server under the
+    // same plan id: an empty plan stays empty so a snapshot can import.
+    writeMarker(planId, null);
+    return false;
+  }
   if (existing.some((group) => !group.id.startsWith(prefix))) {
     writeMarker(planId, "done");
     return false;
   }
   const present = new Set(existing.flatMap((group) => [group.id, ...(group.categories ?? []).map((category) => category.id)]));
-  let complete = true;
-  let made = false;
+  const outcomes: Outcome[] = [];
   for (const group of STARTER_GROUPS) {
     const groupId = `${prefix}grp:${slug(group.name)}`;
     if (!present.has(groupId)) {
-      if (!(await created(api.createCategoryGroup(planId, groupId, group.name)))) {
-        complete = false;
-        continue;
-      }
-      made = true;
+      const outcome = await create(api.createCategoryGroup(planId, groupId, group.name));
+      outcomes.push(outcome);
+      if (outcome !== "present") continue;
     }
-    const lines = await Promise.all(group.categories
+    outcomes.push(...await Promise.all(group.categories
       .map((name) => ({ id: `${prefix}cat:${slug(name)}`, name }))
       .filter((category) => !present.has(category.id))
-      .map((category) => created(api.createCategory(planId, category.id, groupId, category.name))));
-    if (lines.includes(false)) complete = false;
-    if (lines.includes(true)) made = true;
+      .map((category) => create(api.createCategory(planId, category.id, groupId, category.name)))));
   }
-  if (complete) writeMarker(planId, "done");
-  return made;
+  if (!outcomes.includes("retry")) writeMarker(planId, "done");
+  return outcomes.includes("present");
 }

@@ -31,7 +31,15 @@ Follow-up in this commit: the helper marks the plan pending before it reads cate
 
 Final rerun: all five steps repeated on fresh databases at merge fdf7e8b (origin/main 754c643 merged in, disjoint iOS release-script changes), with the same results as above.
 
+## Review round 1 fixes (Opus 5.5 high, thread T-01a1a17f)
+
+- Medium: a stale `pending` marker could seed an empty plan on load (recreated server, same `local-plan`). The helper now reads accounts with categories and, when the plan has no live account, clears the marker and creates nothing.
+- Low: permanent 4xx refusals (for example 409 ynab_mirror_plan) retried on every load. These now end the run as done. Network errors, 5xx, 401, 408 and 429 stay retryable.
+- Low: the test comment now says it covers SQLite only.
+- Red then green: the two new tests (pending marker on an account-less plan; YNAB mirror plan) fail on the round-1 helper (4 pass, 2 fail) and pass on the fix (6 pass).
+- E2E rerun on fresh databases with the fix. Steps 1 to 3 gave the same results as above. Then the reviewer's case: the marker was set to `pending` in the browser, the server was recreated (`/tmp/fix2`) and setup run again. After setup and a reload, the marker was cleared (`null`), there were 0 groups (`fix/4-categories-after-setup-with-stale-pending.txt`) and `import_snapshot` returned 201. Steps 4 and 5 then held: groups stayed `["grp-mine"]` after load and after a second account.
+
 ## Other checks
 
 - `cd apps/web && bunx tsc --noEmit`: clean.
-- `bun test apps/web/src/lib apps/api/tests/plan-snapshot.test.ts apps/api/tests/category-management.test.ts`: 285 pass, 0 fail.
+- `bun test apps/web/src/lib apps/api/tests/plan-snapshot.test.ts apps/api/tests/category-management.test.ts`: 287 pass, 0 fail (after the review fixes).
