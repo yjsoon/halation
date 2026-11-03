@@ -517,9 +517,10 @@ final class CaptureInterpreterTests: XCTestCase {
     session.apply(turn: savedRename.turn, changes: savedRename.changes)
     attachAppliedDrafts(step: "rename-saved-coffee-rebate-applied", session: session)
     XCTAssertEqual(session.drafts[0].id, draftID)
-    XCTAssertEqual(session.drafts[0].draft.payeeName, "Coffee rebate")
+    XCTAssertEqual(session.drafts[0].draft.payeeName, "Starbucks")
     XCTAssertEqual(session.drafts[0].draft.amountMagnitudeMilli, 7_000)
     XCTAssertTrue(session.drafts[0].committed)
+    XCTAssertTrue(session.messages.last?.text.contains("already saved") == true)
 
     let queryInput = "How much did I spend today?"
     let queried = try await interpretLiveTurn(
