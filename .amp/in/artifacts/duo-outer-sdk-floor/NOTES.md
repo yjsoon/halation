@@ -19,6 +19,16 @@ Build 19 (0.1.0, `34d5dc8f`) was archived with Xcode 27.0 (27A266a) against the 
 | `outer-sdk27.2-welcome.png`, `outer-sdk27.2-accounts.png` | Full outer display | Content uses the full width. The system puts the status, toolbar and tab bar in a vertical trailing column with the Add action at the bottom; no rows covered. |
 | `ipad-sdk27.2-portrait.png` | iPad unaffected | iPad Pro 13-inch, iOS 26.5, portrait: sidebar split layout and floating Add as before. |
 
+### Recordings
+
+Same setup on a fresh Mac satellite, with twelve extra synthetic "Demo …" accounts posted through `POST /v1/plans/local-plan/accounts` so the list scrolls. Recorded with `xcrun simctl io <duo> recordVideo --codec=h264 --display=1` while Device Hub (Xcode 27.2-RC) showed the closed Duo. Input came from posted scroll-wheel events and `cliclick` taps. Both builds followed the same steps: scroll Accounts down and back up, then tap Rewards, Insights, Accounts and Add.
+
+| File | Observed |
+|---|---|
+| `duo-outer-before-sdk270.mp4` | SDK 27.0: letterboxed, black status strip, bottom tab bar (collapses to one icon while scrolling), floating Assistant and Add over row balances. |
+| `duo-outer-after-sdk272.mp4` | SDK 27.2: full width; tabs and Add stay in the trailing column; no rows covered; Add opens Add Transaction. |
+| `duo-outer-before-after.mp4` | Both, side by side, each half labelled. |
+
 The Duo open (inner display) layout with an Xcode 27.2 build was already verified in `duo-size-class-gate-consolidation/`; no app code changed here.
 
 ## Fix
@@ -27,6 +37,8 @@ The Duo open (inner display) layout with an Xcode 27.2 build was already verifie
 
 - Guard against installed Xcodes on the Mac: Xcode 27.0 (SDK 27.0) refused, 27.1 and 27.2 pass. Both scripts carry the same check.
 - `bun test scripts/speedflight.test.ts`: 11 pass, 0 fail. `bash -n` on both scripts: ok.
+
+Rerun for landing on scripts identical to `f79fde4` (later commits change only `.amp/in/artifacts/`). Each script's guard was extracted and run separately: both refuse Xcode 27.0 and pass Xcode 27.1 and 27.2. `bun test scripts/speedflight.test.ts` gave 11 pass, 0 fail, and `bash -n` was ok.
 
 ## Not covered
 
