@@ -27,6 +27,12 @@ cd "${HOWMUCH_REPO:-$(dirname "$0")/..}"
 : "${TESTFLIGHT_PROFILE_APP:?set TESTFLIGHT_PROFILE_APP}"
 : "${TESTFLIGHT_PROFILE_SHARE:?set TESTFLIGHT_PROFILE_SHARE}"
 [[ "$(uname)" == Darwin ]] || { echo "error: needs macOS with Xcode" >&2; exit 1; }
+# iOS runs apps linked before the iPhone Duo SDK (27.1) letterboxed on the
+# Duo's outer display, with a black status strip and a bottom tab bar.
+SDK="$(xcrun --sdk iphoneos --show-sdk-version)"
+if [[ "$(printf '%s\n' 27.1 "$SDK" | sort -V | head -1)" != 27.1 ]]; then
+  echo "error: iPhoneOS SDK $SDK is older than 27.1; set DEVELOPER_DIR to Xcode 27.1 or newer" >&2; exit 1
+fi
 
 PROJECT="apps/ios/HowMuch.xcodeproj"
 SCHEME="HowMuch"

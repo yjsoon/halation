@@ -92,6 +92,14 @@ BRANCH="${SOURCE_REF#refs/*/}"
 # End of preflight. scripts/speedflight.test.ts runs everything above this line.
 PREFLIGHT_COMPLETE=1
 
+# iOS runs apps linked before the iPhone Duo SDK (27.1) letterboxed on the
+# Duo's outer display, with a black status strip and a bottom tab bar.
+SDK="$(xcrun --sdk iphoneos --show-sdk-version)"
+if [[ "$(printf '%s\n' 27.1 "$SDK" | sort -V | head -1)" != 27.1 ]]; then
+  echo "error: iPhoneOS SDK $SDK is older than 27.1; set DEVELOPER_DIR to Xcode 27.1 or newer" >&2
+  exit 1
+fi
+
 rm -rf "$OUT"
 mkdir -p "$OUT" "$DERIVED_DATA" "$XCODE_LOG_DIR"
 if mkdir "$LOCK_DIR" 2>/dev/null; then
