@@ -18,7 +18,7 @@ struct WelcomeView: View {
     GeometryReader { geometry in
       ScrollView {
         VStack(spacing: 0) {
-          VStack(alignment: .leading, spacing: 0) {
+          VStack(spacing: 0) {
             Text("Halation")
               .font(.custom(CardType.serifItalic, size: 76, relativeTo: .largeTitle))
               .tracking(-2)
@@ -33,8 +33,9 @@ struct WelcomeView: View {
               .padding(.top, 36)
           }
           .foregroundStyle(ink)
+          .multilineTextAlignment(.center)
           .fixedSize(horizontal: false, vertical: true)
-          .frame(maxWidth: 420, alignment: .leading)
+          .frame(maxWidth: 420)
           .padding(.horizontal, 28)
           .padding(.top, 28)
 
