@@ -69,6 +69,9 @@ struct AccountsView: View {
   @State private var presentedSheet: AccountsSheet?
   @State private var groupPendingDeletion: CustomAccountGroup?
   @State private var pane: AccountsPane?
+  /// The default the split filled in by itself. It is not carried across a
+  /// fold, so compact still opens on the overview.
+  @State private var autoSelectedPane: AccountsPane?
   @State private var columnVisibility = NavigationSplitViewVisibility.all
   @State private var shortcutsWidth: CGFloat = 0
   /// A column tile this wide keeps the longest title, "Scheduled", on one
@@ -130,7 +133,10 @@ struct AccountsView: View {
       reconcilePane()
     }
     .onChange(of: pane) { _, next in
-      chrome?.accountsPane = next
+      if next != autoSelectedPane {
+        autoSelectedPane = nil
+      }
+      chrome?.accountsPane = next == autoSelectedPane ? nil : next
     }
     .onChange(of: model.accounts.map(\.id)) { _, _ in
       reconcilePane()
@@ -231,13 +237,17 @@ struct AccountsView: View {
   }
 
   private func reconcilePane() {
-    pane = AccountsPaneSelection.reconciled(
+    let next = AccountsPaneSelection.reconciled(
       current: pane,
       usesSplit: usesSplit,
       knownAccountIDs: knownAccountIDs,
       canChooseDefault: canChooseDefaultPane,
       defaultPane: defaultPane
     )
+    if next != pane, let next, next == defaultPane {
+      autoSelectedPane = next
+    }
+    pane = next
   }
 
   private func isShowing(_ candidate: AccountsPane) -> Bool {

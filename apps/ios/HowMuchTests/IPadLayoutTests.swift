@@ -272,7 +272,8 @@ final class IPadLayoutTests: XCTestCase {
       root: RootTabView(chrome: chrome, usesSidebar: true, workspace: harness.workspace)
         .environment(harness.model)
         .environment(chrome)
-        .environment(\.horizontalSizeClass, .regular),
+        .environment(\.horizontalSizeClass, .regular)
+        .environment(\.verticalSizeClass, .regular),
       size: CGSize(width: 1180, height: 820)
     ) else {
       XCTFail("sidebar root tabs need a connected UIWindowScene")
@@ -295,7 +296,8 @@ final class IPadLayoutTests: XCTestCase {
       root: RootTabView(chrome: chrome, usesSidebar: false, workspace: harness.workspace)
         .environment(harness.model)
         .environment(chrome)
-        .environment(\.horizontalSizeClass, .compact),
+        .environment(\.horizontalSizeClass, .compact)
+        .environment(\.verticalSizeClass, .regular),
       size: CGSize(width: 390, height: 844)
     ) else {
       XCTFail("compact root tabs need a connected UIWindowScene")
@@ -315,6 +317,52 @@ final class IPadLayoutTests: XCTestCase {
     XCTAssertTrue(
       compact.firstControl(labelContains: "Travel") != nil || captured.text.localizedStandardContains("Travel"),
       "the restored register must be Travel's. OCR: [\(captured.text)] AX: \(compact.accessibilityLabels())"
+    )
+  }
+
+  /// Failure mode: the split layout fills an empty pane with the default
+  /// register, and that automatic choice is carried into compact, so folding
+  /// a Duo or narrowing an iPad window pushes a register nobody opened.
+  /// Overview in, overview out.
+  func testAutoSelectedPaneDoesNotSurviveSidebarToCompactFlip() async {
+    let harness = SnapshotHarness.make()
+    harness.model.ledgerPhase = .loaded
+    let chrome = RootChromeState()
+    guard let regular = SnapshotSurface(
+      root: RootTabView(chrome: chrome, usesSidebar: true, workspace: harness.workspace)
+        .environment(harness.model)
+        .environment(chrome)
+        .environment(\.horizontalSizeClass, .regular)
+        .environment(\.verticalSizeClass, .regular),
+      size: CGSize(width: 1180, height: 820)
+    ) else {
+      XCTFail("sidebar root tabs need a connected UIWindowScene")
+      return
+    }
+    let autoSelected = await regular.waitUntil {
+      regular.controls(labelContains: "Everyday").contains { $0.traits.contains(.selected) }
+    }
+    XCTAssertTrue(autoSelected, "split must auto-select the default register: \(regular.accessibilityLabels())")
+    regular.detach()
+
+    guard let compact = SnapshotSurface(
+      root: RootTabView(chrome: chrome, usesSidebar: false, workspace: harness.workspace)
+        .environment(harness.model)
+        .environment(chrome)
+        .environment(\.horizontalSizeClass, .compact)
+        .environment(\.verticalSizeClass, .regular),
+      size: CGSize(width: 390, height: 844)
+    ) else {
+      XCTFail("compact root tabs need a connected UIWindowScene")
+      return
+    }
+    defer { compact.detach() }
+    let overview = await compact.waitUntil(timeoutNanoseconds: 3_000_000_000) {
+      compact.firstControl(label: "New Account") != nil
+    }
+    XCTAssertTrue(
+      overview,
+      "a register the split chose by itself must not be pushed after the flip: \(compact.accessibilityLabels())"
     )
   }
 
