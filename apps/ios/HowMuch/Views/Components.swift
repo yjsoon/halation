@@ -640,11 +640,15 @@ enum RootChrome {
   static let compactFloatingAssistantClearance = RootAddControl.diameter + 10
   static let compactToastGap: CGFloat = 12
 
+  /// The sidebar layout needs room in both directions: an iPad window, or the
+  /// iPhone Duo inner display. Size classes, not idiom, decide it, so a phone
+  /// that is regular in both directions gets it and a Pro Max in landscape
+  /// (regular width, compact height) keeps the tab bar.
   static func usesSidebar(
-    idiom: UIUserInterfaceIdiom,
-    horizontalSizeClass: UserInterfaceSizeClass?
+    horizontalSizeClass: UserInterfaceSizeClass?,
+    verticalSizeClass: UserInterfaceSizeClass?
   ) -> Bool {
-    idiom == .pad && horizontalSizeClass == .regular
+    horizontalSizeClass == .regular && verticalSizeClass == .regular
   }
 
   /// Compact iPhone / iPad-compact tab bar. Regular-width sidebar is unchanged.
@@ -658,21 +662,15 @@ enum RootChrome {
     !usesSidebar && (hidesTabRowOverlay || assistantConversationPushed)
   }
 
-  static func addControlInsets(
-    idiom: UIUserInterfaceIdiom,
-    horizontalSizeClass: UserInterfaceSizeClass?
-  ) -> EdgeInsets {
-    if usesSidebar(idiom: idiom, horizontalSizeClass: horizontalSizeClass) {
+  static func addControlInsets(usesSidebar: Bool) -> EdgeInsets {
+    if usesSidebar {
       return EdgeInsets(top: 0, leading: 0, bottom: 28, trailing: 20)
     }
     return EdgeInsets(top: 0, leading: 0, bottom: compactTabRowClearance, trailing: 16)
   }
 
-  static func toastBottomPadding(
-    idiom: UIUserInterfaceIdiom,
-    horizontalSizeClass: UserInterfaceSizeClass?
-  ) -> CGFloat {
-    if usesSidebar(idiom: idiom, horizontalSizeClass: horizontalSizeClass) {
+  static func toastBottomPadding(usesSidebar: Bool) -> CGFloat {
+    if usesSidebar {
       return 28 + RootAddControl.diameter + 8
     }
     return compactToastGap
@@ -762,6 +760,10 @@ final class RootChromeState {
     overflowByTab[tab] = nil
   }
 
+  /// The Accounts pane, kept here because opening or closing iPhone Duo (or
+  /// resizing an iPad window) swaps the sidebar and compact trees, which
+  /// rebuilds AccountsView and would otherwise drop the open register.
+  var accountsPane: AccountsPane?
   /// A cross-tab link to an account register. Accounts consumes (clears) the
   /// request once it has acted on it.
   var pendingAccountID: String?
@@ -1254,6 +1256,7 @@ struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
 struct RootTabHost<Content: View>: View {
   @Environment(RootChromeState.self) private var chrome
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.verticalSizeClass) private var verticalSizeClass
   let hostedTab: AppTab
   var workspace: CaptureWorkspace = .shared
   var content: Content
@@ -1272,8 +1275,8 @@ struct RootTabHost<Content: View>: View {
     @Bindable var router = CaptureRouter.shared
     @Bindable var workspace = workspace
     let usesSidebar = RootChrome.usesSidebar(
-      idiom: UIDevice.current.userInterfaceIdiom,
-      horizontalSizeClass: horizontalSizeClass
+      horizontalSizeClass: horizontalSizeClass,
+      verticalSizeClass: verticalSizeClass
     )
     let overflow = usesSidebar ? nil : chrome.overflow(on: hostedTab)
     let hidesTabBar = RootChrome.hidesCompactTabBar(
@@ -1407,6 +1410,7 @@ struct DestinationsMenu<Leading: View>: View {
   @Environment(AppModel.self) private var model
   @Environment(RootChromeState.self) private var chrome
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.verticalSizeClass) private var verticalSizeClass
 
   init(omitting: MoreDestination? = nil, @ViewBuilder leading: () -> Leading) {
     self.omitting = omitting
@@ -1416,8 +1420,8 @@ struct DestinationsMenu<Leading: View>: View {
   var body: some View {
     let overflowItems = MoreDestination.overflowItems(
       usesSidebar: RootChrome.usesSidebar(
-        idiom: UIDevice.current.userInterfaceIdiom,
-        horizontalSizeClass: horizontalSizeClass
+        horizontalSizeClass: horizontalSizeClass,
+        verticalSizeClass: verticalSizeClass
       ),
       omitting: omitting
     )

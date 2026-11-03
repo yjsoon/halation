@@ -64,13 +64,19 @@ struct AccountsView: View {
   @Environment(AppModel.self) private var model
   @Environment(RootChromeState.self) private var chrome: RootChromeState?
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
-  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
   var usesSplit: Bool
   @State private var collapsedGroups: Set<String> = ["closed"]
   @State private var presentedSheet: AccountsSheet?
   @State private var groupPendingDeletion: CustomAccountGroup?
   @State private var pane: AccountsPane?
+  /// The default the split filled in by itself. It is not carried across a
+  /// fold, so compact still opens on the overview.
+  @State private var autoSelectedPane: AccountsPane?
   @State private var columnVisibility = NavigationSplitViewVisibility.all
+  @State private var shortcutsWidth: CGFloat = 0
+  /// A column tile this wide keeps the longest title, "Scheduled", on one
+  /// line at the full 16pt padding; it grows with Dynamic Type.
+  @ScaledMetric(relativeTo: .subheadline) private var roomyShortcutTileWidth = 104.0
 
   var body: some View {
     @Bindable var screenshots = ScreenshotOfferController.shared
@@ -115,24 +121,22 @@ struct AccountsView: View {
           }
         )
         .padding(.horizontal, 16)
-        .padding(
-          .bottom,
-          RootChrome.usesSidebar(
-            idiom: UIDevice.current.userInterfaceIdiom,
-            horizontalSizeClass: horizontalSizeClass
-          )
-            ? RootChrome.toastBottomPadding(
-              idiom: UIDevice.current.userInterfaceIdiom,
-              horizontalSizeClass: horizontalSizeClass
-            )
-            : RootChrome.compactToastGap
-        )
+        .padding(.bottom, RootChrome.toastBottomPadding(usesSidebar: usesSplit))
         .transition(.move(edge: .bottom).combined(with: .opacity))
       }
     }
     .animation(Theme.Motion.arrive, value: screenshots.offer?.id)
     .onAppear {
+      if pane == nil {
+        pane = chrome?.accountsPane
+      }
       reconcilePane()
+    }
+    .onChange(of: pane) { _, next in
+      if next != autoSelectedPane {
+        autoSelectedPane = nil
+      }
+      chrome?.accountsPane = next == autoSelectedPane ? nil : next
     }
     .onChange(of: model.accounts.map(\.id)) { _, _ in
       reconcilePane()
@@ -197,6 +201,26 @@ struct AccountsView: View {
     }
   }
 
+  @ViewBuilder
+  private var organiseActions: some View {
+    Button {
+      presentedSheet = .newGroup(prefilledAccountID: nil)
+    } label: {
+      Label("New Group…", systemImage: "folder.badge.plus")
+    }
+    Button {
+      presentedSheet = .manageGroups
+    } label: {
+      Label("Manage Groups…", systemImage: "folder")
+    }
+    Divider()
+    Button {
+      presentedSheet = .favourites
+    } label: {
+      Label("Choose Favourites…", systemImage: "star")
+    }
+  }
+
   private var defaultPane: AccountsPane {
     .defaultSelection(
       openAccounts: model.openAccounts,
@@ -213,13 +237,17 @@ struct AccountsView: View {
   }
 
   private func reconcilePane() {
-    pane = AccountsPaneSelection.reconciled(
+    let next = AccountsPaneSelection.reconciled(
       current: pane,
       usesSplit: usesSplit,
       knownAccountIDs: knownAccountIDs,
       canChooseDefault: canChooseDefaultPane,
       defaultPane: defaultPane
     )
+    if next != pane, let next, next == defaultPane {
+      autoSelectedPane = next
+    }
+    pane = next
   }
 
   private func isShowing(_ candidate: AccountsPane) -> Bool {
@@ -305,28 +333,18 @@ struct AccountsView: View {
     .navigationTitle("Accounts")
     .navigationBarTitleDisplayMode(.large)
     .toolbar {
-      ToolbarItem(placement: .topBarLeading) {
-        Menu {
-          Button {
-            presentedSheet = .newGroup(prefilledAccountID: nil)
+      // The split's list column is narrow and also carries the sidebar
+      // toggle, so there Organise joins the More menu and the title keeps
+      // its room. The phone's large title sits below the bar.
+      if !usesSplit {
+        ToolbarItem(placement: .topBarLeading) {
+          Menu {
+            organiseActions
           } label: {
-            Label("New Group…", systemImage: "folder.badge.plus")
+            Image(systemName: "rectangle.grid.1x2")
           }
-          Button {
-            presentedSheet = .manageGroups
-          } label: {
-            Label("Manage Groups…", systemImage: "folder")
-          }
-          Divider()
-          Button {
-            presentedSheet = .favourites
-          } label: {
-            Label("Choose Favourites…", systemImage: "star")
-          }
-        } label: {
-          Image(systemName: "rectangle.grid.1x2")
+          .accessibilityLabel("Organise accounts")
         }
-        .accessibilityLabel("Organise accounts")
       }
       ToolbarItemGroup(placement: .topBarTrailing) {
         Button {
@@ -335,7 +353,13 @@ struct AccountsView: View {
           Label("New Account", systemImage: "plus")
         }
         .tint(Theme.accent)
-        DestinationsMenu()
+        if usesSplit {
+          DestinationsMenu {
+            organiseActions
+          }
+        } else {
+          DestinationsMenu()
+        }
       }
     }
     .refreshable {
@@ -357,6 +381,7 @@ struct AccountsView: View {
 
   private var ledgerShortcuts: some View {
     let newTransactions = LedgerShortcutTile(
+      horizontalPadding: shortcutTilePadding,
       icon: "tray",
       title: "New",
       status: LedgerShortcutStatus.newQueue(count: model.unapprovedBadgeCount),
@@ -366,6 +391,7 @@ struct AccountsView: View {
     }
 
     let scheduled = LedgerShortcutTile(
+      horizontalPadding: shortcutTilePadding,
       icon: "calendar.badge.clock",
       title: "Scheduled",
       status: LedgerShortcutStatus.scheduled(
@@ -378,6 +404,7 @@ struct AccountsView: View {
     }
 
     let allTransactions = LedgerShortcutTile(
+      horizontalPadding: shortcutTilePadding,
       icon: "list.bullet.rectangle",
       title: "All",
       status: .quiet,
@@ -405,6 +432,14 @@ struct AccountsView: View {
         }
       }
     }
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { shortcutsWidth = $0 }
+  }
+
+  /// Three tiles in the iPad or Duo split's narrow list column broke
+  /// "Scheduled" as "Sched-uled"; narrow column tiles trade padding for the word.
+  private var shortcutTilePadding: CGFloat {
+    let tileWidth = (shortcutsWidth - 24) / 3
+    return usesColumnShortcuts && shortcutsWidth > 0 && tileWidth < roomyShortcutTileWidth ? 10 : 16
   }
 
   private var usesColumnShortcuts: Bool {
@@ -679,6 +714,7 @@ struct AccountsView: View {
   }
 
   private struct LedgerShortcutTile: View {
+    var horizontalPadding: CGFloat = 16
     let icon: String
     let title: String
     let status: LedgerShortcutStatus
@@ -706,8 +742,13 @@ struct AccountsView: View {
           Text(title)
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
+            // A title is one word: shrink it slightly rather than hyphenate.
+            .lineLimit(1)
+            .allowsTightening(true)
+            .minimumScaleFactor(0.85)
         }
-        .padding(16)
+        .padding(.vertical, 16)
+        .padding(.horizontal, horizontalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
         .ynabCard()
