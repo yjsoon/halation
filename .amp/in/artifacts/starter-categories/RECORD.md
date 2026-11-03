@@ -1,6 +1,6 @@
 # Starter categories after the first account
 
-Fix revision: the commit that adds this file (branch `starter-categories-after-first-account`, based on origin/main 34d5dc8).
+Fix revision: the commit that last changed this file; the E2E below was rerun there after the first fix commit 6a4e0e4 (branch `starter-categories-after-first-account`, based on origin/main 34d5dc8).
 Source: Persona QA thread T-01a18296 uncommitted work (base 46f3de3, ancestor of 34d5dc8), recovered with download_thread_changes (capture cap_01a182dcb68977bf902fe239bff0c17c). Only the starter-category parts are taken: `apps/web/src/lib/starter-categories.ts`, the two create methods in `apps/web/src/api/client.ts`, and the seeding trigger in `apps/web/src/state/plan.tsx`. Other Persona onboarding changes are left out.
 
 ## Reproduction (Persona code merged onto 34d5dc8, unseeded SQLite stack)
@@ -24,6 +24,10 @@ Runs the real web helper against the real API handler (SQLite backend), with fet
 3. Two reloads: still 4 groups and 14 categories; browser marker `done` (`fix/3-counts-after-reloads.txt`).
 4. New fresh database `/tmp/fix2`, storage cleared, setup again, then `import_snapshot` with the same snapshot: `HTTP 201`, imported 1 group, 1 category, 1 account (`fix/4-import-after-setup.txt`). Ledger reload adds nothing: groups `["grp-mine"]` (`fix/4-categories-after-import-and-load.txt`).
 5. Creating a second account (`Second Fake`) on the imported plan adds no starters: groups `["grp-mine"]` (`fix/5-categories-after-account-on-imported.txt`).
+
+Step 2 also checked the compose row's accessibility tree: 4 of the options Groceries, Salary, Travel and Housing are present.
+
+Follow-up in this commit: the helper marks the plan pending before it reads categories, so a failed read straight after the first account still retries on the next load.
 
 ## Other checks
 

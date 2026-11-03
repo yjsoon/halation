@@ -68,12 +68,12 @@ async function created(write: Promise<unknown>): Promise<boolean> {
 export async function seedStarterCategories(planId: string): Promise<boolean> {
   if (readMarker(planId) === "done") return false;
   const prefix = `starter:${planId}:`;
+  writeMarker(planId, "pending");
   const existing = await api.categories(planId);
   if (existing.some((group) => !group.id.startsWith(prefix))) {
     writeMarker(planId, "done");
     return false;
   }
-  writeMarker(planId, "pending");
   const present = new Set(existing.flatMap((group) => [group.id, ...(group.categories ?? []).map((category) => category.id)]));
   let complete = true;
   let made = false;
