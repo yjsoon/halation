@@ -1,0 +1,8 @@
+=== argv: xcodebuild -project apps/ios/HowMuch.xcodeproj -scheme HowMuch -sdk iphonesimulator -destination platform=iOS Simulator,id=5CE8FBA8-EC83-421F-9F39-34205982C6F5 -derivedDataPath /Users/runner/workspace/repo/build/xcode/DerivedData-
+    /Applications/Xcode_27.2-RC.app/Contents/Developer/usr/bin/xcodebuild -project apps/ios/HowMuch.xcodeproj -scheme HowMuch -sdk iphonesimulator -destination "platform=iOS Simulator,id=5CE8FBA8-EC83-421F-9F39-34205982C6F5" -derivedDataPat
+Test Case '-[HowMuchTests.IPadLayoutTests testAccountsPaneSurvivesSidebarToCompactFlip]' started.
+Test Case '-[HowMuchTests.IPadLayoutTests testAccountsPaneSurvivesSidebarToCompactFlip]' passed (3.309 seconds).
+Test Case '-[HowMuchTests.IPadLayoutTests testAutoSelectedPaneDoesNotSurviveSidebarToCompactFlip]' started.
+/Users/runner/workspace/repo/apps/ios/HowMuchTests/IPadLayoutTests.swift:363: error: -[HowMuchTests.IPadLayoutTests testAutoSelectedPaneDoesNotSurviveSidebarToCompactFlip] : XCTAssertTrue failed - a register the split chose by itself must n
+Test Case '-[HowMuchTests.IPadLayoutTests testAutoSelectedPaneDoesNotSurviveSidebarToCompactFlip]' failed (3.791 seconds).
+	IPadLayoutTests.testAutoSelectedPaneDoesNotSurviveSidebarToCompactFlip()

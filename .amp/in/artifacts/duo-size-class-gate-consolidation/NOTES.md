@@ -46,3 +46,11 @@ Black frame on unfold (open question from the Duo thread): `ffmpeg blackdetect` 
 ## Not covered
 
 Physical devices, partial hinge angles, Dynamic Type accessibility sizes in the split column, and the Fable assessment's later steps (floating Assistant button, toolbar labels, sheet sizing), which were never in this scope.
+
+## Review fix: auto-selected pane (commit `13b9ca92`)
+
+The Opus 5.5 high review of `5825771` raised one Required finding: the split's automatic default register was saved like a tapped pane, so a fold or narrow iPad window pushed a register nobody opened.
+
+- Red first: new `IPadLayoutTests.testAutoSelectedPaneDoesNotSurviveSidebarToCompactFlip` failed on `5825771` (`pane-fix/red-before-fix.txt`).
+- After the fix: `IPadLayoutTests` 21/21 passed, then the full suite at `13b9ca92`: **827 tests, 1 skipped, 0 failures**, fresh build-for-testing (`pane-fix/suite-summary-fix.txt`).
+- Duo, same synthetic stack and "Duo Consolidation" simulator: open pose auto-selects Everyday (`fix-open-auto.png`); fold shows the Accounts overview, not a register (`fix-closed-after-auto.png`); tapping Travel Card, folding and unfolding keeps Travel Card (`fix-open-travel.png`, `fix-closed-travel.png`, `fix-reopen-travel.png`; open and reopen MD5 identical).
