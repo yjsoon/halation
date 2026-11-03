@@ -23,7 +23,7 @@ Commit and push the version bump (and any other authorized revision changes) bef
 
 ## Preflight on the publishing Mac
 
-Confirm these checks without printing secrets or private provisioning/device data. The script checks required values, key-file existence, and Git provenance; Darwin, key permissions/ownership, signing readiness, and device registration remain operator preflight duties.
+Confirm these checks without printing secrets or private provisioning/device data. The script checks required values, key-file existence, Git provenance and the iPhoneOS SDK version; Darwin, key permissions/ownership, signing readiness, and device registration remain operator preflight duties.
 
 1. `uname` is Darwin and `xcodebuild -version` works (a hosted macOS VM with Xcode qualifies). The iPhoneOS SDK must be 27.1 or newer: iOS runs apps built with an older SDK letterboxed on the iPhone Duo's outer display. Both `scripts/speedflight.sh` and `scripts/testflight-export.sh` refuse an older SDK. Do not run Speedflight on Linux or any VM without Xcode. If the operator has private guidance naming a preferred publishing Mac, follow it. There is currently no Speedflight GitHub Actions workflow; creating or triggering a CI publication path requires an explicit request.
 2. Gitignored `.env.speedflight` defines `ASC_KEY_ID`, `ASC_ISSUER_ID` (not `ASC_ISSSUER_ID`), `ASC_PRIVATE_KEY_PATH`, `SPEEDFLIGHT_SECRET`, `SPEEDFLIGHT_DEEP_LINK=howmuch://`, and `SPEEDFLIGHT_AUTHOR`.

@@ -17,7 +17,8 @@ Build 19 (0.1.0, `34d5dc8f`) was archived with Xcode 27.0 (27A266a) against the 
 |---|---|---|
 | `outer-sdk27.0-welcome.png`, `outer-sdk27.0-accounts.png` | Reproduces the report | Letterboxed window, black right strip with the status, bottom tab bar, floating Assistant over Travel Card's balance. Matches YJ's screenshot. |
 | `outer-sdk27.2-welcome.png`, `outer-sdk27.2-accounts.png` | Full outer display | Content uses the full width. The system puts the status, toolbar and tab bar in a vertical trailing column with the Add action at the bottom; no rows covered. |
-| `ipad-sdk27.2-portrait.png` | iPad unaffected | iPad Pro 13-inch, iOS 26.5, portrait: sidebar split layout and floating Add as before. |
+| `outer-sdk27.1-welcome.png` | The 27.1 floor is enough | Built with Xcode 27.1 (`DTSDKName iphonesimulator27.1`, `DTXcode 2710`): fills the outer display like the 27.2 build, with no black strip. Added after review. |
+| `ipad-sdk27.2-portrait.png` | iPad unaffected | iPad Pro 13-inch (M5) on the iOS 26.5 runtime, which the macos-27 image does carry (`simctl list runtimes`), portrait: the sidebar is shown as an overlay over the Accounts split with the Everyday Account register, and the floating Add sits bottom right. A system "Ready for Apple Intelligence" banner covers the toolbar. |
 
 ### Recordings
 
@@ -45,3 +46,16 @@ Rerun for landing on scripts identical to `f79fde4` (later commits change only `
 - A physical Duo. Simulator only.
 - The floating Assistant is still missing in the side-bar layout (`RootTabBarFloatingAssistant` looks for a bottom tab bar); Assistant remains reachable from the More menu. This was a deferred item and is out of this fix.
 - Outer landscape and half-folded poses.
+
+## Review
+
+One reviewer, Claude Code external agent launched with `model:claude-opus-5-5`, `effort:high` (thread T-01a1a16c-e4a7-76a5-8ec9-ac9f799b8c64), on `34d5dc8f...475c31a4`: CLEAN, no Critical or Required findings.
+
+- Optional 1 (27.1 floor untested): fixed by evidence, `outer-sdk27.1-welcome.png` above.
+- Optional 2 (validation.txt reads the toolchain SDK, not the IPA's DTSDKName): not done. The project pins no SDKROOT version, so the guard's SDK is the linked SDK; reading DTSDKName is a possible follow-up.
+- Nit 3 (empty SDK prints a blank version): not done; it still fails closed.
+- Nit 4 (preflight sentence): reworded in `docs/speedflight.md`.
+- Nit 5 (iPad runtime and state): the iOS 26.5 runtime is installed on the macos-27 image; the iPad row is described more exactly.
+- FYI 6: noted.
+
+Fixes after review only reword docs and add artefacts, so they need no re-review under AGENTS.md step 3.
