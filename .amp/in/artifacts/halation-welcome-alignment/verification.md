@@ -2,7 +2,9 @@
 
 Source revision: `c3e1086cc8b2a935072572a1ee3c4fa7cc5ccf5b`.
 
-Chose centred alignment to match the existing native setup button labels and privacy copy. The wordmark, slogan, wrapping text and setup actions now share the same centreline on iPhone and iPad. The 420-point content cap, reduced copy, privacy explanation, artwork and both setup behaviours are unchanged. Source change: three presentation lines added, two replaced in WelcomeView.swift; no logic changes.
+WelcomeView.swift SHA-256: `0a528365685a6ccaa4a85b31c5c610f933cf8e52d8c446b214307c98461d55ce`.
+
+Chose centred alignment to match the existing native setup button labels and privacy copy. The wordmark, slogan, wrapping text and setup actions now share the same centreline on iPhone and iPad. The 420-point content cap, reduced copy, privacy explanation, artwork and both setup behaviours are unchanged. Source change: one presentation line added, two replaced in WelcomeView.swift; no logic changes.
 
 ## Executed native verification
 
@@ -28,4 +30,6 @@ Exact executor-local directory: `/home/user/workspace/repo/.amp/in/artifacts/hal
 
 Limits: no physical-device installation, VoiceOver gesture pass or actual iPad landscape capture. Setup actions were activated through native accessibility, not physical touch. This is an alignment-only refinement, not a change to interaction mechanics. No merge, release or Slack post is authorised or performed.
 
-Independent review routing selected HIGH_AUDIT / NONE for this round with purpose review-only. Existing Opus 5.5/high external Claude Code reviewer is requested to cover correctness, compatibility and operability of the exact alignment diff and its evidence. Main delivery is outside this request.
+Independent review routing selected HIGH_AUDIT / NONE for this round with purpose review-only. Existing Opus 5.5/high external Claude Code reviewer completed correctness, compatibility and operability review of `0faf702e31548edaa88ea09a7ab8a7691915aebb...0234d3f6e33d75cf55304a0d4fd5cdda4ef5aa82`: **no code findings**. Review thread: https://ampcode.com/threads/T-01a1a150-6ebd-757b-b363-92af32dcf1b1. It confirmed source identity, preserved copy/actions and RTL compatibility. Main delivery is outside this request.
+
+The reviewer caught an evidence defect: the initial iPad file labelled light was still dark despite the appearance change. Replaced it with a new actual-root capture after setting appearance light, querying that it reports `light`, terminating/relaunching only this app and waiting five seconds. Inspected the corrected capture directly: ivory canvas, dark text, plum button, centred content and light artwork. Pixel check at (100,250) is RGB(248,245,238), versus RGB(28,21,28) for dark. The corrected image supersedes the earlier capture at the same path. The source-line-count wording above and source hash also address the review's two evidence nits. No app code changed after review, so this evidence-only correction needs no source re-review under the repository policy.
