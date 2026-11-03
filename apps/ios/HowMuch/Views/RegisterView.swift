@@ -353,8 +353,15 @@ struct RegisterView: View {
       workingBalanceSection(ledger: ledger)
       loadingOrFilterSections(snapshot, ledgerIsEmpty: ledger.isEmpty)
       scheduledDisclosureSection(snapshot)
+      // The dated rows read as one card: the first header rounds its top
+      // corners and the last row its bottom ones.
       ForEach(snapshot.currentDateSections) { section in
-        dateSection(section, prefetchRowID: prefetchRowID)
+        dateSection(
+          section,
+          prefetchRowID: prefetchRowID,
+          isFirst: section.id == snapshot.currentDateSections.first?.id,
+          isLast: section.id == snapshot.currentDateSections.last?.id
+        )
       }
       searchCoverageSection(snapshot)
       emptyRegisterSection(snapshot)
@@ -906,7 +913,16 @@ struct RegisterView: View {
   }
 
   @ViewBuilder
-  private func dateSection(_ section: RegisterSnapshot.DateSection, prefetchRowID: String? = nil) -> some View {
+  private func dateSection(
+    _ section: RegisterSnapshot.DateSection,
+    prefetchRowID: String? = nil,
+    isFirst: Bool = false,
+    isLast: Bool = false
+  ) -> some View {
+    // Rows run pending, transactions, schedules; the card ends on the last one.
+    let lastScheduleID = isLast ? section.schedules.last?.id : nil
+    let lastTransactionID = isLast && section.schedules.isEmpty ? section.transactions.last?.id : nil
+    let lastPendingID = isLast && section.schedules.isEmpty && section.transactions.isEmpty ? section.pending.last?.id : nil
     Section {
       ForEach(section.pending) { row in
         PendingTransactionRow(
@@ -915,14 +931,14 @@ struct RegisterView: View {
           currencyFormat: model.currencyFormat,
           onRejectedTap: { pendingRowAction = row }
         )
-        .registerRowChrome()
+        .registerRowChrome(closesCard: row.id == lastPendingID)
       }
       ForEach(section.transactions) { transaction in
-        registerRow(for: transaction)
+        registerRow(for: transaction, closesCard: transaction.id == lastTransactionID)
           .onAppear(perform: transaction.id == prefetchRowID ? { loadOlderAhead(from: transaction.id) } : nil)
       }
       ForEach(section.schedules) { schedule in
-        scheduleRow(schedule, showsNextDate: false)
+        scheduleRow(schedule, showsNextDate: false, closesCard: schedule.id == lastScheduleID)
       }
     } header: {
       Text(LedgerDate.friendlyString(fromISO: section.date))
@@ -932,13 +948,21 @@ struct RegisterView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 6)
-        .background(Theme.surfaceMuted)
+        .background(
+          Theme.surfaceMuted,
+          in: UnevenRoundedRectangle(
+            topLeadingRadius: isFirst ? Theme.Radius.card : 0,
+            topTrailingRadius: isFirst ? Theme.Radius.card : 0,
+            style: .continuous
+          )
+        )
+        .padding(.horizontal, RegisterCard.inset)
         .listRowInsets(EdgeInsets())
     }
     .listSectionMargins(.vertical, 0)
   }
 
-  private func scheduleRow(_ schedule: ScheduledTransaction, showsNextDate: Bool) -> some View {
+  private func scheduleRow(_ schedule: ScheduledTransaction, showsNextDate: Bool, closesCard: Bool = false) -> some View {
     Button {
       editingSchedule = schedule
     } label: {
@@ -955,10 +979,10 @@ struct RegisterView: View {
         }
       }
     }
-    .registerRowChrome()
+    .registerRowChrome(closesCard: closesCard)
   }
 
-  private func registerRow(for transaction: Transaction) -> some View {
+  private func registerRow(for transaction: Transaction, closesCard: Bool = false) -> some View {
     TransactionRow(
       transaction: transaction,
       showsAccount: showsAccount,
@@ -1043,7 +1067,7 @@ struct RegisterView: View {
         }
       }
     }
-    .registerRowChrome()
+    .registerRowChrome(closesCard: closesCard)
   }
 
   private var searchQuery: RegisterQuery? {
@@ -2680,10 +2704,26 @@ struct TransactionRow: View {
   }
 }
 
+/// The dated register rows sit on one card, inset like the balance above them.
+private enum RegisterCard {
+  static let inset: CGFloat = 16
+}
+
 private extension View {
-  func registerRowChrome() -> some View {
-    listRowInsets(EdgeInsets())
-      .listRowBackground(Theme.card)
+  /// The card fill is drawn on the row, not as the list row background, so
+  /// the clip rounds the flag rail with it; `closesCard` rounds the bottom.
+  func registerRowChrome(closesCard: Bool = false) -> some View {
+    let shape = UnevenRoundedRectangle(
+      bottomLeadingRadius: closesCard ? Theme.Radius.card : 0,
+      bottomTrailingRadius: closesCard ? Theme.Radius.card : 0,
+      style: .continuous
+    )
+    return background(Theme.card)
+      .clipShape(shape)
+      .contentShape(shape)
+      .padding(.horizontal, RegisterCard.inset)
+      .listRowInsets(EdgeInsets())
+      .listRowBackground(Color.clear)
       .listRowSeparator(.hidden)
   }
 }

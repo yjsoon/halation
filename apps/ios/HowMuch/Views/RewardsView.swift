@@ -151,14 +151,12 @@ struct RewardsView: View {
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.verticalSizeClass) private var verticalSizeClass
 
   /// Room under the last card: clear of the sidebar's floating Add (as the save toast is), or on a
   /// phone clear of the floating Assistant above Add (the compact 64 checked on an iPhone simulator, 21 Oct 2026).
   private var bottomRoom: CGFloat {
-    let idiom = UIDevice.current.userInterfaceIdiom
-    return RootChrome.usesSidebar(idiom: idiom, horizontalSizeClass: horizontalSizeClass)
-      ? RootChrome.toastBottomPadding(idiom: idiom, horizontalSizeClass: horizontalSizeClass)
-      : 64
+    usesSidebar ? RootChrome.toastBottomPadding(usesSidebar: true) : 64
   }
   @State private var filter: RewardsReportFilter
   @State private var sheet: RewardsSheet?
@@ -411,10 +409,13 @@ struct RewardsView: View {
     return min(336, max(248, (248 + (content - 772) * 88 / 204).rounded()))
   }
 
-  /// A regular-width iPad board wide enough for a window and a readable statement beside it.
+  private var usesSidebar: Bool {
+    RootChrome.usesSidebar(horizontalSizeClass: horizontalSizeClass, verticalSizeClass: verticalSizeClass)
+  }
+
+  /// A sidebar-layout board (iPad, iPhone Duo inner display) wide enough for a window and a readable statement beside it.
   private var usesWindowRows: Bool {
-    RootChrome.usesSidebar(idiom: UIDevice.current.userInterfaceIdiom, horizontalSizeClass: horizontalSizeClass)
-      && !dynamicTypeSize.isAccessibilitySize && boardWidth >= 760
+    usesSidebar && !dynamicTypeSize.isAccessibilitySize && boardWidth >= 760
   }
 
   private var rowGutter: CGFloat { usesWindowRows ? 24 : 16 }

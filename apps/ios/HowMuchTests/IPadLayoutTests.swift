@@ -251,8 +251,76 @@ final class IPadLayoutTests: XCTestCase {
     )
   }
 
+  /// Failure modes: an idiom gate leaves the Duo inner display (a phone that is
+  /// regular in both directions) on phone chrome; a width-only gate gives a
+  /// Pro Max in landscape (regular width, compact height) the sidebar.
+  func testSidebarFollowsSizeClassesNotIdiom() {
+    XCTAssertTrue(RootChrome.usesSidebar(horizontalSizeClass: .regular, verticalSizeClass: .regular))
+    XCTAssertFalse(RootChrome.usesSidebar(horizontalSizeClass: .regular, verticalSizeClass: .compact))
+    XCTAssertFalse(RootChrome.usesSidebar(horizontalSizeClass: .compact, verticalSizeClass: .regular))
+    XCTAssertFalse(RootChrome.usesSidebar(horizontalSizeClass: nil, verticalSizeClass: .regular))
+  }
+
+  /// Opening or closing iPhone Duo swaps the sidebar and compact TabView
+  /// trees, which rebuilds AccountsView. The register the person had open
+  /// must still be open afterwards, not dropped back to the overview.
+  func testAccountsPaneSurvivesSidebarToCompactFlip() async {
+    let harness = SnapshotHarness.make()
+    harness.model.ledgerPhase = .loaded
+    let chrome = RootChromeState()
+    guard let regular = SnapshotSurface(
+      root: RootTabView(chrome: chrome, usesSidebar: true, workspace: harness.workspace)
+        .environment(harness.model)
+        .environment(chrome)
+        .environment(\.horizontalSizeClass, .regular),
+      size: CGSize(width: 1180, height: 820)
+    ) else {
+      XCTFail("sidebar root tabs need a connected UIWindowScene")
+      return
+    }
+    let listed = await regular.waitUntil {
+      regular.firstControl(labelContains: "Travel") != nil
+    }
+    XCTAssertTrue(listed, "sidebar accounts must list Travel: \(regular.accessibilityLabels())")
+    if let travel = regular.firstControl(labelContains: "Travel") {
+      XCTAssertTrue(regular.activate(travel), "Travel row must be activatable")
+    }
+    let selected = await regular.waitUntil {
+      regular.controls(labelContains: "Travel").contains { $0.traits.contains(.selected) }
+    }
+    XCTAssertTrue(selected, "Travel must be the selected pane before the flip: \(regular.accessibilityLabels())")
+    regular.detach()
+
+    guard let compact = SnapshotSurface(
+      root: RootTabView(chrome: chrome, usesSidebar: false, workspace: harness.workspace)
+        .environment(harness.model)
+        .environment(chrome)
+        .environment(\.horizontalSizeClass, .compact),
+      size: CGSize(width: 390, height: 844)
+    ) else {
+      XCTFail("compact root tabs need a connected UIWindowScene")
+      return
+    }
+    defer { compact.detach() }
+    let restored = await compact.waitUntil(timeoutNanoseconds: 3_000_000_000) {
+      compact.firstControl(label: "Search") != nil
+        && compact.firstControl(label: "New Account") == nil
+    }
+    let captured = await compact.captureUntilOCR(contains: ["Travel"], timeoutNanoseconds: 1_500_000_000)
+    attachImage(captured.image, name: "fold-flip-compact-register")
+    XCTAssertTrue(
+      restored,
+      "closing the device must keep the Travel register open, not show the overview: \(compact.accessibilityLabels())"
+    )
+    XCTAssertTrue(
+      compact.firstControl(labelContains: "Travel") != nil || captured.text.localizedStandardContains("Travel"),
+      "the restored register must be Travel's. OCR: [\(captured.text)] AX: \(compact.accessibilityLabels())"
+    )
+  }
+
   func testPhoneRegularWidthDoesNotAutoSelectRegisterPane() {
-    let usesSplit = RootChrome.usesSidebar(idiom: .phone, horizontalSizeClass: .regular)
+    // A Pro Max in landscape: regular width, compact height.
+    let usesSplit = RootChrome.usesSidebar(horizontalSizeClass: .regular, verticalSizeClass: .compact)
     XCTAssertFalse(usesSplit)
     let pane = AccountsPaneSelection.reconciled(
       current: nil,

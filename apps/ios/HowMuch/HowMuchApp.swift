@@ -146,6 +146,7 @@ private struct RootView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.scenePhase) private var scenePhase
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(\.verticalSizeClass) private var verticalSizeClass
   @State private var chrome = RootChromeState()
 
   var body: some View {
@@ -170,19 +171,13 @@ private struct RootView: View {
       if usesSidebar {
         RootAddControl()
           .environment(chrome)
-          .padding(RootChrome.addControlInsets(
-            idiom: UIDevice.current.userInterfaceIdiom,
-            horizontalSizeClass: horizontalSizeClass
-          ))
+          .padding(RootChrome.addControlInsets(usesSidebar: usesSidebar))
       }
     }
     .overlay(alignment: .bottom) {
       if usesSidebar {
         RootSaveToastOverlay(
-          bottomPadding: RootChrome.toastBottomPadding(
-            idiom: UIDevice.current.userInterfaceIdiom,
-            horizontalSizeClass: horizontalSizeClass
-          )
+          bottomPadding: RootChrome.toastBottomPadding(usesSidebar: usesSidebar)
         )
       }
     }
@@ -314,8 +309,8 @@ private struct RootView: View {
 
   private var usesSidebar: Bool {
     RootChrome.usesSidebar(
-      idiom: UIDevice.current.userInterfaceIdiom,
-      horizontalSizeClass: horizontalSizeClass
+      horizontalSizeClass: horizontalSizeClass,
+      verticalSizeClass: verticalSizeClass
     )
   }
 
