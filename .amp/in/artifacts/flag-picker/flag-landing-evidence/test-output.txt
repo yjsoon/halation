@@ -1,0 +1,19 @@
+** TEST BUILD SUCCEEDED **
+runner: build-for-testing finished in 174s exit=0
+runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-03 02:29:18 +0000)
+runner: start test-without-building at 2026-11-03T02:29:19+0000
+Test Case '-[HowMuchTests.CaptureSnapshotTests testAddAndEditTransactionFormRowsShareHeightAndOrder]' passed (1.220 seconds).
+Test Case '-[HowMuchTests.CaptureSnapshotTests testAddManuallySavesOnceAndCancelPreservesConversation]' passed (13.949 seconds).
+FLAG_LAYOUT short row=(16.0, 448.0, 358.0, 52.0) OCR=["Flag", "Meals i"]
+FLAG_LAYOUT mapped row=(16.0, 448.0, 358.0, 52.0) OCR=["Flag", "Groceries/Food ="]
+FLAG_LAYOUT long row=(16.0, 441.0, 358.0, 68.5) OCR=["N", "Flag", "Household essentials and", "weekly provisions"]
+FLAG_LAYOUT short-larger row=(16.0, 431.5, 358.0, 53.5) OCR=["Flag", "Meals ="]
+FLAG_LAYOUT mapped-larger row=(16.0, 431.5, 358.0, 53.5) OCR=["Flag", "Groceries/Food ≤"]
+FLAG_LAYOUT mapped-accessibility row=(-30.0, 244.0, 450.0, 122.0) OCR=["Flag", "Groceries/", "Food"]
+FLAG_LAYOUT long-accessibility row=(-30.0, 148.0, 450.0, 218.0) OCR=["Flag", "Household", "essentials and", "weekly", "provisions"]
+Test Case '-[HowMuchTests.CaptureSnapshotTests testMappedFlagUsesAvailableWidthAndAllowsAccessibilityGrowth]' passed (4.403 seconds).
+	 Executed 3 tests, with 0 failures (0 unexpected) in 19.571 (19.576) seconds
+	 Executed 3 tests, with 0 failures (0 unexpected) in 19.571 (19.577) seconds
+	 Executed 3 tests, with 0 failures (0 unexpected) in 19.571 (19.577) seconds
+** TEST EXECUTE SUCCEEDED **
+runner: test-without-building finished in 31s exit=0

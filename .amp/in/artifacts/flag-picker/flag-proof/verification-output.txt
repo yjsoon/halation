@@ -1,0 +1,48 @@
+Toolchain:
+Xcode 27.2
+Build version 27B48
+
+## Before, unchanged Flag implementation
+** TEST BUILD SUCCEEDED **
+runner: build-for-testing finished in 10s exit=0
+Test Case '-[HowMuchTests.CaptureSnapshotTests testMappedFlagUsesAvailableWidthAndAllowsAccessibilityGrowth]' started.
+FLAG_LAYOUT short row=(16.0, 448.0, 358.0, 60.5) OCR=["N", "Flag", "Meals î"]
+FLAG_LAYOUT mapped row=(16.0, 448.0, 358.0, 60.5) OCR=["Flag", "Groceries/ i", "Food"]
+FLAG_LAYOUT long row=(16.0, 448.0, 358.0, 60.5) OCR=["Household", "essentials", "^"]
+FLAG_LAYOUT short-larger row=(16.0, 417.5, 358.0, 67.5) OCR=["Flag", "Meals i"]
+FLAG_LAYOUT mapped-larger row=(16.0, 417.5, 358.0, 67.5) OCR=["Fad", "Gro-", "ceries/^"]
+FLAG_LAYOUT mapped-accessibility row=(-30.0, 278.0, 450.0, 88.0) OCR=["Gro-"]
+FLAG_LAYOUT long-accessibility row=(-30.0, 278.0, 450.0, 88.0) OCR=["Hous"]
+Test Case '-[HowMuchTests.CaptureSnapshotTests testMappedFlagUsesAvailableWidthAndAllowsAccessibilityGrowth]' failed (5.040 seconds).
+** TEST EXECUTE FAILED **
+
+## Final, local implementation
+** TEST BUILD SUCCEEDED **
+runner: build-for-testing finished in 13s exit=0
+Test Case '-[HowMuchTests.CaptureSnapshotTests testAddAndEditTransactionFormRowsShareHeightAndOrder]' started.
+Test Case '-[HowMuchTests.CaptureSnapshotTests testAddAndEditTransactionFormRowsShareHeightAndOrder]' passed (1.181 seconds).
+Test Case '-[HowMuchTests.CaptureSnapshotTests testAddManuallySavesOnceAndCancelPreservesConversation]' started.
+Test Case '-[HowMuchTests.CaptureSnapshotTests testAddManuallySavesOnceAndCancelPreservesConversation]' passed (12.946 seconds).
+Test Case '-[HowMuchTests.CaptureSnapshotTests testMappedFlagUsesAvailableWidthAndAllowsAccessibilityGrowth]' started.
+FLAG_LAYOUT short row=(16.0, 448.0, 358.0, 52.0) OCR=["Flag", "Meals i"]
+FLAG_LAYOUT mapped row=(16.0, 448.0, 358.0, 52.0) OCR=["Flag", "Groceries/Food ="]
+FLAG_LAYOUT long row=(16.0, 441.0, 358.0, 68.5) OCR=["N", "Flag", "Household essentials and", "weekly provisions"]
+FLAG_LAYOUT short-larger row=(16.0, 431.5, 358.0, 53.5) OCR=["Flag", "Meals ="]
+FLAG_LAYOUT mapped-larger row=(16.0, 431.5, 358.0, 53.5) OCR=["Flag", "Groceries/Food ≤"]
+FLAG_LAYOUT mapped-accessibility row=(-30.0, 244.0, 450.0, 122.0) OCR=["Flag", "Groceries/", "Food"]
+FLAG_LAYOUT long-accessibility row=(-30.0, 148.0, 450.0, 218.0) OCR=["Flag", "Household", "essentials and", "weekly", "provisions"]
+Test Case '-[HowMuchTests.CaptureSnapshotTests testMappedFlagUsesAvailableWidthAndAllowsAccessibilityGrowth]' passed (4.362 seconds).
+	 Executed 3 tests, with 0 failures (0 unexpected) in 18.489 (18.496) seconds
+	 Executed 3 tests, with 0 failures (0 unexpected) in 18.489 (18.497) seconds
+	 Executed 3 tests, with 0 failures (0 unexpected) in 18.489 (18.497) seconds
+** TEST EXECUTE SUCCEEDED **
+
+## Real pointer interaction, temporary validation test removed afterwards
+** TEST BUILD SUCCEEDED **
+runner: build-for-testing finished in 9s exit=0
+Test Case '-[HowMuchTests.CaptureSnapshotTests testFlagPointerValidation]' started.
+FLAG_POINTER_READY menu=(16.0, 448.0, 343.0, 52.0) labels=["Save", "− Outflow", "+ Inflow", "Amount", "Choose Payee", "Choose Category", "Account, Everyday", "Date, November 3, 2026", "Flag, Groceries/Food", "Notes", "Enter a memo…", "Split transaction", "Cleared", "Follow-up", "Circular Selection", "To confirm", "To claim", "Cancel", "Add Transaction", "Toolbar"]
+FLAG_POINTER_SELECTED labels=["Save", "− Outflow", "+ Inflow", "Amount", "Choose Payee", "Choose Category", "Account, Everyday", "Date, November 3, 2026", "Flag, Meals", "Notes", "Enter a memo…", "Split transaction", "Cleared", "Follow-up", "Circular Selection", "To confirm", "To claim", "Cancel", "Add Transaction", "Toolbar"]
+FLAG_POINTER_SAVED flag=green
+Test Case '-[HowMuchTests.CaptureSnapshotTests testFlagPointerValidation]' passed (8.214 seconds).
+** TEST EXECUTE SUCCEEDED **

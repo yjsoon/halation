@@ -1004,21 +1004,38 @@ struct TransactionFormView: View {
 
   /// Flag sits with the details card, directly under Date.
   private var flagRow: some View {
-    FormCardRow(
-      icon: draft.flag == .none ? "flag" : "flag.fill",
-      iconColor: Theme.flagColour(named: draft.flag.rawValue) ?? .secondary,
-      rowIdentifier: TransactionFormRowID.flag
-    ) {
-      Text("Flag")
-        .foregroundStyle(Theme.textPrimary)
-      Spacer(minLength: 8)
+    Menu {
       Picker("Flag", selection: $draft.flag) {
         ForEach(FlagColour.allCases) { flag in
           Text(flagNames[RewardFlagColour(ledgerColour: flag)] ?? flag.title).tag(flag)
         }
       }
-      .tint(.secondary)
+      .pickerStyle(.inline)
+    } label: {
+      FormCardRow(
+        icon: draft.flag == .none ? "flag" : "flag.fill",
+        iconColor: Theme.flagColour(named: draft.flag.rawValue) ?? .secondary,
+        rowIdentifier: TransactionFormRowID.flag
+      ) {
+        HStack(spacing: 8) {
+          Text("Flag")
+            .foregroundStyle(Theme.textPrimary)
+            .fixedSize()
+          // The native picker's label can wrap without reporting its full
+          // height. Own the label so available width and row growth agree.
+          Text(flagNames[RewardFlagColour(ledgerColour: draft.flag)] ?? draft.flag.title)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.trailing)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+          Image(systemName: "chevron.up.chevron.down")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .accessibilityHidden(true)
+        }
+      }
     }
+    .buttonStyle(.plain)
   }
 
   private var memoRow: some View {

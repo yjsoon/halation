@@ -707,6 +707,79 @@ final class CaptureSnapshotTests: XCTestCase {
     )
   }
 
+  /// A native menu picker could wrap a mapped name while its sibling spacer
+  /// still occupied enough room for that name. Compare with a short selection
+  /// at the same text size, and allow genuinely long/accessibility values to grow.
+  func testMappedFlagUsesAvailableWidthAndAllowsAccessibilityGrowth() async throws {
+    XCTAssertTrue(URLProtocol.registerClass(SnapshotFlagNamesProtocol.self))
+    defer { URLProtocol.unregisterClass(SnapshotFlagNamesProtocol.self) }
+    let cases: [(String, DynamicTypeSize, FlagColour)] = [
+      ("short", .large, .green),
+      ("mapped", .large, .red),
+      ("long", .large, .blue),
+      ("short-larger", .xxxLarge, .green),
+      ("mapped-larger", .xxxLarge, .red),
+      ("mapped-accessibility", .accessibility3, .red),
+      ("long-accessibility", .accessibility3, .blue),
+    ]
+    var heights: [String: CGFloat] = [:]
+    for (name, size, flag) in cases {
+      let harness = SnapshotHarness.make(baseURLString: "https://flag-layout.test")
+      var draft = TransactionDraft()
+      draft.accountID = "acct-everyday"
+      draft.amountMagnitudeMilli = 12_000
+      draft.flag = flag
+      var rowFrames: [String: CGRect] = [:]
+      let surface = try XCTUnwrap(SnapshotSurface(
+        root: TransactionFormView(draft: draft, isEditing: true)
+          .environment(harness.model)
+          .environment(\.dynamicTypeSize, size)
+          .onPreferenceChange(FormRowFramesKey.self) { rowFrames = $0 },
+        size: CGSize(width: 390, height: 844)
+      ))
+      defer { surface.detach() }
+      let selectedName = SnapshotFlagNamesProtocol.names[flag.rawValue]!
+      let loaded = await surface.waitUntil {
+        surface.accessibilityLabels().contains { $0.contains(selectedName) }
+          && rowFrames[TransactionFormRowID.flag] != nil
+      }
+      XCTAssertTrue(loaded, "\(name): mapped selection missing: \(surface.accessibilityLabels())")
+      let initialFrame = try XCTUnwrap(rowFrames[TransactionFormRowID.flag])
+      _ = await surface.setMainScrollOffsetY(initialFrame.minY - 180)
+      await surface.settleVisible()
+      let frame = try XCTUnwrap(rowFrames[TransactionFormRowID.flag])
+      heights[name] = frame.height
+      let image = surface.captureVisible()
+      attachImage(image, name: "flag-layout-\(name)")
+      // Read only pixels inside Flag's row: text that spills into Memo must
+      // not count as a fully rendered selection, even when AX has its full name.
+      let crop = frame.intersection(CGRect(origin: .zero, size: image.size))
+      let pixels = crop.applying(CGAffineTransform(scaleX: image.scale, y: image.scale))
+      let rowImage = try XCTUnwrap(image.cgImage?.cropping(to: pixels))
+      let request = VNRecognizeTextRequest()
+      request.recognitionLevel = .accurate
+      request.usesLanguageCorrection = false
+      try VNImageRequestHandler(cgImage: rowImage).perform([request])
+      let lines = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+      let text = Self.normalisedOCR(lines.joined(separator: " "))
+      print("FLAG_LAYOUT \(name) row=\(frame) OCR=\(lines)")
+      XCTAssertGreaterThanOrEqual(frame.height, 52)
+      XCTAssertTrue(text.contains("flag"), "\(name): the caption must remain readable: \(lines)")
+      for word in selectedName.split(whereSeparator: { $0 == " " || $0 == "/" }) {
+        XCTAssertTrue(text.contains(Self.normalisedOCR(String(word))), "\(name): name must fit inside its row: \(lines)")
+      }
+      if flag == .red, !size.isAccessibilitySize {
+        XCTAssertTrue(lines.contains { $0.replacingOccurrences(of: " ", with: "").contains(selectedName) },
+          "\(name): the mapped selection must render on one line: \(lines)")
+      }
+    }
+    XCTAssertEqual(try XCTUnwrap(heights["mapped"]), try XCTUnwrap(heights["short"]), accuracy: 0.5,
+      "A mapped name that fits must not wrap while the spacer retains unused width")
+    XCTAssertEqual(try XCTUnwrap(heights["mapped-larger"]), try XCTUnwrap(heights["short-larger"]), accuracy: 0.5)
+    XCTAssertGreaterThan(try XCTUnwrap(heights["long-accessibility"]), try XCTUnwrap(heights["mapped"]),
+      "Accessibility text must be able to grow the row rather than clip to one line")
+  }
+
   /// Empty payee/category used to be a short single line while Account/Date
   /// stacked a caption over the value and grew; picking a payee then shifted
   /// every row below. Flag/Memo also sat under Split/Cleared.
@@ -3667,6 +3740,42 @@ private final class SnapshotHomeBriefRequestLog: @unchecked Sendable {
     lock.lock()
     defer { lock.unlock() }
     return urls
+  }
+}
+
+private final class SnapshotFlagNamesProtocol: URLProtocol {
+  static let names = [
+    "red": "Groceries/Food",
+    "blue": "Household essentials and weekly provisions",
+    "green": "Meals",
+  ]
+
+  override class func canInit(with request: URLRequest) -> Bool {
+    request.url?.host == "flag-layout.test"
+  }
+
+  override class func canInit(with task: URLSessionTask) -> Bool {
+    (task.currentRequest ?? task.originalRequest).map(canInit(with:)) ?? false
+  }
+
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+  override func stopLoading() {}
+
+  override func startLoading() {
+    let card: [String: Any] = [
+      "id": "flag-layout-card", "name": "Fixture card", "issuer": "Demo",
+      "type": "cashback", "ynabAccountId": "acct-everyday", "flagNames": Self.names,
+    ]
+    do {
+      let data = try JSONSerialization.data(withJSONObject: ["data": ["cards": [card]]])
+      let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil,
+        headerFields: ["Content-Type": "application/json"])!
+      client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+      client?.urlProtocol(self, didLoad: data)
+      client?.urlProtocolDidFinishLoading(self)
+    } catch {
+      client?.urlProtocol(self, didFailWithError: error)
+    }
   }
 }
 

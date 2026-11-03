@@ -1,0 +1,1 @@
+/Users/runner/workspace/repo/apps/ios/HowMuch/Support/Formatting.swift:167:9: error: the compiler is unable to type-check this expression in reasonable time; try breaking up the expression into distinct sub-expressions
