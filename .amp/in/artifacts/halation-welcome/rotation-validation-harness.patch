@@ -1,0 +1,63 @@
+diff --git a/apps/ios/HowMuchTests/LocalModeTests.swift b/apps/ios/HowMuchTests/LocalModeTests.swift
+index b640c79..b993d11 100644
+--- a/apps/ios/HowMuchTests/LocalModeTests.swift
++++ b/apps/ios/HowMuchTests/LocalModeTests.swift
+@@ -1,0 +2 @@ import SwiftUI
++import UIKit
+@@ -287,0 +289,56 @@ final class LocalModeTests: XCTestCase {
++  @MainActor
++  func testScratchRotatedWelcome() async throws {
++    let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
++    let window = try XCTUnwrap(scene.windows.first { $0.isKeyWindow })
++    window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
++    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscapeLeft)) { error in
++      print("WELCOME rotation request: \(error)")
++    }
++    for _ in 0..<60 {
++      if scene.interfaceOrientation.isLandscape { break }
++      try await Task.sleep(nanoseconds: 100_000_000)
++    }
++    XCTAssertTrue(scene.interfaceOrientation.isLandscape)
++    try await Task.sleep(nanoseconds: 700_000_000)
++    window.layoutIfNeeded()
++    print("WELCOME actual rotated window=\(window.bounds) safeArea=\(window.safeAreaInsets)")
++    XCTAssertGreaterThan(window.bounds.width, window.bounds.height)
++    let image = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
++      window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
++    }
++    try image.pngData()!.write(to: URL(fileURLWithPath: "/tmp/welcome-rotated-root.png"))
++    var scrolls: [UIScrollView] = []
++    func collect(_ view: UIView) {
++      if let scroll = view as? UIScrollView { scrolls.append(scroll) }
++      for child in view.subviews { collect(child) }
++    }
++    collect(window)
++    for scroll in scrolls { print("WELCOME scroll bounds=\(scroll.bounds) content=\(scroll.contentSize)") }
++    let scroll = try XCTUnwrap(scrolls.last { $0.contentSize.height > $0.bounds.height && $0.bounds.width > window.bounds.width - 1 })
++    XCTAssertEqual(scroll.bounds.width, window.bounds.width, accuracy: 1)
++    scroll.setContentOffset(CGPoint(x: 0, y: max(0, scroll.contentSize.height - scroll.bounds.height)), animated: false)
++    try await Task.sleep(nanoseconds: 200_000_000)
++    let bottom = UIGraphicsImageRenderer(bounds: window.bounds).image { _ in
++      window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
++    }
++    try bottom.pngData()!.write(to: URL(fileURLWithPath: "/tmp/welcome-rotated-bottom.png"))
++  }
++
++  @MainActor
++  func testScratchWideTabletWelcome() async throws {
++    let model = AppModel(outboxStore: .temporary(), settings: APISettings(), viewPrefs: ViewPrefs(),
++      snapshotStore: SnapshotStore(directory: directory.appending(path: "snapshots")), hasSavedSettings: false)
++    let surface = try XCTUnwrap(SnapshotSurface(root: WelcomeView().environment(model)
++      .environment(\.colorScheme, .light), size: CGSize(width: 1376, height: 1032)))
++    defer { surface.detach() }
++    await surface.settleVisible()
++    let rendered = await surface.captureUntilOCR(contains: ["Halation"])
++    XCTAssertFalse(rendered.isBlank)
++    try rendered.image.pngData()!.write(to: URL(fileURLWithPath: "/tmp/welcome-wide-tablet.png"))
++    let start = try XCTUnwrap(surface.firstControl(label: "Start on this iPad"))
++    XCTAssertTrue(surface.windowBounds.contains(start.frame))
++    let connect = try XCTUnwrap(surface.firstControl(label: "Connect to a server"))
++    XCTAssertTrue(surface.windowBounds.contains(connect.frame))
++    print("WELCOME iPad 13-inch wide UIWindow: start=\(start.frame), server=\(connect.frame)")
++  }
++

@@ -1,0 +1,113 @@
+diff --git a/apps/ios/HowMuchTests/LocalModeTests.swift b/apps/ios/HowMuchTests/LocalModeTests.swift
+index b640c79..08c5cb0 100644
+--- a/apps/ios/HowMuchTests/LocalModeTests.swift
++++ b/apps/ios/HowMuchTests/LocalModeTests.swift
+@@ -1,0 +2 @@ import SwiftUI
++import UIKit
+@@ -287,0 +289,106 @@ final class LocalModeTests: XCTestCase {
++  // Temporary real-stack validation harness, removed before landing.
++  @MainActor
++  func testScratchWelcomeVisualsAndActions() async throws {
++    let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
++    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
++    try await Task.sleep(nanoseconds: 800_000_000)
++    let savedDefaults = UserDefaults.standard.persistentDomain(forName: Bundle.main.bundleIdentifier!) ?? [:]
++    defer { UserDefaults.standard.setPersistentDomain(savedDefaults, forName: Bundle.main.bundleIdentifier!) }
++    UserDefaults.standard.removeObject(forKey: APISettings.userDefaultsKey)
++    let model = AppModel(outboxStore: .temporary(), settings: APISettings(), viewPrefs: ViewPrefs(),
++      snapshotStore: SnapshotStore(directory: directory.appending(path: "snapshots")), hasSavedSettings: false)
++    let output = URL(fileURLWithPath: "/tmp/halation-welcome")
++    try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
++    for (name, size, mode, typeSize) in [
++      ("dark", CGSize(width: 440, height: 956), ColorScheme.dark, DynamicTypeSize.large),
++      ("light", CGSize(width: 440, height: 956), .light, .large),
++      ("compact", CGSize(width: 320, height: 568), .light, .large),
++      ("landscape", CGSize(width: 844, height: 390), .dark, .large),
++      ("accessibility", CGSize(width: 390, height: 844), .dark, .accessibility3),
++      ("ipad", CGSize(width: 834, height: 1194), .light, .large),
++    ] {
++      let surface = try XCTUnwrap(SnapshotSurface(root: WelcomeView().environment(model)
++        .environment(\.colorScheme, mode).environment(\.dynamicTypeSize, typeSize), size: size))
++      await surface.settleVisible()
++      let rendered = await surface.captureUntilOCR(contains: ["Halation"])
++      XCTAssertFalse(rendered.isBlank)
++      try rendered.image.pngData()!.write(to: output.appending(path: "\(name).png"))
++      let server = try XCTUnwrap(surface.firstControl(label: "Connect to a server"))
++      let local = try XCTUnwrap(surface.firstControl(label: "Start on this iPhone"))
++      // Accessibility frames can differ from 44 by a floating-point epsilon.
++      XCTAssertGreaterThanOrEqual(server.frame.height, 43.99)
++      XCTAssertGreaterThanOrEqual(server.frame.width, 44)
++      surface.assertMinimumHitTarget(local)
++      XCTAssertLessThanOrEqual(local.frame.maxX, size.width)
++      XCTAssertGreaterThanOrEqual(local.frame.minX, 0)
++      if !surface.windowBounds.contains(server.frame) {
++        let scrolled = await surface.setMainScrollOffsetY(server.frame.maxY - size.height + 80)
++        XCTAssertTrue(scrolled)
++        try surface.captureVisible().pngData()!.write(to: output.appending(path: "\(name)-actions.png"))
++      }
++      let visibleServer = try XCTUnwrap(surface.firstControl(label: "Connect to a server"))
++      XCTAssertTrue(surface.windowBounds.contains(visibleServer.frame), "\(name): server action reachable")
++      print("WELCOME \(name): local=\(local.frame) server=\(visibleServer.frame) \(surface.scrollGeometryDiagnostics())")
++      surface.detach()
++    }
++    let surface = try XCTUnwrap(SnapshotSurface(root: WelcomeView().environment(model)
++      .environment(\.colorScheme, .dark), size: CGSize(width: 440, height: 956)))
++    defer { surface.detach() }
++    await surface.settleVisible()
++    let connect = try XCTUnwrap(surface.firstControl(label: "Connect to a server"))
++    XCTAssertTrue(surface.activate(connect))
++    XCTAssertFalse(model.isShowingWelcome)
++    XCTAssertTrue(model.isShowingSettings)
++    XCTAssertEqual(model.settings.baseURLString, "")
++    let connection = try XCTUnwrap(SnapshotSurface(root: SettingsView(settings: model.settings) { _ in }
++      .environment(model), size: CGSize(width: 440, height: 956)))
++    await connection.settleVisible()
++    _ = await connection.captureUntilOCR(contains: ["Connection", "Server"])
++    try connection.captureVisible().pngData()!.write(to: output.appending(path: "connection.png"))
++    print("WELCOME connection: \(connection.accessibilityLabels())")
++    let back = try XCTUnwrap(connection.firstControl(label: "Back"))
++    XCTAssertTrue(connection.activate(back))
++    XCTAssertTrue(model.isShowingWelcome)
++    connection.detach()
++    await surface.settleVisible()
++    let start = try XCTUnwrap(surface.firstControl(label: "Start on this iPhone"))
++    XCTAssertTrue(surface.activate(start))
++    let started = await surface.waitUntil { model.settings.isLocal && !model.isShowingWelcome }
++    XCTAssertTrue(started)
++    XCTAssertTrue(model.settings.isAuthenticated)
++    XCTAssertFalse(model.isShowingSettings)
++    XCTAssertEqual(APISettings.load().planID, model.settings.planID)
++    XCTAssertEqual(APISettings.load().mode, .local)
++    let plans = try await LocalEngine.shared.livePlanIDs()
++    XCTAssertTrue(plans.contains(model.settings.planID))
++    let client = APIClient(settings: model.settings)
++    let categories = try await client.fetchCategories(planID: model.settings.planID)
++    XCTAssertFalse(categories.isEmpty)
++    print("WELCOME persisted: local mode, authenticated, plan on SQLite, starter groups=\(categories.count)")
++  }
++
++  @MainActor
++  func testScratchWelcomeFailure() async throws {
++    let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
++    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
++    try await Task.sleep(nanoseconds: 800_000_000)
++    let engine = LocalEngine.useShared(LocalEngine(databaseURL: URL(fileURLWithPath: "/dev/null/unwritable.sqlite")))
++    defer { LocalEngine.useShared(engine) }
++    let model = AppModel(outboxStore: .temporary(), settings: APISettings(), viewPrefs: ViewPrefs(),
++      snapshotStore: SnapshotStore(directory: directory.appending(path: "snapshots")), hasSavedSettings: false)
++    let surface = try XCTUnwrap(SnapshotSurface(root: WelcomeView().environment(model)
++      .environment(\.colorScheme, .dark), size: CGSize(width: 440, height: 956)))
++    defer { surface.detach() }
++    await surface.settleVisible()
++    let start = try XCTUnwrap(surface.firstControl(label: "Start on this iPhone"))
++    XCTAssertTrue(surface.activate(start))
++    let failed = await surface.waitUntil { surface.accessibilityLabels().contains { $0.contains("Couldn’t set up") } }
++    XCTAssertTrue(failed)
++    XCTAssertTrue(model.isShowingWelcome)
++    XCTAssertFalse(model.settings.isLocal)
++    XCTAssertTrue(surface.isControlEnabled(try XCTUnwrap(surface.firstControl(label: "Start on this iPhone"))))
++    XCTAssertTrue(surface.isControlEnabled(try XCTUnwrap(surface.firstControl(label: "Connect to a server"))))
++    try surface.captureVisible().pngData()!.write(to: URL(fileURLWithPath: "/tmp/halation-welcome/error.png"))
++    print("WELCOME failure: real SQLite open failure leaves welcome and both actions enabled")
++  }
++

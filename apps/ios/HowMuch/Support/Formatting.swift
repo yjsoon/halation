@@ -164,14 +164,15 @@ enum MoneyCodec {
   private static var formatters: [String: NumberFormatter] = [:]
 
   private static func formatter(for currencyFormat: CurrencyFormat?) -> NumberFormatter {
-    let key = [
+    let components: [String] = [
       String(currencyFormat?.decimalDigits ?? 2),
       currencyFormat?.currencySymbol ?? Locale.current.currencySymbol ?? "$",
       currencyFormat?.decimalSeparator ?? "",
       currencyFormat?.groupSeparator ?? "",
       currencyFormat?.symbolFirst.map { $0 ? "first" : "last" } ?? "",
       currencyFormat?.displaySymbol == false ? "hidden" : "",
-    ].joined(separator: "\u{1f}")
+    ]
+    let key = components.joined(separator: "\u{1f}")
 
     formatterLock.lock()
     if let cached = formatters[key] {
