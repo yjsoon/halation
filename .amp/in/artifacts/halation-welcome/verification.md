@@ -2,8 +2,8 @@
 
 ## Revision and scope
 
-Production source: `ca0669559d685a264693550c87321d1ea57cfbf5`, based on `34d5dc8f4f64bfe6dac8859441e17d34dcb0e3c7`.
-Changes after that source revision in this evidence round are artefacts only.
+Latest production source: `8300e759336b2a21379fbaf79b06af024863be7f`, based on `34d5dc8f4f64bfe6dac8859441e17d34dcb0e3c7`.
+Initial implementation source was `ca0669559d685a264693550c87321d1ea57cfbf5`. The latest source adds the two landscape fixes described below; later commits in this evidence round change artefacts only.
 
 - Reused the actual web `signin-light.webp` and `signin-dark.webp` artwork, converted with ImageMagick to JPEG at quality 92. No regenerated replacement illustration.
 - Reused bundled Instrument Serif Italic for the brand and the web slogan. Matched the web ivory/plum, ink and interactive accent tokens locally to WelcomeView, without restyling the ledger.
@@ -13,7 +13,7 @@ Changes after that source revision in this evidence round are artefacts only.
 Source hashes:
 
 ```text
-c0761423cfd88eac9ea525aa47a5d36c86cc309a80ab3fc59587dedcdf41a250  WelcomeView.swift
+a83d8088c0effc54d099f20e39cede7d853352be7d93a541c9f586d80d3d5ab0  WelcomeView.swift
 215d34bfcc92933b638d098fe450c232a307425f0f095c6d79e52f0f64aa6d41  Formatting.swift
 ```
 
@@ -28,7 +28,7 @@ Acceptance: same artwork and display type, readable controls on quiet paper, no 
 
 ## Native environment and commands
 
-Amp Mac satellite, macos-26, Xcode 26.1.1, iPhone Air simulator on iOS 26.1, HowMuch scheme / Debug, ad-hoc simulator signing only. No Apple credentials, provisioning, physical devices, publication or production data.
+Amp Mac satellite, macos-26, Xcode 26.1.1, HowMuch scheme / Debug, ad-hoc simulator signing only. Initial iPhone Air run used iOS 26.2; final runs used iOS 26.1. Also used an iPad Pro 13-inch (M5) simulator on iOS 26.1. No Apple credentials, provisioning, physical devices, publication or production data.
 
 ```sh
 UDID=$(scripts/ios-xcodebuild.sh destination)
@@ -47,7 +47,7 @@ xcrun simctl io "$UDID" screenshot /tmp/welcome-root-light.png
 Final clean-source run at the committed source above:
 
 ```text
-runner: build-for-testing finished in 3s exit=0
+runner: build-for-testing finished in 9s exit=0
 runner: build-for-testing succeeded; products match this worktree
 Executed 10 tests, with 0 failures (LocalModeTests)
 Executed 36 tests, with 0 failures (SlipReaderMappingTests)
@@ -61,13 +61,13 @@ The currency tests include positive and negative half-cent rounding, euro symbol
 
 The adjacent `validation-harness.patch` is a disposable validation patch, not a permanent test suite addition. It uses the repository's existing SnapshotSurface native UIWindow/accessibility harness with the actual WelcomeView, SettingsView, AppModel, bundled JS backend and isolated on-device SQLite. It was removed from the source before the clean-source run. Its production sources are byte-identical to the committed source revision above.
 
-To repeat on a disposable Mac simulator checkout at that revision: apply the patch with `git apply`, create `/tmp/halation-welcome`, enable accessibility as above, then run:
+To repeat on a disposable Mac simulator checkout at that revision: apply the patch with `git apply --unidiff-zero .amp/in/artifacts/halation-welcome/validation-harness.patch`, create `/tmp/halation-welcome`, boot the selected simulator and enable accessibility as above, then run:
 
 ```sh
 mkdir -p /tmp/halation-welcome
 scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests/LocalModeTests
 # After inspection, remove only this disposable patch:
-git apply --reverse .amp/in/artifacts/halation-welcome/validation-harness.patch
+git apply --reverse --unidiff-zero .amp/in/artifacts/halation-welcome/validation-harness.patch
 ```
 
 Observed: 12 tests, zero failures, including both temporary welcome scenarios.
@@ -78,7 +78,7 @@ Observed: 12 tests, zero failures, including both temporary welcome scenarios.
 4. Pointed the isolated local engine at `/dev/null/unwritable.sqlite`, activated local start and observed a real filesystem failure. Error text appears; model remains on welcome and both buttons re-enable. This synthetic error deliberately includes the invalid test path, not user data.
 5. Found and fixed an accessibility-only orphaned final letter in the display wordmark during visual inspection. The final wordmark stays on one line; functional copy still scales and wraps.
 
-Native harness recording `validation.mp4` shows native windows and the Connection screen, trimmed from simctl video, inspected at 3 fps. It uses accessibility activation and harness scrolling, not physical touch or mouse input. Smaller UIWindow probes intentionally occupy part of the simulator, so the video is harness evidence, not a polished device demo.
+Native harness recording `validation.mp4` shows the initial implementation's native windows and Connection screen, trimmed from simctl video, inspected at 3 fps. It uses accessibility activation and harness scrolling, not physical touch or mouse input. Smaller UIWindow probes intentionally occupy part of the simulator, so the video is harness evidence, not a polished device demo. The final still captures supersede its landscape crop. The same 12-test welcome recipe passed again after both landscape fixes, including persisted local start, server entry/back and real local failure recovery.
 
 ## Inspected visual evidence
 
@@ -89,6 +89,30 @@ Native harness recording `validation.mp4` shows native windows and the Connectio
 - `connection.jpg`, `error.jpg`: native Connection and real local-engine failure state.
 
 All final PNG captures were inspected before conversion to JPEG at quality 88 to keep review artefacts small. The final contact sheet and video frames were also inspected. No clipping in functional controls, no landscape seam, no tabs bleeding through welcome. Text cropped above the viewport in scrolled states is expected.
+
+## Independent review and landscape fixes
+
+Opus 5.5 at high effort, external-agent Claude Code subscription orb, reviewed the complete diff `34d5dc8...0a2b3e3` for correctness and compatibility/operability. It found no correctness blockers, confirmed the recorded hashes, artwork identity and unchanged formatter key, and measured approximately 4.9:1 or better text contrast. Two low-severity findings held up: landscape horizontal safe-area gutters were possible, and a centred vertical image crop could remove the tree line on a wide iPad. Both were fixed in `8300e75`: ignore horizontal safe areas for the full-width composition and use bottom-trailing artwork alignment.
+
+The formatter change is classified as a non-calculation, type-only inference refactor: all six key strings, ordering and separator are unchanged, with no change to money arithmetic or formatting outputs. Therefore the ordinary one-reviewer, Opus-high rule applies, not the money-calculation two-reviewer rule. The unused BrandIcon resource is left untouched; it is not a behaviour or correctness defect.
+
+`rotation-validation-harness.patch` is an additional disposable probe. On iPhone Air, the public scene geometry request produced a real rotated native root window at 912×420 points with 68-point left/right safe areas. The welcome scroll view was 912 points wide, content 912×660. The probe passed and the captured scrolled artwork reaches both edges with foreground trees intact. On iPad Pro 13-inch, a 1376×1032-point native UIWindow probe passed, with both actions inside bounds and the complete bottom tree line. Actual iPad programmatic rotation was refused with UISceneErrorDomain 101, “The current windowing mode does not allow for programmatic changes to interface orientation.” Simulator UI automation also lacked a functioning display/UI-event route. This is a preview gap, not a reason to alter app orientation policy.
+
+Two post-review scratch runs initially found no accessibility controls because the newly selected iOS 26.1 phone had not been booted and given the accessibility defaults. After enabling both documented defaults on that exact simulator, the same source and harness passed all 12 tests. Initial attempts to select the underlying account scroll view in the rotation probe were corrected to select the actual overflowing full-width welcome scroll view. These are fixture/executor corrections, not product changes. Final clean-source tests passed 46/46 afterwards.
+
+## Requested iPhone and iPad previews
+
+All screenshots below show latest production source `8300e759336b2a21379fbaf79b06af024863be7f` on the Amp Mac satellite, not a physical device. Paths are relative to this evidence directory in the lead orb at `/home/user/workspace/repo/.amp/in/artifacts/halation-welcome/`.
+
+| Screenshot | Device / orientation | Native viewport | Capture |
+| --- | --- | --- | --- |
+| welcome-root-dark.jpg / welcome-root-light.jpg | iPhone Air, portrait, iOS 26.1 | 420×912 pt, 1260×2736 px | Installed app, simctl framebuffer, dark/light |
+| phone-landscape-top.jpg | iPhone Air, landscape, iOS 26.1 | 912×420 pt, 2736×1260 px | Actual rotated root UIWindow, top scroll position |
+| phone-landscape-artwork.jpg | iPhone Air, landscape, iOS 26.1 | 912×420 pt, 2736×1260 px | Same actual root, scrolled to artwork, light |
+| ipad-portrait-dark.jpg / ipad-portrait-light.jpg | iPad Pro 13-inch (M5), portrait, iOS 26.1 | 1032×1376 pt, 2064×2752 px | Installed app, simctl framebuffer, dark/light |
+| ipad-wide-artwork.jpg | iPad Pro 13-inch (M5), wide-layout probe | 1376×1032 pt, 2752×2064 px | Supplementary sized UIWindow, not actual device rotation |
+
+No merge or release follows from this preview request. The actual iPad landscape orientation capture remains unavailable for the specific executor reasons above; the wide native-layout probe is clearly labelled as supplementary.
 
 ## Known limits and delivery gate
 

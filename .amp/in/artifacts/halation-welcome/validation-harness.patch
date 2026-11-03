@@ -1,14 +1,16 @@
 diff --git a/apps/ios/HowMuchTests/LocalModeTests.swift b/apps/ios/HowMuchTests/LocalModeTests.swift
-index b640c79..79d2f68 100644
+index b640c79..08c5cb0 100644
 --- a/apps/ios/HowMuchTests/LocalModeTests.swift
 +++ b/apps/ios/HowMuchTests/LocalModeTests.swift
-@@ -285,4 +285,104 @@ final class LocalModeTests: XCTestCase {
-     XCTAssertEqual(recovered.planID, first.planID)
-   }
- 
+@@ -1,0 +2 @@ import SwiftUI
++import UIKit
+@@ -287,0 +289,106 @@ final class LocalModeTests: XCTestCase {
 +  // Temporary real-stack validation harness, removed before landing.
 +  @MainActor
 +  func testScratchWelcomeVisualsAndActions() async throws {
++    let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
++    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
++    try await Task.sleep(nanoseconds: 800_000_000)
 +    let savedDefaults = UserDefaults.standard.persistentDomain(forName: Bundle.main.bundleIdentifier!) ?? [:]
 +    defer { UserDefaults.standard.setPersistentDomain(savedDefaults, forName: Bundle.main.bundleIdentifier!) }
 +    UserDefaults.standard.removeObject(forKey: APISettings.userDefaultsKey)
@@ -86,6 +88,9 @@ index b640c79..79d2f68 100644
 +
 +  @MainActor
 +  func testScratchWelcomeFailure() async throws {
++    let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
++    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait))
++    try await Task.sleep(nanoseconds: 800_000_000)
 +    let engine = LocalEngine.useShared(LocalEngine(databaseURL: URL(fileURLWithPath: "/dev/null/unwritable.sqlite")))
 +    defer { LocalEngine.useShared(engine) }
 +    let model = AppModel(outboxStore: .temporary(), settings: APISettings(), viewPrefs: ViewPrefs(),
@@ -106,4 +111,3 @@ index b640c79..79d2f68 100644
 +    print("WELCOME failure: real SQLite open failure leaves welcome and both actions enabled")
 +  }
 +
- }
