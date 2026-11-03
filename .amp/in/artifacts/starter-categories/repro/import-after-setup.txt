@@ -1,0 +1,2 @@
+{"error":{"id":"409","name":"plan_not_empty","detail":"Snapshots can only be imported into an empty plan"}}
+HTTP 409
