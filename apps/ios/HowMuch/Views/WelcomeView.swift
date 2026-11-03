@@ -28,10 +28,6 @@ struct WelcomeView: View {
             Text("Clarity for a longer view")
               .font(.custom(CardType.serifItalic, size: 30, relativeTo: .title))
               .padding(.top, 4)
-            Text("Track what you spend, account by account.")
-              .font(.body)
-              .foregroundStyle(secondaryInk)
-              .padding(.top, 24)
 
             actions
               .padding(.top, 36)
