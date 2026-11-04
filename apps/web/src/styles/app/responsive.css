@@ -178,6 +178,13 @@
     box-shadow: none;
   }
 
+  /* A short form: a sheet at the top, clear of the on-screen keyboard. */
+  .new-category-dialog {
+    height: fit-content;
+    margin: 0 0 auto;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+
   .account-organiser-header {
     padding: 18px 16px 14px;
   }

@@ -14,6 +14,7 @@ import type {
   CardPaymentTerms,
   CardPaymentTermsInput,
   CardPaymentsView,
+  Category,
   CategoryGroup,
   CreditCard,
   IncomeVsSpendingReport,
@@ -465,13 +466,13 @@ export const api = {
       (d) => d.category_groups,
     ),
   createCategoryGroup: (planId: string, id: string, name: string) =>
-    request<unknown>(planUrl(planId, "category_groups"), {
+    request<{ category_group: CategoryGroup }>(planUrl(planId, "category_groups"), {
       method: "POST",
       headers: { "Idempotency-Key": id },
       body: JSON.stringify({ category_group: { id, name } }),
     }),
   createCategory: (planId: string, id: string, groupId: string, name: string) =>
-    request<unknown>(planUrl(planId, "categories"), {
+    request<{ category: Category }>(planUrl(planId, "categories"), {
       method: "POST",
       headers: { "Idempotency-Key": id },
       body: JSON.stringify({ category: { id, category_group_id: groupId, name } }),

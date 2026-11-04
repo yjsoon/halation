@@ -99,6 +99,11 @@ interface PlanContextValue {
   /** Creates an account and adds it to the sidebar before resolving. */
   createAccount: (account: NewAccountBody) => Promise<Account>;
   retryAccountPreferences: () => void;
+  /**
+   * Creates a category in an existing group, or in a new group named here,
+   * and adds it to every category list before resolving.
+   */
+  createCategory: (name: string, group: { id: string } | { name: string }) => Promise<Category>;
   categoryGroups: CategoryGroup[];
   categories: Category[];
   categoryNames: Map<string, string>;
@@ -184,6 +189,7 @@ function provisionalPlanValue(
     updateAccountPreferences: () => {},
     updateAccountIcon: async () => {},
     createAccount: () => Promise.reject(new Error("Still loading. Try again in a moment.")),
+    createCategory: () => Promise.reject(new Error("Still loading. Try again in a moment.")),
     retryAccountPreferences: () => {},
     categoryGroups,
     categories,
@@ -525,6 +531,30 @@ export function PlanProvider({ children }: { children: ReactNode }) {
             return created;
           },
           retryAccountPreferences: () => accountPreferencesController?.retry(),
+          createCategory: async (name, group) => {
+            const newGroup = "name" in group
+              ? (await api.createCategoryGroup(planId, `grp_${crypto.randomUUID()}`, group.name)).category_group
+              : null;
+            const groupId = newGroup?.id ?? ("id" in group ? group.id : "");
+            const { category } = await api.createCategory(planId, `cat_${crypto.randomUUID()}`, groupId, name);
+            setValue((current) => {
+              if (current?.planId !== planId) return current;
+              const known = current.categoryGroups.some((existing) => existing.id === groupId);
+              const groups = known
+                ? current.categoryGroups.map((existing) => existing.id === groupId
+                  ? { ...existing, categories: [...(existing.categories ?? []), category] }
+                  : existing)
+                : [...current.categoryGroups, { ...newGroup!, categories: [category] }];
+              const categories = groups.flatMap((existing) => existing.categories ?? []);
+              return {
+                ...current,
+                categoryGroups: groups,
+                categories,
+                categoryNames: new Map(categories.map((existing) => [existing.id, existing.name])),
+              };
+            });
+            return category;
+          },
           categoryGroups,
           categories,
           categoryNames: new Map(categories.map((category) => [category.id, category.name])),
