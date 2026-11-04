@@ -1,0 +1,210 @@
+{
+ "data": {
+  "from": null,
+  "to": "2026-05-24",
+  "as_of": "2026-05-24",
+  "period": "Current card periods as of 2026-05-24",
+  "transaction_rewards": {
+   "txn-2026-05-shop": {
+    "reward": 686.7,
+    "reward_dollars": 10.3005
+   },
+   "txn-2026-05-restaurant": {
+    "reward": 346.4,
+    "reward_dollars": 5.196
+   }
+  },
+  "group_by": "payee",
+  "miles_valuation": 0.015,
+  "totals": {
+   "spend": 315.5,
+   "reward_dollars": 15.4965,
+   "cashback": 0,
+   "miles": 1033.1
+  },
+  "cards": [
+   {
+    "card": {
+     "id": "card-travel",
+     "name": "Travel Card",
+     "issuer": "DBS",
+     "type": "miles",
+     "ynabAccountId": "acct-credit",
+     "featured": true,
+     "billingCycle": {
+      "type": "calendar"
+     },
+     "earningRate": 1.5,
+     "minimumSpend": 200,
+     "subcategoriesEnabled": true,
+     "subcategories": [
+      {
+       "id": "subcat-dining",
+       "name": "Dining",
+       "flagColor": "red",
+       "rewardValue": 4,
+       "priority": 1,
+       "active": true,
+       "createdAt": "2026-01-15T00:00:00.000Z",
+       "updatedAt": "2026-01-15T00:00:00.000Z"
+      },
+      {
+       "id": "subcat-online",
+       "name": "Online",
+       "flagColor": "blue",
+       "rewardValue": 3,
+       "priority": 2,
+       "active": true,
+       "createdAt": "2026-01-15T00:00:00.000Z",
+       "updatedAt": "2026-01-15T00:00:00.000Z"
+      }
+     ]
+    },
+    "account_id": "acct-credit",
+    "account_name": "Travel Card",
+    "calculation": {
+     "period": "2026-05",
+     "total_spend": 315.5,
+     "counted_spend": 315.5,
+     "eligible_spend": 315.5,
+     "reward_earned": 1033.1,
+     "reward_earned_dollars": 15.4965,
+     "reward_type": "miles",
+     "minimum_spend": 200,
+     "minimum_spend_met": true,
+     "minimum_spend_progress": 100,
+     "maximum_spend": null,
+     "maximum_spend_exceeded": false,
+     "maximum_spend_progress": null,
+     "qualification_status": "not_required",
+     "active_spending_tier_id": null,
+     "has_next_spending_tier": false,
+     "next_spending_tier_id": null,
+     "next_spending_tier_threshold": null,
+     "should_stop_using": false,
+     "flags": [
+      {
+       "subcategoryId": "subcat-dining",
+       "name": "Dining",
+       "flagColor": "red",
+       "totalSpend": 86.6,
+       "countedSpend": 86.6,
+       "eligibleSpendBeforeBlocks": 86.6,
+       "eligibleSpend": 86.6,
+       "rewardRate": 4,
+       "rewardEarned": 346.4,
+       "rewardEarnedDollars": 5.196,
+       "minimumSpend": null,
+       "minimumSpendMet": true,
+       "maximumSpend": null,
+       "maximumSpendExceeded": false,
+       "blockSize": null
+      },
+      {
+       "subcategoryId": "subcat-online",
+       "name": "Online",
+       "flagColor": "blue",
+       "totalSpend": 228.9,
+       "countedSpend": 228.9,
+       "eligibleSpendBeforeBlocks": 228.9,
+       "eligibleSpend": 228.9,
+       "rewardRate": 3,
+       "rewardEarned": 686.7,
+       "rewardEarnedDollars": 10.3005,
+       "minimumSpend": null,
+       "minimumSpendMet": true,
+       "maximumSpend": null,
+       "maximumSpendExceeded": false,
+       "blockSize": null
+      }
+     ],
+     "minimum_met_on": "2026-05-04",
+     "periods": [
+      {
+       "start": "2026-05-01",
+       "end": "2026-05-31",
+       "calculation": {
+        "period": "2026-05",
+        "total_spend": 315.5,
+        "counted_spend": 315.5,
+        "eligible_spend": 315.5,
+        "reward_earned": 1033.1,
+        "reward_earned_dollars": 15.4965,
+        "reward_type": "miles",
+        "minimum_spend": 200,
+        "minimum_spend_met": true,
+        "minimum_spend_progress": 100,
+        "maximum_spend": null,
+        "maximum_spend_exceeded": false,
+        "maximum_spend_progress": null,
+        "qualification_status": "not_required",
+        "active_spending_tier_id": null,
+        "has_next_spending_tier": false,
+        "next_spending_tier_id": null,
+        "next_spending_tier_threshold": null,
+        "should_stop_using": false,
+        "flags": [
+         {
+          "subcategoryId": "subcat-dining",
+          "name": "Dining",
+          "flagColor": "red",
+          "totalSpend": 86.6,
+          "countedSpend": 86.6,
+          "eligibleSpendBeforeBlocks": 86.6,
+          "eligibleSpend": 86.6,
+          "rewardRate": 4,
+          "rewardEarned": 346.4,
+          "rewardEarnedDollars": 5.196,
+          "minimumSpend": null,
+          "minimumSpendMet": true,
+          "maximumSpend": null,
+          "maximumSpendExceeded": false,
+          "blockSize": null
+         },
+         {
+          "subcategoryId": "subcat-online",
+          "name": "Online",
+          "flagColor": "blue",
+          "totalSpend": 228.9,
+          "countedSpend": 228.9,
+          "eligibleSpendBeforeBlocks": 228.9,
+          "eligibleSpend": 228.9,
+          "rewardRate": 3,
+          "rewardEarned": 686.7,
+          "rewardEarnedDollars": 10.3005,
+          "minimumSpend": null,
+          "minimumSpendMet": true,
+          "maximumSpend": null,
+          "maximumSpendExceeded": false,
+          "blockSize": null
+         }
+        ],
+        "minimum_met_on": "2026-05-04"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "groups": [
+   {
+    "key": "payee:MUJI",
+    "label": "MUJI",
+    "flag_color": null,
+    "spend": 228.9,
+    "reward": 686.7,
+    "reward_dollars": 10.3005,
+    "transaction_count": 1
+   },
+   {
+    "key": "payee:Candlenut",
+    "label": "Candlenut",
+    "flag_color": null,
+    "spend": 86.6,
+    "reward": 346.4,
+    "reward_dollars": 5.196,
+    "transaction_count": 1
+   }
+  ]
+ }
+}

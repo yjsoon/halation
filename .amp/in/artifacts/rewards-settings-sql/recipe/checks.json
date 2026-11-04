@@ -1,0 +1,316 @@
+{
+ "web": "http://127.0.0.1:59795",
+ "checks": [
+  {
+   "name": "owner setup",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "sign in",
+   "ok": true,
+   "detail": "200"
+  },
+  {
+   "name": "title",
+   "ok": true,
+   "detail": "Rewards · Halation"
+  },
+  {
+   "name": "card periods pressed",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "add card",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "masthead sky drawn",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "import lists Travel Card",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "date face",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "today enabled",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "miles group",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "stage rest, noon row",
+   "ok": true,
+   "detail": "{\"stage\":\"rest\",\"size\":\"noon\",\"h\":\"1\",\"v\":\"0\",\"window\":360,\"headline\":\"Minimum metResets in 8 days\",\"columns\":[\"Spent=$315.50\",\"Minimum=$200.00\",\"Bonus cap=none\",\"Earned=1,033 mi\",\"Period=24 of 31 days\"]}"
+  },
+  {
+   "name": "pose inline",
+   "ok": true,
+   "detail": "1 0"
+  },
+  {
+   "name": "window 360px at 1440",
+   "ok": true,
+   "detail": "360"
+  },
+  {
+   "name": "headline",
+   "ok": true,
+   "detail": "Minimum metResets in 8 days"
+  },
+  {
+   "name": "columns",
+   "ok": true,
+   "detail": "Spent=$315.50 | Minimum=$200.00 | Bonus cap=none | Earned=1,033 mi | Period=24 of 31 days"
+  },
+  {
+   "name": "qualifying spend above zero",
+   "ok": true,
+   "detail": "$315.50"
+  },
+  {
+   "name": "slip folded and hidden at first",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "Enter opens",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "region visible",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "slip period",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "slip targets",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "slip categories",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "open surface #EBEBE6",
+   "ok": true,
+   "detail": "rgb(235, 235, 230)"
+  },
+  {
+   "name": "more holds the full-period meter",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "view transactions href",
+   "ok": true,
+   "detail": "/transactions?accounts=acct-credit&range=all"
+  },
+  {
+   "name": "Space closes",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "reduced motion: no unfold transition",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "register opened",
+   "ok": true,
+   "detail": "/transactions?accounts=acct-credit&range=all"
+  },
+  {
+   "name": "range: historical range pressed",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "range: Period column reads range",
+   "ok": true,
+   "detail": "range"
+  },
+  {
+   "name": "range: columns are the range totals, no period minimum or cap",
+   "ok": true,
+   "detail": "Spent in range | Earned in range | Period"
+  },
+  {
+   "name": "range: slip names the range and the latest period",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "range: no day rail",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "range: targets from the cutoff period",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "range: categories from the cutoff period",
+   "ok": true,
+   "detail": "row spent $86.60"
+  },
+  {
+   "name": "tab: toggle then menu",
+   "ok": true,
+   "detail": "Actions for Travel Card"
+  },
+  {
+   "name": "rail start date clear of today at 820",
+   "ok": true,
+   "detail": "{\"hidden\":true,\"touches\":true}"
+  },
+  {
+   "name": "rail end date clear of today at 820",
+   "ok": true,
+   "detail": "{\"hidden\":true,\"touches\":true}"
+  },
+  {
+   "name": "rail start date clear of today at 1440",
+   "ok": true,
+   "detail": "{\"hidden\":true,\"touches\":true}"
+  },
+  {
+   "name": "rail end date clear of today at 1440",
+   "ok": true,
+   "detail": "{\"hidden\":true,\"touches\":true}"
+  },
+  {
+   "name": "phone strip",
+   "ok": true,
+   "detail": "{\"variant\":\"strip\",\"foot\":\"Minimum met · 1,033 miles earnedResets in 8 days\",\"height\":84}"
+  },
+  {
+   "name": "phone opens",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "no horizontal scroll at 390",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "grid faces",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "stacked again",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "manual order clear of the headline at 1100",
+   "ok": true,
+   "detail": "{\"actions\":{\"left\":964,\"right\":1062,\"top\":393.328125,\"bottom\":423.328125},\"headline\":{\"left\":613,\"right\":951,\"top\":400.9375,\"bottom\":420.53125}}"
+  },
+  {
+   "name": "manual order clear of the headline at 1440",
+   "ok": true,
+   "detail": "{\"actions\":{\"left\":1304,\"right\":1402,\"top\":339.3125,\"bottom\":369.3125},\"headline\":{\"left\":693,\"right\":1291,\"top\":342.3125,\"bottom\":361.90625}}"
+  },
+  {
+   "name": "payee groups",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "card menu items",
+   "ok": true,
+   "detail": "Edit cardView transactionsHideOn this deviceHide until next periodNo upcoming period boundary in this report"
+  },
+  {
+   "name": "batch applied",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "http: earning rate 1.5",
+   "ok": true,
+   "detail": "1.5"
+  },
+  {
+   "name": "http: Candlenut group",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "http: miles valuation from snapshot settings",
+   "ok": true,
+   "detail": "0.015"
+  },
+  {
+   "name": "http: reward dollars use that valuation",
+   "ok": true,
+   "detail": "{\"spend\":315.5,\"reward_dollars\":15.4965,\"cashback\":0,\"miles\":1033.1}"
+  },
+  {
+   "name": "hidden",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "badge",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "badge clear of the name at 1100",
+   "ok": true,
+   "detail": "{\"badgeBox\":{\"left\":488.328125,\"right\":581,\"top\":406.328125,\"bottom\":419.328125},\"nameBox\":{\"left\":329,\"right\":410.359375,\"top\":406.328125,\"bottom\":430.46875}}"
+  },
+  {
+   "name": "hidden dims window and ledger at 1100",
+   "ok": true,
+   "detail": "0.55 0.55"
+  },
+  {
+   "name": "badge clear of the name at 1440",
+   "ok": true,
+   "detail": "{\"badgeBox\":{\"left\":568.328125,\"right\":661,\"top\":371.15625,\"bottom\":384.15625},\"nameBox\":{\"left\":329,\"right\":410.359375,\"top\":371.15625,\"bottom\":395.296875}}"
+  },
+  {
+   "name": "hidden dims window and ledger at 1440",
+   "ok": true,
+   "detail": "0.55 0.55"
+  },
+  {
+   "name": "unhidden",
+   "ok": true,
+   "detail": ""
+  },
+  {
+   "name": "no page errors",
+   "ok": true,
+   "detail": ""
+  }
+ ],
+ "errors": []
+}
