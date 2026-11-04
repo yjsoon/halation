@@ -2,7 +2,7 @@
 
 ## Revision
 
-Code under test: `f6a79a56` on branch `rewards-settings-sql` (base `c9d75ae7`, `origin/main` at the time). This record and the copied script are the only later changes, under `.amp/in/artifacts/`.
+Code under test: merge `184c07b5` on branch `rewards-settings-sql`, which is the change `f6a79a56` (base `c9d75ae7`) merged with `origin/main` `5a642cba` (a web-only CategorySelect change). The recipe ran first at `f6a79a56` and again at `184c07b5`, 62 of 62 both times; `recipe/` holds the second run. Later commits change only `.amp/in/artifacts/`.
 
 ## Fixture and setup
 
