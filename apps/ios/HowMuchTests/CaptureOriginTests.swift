@@ -3,10 +3,14 @@ import XCTest
 
 final class CaptureOriginTests: XCTestCase {
 
-  func testOverviewPlusUsesLastUsedOpenNotFocusedRegister() {
+  func testOverviewPlusPrefersLastUsedOverAccountOrderAndFocusedRegister() {
     let context = CaptureAccountContext.resolve(
       origin: .lastUsedOpen,
-      openAccounts: Self.open,
+      openAccounts: [
+        Self.account("acct-rainy", "Rainy Day Saver"),
+        Self.account("acct-everyday", "Everyday"),
+        Self.account("acct-travel", "Travel Card"),
+      ],
       lastUsedAccountID: "acct-everyday",
       focusedRegisterAccountID: "acct-travel"
     )
@@ -199,19 +203,6 @@ final class CaptureOriginTests: XCTestCase {
         workspaceScopeKey: "https://b|user-b|plan-a"
       )
     )
-  }
-
-  func testLastUsedPreferredOverMostUsedOrdering() {
-    let mostUsedFirst = [
-      Self.account("acct-travel", "Travel Card"),
-      Self.account("acct-everyday", "Everyday"),
-    ]
-    let context = CaptureAccountContext.resolve(
-      origin: .lastUsedOpen,
-      openAccounts: mostUsedFirst,
-      lastUsedAccountID: "acct-everyday"
-    )
-    XCTAssertEqual(context.selectedAccountID, "acct-everyday")
   }
 
   private static let open = [

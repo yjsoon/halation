@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import type { AuthStore } from "../src/auth-store";
-import { sha256 } from "../src/password-auth";
+import { SQLiteAuthStore, type AuthStore } from "../src/auth-store";
+import { newSession, passwordCredential, sha256 } from "../src/password-auth";
 import { API_TOKEN, BACKENDS, sessionFor, nativeHarness, type NativeHarness } from "./helpers/native-harness";
 
 /**
@@ -71,13 +71,22 @@ function post(harness: NativeHarness, path: string, body: unknown, headers: Reco
   }));
 }
 
-/** Owner set up through the real route; returns the setup cookie plus two bearer sessions. */
+let ownerCredential: ReturnType<typeof passwordCredential> | undefined;
+
+// Setup and login routes have their own coverage in api.test.ts and d1.test.ts.
+// Seed each isolated database (including the fake D1 binding's SQLite database)
+// with one real, production-cost credential and fresh sessions. Reuse only the
+// immutable credential, never mutable database state or session tokens.
 async function ownerWithSessions(harness: NativeHarness) {
-  const setup = await post(harness, "/api/auth/setup", { username: "owner", password: PASSWORD }, { authorization: `Bearer ${API_TOKEN}` });
-  expect(setup.status).toBe(200);
-  const cookie = setup.headers.get("set-cookie")!.split(";", 1)[0];
-  const bearer = async () => (await (await post(harness, "/api/auth/token", { username: "owner", password: PASSWORD })).json()).data.token as string;
-  return { cookie, tokenA: await bearer(), tokenB: await bearer() };
+  const credential = await (ownerCredential ??= passwordCredential(PASSWORD));
+  const auth = new SQLiteAuthStore(harness.db);
+  const cookieSession = newSession();
+  expect(await auth.setup({ userId: "owner", username: "owner", credential, session: cookieSession, planId: "p" })).toBe(true);
+  const sessionA = newSession();
+  const sessionB = newSession();
+  expect(await auth.createSession("owner", sessionA, credential.hash_hex)).toBe(true);
+  expect(await auth.createSession("owner", sessionB, credential.hash_hex)).toBe(true);
+  return { cookie: `__Host-howmuch_session=${cookieSession.token}`, tokenA: sessionA.token, tokenB: sessionB.token };
 }
 
 function status(harness: NativeHarness, headers: Record<string, string>): Promise<number> {

@@ -55,6 +55,16 @@ For a checked web build, run `bun run --cwd apps/web build`. It runs TypeScript 
 
 For iOS builds, use `scripts/ios-xcodebuild.sh` and keep its project-local DerivedData cache; see the [iOS app guide](apps/ios/README.md) and [iOS validation guidance](apps/ios/AGENTS.md). Compare like-for-like actions when measuring incremental builds: switching between `build` and `build-for-testing` can change the products Xcode needs to prepare.
 
+During development, select tests for the behaviour you changed instead of rerunning every platform:
+
+```sh
+bun test apps/web packages
+bun test apps/api/tests/account-basics.test.ts
+scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests/RegisterApprovalTests
+```
+
+These are scoped feedback loops, not substitutes for affected E2E recipes or the [landing checks](AGENTS.md#landing-work-on-main). Include API tests when changing a shared contract or persisted behaviour. `bun test` still runs the full Bun suite; it does not run iOS tests. The iOS `test` command still rebuilds before running the selected class.
+
 The repository is laid out as follows:
 
 - `apps/api`: the ledger, reports and importers.

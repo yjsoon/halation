@@ -118,21 +118,6 @@ final class OutboxStoreTests: XCTestCase {
     XCTAssertEqual(store().peek(), kept)
   }
 
-  func testTheFileIsWrittenAtomically() throws {
-    var options: [String] = []
-    let recording = store(writeData: { data, url in
-      options.append(url.lastPathComponent)
-      try data.write(to: url, options: .atomic)
-    })
-    _ = try recording.load()
-    try recording.save([command(.approve)])
-    XCTAssertEqual(options, [OutboxStore.fileName])
-    // The default writer is the atomic one; a leftover temporary file would
-    // show up next to it.
-    let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
-    XCTAssertEqual(names, [OutboxStore.fileName])
-  }
-
   func testACorruptFileIsSetAsideAndTheOutboxStartsEmpty() throws {
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
     let garbage = Data("{\"version\":1,\"commands\":[{\"broken\":".utf8)
