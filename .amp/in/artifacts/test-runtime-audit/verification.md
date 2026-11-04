@@ -65,5 +65,37 @@ This final artefact update changes no tested code and requires no re-review unde
 - Web/helper cases are cheap: the original web case timings totalled about 0.43 s. Removing them wholesale would not address the main Bun bottleneck.
 - Existing history includes `742009f4`, which already removed duplicate web tests and repaired assertions that could not fail, and `9a8d6165`, which pruned IntakeSkillTests. Do not repeat those deletions by assuming every simple remaining test is redundant.
 - Keep password races, malformed persisted payloads, money/date boundaries and partial-write checks. These assert application contracts, not merely language or framework behaviour.
-- The iOS tree has 46 test files. The full suite was run and its hotspots inspected, but native tests were not changed and no native implementation speed-up is claimed.
+- The first round inspected the 46 iOS test files without changing native tests. The follow-up below optimises the measured rendering hotspots.
 - Use scoped Bun paths and Xcode `-only-testing` while iterating, then run the checks required for the affected contracts and landing. Do not use global concurrency: several web tests replace process-global fetch, storage and money configuration.
+
+## iOS rendering optimisation
+
+- Baseline for this round: `c5e0583dbad10db92d04dfb68a8e61146c30ea4b`, including a clean merge of `origin/main` at `45b6896e`.
+- Tested implementation: `4f677aa8abfc0d7cede21c38c9302d30b4105ba4`.
+- Same Amp mac.medium satellite, Xcode 27.2, Debug HowMuch scheme and iPhone SE (3rd generation) simulator as above. Existing synthetic fixtures, enabled accessibility and warm DerivedData. Runs were sequential, with no concurrent builds.
+- Command for every full run: `scripts/ios-xcodebuild.sh test`. Every run rebuilt successfully before executing, so none reused stale test products.
+
+| Run | Build stage | Test stage | XCTest elapsed | Result |
+| --- | --- | --- | --- | --- |
+| Fresh control at `c5e0583d` | 14 s | 211 s | 196.511 s | 827 tests, 1 intentional skip, 0 failures |
+| Final working tree, identical code to `4f677aa8` | 20 s | 180 s | 163.176 s | 827 tests, 1 intentional skip, 0 failures |
+| Exact commit `4f677aa8` | 13 s | 182 s | 165.906 s | 827 tests, 1 intentional skip, 0 failures |
+
+The two final runs average 164.541 s, about 16% below the fresh control. The test stage averages 181 s versus 211 s. This is a local simulator measurement, not a CI promise: the earlier audit baseline took 179.185 s, showing meaningful machine/run variance.
+
+| Rendering suite | Fresh control | Final run | Exact-commit repeat |
+| --- | --- | --- | --- |
+| CaptureSnapshotTests, 33 cases | 114.584 s | 92.680 s | 93.251 s |
+| RewardsSnapshotTests, 10 cases | 39.842 s | 27.507 s | 29.385 s |
+| RewardRowProjectionTests, all 34 cases | 13.803 s | 14.704 s | 14.360 s |
+
+The unchanged projection suite did not get faster; the saving is concentrated in the two optimised suites. No test methods or existing scenario assertions were removed. Accurate Vision recognition, 2× images, light/dark/large-text variants, visible-line checks, and application state/persistence assertions remain. The polling helper no longer captures an image it immediately overwrites, and Vision reads the captured CGImage directly rather than round-tripping through JPEG. Readiness waits whose OCR return values were discarded now poll accessibility; presentation waits use the existing navigation-settling helper. Accessibility is not used as a substitute for rendered-text assertions.
+
+### Failure controls and intermediate results
+
+- Temporary profiling on 13 representative tests found 67 polling calls and 79 attempts: discarded captures cost 6.314 s and OCR cost 40.470 s. Profiling code was removed before the final runs.
+- An intermediate Capture run failed because the new readiness needle used the display string `GPT 5.6 Luna`, while accessibility exposes the fixture model ID `gpt-5.6-luna`. Corrected the readiness needle, not the model-selection assertions. Both final full runs above pass.
+- Negative visual control: temporarily added `.hidden()` to the root view in `testBlankConversationIgnoresRememberedManualEntry`, leaving assertions unchanged. Ran `scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests/CaptureSnapshotTests/testBlankConversationIgnoresRememberedManualEntry`. Fresh build succeeded; the test failed at its rendered `Add Transactions` assertion and `Send` accessibility assertion (1 test, 2 failures, exit 65). Removed the mutation before committing. The exact-commit full run passes that same test, demonstrating the optimised helper still rejects missing rendered text.
+- No product UI or production implementation changed. No signing credentials, physical-device installation, Speedflight or deployment were involved.
+
+Independent review of the follow-up is pending. The previous protection-information blocker still applies; neither branch nor main has been pushed.
