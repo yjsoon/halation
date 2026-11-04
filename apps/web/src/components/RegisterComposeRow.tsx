@@ -164,6 +164,7 @@ export function RegisterComposeRow({
             value={state.draft.memo}
             onChange={(event) => patch({ memo: event.target.value })}
             placeholder="Memo"
+            maxLength={500}
             disabled={busy}
           />
         </td>

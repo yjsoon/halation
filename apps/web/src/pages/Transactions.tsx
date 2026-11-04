@@ -1,5 +1,5 @@
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError, api, BulkApprovalError, useApi } from "../api/client";
 import type {
   AccountReconciliationPreview,
@@ -41,10 +41,12 @@ import { ClaimGlyph } from "../components/FollowUpChips";
 import { resolvedSinceCount, showsUnapprovedBadge, unapprovedBadgeCount, unapprovedBadgeLabel } from "../lib/unapproved-badge";
 import {
   closedCompose,
+  addEntryHref,
   composePayload,
   reduceCompose,
   type RegisterComposeState,
 } from "../lib/register-compose";
+import { useIsPhone } from "../lib/use-is-phone";
 import {
   focusForRowError,
   idleRowEdit,
@@ -152,6 +154,8 @@ export function TransactionsPage() {
     { key: "", transaction: null, loading: false, error: null },
   );
   const [search, setSearch] = useState("");
+  const navigate = useNavigate();
+  const isPhone = useIsPhone();
   const deferredSearch = useDeferredValue(search);
   const flow = params.get("flow");
   const selectedAccount = filters.accountIds.length === 1
@@ -849,6 +853,11 @@ export function TransactionsPage() {
 
   const openCompose = () => {
     if (!canCompose) {
+      return;
+    }
+    // The inline row is a desktop table row; a phone gets the stacked form.
+    if (isPhone) {
+      navigate(addEntryHref(lockedComposeAccount?.id));
       return;
     }
     if (rowEditRef.current.status === "editing") {
@@ -1549,7 +1558,7 @@ export function TransactionsPage() {
         loading: searchPage.loading,
         error: searchPage.error,
       })
-    : `${rows.length} transactions · ${formatMoney(totals.inflow)} in · ${formatMoney(totals.outflow)} out · ${formatMoney(totals.net, { sign: true })} net`;
+    : `${rows.length} ${rows.length === 1 ? "transaction" : "transactions"} · ${formatMoney(totals.inflow)} in · ${formatMoney(totals.outflow)} out · ${formatMoney(totals.net, { sign: true })} net`;
   const lastOlderTap = !registerQuery && !queueMode && page.loaded && !page.filling && !page.loadingMore && !page.error
     && olderTap?.viewKey === olderTapViewKey
     ? olderTap
@@ -1671,6 +1680,9 @@ export function TransactionsPage() {
       </div>
       <div className="register-toolbar">
         <div className="register-toolbar-actions">
+          {noAccounts ? (
+            <Link to="/accounts/new" className="register-add-link">+ Add your first account</Link>
+          ) : (
           <button
             type="button"
             ref={addTransactionRef}
@@ -1686,14 +1698,17 @@ export function TransactionsPage() {
           >
             + Add transaction
           </button>
-          <button
-            type="button"
-            className="register-add-link register-secondary-action"
-            onClick={openReconcile}
-            disabled={Boolean(mutatingId)}
-          >
-            Reconcile
-          </button>
+          )}
+          {!noAccounts && (
+            <button
+              type="button"
+              className="register-add-link register-secondary-action"
+              onClick={openReconcile}
+              disabled={Boolean(mutatingId)}
+            >
+              Reconcile
+            </button>
+          )}
           {selectedAccount && isCardAccount(selectedAccount) && !selectedAccount.closed && (
             <button
               type="button"
@@ -2098,7 +2113,7 @@ export function TransactionsPage() {
         <section className="report-section">
           {rows.length > 0 || showScheduledDisclosure || compose.status === "open" ? (
             <div className="table-wrap table-wrap-wide">
-              <table className="ledger-table register-table">
+              <table className={selectedAccount ? "ledger-table register-table register-table-one-account" : "ledger-table register-table"}>
                 <thead>
                   <tr>
                     <th className="register-select-heading">
@@ -2117,11 +2132,11 @@ export function TransactionsPage() {
                     </th>
                     <th>Date</th>
                     <th>Account</th>
-                    <th>Payee</th>
+                    <th title="Who you paid, or who paid you">Payee</th>
                     <th>Category</th>
                     <th>Memo</th>
-                    <th className="num">Outflow</th>
-                    <th className="num">Inflow</th>
+                    <th className="num" title="Money out: what you spent or paid">Outflow</th>
+                    <th className="num" title="Money in: what you received">Inflow</th>
                     <th className="register-status-heading"><span className="sr-only">Cleared status</span></th>
                   </tr>
                 </thead>

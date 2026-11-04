@@ -443,6 +443,18 @@
     display: none;
   }
 
+  /* One account's register already names it in the heading. */
+  .register-table-one-account th:nth-child(3),
+  .register-table-one-account td:nth-child(3) {
+    display: none;
+  }
+
+  /* Under 16px, iOS Safari zooms the page when a field takes focus. */
+  .register-table input,
+  .register-table select {
+    font-size: 16px;
+  }
+
   .quick-entry {
     padding-inline: 14px;
   }

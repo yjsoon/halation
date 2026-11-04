@@ -155,7 +155,7 @@ export function RegisterEditableRow(props: {
           surface={surface}
           className={split ? "muted split-line-cell" : undefined}
         >
-          {idlePayee(row, line)}
+          <span className="register-payee-name" title={idlePayee(row, line)}>{idlePayee(row, line)}</span>
           {payeeExtra}
         </IdleCell>
         <IdleCell row={row} focus="category" surface={surface} className="muted">
@@ -179,7 +179,9 @@ export function RegisterEditableRow(props: {
           className="muted memo-cell"
           title={idleMemoTitle(row, line)}
         >
-          <IdleMemo memo={idleMemo(row, line)} claimStatus={row.kind === "posted" ? row.transaction.claim_status : null} claimedOn={row.kind === "posted" ? row.transaction.claimed_on : null} />
+          <span className="register-memo-text">
+            <IdleMemo memo={idleMemo(row, line)} claimStatus={row.kind === "posted" ? row.transaction.claim_status : null} claimedOn={row.kind === "posted" ? row.transaction.claimed_on : null} />
+          </span>
         </IdleCell>
         <IdleCell row={row} focus="outflow" surface={surface} className="num amount-negative">
           {idleOutflow(row, line) ? <>{estimate}{idleOutflow(row, line)}</> : null}
@@ -287,6 +289,7 @@ export function RegisterEditableRow(props: {
               value={draft.memo}
               disabled={busy}
               placeholder="Memo"
+              maxLength={500}
               onChange={(memo) => surface.dispatch({ type: "patch", draft: { memo } })}
             />
           ) : (
@@ -419,6 +422,7 @@ function RowInput({
   value,
   disabled,
   placeholder,
+  maxLength,
   onChange,
 }: {
   id: string;
@@ -428,6 +432,7 @@ function RowInput({
   value: string;
   disabled: boolean;
   placeholder?: string;
+  maxLength?: number;
   onChange: (value: string) => void;
 }): ReactElement {
   return (
@@ -440,6 +445,7 @@ function RowInput({
         name={focus}
         value={value}
         placeholder={placeholder}
+        maxLength={maxLength}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
       />

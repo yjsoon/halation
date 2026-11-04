@@ -1,6 +1,6 @@
 import type { Payee, QuickEntryInput } from "../api/types";
 import { todayIso } from "./dates";
-import { formatMilliunitsInput, parseMilliunits, withPlanDecimal } from "./money";
+import { amountFormatHint, formatMilliunitsInput, parseMilliunits, withPlanDecimal } from "./money";
 
 export type RegisterComposeDraft = {
   clientId: string;
@@ -167,12 +167,19 @@ export function composePayload(
     return { ok: false, error: "Enter an outflow or an inflow, not both." };
   }
   const amountText = outflow || inflow;
+  const payeeName = canonicalPayeeName(payees, draft.payeeName);
+  if (!amountText) {
+    // Both at once, so fixing one does not uncover the other.
+    return { ok: false, error: payeeName ? "Enter an amount in Outflow (money out) or Inflow (money in)." : "Enter a payee and an amount." };
+  }
   const magnitude = parseMilliunits(amountText);
-  if (!amountText || magnitude === null || magnitude <= 0) {
-    return { ok: false, error: "Enter an outflow or an inflow." };
+  if (magnitude === null) {
+    return { ok: false, error: `That amount is not valid. ${amountFormatHint()}` };
+  }
+  if (magnitude <= 0) {
+    return { ok: false, error: "Enter an amount above zero: money out goes in Outflow, money in goes in Inflow." };
   }
 
-  const payeeName = canonicalPayeeName(payees, draft.payeeName);
   const transfer = findTransferPayee(payees, payeeName);
   if (!payeeName) {
     return { ok: false, error: "Enter a payee." };

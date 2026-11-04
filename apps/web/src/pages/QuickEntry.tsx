@@ -24,7 +24,7 @@ function newSplitLine(): SplitLineDraft {
 }
 
 export function QuickEntryPage() {
-  const { planId, accounts, categoryGroups } = usePlan();
+  const { planId, accounts, categoryGroups, reload } = usePlan();
   const payees = useApi(planId, () => api.payees(planId));
   const [params] = useSearchParams();
   const requestedAccountId = params.get("account") ?? "";
@@ -49,6 +49,12 @@ export function QuickEntryPage() {
   // Generated per entry attempt so retries of a failed submit stay idempotent.
   const clientIdRef = useRef(crypto.randomUUID());
   const amountRef = useRef<HTMLInputElement>(null);
+  const savedRef = useRef<HTMLDivElement>(null);
+  // The amount takes focus again for the next entry; keep the confirmation,
+  // which sits just above it, on screen rather than scrolled away.
+  useEffect(() => {
+    if (saved) savedRef.current?.scrollIntoView({ block: "nearest" });
+  }, [saved]);
 
   useEffect(() => {
     document.title = "Quick entry · Halation";
@@ -150,6 +156,8 @@ export function QuickEntryPage() {
           : `${transaction.payee_name ?? "Entry"} saved.`,
       );
       setRecent((entries) => [transaction, ...entries].slice(0, 5));
+      // Account balances live in the plan; without this the ledger shows the old ones.
+      reload();
       setAmount("");
       setPayeeName("");
       setMemo("");
@@ -157,7 +165,7 @@ export function QuickEntryPage() {
       setIsSplit(false);
       setSplitLines([]);
       clientIdRef.current = crypto.randomUUID();
-      amountRef.current?.focus();
+      amountRef.current?.focus({ preventScroll: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -191,6 +199,15 @@ export function QuickEntryPage() {
         </StatusPanel>
       ) : (
         <form onSubmit={submit} className="quick-entry-form">
+          {/* Above the amount, which takes focus again after a save: on a phone
+              the keyboard would hide a confirmation placed by the button. */}
+          {saved && !error && (
+            <div ref={savedRef}>
+              <StatusPanel className="status-panel-success compact-panel" title="Saved." role="status">
+                {saved}
+              </StatusPanel>
+            </div>
+          )}
           <div className="segmented direction-toggle" role="group" aria-label="Direction">
             <button
               type="button"
@@ -259,6 +276,7 @@ export function QuickEntryPage() {
                   setPayeeName(event.target.value);
                 }}
                 placeholder="Merchant"
+                maxLength={200}
                 required
                 autoComplete="off"
               />
@@ -447,6 +465,7 @@ export function QuickEntryPage() {
                   setMemo(event.target.value);
                 }}
                 placeholder="Note"
+                maxLength={500}
               />
             </label>
           </div>
@@ -460,12 +479,6 @@ export function QuickEntryPage() {
               {error}
             </StatusPanel>
           )}
-          {saved && !error && (
-            <StatusPanel className="status-panel-success compact-panel" title="Saved.">
-              {saved}
-            </StatusPanel>
-          )}
-
           <button type="submit" className="save-button" disabled={!canSave}>
             {saving
               ? "Saving..."

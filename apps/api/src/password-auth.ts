@@ -29,6 +29,15 @@ export function validPassword(value: unknown): value is string {
     && Buffer.byteLength(value, "utf8") <= 256;
 }
 
+/**
+ * A password someone may set now. Spaces at either end do not count towards
+ * the 15, so fifteen spaces is not an owner password. Sign-in keeps
+ * `validPassword`, so any password set before this rule still works.
+ */
+export function acceptableNewPassword(value: unknown): value is string {
+  return validPassword(value) && Array.from(value.trim()).length >= 15;
+}
+
 export async function passwordCredential(password: string): Promise<Omit<StoredCredential, "user_id" | "username">> {
   const salt = randomBytes(16);
   const hash = await derive(password, salt, SCRYPT_PARAMS.costN, SCRYPT_PARAMS.blockSize, SCRYPT_PARAMS.parallelization);

@@ -61,7 +61,7 @@ export function accountGroups(
     accounts: group.account_ids.map((id) => byId.get(id)).filter((account): account is Account => Boolean(account)),
   }));
   const builtIn: AccountGroup[] = [
-    { id: "cash", label: "Cash", kind: "index", accounts: open.filter((account) => CASH_TYPES.has(account.type ?? "")) },
+    { id: "cash", label: "Bank and cash", kind: "index", accounts: open.filter((account) => CASH_TYPES.has(account.type ?? "")) },
     { id: "credit", label: "Credit", kind: "index", accounts: open.filter((account) => CREDIT_TYPES.has(account.type ?? "")) },
     { id: "tracking", label: "Tracking", kind: "index", accounts: open.filter((account) => !CASH_TYPES.has(account.type ?? "") && !CREDIT_TYPES.has(account.type ?? "")) },
     { id: "closed", label: "Closed", kind: "index", accounts: accounts.filter((account) => account.closed) },

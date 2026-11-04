@@ -337,6 +337,7 @@ export function PayeeCombobox({
         value={value}
         autoComplete="off"
         placeholder="Payee"
+        maxLength={200}
         disabled={disabled}
         required={required}
         onChange={(event) => {

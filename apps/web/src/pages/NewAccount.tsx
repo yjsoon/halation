@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { StatusPanel } from "../components/StatusPanel";
-import { parseMilliunits } from "../lib/money";
+import { amountFormatHint, parseMilliunits } from "../lib/money";
 import { ACCOUNT_KIND_GROUPS, newAccountRequest, storesLiability, type NewAccountKind } from "../lib/new-account";
 import { usePlan } from "../state/plan";
 
@@ -63,13 +63,15 @@ export function NewAccountPage() {
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
-            placeholder="Everyday account"
+            placeholder="For example, Everyday account"
+            aria-describedby="new-account-name-note"
             maxLength={100}
             autoComplete="off"
             autoFocus
             required
             disabled={saving}
           />
+          {!name.trim() && <span id="new-account-name-note" className="field-note">Required. Give this account a name.</span>}
         </label>
         <label className="field">
           <span className="field-label">Type</span>
@@ -97,10 +99,10 @@ export function NewAccountPage() {
           />
           <span id="new-account-balance-note" className={balanceInvalid ? "field-note field-note-error" : "field-note"}>
             {balanceInvalid
-              ? "Enter a valid amount."
+              ? amountFormatHint()
               : liability
                 ? "Enter what you owe today."
-                : "Today’s balance. Use a minus sign if you’re overdrawn."}
+                : "Today’s balance. If it is below zero, start with a minus sign, such as -20."}
           </span>
         </label>
         <button type="submit" className="save-button" disabled={!request.ok || saving || provisional}>
