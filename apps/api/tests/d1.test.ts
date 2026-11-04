@@ -1151,6 +1151,8 @@ describe("D1 foundation", () => {
       ['{"settings":{"milesValuation":"0.05"}}', 0.01],
       ['{"settings":{"milesValuation":1e400}}', 0.01],
       [' {"cards":[{"id":"x"}],"settings":{"currency":"S\\u0024D","milesValuation":0.015,"extra":{"a":[1,2]}}} ', 0.015],
+      // SQLite json_valid rejects nesting deeper than 1000; JSON.parse does not.
+      [`{"settings":{"milesValuation":0.05},"themeGroups":${"[".repeat(1001)}${"]".repeat(1001)}}`, 0.05],
       ['{"settings":', "throws"],
       ["{settings:{milesValuation:0.05},}", "throws"],
     ];

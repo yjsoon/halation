@@ -23,19 +23,22 @@ export function parseRewardGroupBy(value: string | null | undefined): RewardGrou
 
 /**
  * Selects only `settings` from a rewards_tracker_snapshots row, so reports do not
- * transfer and parse the whole envelope. `payload_valid` keeps JSON.parse's
- * rejection of malformed (and JSON5-only) payloads; non-object settings come back
- * NULL, which parseAppSettings already treats as defaults.
+ * transfer and parse the whole envelope. Payloads SQLite rejects (malformed,
+ * JSON5-only, or nested deeper than SQLite allows) come back whole and go through
+ * JSON.parse as before; non-object settings come back NULL, which
+ * parseAppSettings already treats as defaults.
  */
-export const REWARDS_SNAPSHOT_SETTINGS_COLUMNS = `json_valid(payload_json) AS payload_valid,
+export const REWARDS_SNAPSHOT_SETTINGS_COLUMNS = `CASE WHEN NOT json_valid(payload_json) THEN payload_json END AS invalid_payload_json,
   CASE WHEN NOT json_valid(payload_json) THEN NULL
     WHEN json_type(payload_json, '$.settings') = 'object' THEN json_extract(payload_json, '$.settings')
   END AS settings_json`;
 
-export type RewardsSnapshotSettingsRow = { payload_valid: number; settings_json: string | null };
+export type RewardsSnapshotSettingsRow = { invalid_payload_json: string | null; settings_json: string | null };
 
 export function parseSnapshotSettings(row: RewardsSnapshotSettingsRow | null): AppSettings {
-  if (row && !row.payload_valid) throw new SyntaxError("Rewards tracker snapshot is not valid JSON");
+  if (row?.invalid_payload_json != null) {
+    return parseAppSettings((JSON.parse(String(row.invalid_payload_json)) as { settings?: unknown } | null)?.settings);
+  }
   return parseAppSettings(row?.settings_json == null ? undefined : JSON.parse(row.settings_json));
 }
 
