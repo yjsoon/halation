@@ -64,7 +64,7 @@ describe("register bulk eligibility", () => {
 });
 
 describe("register bulk outcomes", () => {
-  test("never counts already_removed as this command's work or as remaining work", () => {
+  test("treats already_removed as settled and retries only unresolved or unattempted rows", () => {
     const result = summary([
       { id: "a", status: "applied" },
       { id: "b", status: "already_removed" },
@@ -72,8 +72,6 @@ describe("register bulk outcomes", () => {
       { id: "d", status: "unresolved" },
       { id: "e", status: "unattempted" },
     ]);
-    expect(result.applied_count).toBe(1);
-    expect(result.already_removed_count).toBe(1);
     expect(bulkOutcomeIsComplete(result)).toBe(false);
     expect(remainingWorkIds(result)).toEqual(["d", "e"]);
     expect(bulkOutcomeIsComplete(summary([

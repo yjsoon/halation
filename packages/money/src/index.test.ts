@@ -48,6 +48,14 @@ describe("parseAmount in a comma-decimal plan", () => {
 describe("parseAmount in a dot-decimal plan", () => {
   test("reads the dot as the decimal mark and the comma as grouping", () => {
     expect(parseAmount("12", sgd)).toBe(12_000);
+    expect(parseAmount("12.3", sgd)).toBe(12_300);
+    expect(parseAmount("12.34", sgd)).toBe(12_340);
+    expect(parseAmount("-0.29", sgd)).toBe(-290);
+    expect(parseAmount("-.29", sgd)).toBe(-290);
+    expect(parseAmount("1.", sgd)).toBe(1_000);
+    expect(parseAmount("+1.13", sgd)).toBe(1_130);
+    expect(parseAmount("1,200.50", sgd)).toBe(1_200_500);
+    expect(parseAmount("1,200", sgd)).toBe(1_200_000);
     expect(parseAmount("12.5", sgd)).toBe(12_500);
     expect(parseAmount("1,234.56", sgd)).toBe(1_234_560);
     expect(parseAmount("1,234", sgd)).toBe(1_234_000);
@@ -78,7 +86,7 @@ describe("parseAmount in a dot-decimal plan", () => {
 });
 
 describe("parseAmount rejects junk instead of guessing", () => {
-  test.each(["", " ", "-", "+", ".", ",", "$", "--5", "+-5", "1.-5", "0x10", "1e3", "Infinity", "NaN", "12a", "1 2", "1.2.3", "(5)", "5-"])(
+  test.each(["", " ", "-", "+", ".", ",", "$", "--5", "+-5", "1.-5", "0x10", "1e3", "Infinity", "NaN", "12a", "1 2", "1.2.3", "12.34.5", "(5)", "5-"])(
     "%p",
     (text) => {
       expect(parseAmount(text, sgd)).toBeNull();
@@ -88,6 +96,8 @@ describe("parseAmount rejects junk instead of guessing", () => {
 
 describe("parseAmount respects the currency's decimal places", () => {
   test("rejects digits beyond the minor unit, keeping trailing zeros", () => {
+    expect(parseAmount("12.345", sgd)).toBeNull();
+    expect(parseAmount("1.2345", sgd)).toBeNull();
     expect(parseAmount("1.9999", sgd)).toBeNull();
     expect(parseAmount("1.005", sgd)).toBeNull();
     expect(parseAmount("1.2500", sgd)).toBe(1_250);

@@ -2,28 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { configureMoney, formatMilliunitsField, formatMilliunitsInput, formatMoney, formatSavingsRate, parseMilliunits, parseMilliunitsKeeping } from "./money";
 
 describe("parseMilliunits", () => {
-  test("parses whole numbers and decimals up to the currency's minor unit exactly", () => {
-    expect(parseMilliunits("12")).toBe(12_000);
-    expect(parseMilliunits("12.3")).toBe(12_300);
-    expect(parseMilliunits("12.34")).toBe(12_340);
-    expect(parseMilliunits("-0.29")).toBe(-290);
-    expect(parseMilliunits(".5")).toBe(500);
-    expect(parseMilliunits("-.29")).toBe(-290);
-    expect(parseMilliunits("1.")).toBe(1_000);
-    expect(parseMilliunits("+1.13")).toBe(1_130);
-    expect(parseMilliunits("1,200.50")).toBe(1_200_500);
-    expect(parseMilliunits("1,200")).toBe(1_200_000);
-  });
-
-  test("rejects scientific notation, extra decimals, and empty values", () => {
-    expect(parseMilliunits("")).toBeNull();
-    expect(parseMilliunits(".")).toBeNull();
-    expect(parseMilliunits("12.345")).toBeNull();
-    expect(parseMilliunits("1.2345")).toBeNull();
-    expect(parseMilliunits("1e3")).toBeNull();
-    expect(parseMilliunits("12.34.5")).toBeNull();
-  });
-
   // Failure mode: formatMoney shows an imported comma-decimal plan's amounts
   // as "12,50", and the amount fields read that comma as a group mark, so
   // typing what the page shows stores a hundred times the amount. A lone dot
