@@ -1137,3 +1137,15 @@ button.estimate-mark:disabled {
   color: var(--ink-faint);
   box-shadow: inset 0 0 0 1px var(--rule-control);
 }
+
+/* A payee is one cell, however long: a pasted wall of text must not push the
+   amounts off the page for every row. The full name is the cell's title. */
+.register-payee-name,
+.register-memo-text {
+  display: inline-block;
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+}

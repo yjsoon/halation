@@ -81,6 +81,13 @@ export function planDecimalIsComma(): boolean {
   return decimalSeparator === ",";
 }
 
+/** How to type an amount in this plan, for an error that rejects one. */
+export function amountFormatHint(): string {
+  return amountFormat.decimalDigits === 0
+    ? "Enter a whole number, such as 1500."
+    : `Enter a number such as 1500 or ${withPlanDecimal("1500.50")}.`;
+}
+
 /** `formatMilliunitsInput` with the plan's decimal mark, for a field's text. */
 export function formatMilliunitsField(milliunits: number): string {
   return withPlanDecimal(formatMilliunitsInput(milliunits));

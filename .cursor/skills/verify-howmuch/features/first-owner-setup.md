@@ -10,8 +10,9 @@ A brand-new HowMuch database has no user. The first visitor creates the owner ac
 - `setup-blocked` on a Worker with no `HOWMUCH_API_TOKEN` shows the steps to add the secret instead of the form (`/api/auth/status` has `setup_blocked: true`).
 - `signin-private-note` shows "This is a private Halation instance…" with a link to the repository.
 - `setup-create` accepts `verifier` / `howmuch-verify-15` / `howmuch-verify-bootstrap` and lands on Ledger.
-- `setup-reject-short-password` keeps **Create account** disabled while the password is under 15 characters.
+- `setup-reject-short-password` keeps **Create account** disabled while the password is under 15 characters (spaces at either end do not count), and the note under Password says how many more are needed.
 - `setup-empty-plan` setup creates no categories: `GET /v1/plans/{plan}/categories` has no groups until the first account (see [Add account](./add-account.md)), so the plan stays empty for snapshot import.
+- `setup-data-note` the setup form says `Your account and ledger are stored only on this server.`
 - `ia-no-plan` after create or sign-in: heading Ledger, Primary navigation has no `Plan`, `API tokens`, or `Rewards import`, `{web_url}/plan` and `{web_url}/no-such-route` both land on Ledger, and page text has no `Ready to assign`.
 - `signin-return` shows **Sign in to Halation** after sign out (setup is no longer offered).
 - `signout` returns to the sign-in form and drops the session.

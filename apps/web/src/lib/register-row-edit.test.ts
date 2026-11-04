@@ -369,11 +369,11 @@ describe("planRowCommit", () => {
   test("rejects an empty amount when the row may edit amount", () => {
     expect(planRowCommit(posted(txn()), { ...shopDraft, outflow: "", inflow: "" }, payees)).toEqual({
       kind: "invalid",
-      message: "Enter an outflow or an inflow.",
+      message: "Enter an amount in Outflow (money out) or Inflow (money in).",
     });
     expect(planRowCommit(posted(txn()), { ...shopDraft, outflow: "nope" }, payees)).toEqual({
       kind: "invalid",
-      message: "Enter an outflow or an inflow.",
+      message: "That amount is not valid. Enter a number such as 1500 or 1500.50.",
     });
   });
 

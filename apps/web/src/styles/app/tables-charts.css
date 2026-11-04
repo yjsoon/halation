@@ -619,6 +619,15 @@ tr:hover .share-bar {
   }
 }
 
+.register-toast .status-title {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
 .status-title {
   margin: 0;
   font-size: 12px;

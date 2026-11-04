@@ -443,6 +443,18 @@
     display: none;
   }
 
+  /* One account's register already names it in the heading. */
+  .register-table-one-account th:nth-child(3),
+  .register-table-one-account td:nth-child(3) {
+    display: none;
+  }
+
+  /* Under 16px, iOS Safari zooms the page when a field takes focus. */
+  .register-table input,
+  .register-table select {
+    font-size: 16px;
+  }
+
   .quick-entry {
     padding-inline: 14px;
   }
@@ -676,5 +688,242 @@
 
   .card-terms-form .field-row {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Phone ledger: each transaction is a two-line card instead of a 680px table
+   row, so the amount is always beside the payee. Every register row renders
+   the same nine cells (select, date, account, payee, category, memo, outflow,
+   inflow, status), so the cells are placed by position. */
+@media (max-width: 720px) {
+  .table-wrap-wide:has(> .register-table) {
+    overflow-x: visible;
+    background: none;
+  }
+
+  .table-wrap-wide .register-table {
+    display: block;
+    min-width: 0;
+  }
+
+  .register-table thead {
+    display: none;
+  }
+
+  .register-table tbody {
+    display: block;
+  }
+
+  .register-table tbody tr {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    column-gap: 8px;
+    row-gap: 2px;
+    padding: 9px 0 8px;
+    border-bottom: 1px solid var(--rule);
+    touch-action: manipulation;
+  }
+
+  .register-table tbody td {
+    display: block;
+    min-width: 0;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none;
+  }
+
+  /* Whole-row backgrounds (hover, selected, targeted, editing) on the card. */
+  .register-table tbody tr.register-row-idle:has(.register-select input:checked) {
+    background: color-mix(in srgb, var(--plan-accent) 9%, var(--paper));
+  }
+
+  .register-table tbody tr.register-row-targeted {
+    background: color-mix(in srgb, var(--plan-accent) 20%, var(--paper));
+  }
+
+  .register-table tbody tr.register-row-idle > td,
+  .register-table tbody tr.register-row-targeted > td {
+    background: none !important;
+  }
+
+  /* Fixed edge columns, so rows without a checkbox or cleared toggle (split
+     lines, schedules) line up with the rows that have them. */
+  .register-table tbody td:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+    width: 16px;
+  }
+
+  .register-table tbody td:nth-child(4) {
+    grid-column: 2 / 4;
+    grid-row: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
+  .register-table tbody td:nth-child(7),
+  .register-table tbody td:nth-child(8) {
+    grid-column: 4;
+    grid-row: 1;
+    text-align: right;
+    white-space: nowrap;
+  }
+
+  /* One of the two is empty; keep it from covering the other. */
+  .register-table tbody td:nth-child(7):empty,
+  .register-table tbody td:nth-child(8):empty {
+    display: none;
+  }
+
+  /* Without column headings, the sign says which way the money went. */
+  .register-table tbody tr:not(.register-compose-row) td:nth-child(7):not(:empty)::before {
+    content: "−";
+  }
+
+  .register-table tbody tr:not(.register-compose-row) td:nth-child(8):not(:empty)::before {
+    content: "+";
+  }
+
+  .register-table tbody td:nth-child(9) {
+    grid-column: 5;
+    grid-row: 1 / span 2;
+    align-self: center;
+    width: 28px;
+    text-align: center;
+  }
+
+  .register-table tbody td:nth-child(2),
+  .register-table tbody td:nth-child(3),
+  .register-table tbody td:nth-child(5) {
+    grid-row: 2;
+    font-size: 12px;
+    color: var(--ink-soft);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .register-table tbody td:nth-child(2) {
+    grid-column: 2;
+  }
+
+  .register-table tbody td:nth-child(5) {
+    grid-column: 3;
+  }
+
+  .register-table tbody td:nth-child(3) {
+    grid-column: 4;
+    text-align: right;
+    max-width: 40vw;
+  }
+
+  /* A schedule's detail ends in its Manage link; wrap rather than cut it. */
+  .register-table tbody tr.register-scheduled-row td:nth-child(5) {
+    grid-column: 3 / 5;
+    white-space: normal;
+  }
+
+  /* Disclosure, message and action rows are one wide cell. */
+  .register-table tbody td[colspan] {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    width: auto;
+    text-align: left;
+  }
+
+  .register-table tbody tr.register-scheduled-disclosure-row,
+  .register-table tbody tr.register-scheduled-message {
+    padding-block: 6px;
+  }
+
+  .register-scheduled-disclosure {
+    position: static;
+    width: 100%;
+  }
+
+  /* Editing a row: one labelled field per line, full width. */
+  .register-table tbody tr.register-compose-row {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 10px;
+    padding: 12px;
+    background: var(--plan-accent-wash);
+    box-shadow: inset 3px 0 var(--plan-accent);
+    border-bottom: 0;
+  }
+
+  .register-table tbody tr.register-compose-row > td,
+  .register-table tbody tr.register-compose-row > td:nth-child(n) {
+    grid-column: 1;
+    grid-row: auto;
+    display: grid;
+    gap: 4px;
+    max-width: none;
+    overflow: visible;
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+    text-align: left;
+    white-space: normal;
+    box-shadow: none;
+    background: none !important;
+  }
+
+  .register-table tbody tr.register-compose-row > td:nth-child(1),
+  .register-table tbody tr.register-compose-row > td:nth-child(9) {
+    display: none;
+  }
+
+  /* The phone hides the memo column; an edit still needs it. */
+  .register-table tbody tr.register-compose-row > td:nth-child(6) {
+    display: grid;
+  }
+
+  .register-table tbody tr.register-compose-row > td::before {
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink-faint);
+  }
+
+  .register-table tbody tr.register-compose-row > td:nth-child(2)::before { content: "Date"; }
+  .register-table tbody tr.register-compose-row > td:nth-child(3)::before { content: "Account"; }
+  .register-table tbody tr.register-compose-row > td:nth-child(4)::before { content: "Payee"; }
+  .register-table tbody tr.register-compose-row > td:nth-child(5)::before { content: "Category"; }
+  .register-table tbody tr.register-compose-row > td:nth-child(6)::before { content: "Memo"; }
+  .register-table tbody tr.register-compose-row > td:nth-child(7)::before { content: "Outflow (money out)"; }
+  .register-table tbody tr.register-compose-row > td:nth-child(8)::before { content: "Inflow (money in)"; }
+
+  .register-table tbody tr.register-compose-row input,
+  .register-table tbody tr.register-compose-row select,
+  .register-table tbody tr.register-compose-row .payee-combobox {
+    width: 100%;
+    min-height: 40px;
+    box-sizing: border-box;
+  }
+
+  .register-table tbody tr.register-compose-actions-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 0 12px 12px;
+    background: var(--plan-accent-wash);
+    box-shadow: inset 3px 0 var(--plan-accent);
+  }
+
+  .register-table tbody tr.register-compose-actions-row > td {
+    background: none !important;
+    box-shadow: none;
+  }
+
+  .register-compose-actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .register-compose-actions .register-compose-meta {
+    flex-basis: 100%;
   }
 }

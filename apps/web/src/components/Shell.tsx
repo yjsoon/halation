@@ -118,6 +118,16 @@ export function Shell() {
   const registerLabel = filters.accountIds.length === 0
     ? "Ledger"
     : selectedAccount?.name ?? (filters.accountIds.length === 1 ? "Account unavailable" : "Selected Accounts");
+  // The register's "uncategorised" pill is a triage view, not a choice of
+  // what to report on; carrying it would make the report silently partial.
+  const reportSearch = (() => {
+    if (location.pathname !== "/transactions") return location.search;
+    const params = new URLSearchParams(location.search);
+    if (params.get("categories") !== "uncategorised") return location.search;
+    params.delete("categories");
+    const search = params.toString();
+    return search ? `?${search}` : "";
+  })();
   const handleLogout = async () => {
     setLogoutError(null);
     try {
@@ -267,7 +277,7 @@ export function Shell() {
             {REPORTS.map((report, index) => (
               <NavLink
                 key={report.to}
-                to={{ pathname: report.to, search: location.search }}
+                to={{ pathname: report.to, search: reportSearch }}
                 viewTransition={location.pathname !== report.to}
                 {...prefetch(report.load)}
                 style={{ "--i": index } as CSSProperties}

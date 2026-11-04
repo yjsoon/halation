@@ -203,6 +203,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<"checking" | SignedOutMode | "ready">("checking");
   const [bootstrapRequired, setBootstrapRequired] = useState(true);
+  const [categoriserEnabled, setCategoriserEnabled] = useState(false);
   const [generation, setGeneration] = useState(0);
   const sessionEndedRef = useRef(false);
   const cancelBootstrapRef = useRef<() => void>(() => {});
@@ -333,6 +334,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         const status = await statusPromise;
         if (cancelled) return;
         setBootstrapRequired(status.bootstrap_required);
+        setCategoriserEnabled(status.categoriser_enabled === true);
         // Kept current from every bootstrap, so a session renewed or revoked
         // elsewhere is reflected the next time this browser decides whether it
         // may paint from cache.
@@ -567,6 +569,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       <AuthForm
         mode={authMode}
         bootstrapRequired={bootstrapRequired}
+        categoriserEnabled={categoriserEnabled}
         error={error}
         onSuccess={() => {
           sessionEndedRef.current = false;
@@ -640,15 +643,17 @@ function SetupBlocked() {
 function AuthForm({
   mode,
   bootstrapRequired,
+  categoriserEnabled,
   error,
   onSuccess,
   onError,
 }: {
   mode: "setup" | "login";
   bootstrapRequired: boolean;
+  categoriserEnabled: boolean;
   error: string | null;
   onSuccess: () => void;
-  onError: (message: string) => void;
+  onError: (message: string | null) => void;
 }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -657,6 +662,13 @@ function AuthForm({
   const [currency, setCurrency] = useState(() => guessCurrency() ?? DEFAULT_CURRENCY);
   const [dateFormat, setDateFormat] = useState<DateFormatChoice>(() => guessDateFormat());
   const setup = mode === "setup";
+  // Setup refuses a password padded out with spaces; sign-in checks what was set.
+  // An answer about the last attempt stops being true once a field changes.
+  const edit = (set: (value: string) => void) => (value: string) => {
+    set(value);
+    if (error) onError(null);
+  };
+  const passwordShortBy = Math.max(0, 15 - Array.from(setup ? password.trim() : password).length);
 
   return (
     <form
@@ -664,6 +676,7 @@ function AuthForm({
       onSubmit={async (event) => {
         event.preventDefault();
         setSubmitting(true);
+        onError(null);
         try {
           const session = setup
             ? await api.setup(username, password, bootstrapToken, buildPlanSeed(currency, dateFormat))
@@ -685,7 +698,12 @@ function AuthForm({
         <>
           <HalationMark size="hero" />
           <h1>Set up Halation</h1>
-          <p>Create your account.</p>
+          <p>Create the owner account for this server.</p>
+          <p className="boot-hint">
+            Your account and ledger are stored only on this server. Halation has no hosted service and no sign-up for
+            anyone else.
+            {categoriserEnabled && " This server sends details of new transactions to TypeSafe to pick their categories."}
+          </p>
         </>
       )}
       <label>
@@ -693,9 +711,11 @@ function AuthForm({
         <input
           type="text"
           value={username}
-          onChange={(event) => setUsername(event.target.value)}
+          onChange={(event) => edit(setUsername)(event.target.value.trim())}
           autoComplete="username"
           pattern={"[A-Za-z0-9._\\-]{3,64}"}
+          title="3 to 64 letters, numbers, dots, underscores or hyphens. No spaces."
+          aria-describedby={setup ? "auth-username-note" : undefined}
           minLength={3}
           maxLength={64}
           autoCapitalize="none"
@@ -703,26 +723,34 @@ function AuthForm({
           required
         />
       </label>
+      {setup && (
+        <span id="auth-username-note" className="field-note auth-field-note">
+          3 to 64 letters, numbers, dots, underscores or hyphens. No spaces.
+        </span>
+      )}
       <label>
         <span>Password</span>
         <input
           type="password"
           value={password}
-          onChange={(event) => setPassword(event.target.value)}
+          onChange={(event) => edit(setPassword)(event.target.value)}
           autoComplete={setup ? "new-password" : "current-password"}
           minLength={15}
           aria-describedby="auth-password-note"
           required
         />
       </label>
-      <span id="auth-password-note" className="field-note auth-field-note">At least 15 characters.</span>
+      <span id="auth-password-note" className="field-note auth-field-note" aria-live="polite">
+        At least 15 characters{setup ? ", not counting spaces at the start or end" : ""}.
+        {passwordShortBy > 0 && password.length > 0 && <> {passwordShortBy} more needed.</>}
+      </span>
       {setup && bootstrapRequired && (
         <label>
           <span>Setup token</span>
           <input
             type="password"
             value={bootstrapToken}
-            onChange={(event) => setBootstrapToken(event.target.value)}
+            onChange={(event) => edit(setBootstrapToken)(event.target.value)}
             autoComplete="off"
             aria-describedby="auth-token-note"
             required
@@ -732,7 +760,7 @@ function AuthForm({
       {setup && bootstrapRequired && (
         <span id="auth-token-note" className="field-note auth-field-note">
           The <code>HOWMUCH_API_TOKEN</code> secret you set when deploying this server.{" "}
-          <a href={SETUP_TOKEN_DOCS_URL}>How to set it</a>
+          <a href={SETUP_TOKEN_DOCS_URL} target="_blank" rel="noreferrer">How to set it</a>
         </span>
       )}
       {setup && (
@@ -754,7 +782,7 @@ function AuthForm({
       )}
       <button
         type="submit"
-        disabled={submitting || !username || password.length < 15 || (setup && bootstrapRequired && !bootstrapToken)}
+        disabled={submitting || !username || passwordShortBy > 0 || (setup && bootstrapRequired && !bootstrapToken)}
       >
         {submitting ? "Please wait…" : setup ? "Create account" : "Sign in"}
       </button>
@@ -765,7 +793,7 @@ function AuthForm({
       {!setup && (
         <p className="boot-hint">
           This is a private Halation instance.{" "}
-          <a href={REPOSITORY_URL}>Run your own</a>.
+          <a href={REPOSITORY_URL} target="_blank" rel="noreferrer">Run your own</a>.
         </p>
       )}
     </form>

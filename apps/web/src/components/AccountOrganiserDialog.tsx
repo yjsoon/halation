@@ -22,7 +22,7 @@ const SORT_OPTIONS: Array<{ value: AccountGroupSort; label: string }> = [
 
 const BUILT_IN_GROUPS = [
   { id: "favourites", label: "Favourites" },
-  { id: "cash", label: "Cash" },
+  { id: "cash", label: "Bank and cash" },
   { id: "credit", label: "Credit" },
   { id: "tracking", label: "Tracking" },
   { id: "closed", label: "Closed" },

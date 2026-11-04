@@ -10,6 +10,7 @@ The register is a dense list of ledger rows with the same filter rail as reports
 - `register-search` finds rows by payee, memo, category, account, or amount as it appears (`142.30`, `142`, `$142.30`), including older transactions than the ones already on screen.
 - `register-balances` shows the working balance as the header figure, with `{cleared} cleared · {uncleared} uncleared` beneath it. A single-account register adds `{amount} as of today` when posted future-dated rows exist, and `Last reconciled {date}` once the account has been reconciled.
 - `register-scheduled` shows a closed **Scheduled** disclosure on Ledger and on an account register when recurrences or posted futures exist.
+- `register-phone-cards` at viewport ≤720px every row is a two-line card: payee and signed amount (`−$17.60`, `+$4,850.00`) on top; date, category and, on Ledger, the account beneath. `document.documentElement.scrollWidth` equals the viewport width and no amount is off screen. Double-tapping a row opens a stacked editor with labelled fields (`Outflow (money out)`, `Inflow (money in)`) and Cancel / Save inside the card; saving updates the card and `GET …/transactions/{id}`.
 
 ## How to get to it (user POV)
 

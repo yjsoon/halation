@@ -1,6 +1,6 @@
 import { isStorableMilliunits } from "@howmuch/money";
 import type { Payee, Subtransaction, Transaction, TransactionUpdateInput } from "../api/types";
-import { minorUnitMilliunits, parseMilliunits, planDecimalIsComma } from "./money";
+import { amountFormatHint, minorUnitMilliunits, parseMilliunits, planDecimalIsComma } from "./money";
 import { accountIcon } from "./account-icon";
 import { canonicalPayeeName, findTransferPayee, formatMilliunitsPadded } from "./register-compose";
 import { legacyWords, type ClaimStatus } from "./follow-up";
@@ -691,12 +691,12 @@ function planAmountChange(
     if (current === 0) {
       return { kind: "same" };
     }
-    return { kind: "invalid", message: "Enter an outflow or an inflow." };
+    return { kind: "invalid", message: "Enter an amount in Outflow (money out) or Inflow (money in)." };
   }
   const field = outflow ? "outflow" : "inflow";
   const parsed = parseAmountEntry(outflow || inflow);
   if (parsed === null) {
-    return { kind: "invalid", message: "Enter an outflow or an inflow." };
+    return { kind: "invalid", message: `That amount is not valid. ${amountFormatHint()}` };
   }
   const amount = signedAmount(parsed, field);
   return amount === current ? { kind: "same" } : { kind: "changed", amount };

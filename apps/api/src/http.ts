@@ -30,6 +30,7 @@ import {
   passwordCredential,
   safeTokenEqual,
   sha256,
+  acceptableNewPassword,
   validPassword,
   verifyPassword,
 } from "./password-auth";
@@ -1322,7 +1323,7 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
 
     const body = await readJson(request);
     const username = canonicalUsername(body.username);
-    if (!username || !validPassword(body.password)) {
+    if (!username || !acceptableNewPassword(body.password)) {
       return authError(400, "bad_request", "Username or password does not meet the requirements");
     }
 
@@ -1399,7 +1400,7 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
     }
     const body = await readJson(request);
     if (!body || typeof body !== "object" || Array.isArray(body)
-      || typeof body.current_password !== "string" || !validPassword(body.new_password)) {
+      || typeof body.current_password !== "string" || !acceptableNewPassword(body.new_password)) {
       return authError(400, "bad_request", "A current password and a new password of at least 15 characters are required");
     }
     // Same byte ceiling as sign-in, checked before any key derivation.

@@ -165,8 +165,8 @@ function ChangePasswordSection() {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setDone(false);
-    if (Array.from(next).length < MIN_PASSWORD_LENGTH) {
-      setError(`The new password needs at least ${MIN_PASSWORD_LENGTH} characters.`);
+    if (Array.from(next.trim()).length < MIN_PASSWORD_LENGTH) {
+      setError(`The new password needs at least ${MIN_PASSWORD_LENGTH} characters, not counting spaces at the start or end.`);
       return;
     }
     if (next !== confirm) {
@@ -357,6 +357,10 @@ function ExportSection() {
             The archive holds every account, transaction, split, schedule, category and payee, the plan formats, your account
             organisation and the Rewards cards. Its ledger can be imported into an empty plan. The CSV lists every transaction for a
             spreadsheet, one row per split line. Passwords and API tokens are never included.
+          </span>
+          <span className="section-meta">
+            Your ledger lives only in this server's own database, and Halation keeps no other copy. To delete everything,
+            delete that database: on Cloudflare, the D1 database and the Worker in your account.
           </span>
         </div>
       </div>
