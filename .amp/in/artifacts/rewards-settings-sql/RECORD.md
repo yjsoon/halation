@@ -2,7 +2,7 @@
 
 ## Revision
 
-Code under test: merge `184c07b5` on branch `rewards-settings-sql`, which is the change `f6a79a56` (base `c9d75ae7`) merged with `origin/main` `5a642cba` (a web-only CategorySelect change). The recipe ran first at `f6a79a56` and again at `184c07b5`, 62 of 62 both times; `recipe/` holds the second run. Later commits change only `.amp/in/artifacts/`.
+Code under test: `a70e41ac` on branch `rewards-settings-sql`: the change `f6a79a56` (base `c9d75ae7`), merged with `origin/main` `5a642cba` (a web-only CategorySelect change) in `184c07b5`, plus the review fix `a70e41ac` (payloads SQLite rejects fall back to JSON.parse). The recipe passed 62 of 62 at `f6a79a56`, `184c07b5` and `a70e41ac`; `recipe/` holds the `a70e41ac` run. Later commits change only `.amp/in/artifacts/`.
 
 ## Fixture and setup
 
@@ -33,6 +33,6 @@ Result: 62 of 62 checks passed, no page errors (`recipe/checks.json`). The HTTP 
 
 ## Isolated checks
 
-- `bun test apps/api`: 442 pass, 0 fail, including the new `D1 and SQLite rewards read snapshot settings with JSON.parse semantics` (14 payload shapes on both services). That test passed on `c9d75ae7` before the change and fails against plain `json_extract` and against the query without its `json_valid` guard.
-- Miniflare 4.20260714 workerd D1 ran the same projection: object settings returned as JSON text; string, number, array-envelope and `null` payloads gave NULL settings; malformed and JSON5 payloads gave `payload_valid = 0`.
+- `bun test apps/api`: 442 pass, 0 fail, including the new `D1 and SQLite rewards read snapshot settings with JSON.parse semantics` (15 payload shapes on both services, including a payload nested 1001 deep that SQLite rejects and JSON.parse accepts). That test passed on `c9d75ae7` before the change and fails against plain `json_extract` and against the query without its `json_valid` guard.
+- Miniflare 4.20260714 workerd D1 ran the same projection: object settings returned as JSON text; string, number, array-envelope and `null` payloads gave NULL settings; malformed and JSON5 payloads failed json_valid (the first review run; the fix keeps the same json_valid test and now returns such payloads whole for JSON.parse). Malformed and JSON5 payloads still throw the same native SyntaxError as before the change.
 - `bun run typecheck` in `apps/worker`: clean.
