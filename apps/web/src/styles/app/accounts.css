@@ -572,6 +572,22 @@
   margin-right: auto;
 }
 
+/* "+ New category…" from any category list: one short form. */
+.new-category-dialog {
+  width: min(440px, calc(100vw - 32px));
+  height: fit-content;
+}
+
+.new-category-fields {
+  display: grid;
+  gap: 12px;
+  padding-top: 20px;
+}
+
+.new-category-fields .field {
+  margin: 0;
+}
+
 .card-terms-field-warning {
   color: var(--red);
 }
