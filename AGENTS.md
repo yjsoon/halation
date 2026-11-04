@@ -3,7 +3,7 @@
 ## Task boundaries
 
 - For implementation and validation tasks, continue task-scoped local fixes, builds, tests, and reruns through relevant verification. Preserve unrelated work; a failed check is not a reason to stop when a safe local fix is within scope.
-- Read the relevant implementation and guidance, not the whole repository. Verify the affected behavior and representative UI states; documentation-only changes do not require app builds or every feature recipe.
+- Documentation-only changes do not require app builds or every feature recipe.
 - Commit only when requested, honoring the requested scope and message, except that a thread lands its own finished work under [Landing work on main](#landing-work-on-main). Commit permission does not otherwise imply push permission. Do not infer permission to change an exact requested revision, sign/provision, publish builds, deploy, or install/publish external skills.
 - Read-only requests stay read-only. Exact-revision validation must report failures on that revision, not silently include fixes or substitute newer code.
 
@@ -17,7 +17,7 @@ Verify every push, including the push to `main`: push with `git push -v origin H
 
 1. **Prepare.** Stop background agents that can still write to the checkout. `git fetch --unshallow origin main` (or `git fetch origin main` on a complete clone) and merge `origin/main` into the thread branch so the recipe runs on current code. Commit only this round's changes, run the affected E2E recipe at that commit (iOS recipes run on an Amp Mac satellite, or on the Devin Mac when no suitable satellite is available), commit its artefact under `.amp/in/artifacts/` (or note "docs only, n/a"), and push. The tree must be clean.
 2. **Review, sized to risk.** Record the head and `origin/main` SHAs.
-   - **No review** for changes limited to docs, copy, comments or artefacts. Guidance and runbooks are not docs here: `AGENTS.md`, `apps/ios/AGENTS.md`, `CLAUDE.md`, `docs/deployment.md`, `docs/speedflight.md`, `.agents/skills/` and `.cursor/skills/` get one reviewer. Note "no review: docs only".
+   - **No review** for changes limited to docs, copy, comments or artefacts. Guidance and runbooks are not docs here: `AGENTS.md`, `apps/ios/AGENTS.md`, `docs/deployment.md`, `docs/speedflight.md`, `.agents/skills/` and `.cursor/skills/` get one reviewer. Note "no review: docs only".
    - **One reviewer**, Opus at high effort, for ordinary changes.
    - **Two reviewers**, Opus at max and Fable at high, launched together, when the diff touches D1 migrations, auth or tokens, money or rewards calculations or deployment config. Sync and iOS persistence get one reviewer, Opus at max effort.
 
@@ -82,14 +82,12 @@ Cloudflare Email Routing) stays in the YJ account — do not move it.
 ## iOS validation and publication
 
 - Safe local builds/tests use `scripts/ios-xcodebuild.sh` and the [iOS validation contract](apps/ios/AGENTS.md). They do not require a clean/pushed HEAD, signing secrets, or an update to `main`. Unsigned compilation is not physical-device installation evidence.
-- Speedflight is signed archive, export, and external publication in one command, not a validation step. Run it only for an explicitly authorized publication, following [the Speedflight runbook](docs/speedflight.md) and the repo skill [.agents/skills/howmuch-speedflight](.agents/skills/howmuch-speedflight/SKILL.md). iOS work alone does not authorize it.
 - Preserve Apple team **Tinkertanker `PQ6U5ESLN2`**, bundle **`com.tinkertanker.halation`**, and registered-device/signing blockers. Never substitute unsigned archives or change teams to bypass a blocker.
-- Install-page links are private bearer credentials: share only in the authorized private chat, never PRs/issues/public logs. Do not install an external skill or trigger CI as a fallback without an explicit request.
 
 ### iOS Speedflight
 
-Signed archive, export, and upload in one command: `scripts/speedflight.sh`. Follow [the Speedflight runbook](docs/speedflight.md). iOS work alone does not authorize a cut; “build it on Speedflight” (or an equivalent share-a-build request) does.
+`scripts/speedflight.sh` is signed archive, export, and external publication in one command, not a validation step. Follow [the Speedflight runbook](docs/speedflight.md) and the `howmuch-speedflight` repo skill. iOS work alone does not authorize a cut; “build it on Speedflight” (or an equivalent share-a-build request) does. Do not install an external skill or trigger CI as a fallback without an explicit request.
 
 - Increment every `CURRENT_PROJECT_VERSION` in `apps/ios/HowMuch.xcodeproj/project.pbxproj` before the cut so the phone replaces the last IPA. Leave `MARKETING_VERSION` unless a new marketing version was requested.
 - The install page URL is derived from `SPEEDFLIGHT_SECRET` + bundle id. It stays the same across cuts. Do not rotate the secret unless the user explicitly wants a new page. “New link” means a new build on that page.
-- Post the page URL only in the authorized private chat, never in PRs, issues, or public logs. There is no GitHub Actions publication path; do not invent one without an explicit request.
+- Install-page links are private bearer credentials: post them only in the authorized private chat, never in PRs, issues, or public logs. There is no GitHub Actions publication path; do not invent one without an explicit request.
