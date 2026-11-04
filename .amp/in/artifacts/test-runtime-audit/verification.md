@@ -111,4 +111,20 @@ Fix implementation: `f49955990cfdbd79a42cd0f4574d80290e3f07a3`. Full `scripts/io
 
 Additional temporary negative controls separately covered the paths the hidden-view check did not: forced production `SlipImageText.recognize` to return an empty string and requested an absent readiness marker in the same existing test. A fresh targeted run failed exactly at the production-text assertion and `waitForContent`'s missing-accessible-content assertion (one test, two failures, exit 65). Both mutations were removed before committing; the full fixed run passes. Production source is byte-identical to baseline.
 
-Fix-diff review and final timing comparison are pending. The previous protection-information blocker still applies; neither branch nor main has been pushed.
+The same reviewer returned **clean, no findings** on `f69960f7...e644f507`; both fixes are resolved. The reviewer inspected the final logs but did not run native tests again in the fix round. `e644f507` differs from tested implementation `f4995599` only in this verification record.
+
+### Final timing after both safeguards
+
+Ran a fresh control between two full runs of the fixed implementation on the same satellite:
+
+| Run | Revision | Build | Test stage | XCTest | Result |
+| --- | --- | --- | --- | --- | --- |
+| Fixed implementation | `f4995599` | 19 s | 159 s | 145.242 s | 827 tests, 1 intentional skip, 0 failures |
+| Contemporaneous control | `c5e0583d` | 15 s | 191 s | 177.631 s | 827 tests, 1 intentional skip, 0 failures |
+| Final repeat | `e644f507` | 15 s | 158 s | 144.804 s | 827 tests, 1 intentional skip, 0 failures |
+
+Final mean is **145.023 s versus 177.631 s**, about **18% faster, saving 33 s** of XCTest execution. The final test stage averages 158.5 s versus 191 s. CaptureSnapshotTests averages 80.835 s versus 103.538 s (22% faster); RewardsSnapshotTests averages 28.008 s versus 34.765 s (19% faster). The original and intermediate numbers remain above rather than being discarded. Machine/run variance is real; these measurements do not promise an equivalent CI saving.
+
+The final repeat log names `e644f507117d07a1b472294c908638b312bae067` and verifies SHA-256 hashes of both changed test files and restored production OCR source before building. The clean orb tree was mirrored immediately before that run. Both final runs measure short-sheet visible height 654.0, matching the control.
+
+The follow-up is implemented, verified and independently reviewed. Final record-only updates need no further review under the repository procedure. Landing remains blocked by unread branch protection; neither branch nor main has been pushed. No deployment or publication occurred.
