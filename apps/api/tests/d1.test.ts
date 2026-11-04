@@ -1135,6 +1135,42 @@ describe("D1 foundation", () => {
     expect(local.cards[0]!.calculation.counted_spend).toBe(120);
   });
 
+  test("D1 and SQLite rewards read snapshot settings with JSON.parse semantics", async () => {
+    // Each payload maps to the miles valuation JSON.parse(payload).settings implies.
+    // String settings holding JSON text and JSON5 payloads catch an unchecked json_extract.
+    const cases: Array<[payload: string | null, miles: number | "throws"]> = [
+      [null, 0.01],
+      ['{"cards":[]}', 0.01],
+      ['{"settings":null}', 0.01],
+      ['{"settings":[{"milesValuation":0.05}]}', 0.01],
+      ['{"settings":"{\\"milesValuation\\":0.05}"}', 0.01],
+      ['{"settings":5}', 0.01],
+      ['{"settings":true}', 0.01],
+      ['[{"settings":{"milesValuation":0.05}}]', 0.01],
+      ["null", 0.01],
+      ['{"settings":{"milesValuation":"0.05"}}', 0.01],
+      ['{"settings":{"milesValuation":1e400}}', 0.01],
+      [' {"cards":[{"id":"x"}],"settings":{"currency":"S\\u0024D","milesValuation":0.015,"extra":{"a":[1,2]}}} ', 0.015],
+      // SQLite json_valid rejects nesting deeper than 1000; JSON.parse does not.
+      [`{"settings":{"milesValuation":0.05},"themeGroups":${"[".repeat(1001)}${"]".repeat(1001)}}`, 0.05],
+      ['{"settings":', "throws"],
+      ["{settings:{milesValuation:0.05},}", "throws"],
+    ];
+    for (const [payload, miles] of cases) {
+      const db = await ledgerSqlite();
+      if (payload !== null) db.run("INSERT INTO rewards_tracker_snapshots(plan_id,payload_json) VALUES('p',?)", [payload]);
+      const local = () => new ReportService(db).rewards("p");
+      const remote = () => new D1ReportService(fakeD1(db)).rewards("p");
+      if (miles === "throws") {
+        expect(local, payload!).toThrow();
+        await expect(remote(), payload!).rejects.toThrow();
+        continue;
+      }
+      expect(local().miles_valuation, String(payload)).toBe(miles);
+      expect((await remote()).miles_valuation, String(payload)).toBe(miles);
+    }
+  });
+
   test("D1 net-worth reports stay below the binding cap across long daily ranges", async () => {
     const db = await ledgerSqlite();
     db.run("INSERT INTO transactions(id,plan_id,account_id,date,amount_milli) VALUES('long-range-row','p','a','2026-01-02',100)");

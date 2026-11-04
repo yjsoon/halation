@@ -21,6 +21,27 @@ export function parseRewardGroupBy(value: string | null | undefined): RewardGrou
   return "flag";
 }
 
+/**
+ * Selects only `settings` from a rewards_tracker_snapshots row, so reports do not
+ * transfer and parse the whole envelope. Payloads SQLite rejects (malformed,
+ * JSON5-only, or nested deeper than SQLite allows) come back whole and go through
+ * JSON.parse as before; non-object settings come back NULL, which
+ * parseAppSettings already treats as defaults.
+ */
+export const REWARDS_SNAPSHOT_SETTINGS_COLUMNS = `CASE WHEN NOT json_valid(payload_json) THEN payload_json END AS invalid_payload_json,
+  CASE WHEN NOT json_valid(payload_json) THEN NULL
+    WHEN json_type(payload_json, '$.settings') = 'object' THEN json_extract(payload_json, '$.settings')
+  END AS settings_json`;
+
+export type RewardsSnapshotSettingsRow = { invalid_payload_json: string | null; settings_json: string | null };
+
+export function parseSnapshotSettings(row: RewardsSnapshotSettingsRow | null): AppSettings {
+  if (row?.invalid_payload_json != null) {
+    return parseAppSettings((JSON.parse(String(row.invalid_payload_json)) as { settings?: unknown } | null)?.settings);
+  }
+  return parseAppSettings(row?.settings_json == null ? undefined : JSON.parse(row.settings_json));
+}
+
 export function parseAppSettings(value: unknown): AppSettings {
   if (!value || typeof value !== "object" || Array.isArray(value)) return {};
   const raw = value as Record<string, unknown>;

@@ -2,7 +2,13 @@ import type { Database } from "bun:sqlite";
 import { assembleIncomeVsSpendingGroups } from "./income-vs-spending-groups";
 import { implicitReportStart, validateReportPeriods } from "./report-periods";
 import { buildRewardsReport } from "./rewards/build";
-import { parseAppSettings, parseCreditCards, parseRewardGroupBy } from "./rewards/parse";
+import {
+  parseCreditCards,
+  parseRewardGroupBy,
+  parseSnapshotSettings,
+  REWARDS_SNAPSHOT_SETTINGS_COLUMNS,
+  type RewardsSnapshotSettingsRow,
+} from "./rewards/parse";
 import { mapRewardTransactionRow } from "./rewards/rows";
 import type { ReportFilters } from "./types";
 
@@ -305,12 +311,12 @@ export class ReportService {
 
   rewards(planId: string, filters: ReportFilters = {}) {
     const snapshot = this.db
-      .query("SELECT payload_json FROM rewards_tracker_snapshots WHERE plan_id = ?")
-      .get(planId) as { payload_json: string } | null;
+      .query(`SELECT ${REWARDS_SNAPSHOT_SETTINGS_COLUMNS} FROM rewards_tracker_snapshots WHERE plan_id = ?`)
+      .get(planId) as RewardsSnapshotSettingsRow | null;
     const cardRows = this.db
       .query("SELECT payload_json FROM rewards_tracker_cards WHERE plan_id = ? AND deleted = 0 ORDER BY name, id")
       .all(planId) as Array<{ payload_json: string }>;
-    const parsedSnapshot = snapshot ? JSON.parse(String(snapshot.payload_json)) as { settings?: unknown } : null;
+    const settings = parseSnapshotSettings(snapshot);
     const cards = parseCreditCards(cardRows.map((row) => JSON.parse(String(row.payload_json))));
     const accountIds = cards.map((card) => card.ynabAccountId);
     const clauses = ["t.plan_id = ?", "t.deleted = 0"];
@@ -354,7 +360,7 @@ export class ReportService {
       cards,
       accountNames,
       transactions: rows.map(mapRewardTransactionRow),
-      settings: parseAppSettings(parsedSnapshot?.settings),
+      settings,
       from: filters.from ?? null,
       to: filters.to ?? null,
       range: filters.rewardsRange,
