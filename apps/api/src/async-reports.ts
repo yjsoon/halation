@@ -7,7 +7,13 @@ import type { AsyncSqlDatabase } from "./async-sql";
 import { assembleIncomeVsSpendingGroups } from "./income-vs-spending-groups";
 import { implicitReportStart, validateReportPeriods } from "./report-periods";
 import { buildRewardsReport } from "./rewards/build";
-import { parseAppSettings, parseCreditCards, parseRewardGroupBy } from "./rewards/parse";
+import {
+  parseCreditCards,
+  parseRewardGroupBy,
+  parseSnapshotSettings,
+  REWARDS_SNAPSHOT_SETTINGS_COLUMNS,
+  type RewardsSnapshotSettingsRow,
+} from "./rewards/parse";
 import { mapRewardTransactionRow } from "./rewards/rows";
 import type { ReportFilters } from "./types";
 
@@ -334,15 +340,15 @@ export class AsyncReportService {
   }
 
   async rewards(planId: string, filters: ReportFilters = {}) {
-    const snapshot = await this.db.get<{ payload_json: string }>(
-      "SELECT payload_json FROM rewards_tracker_snapshots WHERE plan_id = $1",
+    const snapshot = await this.db.get<RewardsSnapshotSettingsRow>(
+      `SELECT ${REWARDS_SNAPSHOT_SETTINGS_COLUMNS} FROM rewards_tracker_snapshots WHERE plan_id = $1`,
       [planId],
     );
     const cardRows = await this.db.all<{ payload_json: string }>(
       "SELECT payload_json FROM rewards_tracker_cards WHERE plan_id = $1 AND deleted = 0 ORDER BY name, id",
       [planId],
     );
-    const parsedSnapshot = snapshot ? JSON.parse(String(snapshot.payload_json)) as { settings?: unknown } : null;
+    const settings = parseSnapshotSettings(snapshot);
     const cards = parseCreditCards(cardRows.map((row) => JSON.parse(String(row.payload_json))));
     const accountIds = cards.map((card) => card.ynabAccountId);
     const params: any[] = [];
@@ -378,7 +384,7 @@ export class AsyncReportService {
       cards,
       accountNames,
       transactions: rows.map(mapRewardTransactionRow),
-      settings: parseAppSettings(parsedSnapshot?.settings),
+      settings,
       from: filters.from ?? null,
       to: filters.to ?? null,
       range: filters.rewardsRange,
