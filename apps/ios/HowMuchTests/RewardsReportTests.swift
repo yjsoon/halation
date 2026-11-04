@@ -101,7 +101,7 @@ final class RewardsAccountImportTests: XCTestCase {
     // Exercise a synthetic server rejection through the same entry point.
     selection.accountID = "acct-everyday"
     try selection.choose(data: file, fileName: "synthetic-miles.json")
-    _ = await surface.captureUntilOCR(contains: ["Everyday", "Import"])
+    await surface.waitForContent(contains: ["Everyday", "Import"])
     let rejection = RewardsAccountImportSelection.Confirmation(
       planID: harness.model.settings.planID, accountID: "acct-everyday", accountName: "Everyday",
       sourceName: "Synthetic Miles Card", data: file)
@@ -613,8 +613,8 @@ final class RewardsSnapshotTests: XCTestCase {
       ))
       defer { surface.detach() }
       // Let presentation and content-driven detent layout settle before measuring.
-      _ = await surface.captureUntilOCR(contains: ["Done", "Edit"])
-      try await Task.sleep(nanoseconds: 600_000_000)
+      await surface.waitForContent(contains: ["Done", "Edit"])
+      await surface.settleNavigation()
       let frame = try XCTUnwrap(surface.presentedSheetFrame())
       let scroll = try XCTUnwrap(surface.presentedContentScrollView())
       let visible = scroll.bounds.height - scroll.adjustedContentInset.top - scroll.adjustedContentInset.bottom
@@ -834,14 +834,17 @@ final class RewardsSnapshotTests: XCTestCase {
       var opened = false
       for offset in stride(from: 0, through: 2000, by: 200) {
         _ = await editor.setMainScrollOffsetY(CGFloat(offset))
-        _ = await editor.captureUntilOCR(contains: [label], timeoutNanoseconds: 300_000_000)
+        _ = await editor.waitUntil(timeoutNanoseconds: 300_000_000) {
+          editor.firstControl(labelContains: label) != nil
+        }
         if let control = editor.firstControl(labelContains: label), editor.activate(control) {
           opened = true
           break
         }
       }
       XCTAssertTrue(opened, "Could not open \(label): \(editor.accessibilityLabels())")
-      _ = await editor.captureUntilOCR(contains: [label == "Flag-based rewards" ? "Colour names" : "Active"])
+      await editor.waitForContent(contains: [label == "Flag-based rewards" ? "Colour names" : "Active"])
+      await editor.settleNavigation()
     }
     let rule = await editor.captureUntilOCR(contains: ["Active", "Disabled Dining", "Reward value", "miles / USD"])
     attach(rule.image, "rewards-disabled-editor-rule")
@@ -882,10 +885,8 @@ final class RewardsSnapshotTests: XCTestCase {
 
     presentation.isPresented = true
     surface.layoutNow()
-    _ = await surface.captureUntilOCR(
-      contains: ["Edit Rewards"],
-      timeoutNanoseconds: 5_000_000_000
-    )
+    await surface.waitForContent(contains: ["Edit Rewards"])
+    await surface.settleNavigation()
     let scroll = try XCTUnwrap(surface.presentedContentScrollView())
     let bottomY = max(
       0,

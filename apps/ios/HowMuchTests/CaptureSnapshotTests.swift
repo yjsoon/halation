@@ -47,7 +47,7 @@ final class CaptureSnapshotTests: XCTestCase {
         surface.detach()
         for row in harness.model.pendingRows { harness.model.discardPending(row.id) }
       }
-      _ = await surface.captureUntilOCR(contains: ["Lunch"])
+      await surface.waitForContent(contains: ["Lunch"])
       attachImage(surface.captureVisible(), name: "manual-entry-conversation-\(size)")
       guard let manual = surface.firstControl(label: "Add manually") else {
         XCTFail("Quick Add must expose Add manually in its dock: \(surface.accessibilityLabels())")
@@ -59,7 +59,7 @@ final class CaptureSnapshotTests: XCTestCase {
       XCTAssertTrue(surface.activate(manual))
       let opened = await surface.waitUntil { surface.firstControl(label: "Cancel") != nil }
       XCTAssertTrue(opened)
-      _ = await surface.captureUntilOCR(contains: ["Add Transaction", "Travel"])
+      await surface.settleNavigation()
       attachImage(surface.captureVisible(), name: "manual-entry-form-\(size)")
       guard let cancel = surface.firstControl(label: "Cancel"),
             let digit = surface.firstControl(label: "1") else {
@@ -1261,7 +1261,7 @@ final class CaptureSnapshotTests: XCTestCase {
     }
     defer { surface.detach() }
 
-    _ = await surface.captureUntilOCR(contains: ["Add Transactions"])
+    await surface.waitForContent(contains: ["Add Transactions"])
     guard let field = surface.firstDescendant(PasteAwareTextView.self) else {
       XCTFail("production composer UITextView was not hosted")
       return
@@ -1338,7 +1338,7 @@ final class CaptureSnapshotTests: XCTestCase {
     }
     defer { surface.detach() }
 
-    _ = await surface.captureUntilOCR(contains: ["Add Transactions"])
+    await surface.waitForContent(contains: ["Add Transactions"])
     guard let field = surface.firstDescendant(PasteAwareTextView.self) else {
       XCTFail("conversation dock must host the composer field")
       return
@@ -1497,7 +1497,7 @@ final class CaptureSnapshotTests: XCTestCase {
     }
     defer { surface.detach() }
 
-    _ = await surface.captureUntilOCR(contains: ["Conversation", "What did I spend today?"])
+    await surface.waitForContent(contains: ["Conversation", "What did I spend today?"])
     XCTAssertNil(
       surface.firstControl(label: "Open in Assistant"),
       "pushed Assistant conversation must not show Open in Assistant in \(surface.accessibilityLabels())"
@@ -1541,12 +1541,13 @@ final class CaptureSnapshotTests: XCTestCase {
     defer { surface.detach() }
 
     for finish in ["Cancel", "Done"] {
-      _ = await surface.captureUntilOCR(contains: ["Lunch"])
+      await surface.waitForContent(contains: ["Lunch"])
       guard let edit = await revealControl(on: surface, label: "Edit") else {
         return XCTFail("conversation must retain its draft Edit action")
       }
       XCTAssertTrue(surface.activate(edit))
-      _ = await surface.captureUntilOCR(contains: ["Edit draft"])
+      await surface.waitForContent(contains: ["Edit draft"])
+      await surface.settleNavigation()
       guard let amount = surface.firstControl(label: "Amount"),
             amount.object.accessibilityValue?.contains("12.00") == true else {
         return XCTFail("draft editor must expose its amount")
@@ -1598,7 +1599,7 @@ final class CaptureSnapshotTests: XCTestCase {
     }
     defer { surface.detach() }
 
-    _ = await surface.captureUntilOCR(contains: ["Lunch"])
+    await surface.waitForContent(contains: ["Lunch"])
     let composerBefore = session.composerText
     let draftIDsBefore = session.drafts.map(\.id)
     let attachmentCount = session.attachments.count
@@ -1681,7 +1682,7 @@ final class CaptureSnapshotTests: XCTestCase {
     }
     defer { surface.detach() }
 
-    _ = await surface.captureUntilOCR(contains: ["Lunch"])
+    await surface.waitForContent(contains: ["Lunch"])
     let generation = session.generation
     XCTAssertFalse(session.isBusy)
     XCTAssertTrue(session.isIngesting)
@@ -1720,7 +1721,7 @@ final class CaptureSnapshotTests: XCTestCase {
       return
     }
     defer { surface.detach() }
-    _ = await surface.captureUntilOCR(contains: ["Coffee", "Lunch"])
+    await surface.waitForContent(contains: ["Coffee", "Lunch"])
     guard let undo = await revealControl(on: surface, label: "Undo") else {
       XCTFail("multi-group footer Undo missing in \(surface.accessibilityLabels())")
       return
@@ -1771,7 +1772,7 @@ final class CaptureSnapshotTests: XCTestCase {
       return
     }
     defer { surface.detach() }
-    _ = await surface.captureUntilOCR(contains: ["Undo"])
+    await surface.waitForContent(contains: ["Undo"])
     guard let undo = await revealControl(on: surface, label: "Undo") else {
       XCTFail("removed-group recovery Undo missing in \(surface.accessibilityLabels())")
       return
@@ -1811,7 +1812,7 @@ final class CaptureSnapshotTests: XCTestCase {
       return
     }
     defer { surface.detach() }
-    _ = await surface.captureUntilOCR(contains: ["Coffee", "Which transaction should I change?"])
+    await surface.waitForContent(contains: ["Coffee", "Which transaction should I change?"])
     attachImage(surface.captureVisible(), name: "capture-equal-payee-clarification")
     let formatter = DateFormatter()
     formatter.dateStyle = .medium
@@ -1859,7 +1860,7 @@ final class CaptureSnapshotTests: XCTestCase {
           continue
         }
         defer { surface.detach() }
-        _ = await surface.captureUntilOCR(contains: ["Which"])
+        await surface.waitForContent(contains: ["Which"])
         for label in labels {
           guard let control = await revealControl(on: surface, label: label, requireTimelineVisible: true) else {
             XCTFail("\(size) \(name) could not scroll candidate \(label) fully into the timeline \(surface.timelineVisibleFrame()) AX \(surface.accessibilityLabels())")
@@ -1915,7 +1916,7 @@ final class CaptureSnapshotTests: XCTestCase {
         continue
       }
       defer { surface.detach() }
-      _ = await surface.captureUntilOCR(contains: ["Remove attachment"])
+      await surface.waitForContent(contains: ["Remove attachment"])
       attachImage(surface.captureVisible(), name: "capture-interrupted-image-recovery\(item.suffix)")
       guard let retry = await revealControl(on: surface, label: "Retry reading image") else {
         XCTFail("Retry reading image missing\(item.suffix) in \(surface.accessibilityLabels())")
@@ -1964,7 +1965,7 @@ final class CaptureSnapshotTests: XCTestCase {
       return
     }
     defer { crowdedSurface.detach() }
-    _ = await crowdedSurface.captureUntilOCR(contains: ["Remove attachment"])
+    await crowdedSurface.waitForContent(contains: ["Remove attachment"])
     attachImage(crowdedSurface.captureVisible(), name: "capture-interrupted-image-recovery-three-accessibility3")
     guard let firstRetry = await revealControl(on: crowdedSurface, label: "Retry reading image") else {
       XCTFail("first Retry missing in three-error AX3 \(crowdedSurface.accessibilityLabels())")
@@ -2014,7 +2015,7 @@ final class CaptureSnapshotTests: XCTestCase {
         return
       }
       defer { surface.detach() }
-      _ = await surface.captureUntilOCR(contains: ["Which account"])
+      await surface.waitForContent(contains: ["Which account"])
       attachImage(surface.captureVisible(), name: "capture-pending-query-choices-\(size)")
       guard let candidate = await revealControl(on: surface, label: "Everyday") else {
         XCTFail("query account candidate missing in \(surface.accessibilityLabels())")
@@ -2092,7 +2093,7 @@ final class CaptureSnapshotTests: XCTestCase {
         continue
       }
       defer { surface.detach() }
-      _ = await surface.captureUntilOCR(contains: ["Which account"])
+      await surface.waitForContent(contains: ["Which account"])
       guard let candidate = await revealControl(on: surface, label: "Everyday") else {
         XCTFail("\(name) query account candidate missing in \(surface.accessibilityLabels())")
         continue
@@ -2189,7 +2190,7 @@ final class CaptureSnapshotTests: XCTestCase {
       return
     }
     defer { surface.detach() }
-    _ = await surface.captureUntilOCR(contains: ["Which account"])
+    await surface.waitForContent(contains: ["Which account"])
     attachImage(surface.captureVisible(), name: "capture-restored-merchant-pending-query")
     guard let candidate = await revealControl(on: surface, label: "Everyday") else {
       XCTFail("stored account candidate missing after resume in \(surface.accessibilityLabels())")
@@ -2233,7 +2234,7 @@ final class CaptureSnapshotTests: XCTestCase {
         XCTFail("AI settings needs a connected UIWindowScene")
         continue
       }
-      _ = await surface.captureUntilOCR(contains: [embedded ? "Conversation" : "Add Transactions"])
+      await surface.waitForContent(contains: [embedded ? "Conversation" : "Add Transactions"])
       let entry = surface.firstControl(label: "AI provider")
       XCTAssertNotNil(entry, "Conversation must offer AI provider settings at \(name)")
       if let entry {
@@ -2269,7 +2270,7 @@ final class CaptureSnapshotTests: XCTestCase {
       root: NavigationStack { CaptureAISettingsView(settings: settings) }, size: CGSize(width: 390, height: 844)
     ) else { XCTFail("AI model selection needs a window"); return }
     defer { surface.detach() }
-    _ = await surface.captureUntilOCR(contains: ["GPT 5.6 Luna"])
+    await surface.waitForContent(contains: ["gpt-5.6-luna"])
     XCTAssertFalse(surface.accessibilityLabels().joined().contains("private-fixture-value"))
     guard let picker = surface.firstControl(labelContains: "Model") else {
       XCTFail("Model picker missing: \(surface.accessibilityLabels())"); return
@@ -2335,7 +2336,7 @@ final class CaptureSnapshotTests: XCTestCase {
       XCTAssertTrue(surface.activate(manual))
       let opened = await surface.waitUntil { surface.firstControl(label: "Cancel") != nil }
       XCTAssertTrue(opened, "Timeout recovery must open the real manual form")
-      _ = await surface.captureUntilOCR(contains: ["Add Transaction"])
+      await surface.settleNavigation()
       attachImage(surface.captureVisible(), name: "byok-recovery-manual-\(name)")
       guard let cancel = surface.firstControl(label: "Cancel") else { XCTFail("Manual Cancel missing"); continue }
       XCTAssertTrue(surface.activate(cancel))
@@ -2548,7 +2549,7 @@ final class CaptureSnapshotTests: XCTestCase {
   }
 
   fileprivate static func visionLines(from image: UIImage) async -> [String] {
-    guard let data = image.jpegData(compressionQuality: 0.85) else {
+    guard let cgImage = image.cgImage else {
       return []
     }
 #if canImport(Vision)
@@ -2556,7 +2557,7 @@ final class CaptureSnapshotTests: XCTestCase {
       DispatchQueue.global(qos: .userInitiated).async {
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
-        let handler = VNImageRequestHandler(data: data, options: [:])
+        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
         _ = try? handler.perform([request])
         continuation.resume(returning: (request.results ?? []).compactMap { $0.topCandidates(1).first?.string })
       }
@@ -3061,23 +3062,31 @@ final class SnapshotSurface {
     self.host = host
   }
 
+  // Readiness only: use accessibility for waits whose OCR result was discarded.
+  // Assertions about rendered text must still use captureUntilOCR or visionLines.
+  func waitForContent(contains needles: [String], file: StaticString = #filePath, line: UInt = #line) async {
+    let normalisedNeedles = needles.map(CaptureSnapshotTests.normalisedOCR)
+    let appeared = await waitUntil {
+      let text = CaptureSnapshotTests.normalisedOCR(accessibilityLabels().joined(separator: "\n"))
+      return normalisedNeedles.allSatisfy { text.contains($0) }
+    }
+    XCTAssertTrue(appeared, "Missing accessible content \(needles): \(accessibilityLabels())", file: file, line: line)
+    await settleVisible()
+  }
+
   func captureUntilOCR(
     contains needles: [String],
     timeoutNanoseconds: UInt64 = 800_000_000
   ) async -> (image: UIImage, text: String, isBlank: Bool) {
     let deadline = DispatchTime.now() + .nanoseconds(Int(timeoutNanoseconds))
-    var image = captureImage()
-    var text = ""
+    let normalisedNeedles = needles.map(CaptureSnapshotTests.normalisedOCR)
     while true {
       layout()
-      image = captureImage()
-      if let data = image.jpegData(compressionQuality: 0.85) {
-        text = CaptureSnapshotTests.normalisedOCR(await SlipImageText.recognize(data))
-      } else {
-        text = ""
-      }
+      let image = captureImage()
+      let lines = await CaptureSnapshotTests.visionLines(from: image)
+      let text = CaptureSnapshotTests.normalisedOCR(lines.joined(separator: "\n"))
       let isBlank = image.cgImage == nil || image.size.width < 2 || image.size.height < 2 || text.isEmpty
-      let matched = needles.allSatisfy { text.contains(CaptureSnapshotTests.normalisedOCR($0)) }
+      let matched = normalisedNeedles.allSatisfy { text.contains($0) }
       if matched || DispatchTime.now() >= deadline {
         return (image, text, isBlank && !matched)
       }
