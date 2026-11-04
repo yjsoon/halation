@@ -80,14 +80,15 @@ This final artefact update changes no tested code and requires no re-review unde
 | Fresh control at `c5e0583d` | 14 s | 211 s | 196.511 s | 827 tests, 1 intentional skip, 0 failures |
 | Final working tree, identical code to `4f677aa8` | 20 s | 180 s | 163.176 s | 827 tests, 1 intentional skip, 0 failures |
 | Exact commit `4f677aa8` | 13 s | 182 s | 165.906 s | 827 tests, 1 intentional skip, 0 failures |
+| Control repeat at `c5e0583d`, after both final runs | 19 s | 199 s | 184.331 s | 827 tests, 1 intentional skip, 0 failures |
 
-The two final runs average 164.541 s, about 16% below the fresh control. The test stage averages 181 s versus 211 s. This is a local simulator measurement, not a CI promise: the earlier audit baseline took 179.185 s, showing meaningful machine/run variance.
+The two-run means fall from 190.421 s to 164.541 s, about 14% (26 s). The test stage averages 181 s versus 205 s. This is a local simulator measurement, not a CI promise: the controls range from 184 to 197 s, and the earlier audit baseline took 179.185 s, showing meaningful machine/run variance.
 
-| Rendering suite | Fresh control | Final run | Exact-commit repeat |
-| --- | --- | --- | --- |
-| CaptureSnapshotTests, 33 cases | 114.584 s | 92.680 s | 93.251 s |
-| RewardsSnapshotTests, 10 cases | 39.842 s | 27.507 s | 29.385 s |
-| RewardRowProjectionTests, all 34 cases | 13.803 s | 14.704 s | 14.360 s |
+| Rendering suite | Fresh control | Control repeat | Final run | Exact-commit repeat |
+| --- | --- | --- | --- | --- |
+| CaptureSnapshotTests, 33 cases | 114.584 s | 107.098 s | 92.680 s | 93.251 s |
+| RewardsSnapshotTests, 10 cases | 39.842 s | 36.004 s | 27.507 s | 29.385 s |
+| RewardRowProjectionTests, all 34 cases | 13.803 s | 13.673 s | 14.704 s | 14.360 s |
 
 The unchanged projection suite did not get faster; the saving is concentrated in the two optimised suites. No test methods or existing scenario assertions were removed. Accurate Vision recognition, 2× images, light/dark/large-text variants, visible-line checks, and application state/persistence assertions remain. The polling helper no longer captures an image it immediately overwrites, and Vision reads the captured CGImage directly rather than round-tripping through JPEG. Readiness waits whose OCR return values were discarded now poll accessibility; presentation waits use the existing navigation-settling helper. Accessibility is not used as a substitute for rendered-text assertions.
 
@@ -96,6 +97,18 @@ The unchanged projection suite did not get faster; the saving is concentrated in
 - Temporary profiling on 13 representative tests found 67 polling calls and 79 attempts: discarded captures cost 6.314 s and OCR cost 40.470 s. Profiling code was removed before the final runs.
 - An intermediate Capture run failed because the new readiness needle used the display string `GPT 5.6 Luna`, while accessibility exposes the fixture model ID `gpt-5.6-luna`. Corrected the readiness needle, not the model-selection assertions. Both final full runs above pass.
 - Negative visual control: temporarily added `.hidden()` to the root view in `testBlankConversationIgnoresRememberedManualEntry`, leaving assertions unchanged. Ran `scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests/CaptureSnapshotTests/testBlankConversationIgnoresRememberedManualEntry`. Fresh build succeeded; the test failed at its rendered `Add Transactions` assertion and `Send` accessibility assertion (1 test, 2 failures, exit 65). Removed the mutation before committing. The exact-commit full run passes that same test, demonstrating the optimised helper still rejects missing rendered text.
+- Integration check at `f69960f7` (only this verification record subsequently changed): `/usr/bin/time -p bun test`, 823 pass, 0 fail, 68 files, 24.77 s. This confirms the earlier Bun optimisation still passes after the upstream merge.
 - No product UI or production implementation changed. No signing credentials, physical-device installation, Speedflight or deployment were involved.
 
-Independent review of the follow-up is pending. The previous protection-information blocker still applies; neither branch nor main has been pushed.
+### Independent review and safeguards
+
+Opus 5.5, reused at its recorded max-effort launch settings, reviewed `45b6896e...f69960f7` and the new `c5e0583d...f69960f7` diff. It independently ran 47 affected tests on a fresh Mac satellite: 110.17 s optimised versus 143.23 s control, with zero failures. Twelve cold-process stress cases also passed. It reported two low-severity findings; both were accepted rather than relying only on the passing assertions:
+
+- The adaptive sheet's scroll geometry was still fractional when measured. Retained the original 600 ms geometry wait in that one test, after readiness and navigation settling, instead of introducing a new geometry-polling helper.
+- The faster helper stopped incidentally calling production `SlipImageText.recognize`. One existing rendered-screen test now explicitly sends its screenshot through that production path and asserts recognised content. The other snapshot assertions still exercise direct-CGImage OCR.
+
+Fix implementation: `f49955990cfdbd79a42cd0f4574d80290e3f07a3`. Full `scripts/ios-xcodebuild.sh test` passed at that exact code: 827 tests, one intentional skip, zero failures, 145.242 s XCTest; build 19 s, test stage 159 s. The short sheet measured content 653.5 and settled visible height 654.0, matching the control geometry. The earlier 14% comparison above predates these safeguards and is not the final timing claim.
+
+Additional temporary negative controls separately covered the paths the hidden-view check did not: forced production `SlipImageText.recognize` to return an empty string and requested an absent readiness marker in the same existing test. A fresh targeted run failed exactly at the production-text assertion and `waitForContent`'s missing-accessible-content assertion (one test, two failures, exit 65). Both mutations were removed before committing; the full fixed run passes. Production source is byte-identical to baseline.
+
+Fix-diff review and final timing comparison are pending. The previous protection-information blocker still applies; neither branch nor main has been pushed.
