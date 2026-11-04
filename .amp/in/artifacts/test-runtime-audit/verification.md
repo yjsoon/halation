@@ -146,4 +146,15 @@ The user authorised the small prune list after the read-only audit. Baseline is 
 - A read-only comparison of the two old web cases against the shared parser tests found **16 input/expectation pairs, zero missing equivalents**. This was an audit check, not a permanent source-text test.
 - `git diff --check` passed. No live data, remote database, signing credentials, deployment or publication was involved.
 
-Independent review of this pruning round is pending. The previous landing blocker has not been bypassed.
+### Pruning review completed
+
+Both independent Claude Code subscription reviewers returned clean on `e56565bc...a3bdff42`, with the full `45b6896e...a3bdff42` branch supplied for context:
+
+- Opus 5.5 at recorded max effort: no findings requiring changes. Independently ran the three changed Bun files, 47 pass, and verified both native source hashes against the fresh 26-test log.
+- Fable 5.1 at recorded high effort: no blocking findings. Independently reproduced the full Bun suite, 822 pass, 0 fail, 68 files, and verified the native source hashes and log. Confirmed no dangling references or new skip/disable markers.
+- Both reviewers verified the 16 retained parser pairs and the distinct-account scenario. Neither ran another native suite for this round.
+- The removed injected-writer test also checked that a fresh load/save left no stray files. That incidental assertion is not retained. Both reviewers considered it low value and non-blocking; missing-file loading has no quarantine path. Crash-time atomicity is still not claimed.
+
+`check_review.py prune-route.json prune-review-evidence.json --runner-required` passed: review execution evidence complete. `a3bdff42` differs from tested `92e08f9b` only in this record, and this final review record is also artefact-only.
+
+The user has authorised merging and a separately reviewed fix to the shared landing checker. GitHub's branch metadata reports `main` as `protected: false`, but the detailed rules API returns 403. The existing checker does not accept the alternative evidence. No gate has been bypassed and no push or merge has occurred at the time of this record. Final delivery is reported in the thread after a successful fresh preflight.
