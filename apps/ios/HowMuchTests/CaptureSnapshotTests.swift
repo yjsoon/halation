@@ -142,7 +142,7 @@ final class CaptureSnapshotTests: XCTestCase {
     }
   }
 
-  func testBlankConversationIgnoresRememberedManualEntry() async {
+  func testBlankConversationIgnoresRememberedManualEntry() async throws {
     let suite = "howmuch.tests.manual-preference.\(UUID().uuidString)"
     let defaults = UserDefaults(suiteName: suite)!
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent(suite)
@@ -167,6 +167,10 @@ final class CaptureSnapshotTests: XCTestCase {
     XCTAssertTrue(rendered.text.contains(Self.normalisedOCR("Add Transactions")))
     XCTAssertFalse(rendered.text.contains(Self.normalisedOCR("Add an expense")))
     XCTAssertFalse(rendered.text.contains(Self.normalisedOCR("Allow sending")))
+    // Keep one real image through the production OCR path, not only the snapshot helper.
+    let imageData = try XCTUnwrap(rendered.image.jpegData(compressionQuality: 0.85))
+    let slipText = await SlipImageText.recognize(imageData)
+    XCTAssertTrue(Self.normalisedOCR(slipText).contains(Self.normalisedOCR("Add Transactions")), slipText)
     XCTAssertNil(surface.firstControl(label: "Cancel"), "a remembered mode must not route a conversation request to the form")
     XCTAssertEqual(session.entryMode, .describe)
     XCTAssertNotNil(surface.firstControl(label: "Send"))

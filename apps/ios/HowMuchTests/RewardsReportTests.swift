@@ -615,6 +615,8 @@ final class RewardsSnapshotTests: XCTestCase {
       // Let presentation and content-driven detent layout settle before measuring.
       await surface.waitForContent(contains: ["Done", "Edit"])
       await surface.settleNavigation()
+      // Accessible content appears before the sheet's final geometry stops animating.
+      try await Task.sleep(nanoseconds: 600_000_000)
       let frame = try XCTUnwrap(surface.presentedSheetFrame())
       let scroll = try XCTUnwrap(surface.presentedContentScrollView())
       let visible = scroll.bounds.height - scroll.adjustedContentInset.top - scroll.adjustedContentInset.bottom
