@@ -128,3 +128,22 @@ Final mean is **145.023 s versus 177.631 s**, about **18% faster, saving 33 s** 
 The final repeat log names `e644f507117d07a1b472294c908638b312bae067` and verifies SHA-256 hashes of both changed test files and restored production OCR source before building. The clean orb tree was mirrored immediately before that run. Both final runs measure short-sheet visible height 654.0, matching the control.
 
 The follow-up is implemented, verified and independently reviewed. Final record-only updates need no further review under the repository procedure. Landing remains blocked by unread branch protection; neither branch nor main has been pushed. No deployment or publication occurred.
+
+## Targeted pruning after the redundancy audit
+
+The user authorised the small prune list after the read-only audit. Baseline is `e56565bc24620ef00bec37121b743ef8b90be281`; tested implementation is `92e08f9bae319fa9a4d3b190dc3aa0a703256fd3`. `origin/main` remains `45b6896e`; the branch already contains it. Only five test files changed, with no production, fixture or UI implementation changes.
+
+- Removed `testTheFileIsWrittenAtomically`: it injected its own atomic writer, bypassing the production writer, and therefore could not detect removal of production atomic writing. The retained outbox tests still check relaunch persistence, failed-write preservation, corruption quarantine and refusal to overwrite unreadable files. They are not claimed to prove crash-time atomicity.
+- Removed two assertions of counters computed entirely by the local bulk-test fixture. Kept the production completeness and remaining-work assertions, and renamed the test to describe what it actually checks.
+- Removed two generic web parsing cases. All 16 original input/expected-result pairs remain in the shared money parser suite: five already existed and eleven were moved into the existing groups. One moved invalid input adds a parameterised case, so the net Bun count decreases by one, not two. Web currency configuration, format/parse round trips and stored-amount preservation checks remain.
+- Combined the two overview account-selection cases with three different account IDs: the first-listed account is Rainy Day Saver, the remembered account is Everyday, and the focused register is Travel Card. Returning either the first account or the focused register now fails the same retained assertion. Other origins and fallback cases remain.
+
+### Repeatable verification
+
+- `bun test` at `92e08f9b`: **822 pass, 0 fail, 68 files**, 24.01 s. Previously 823 tests. No additional speed-up is inferred from this run.
+- `scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests/CaptureOriginTests -only-testing:HowMuchTests/OutboxStoreTests` at the same code on a fresh Amp mac.medium satellite, macos-27, Xcode 27.2, Debug HowMuch scheme: **26 tests, 0 failures**, 13 in each suite. Build-for-testing passed in 118 s; test stage passed in 39 s. This is targeted validation, not a new full-native-suite run.
+- The native log records the source revision and changed-file SHA-256 hashes, which match the orb files: CaptureOriginTests `9f8fa1aaab080e218c98f67048be0f23ba3862bffab08fd3b1d478ec53f8d531`; OutboxStoreTests `166bf5e6c6aa321a136b4afd81866a3822f425e48ef3eebffec739b6b21d7fc6`.
+- A read-only comparison of the two old web cases against the shared parser tests found **16 input/expectation pairs, zero missing equivalents**. This was an audit check, not a permanent source-text test.
+- `git diff --check` passed. No live data, remote database, signing credentials, deployment or publication was involved.
+
+Independent review of this pruning round is pending. The previous landing blocker has not been bypassed.
