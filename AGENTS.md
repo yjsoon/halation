@@ -3,7 +3,7 @@
 ## Task boundaries
 
 - For implementation and validation tasks, continue task-scoped local fixes, builds, tests, and reruns through relevant verification. Preserve unrelated work; a failed check is not a reason to stop when a safe local fix is within scope.
-- Read the relevant implementation and guidance, not the whole repository. Verify the affected behavior and representative UI states; documentation-only changes do not require app builds or every feature recipe.
+- Verify the affected behavior and representative UI states; documentation-only changes do not require app builds or every feature recipe.
 - Commit only when requested, honoring the requested scope and message, except that a thread lands its own finished work under [Landing work on main](#landing-work-on-main). Commit permission does not otherwise imply push permission. Do not infer permission to change an exact requested revision, sign/provision, publish builds, deploy, or install/publish external skills.
 - Read-only requests stay read-only. Exact-revision validation must report failures on that revision, not silently include fixes or substitute newer code.
 
@@ -70,14 +70,12 @@ Cloudflare Email Routing) stays in the YJ account — do not move it.
 ## iOS validation and publication
 
 - Safe local builds/tests use `scripts/ios-xcodebuild.sh` and the [iOS validation contract](apps/ios/AGENTS.md). They do not require a clean/pushed HEAD, signing secrets, or an update to `main`. Unsigned compilation is not physical-device installation evidence.
-- Speedflight is signed archive, export, and external publication in one command, not a validation step. Run it only for an explicitly authorized publication, following [the Speedflight runbook](docs/speedflight.md) and the repo skill [.agents/skills/howmuch-speedflight](.agents/skills/howmuch-speedflight/SKILL.md). iOS work alone does not authorize it.
 - Preserve Apple team **Tinkertanker `PQ6U5ESLN2`**, bundle **`com.tinkertanker.halation`**, and registered-device/signing blockers. Never substitute unsigned archives or change teams to bypass a blocker.
-- Install-page links are private bearer credentials: share only in the authorized private chat, never PRs/issues/public logs. Do not install an external skill or trigger CI as a fallback without an explicit request.
 
 ### iOS Speedflight
 
-Signed archive, export, and upload in one command: `scripts/speedflight.sh`. Follow [the Speedflight runbook](docs/speedflight.md). iOS work alone does not authorize a cut; “build it on Speedflight” (or an equivalent share-a-build request) does.
+`scripts/speedflight.sh` is signed archive, export, and external publication in one command, not a validation step. Follow [the Speedflight runbook](docs/speedflight.md) and the `howmuch-speedflight` repo skill. iOS work alone does not authorize a cut; “build it on Speedflight” (or an equivalent share-a-build request) does. Do not install an external skill or trigger CI as a fallback without an explicit request.
 
 - Increment every `CURRENT_PROJECT_VERSION` in `apps/ios/HowMuch.xcodeproj/project.pbxproj` before the cut so the phone replaces the last IPA. Leave `MARKETING_VERSION` unless a new marketing version was requested.
 - The install page URL is derived from `SPEEDFLIGHT_SECRET` + bundle id. It stays the same across cuts. Do not rotate the secret unless the user explicitly wants a new page. “New link” means a new build on that page.
-- Post the page URL only in the authorized private chat, never in PRs, issues, or public logs. There is no GitHub Actions publication path; do not invent one without an explicit request.
+- Install-page links are private bearer credentials: post them only in the authorized private chat, never in PRs, issues, or public logs. There is no GitHub Actions publication path; do not invent one without an explicit request.
