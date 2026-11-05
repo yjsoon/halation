@@ -3,7 +3,7 @@
 ## Task boundaries
 
 - For implementation and validation tasks, continue task-scoped local fixes, builds, tests, and reruns through relevant verification. Preserve unrelated work; a failed check is not a reason to stop when a safe local fix is within scope.
-- Documentation-only changes do not require app builds or every feature recipe.
+- Verify the affected behavior and representative UI states; documentation-only changes do not require app builds or every feature recipe.
 - Commit only when requested, honoring the requested scope and message, except that a thread lands its own finished work under [Landing work on main](#landing-work-on-main). Commit permission does not otherwise imply push permission. Do not infer permission to change an exact requested revision, sign/provision, publish builds, deploy, or install/publish external skills.
 - Read-only requests stay read-only. Exact-revision validation must report failures on that revision, not silently include fixes or substitute newer code.
 
