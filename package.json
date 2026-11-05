@@ -27,7 +27,8 @@
     "verify:worker": "bun run --cwd apps/worker build",
     "build:ios-engine": "bun scripts/build-ios-engine.ts build",
     "check:ios-engine": "bun scripts/build-ios-engine.ts check",
-    "deploy": "./scripts/deploy-button.sh"
+    "deploy": "./scripts/deploy-button.sh",
+    "check": "./scripts/check.sh"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260718.1",
