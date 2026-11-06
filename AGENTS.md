@@ -18,7 +18,7 @@ Never put real data from screenshots or uploads (card or account numbers, balanc
 3. **Push.** `git push -v origin HEAD:refs/heads/main`, then check that `git ls-remote origin main` shows the SHA you pushed. Plain pushes have silently failed before. On a non-fast-forward rejection, fetch, rebase onto the new `origin/main`, rerun step 2 and push again; on any other rejection stop and tell YJ. Never force-push.
 4. **Report** the pushed SHA, the checks run with their decisive output, and anything left unfixed.
 
-Pushing to `main` never authorises tagging, deploying, production D1 migrations, Speedflight or triggering a workflow. TestFlight builds come only from the daily Xcode Cloud schedule ([Xcode Cloud](docs/xcode-cloud.md)); do not start extra Xcode Cloud builds, change the workflow, add testers or submit anything for App Store review without an explicit request. Land only through git, never through the GitHub API or MCP file tools. Never force-push, amend or rebase pushed commits, or delete branches.
+Pushing to `main` never authorises tagging, deploying, production D1 migrations, Speedflight or triggering a workflow. TestFlight builds come only from the daily Xcode Cloud schedule ([Xcode Cloud](docs/xcode-cloud.md)). Each one goes to internal testers, and its post-action submits it for Beta App Review and then to external testers through the `Halation Public` public link. Do not start extra Xcode Cloud builds, change the workflow, groups, testers or beta test information, submit extra builds for Beta App Review, or submit anything for App Store review without an explicit request. Land only through git, never through the GitHub API or MCP file tools. Never force-push, amend or rebase pushed commits, or delete branches.
 
 ## Testing policy
 
