@@ -1655,8 +1655,7 @@ export function TransactionsPage() {
 
   return (
     <>
-      <FilterRail filters={filters} setFilters={setFilters} busy={page.loading || page.filling || page.loadingMore} collapsible />
-      <div className="report-header">
+      <div className="report-header register-header">
         <div>
           <h1>{registerLabel}</h1>
         </div>
@@ -1678,6 +1677,7 @@ export function TransactionsPage() {
           </div>
         </div>
       </div>
+      <FilterRail filters={filters} setFilters={setFilters} busy={page.loading || page.filling || page.loadingMore} collapsible />
       <div className="register-toolbar">
         <div className="register-toolbar-actions">
           {noAccounts ? (
@@ -1712,7 +1712,7 @@ export function TransactionsPage() {
           {selectedAccount && isCardAccount(selectedAccount) && !selectedAccount.closed && (
             <button
               type="button"
-              className="register-add-link register-secondary-action"
+              className="register-add-link register-secondary-action register-payment-reminders"
               onClick={() => setCardTermsOpen(true)}
             >
               Payment reminders
@@ -1791,7 +1791,8 @@ export function TransactionsPage() {
               type="search"
               name="search"
               className="search-input"
-              placeholder="Search payee, memo, category or amount"
+              placeholder="Search"
+              title="Search payee, memo, category or amount"
               value={search}
               onChange={(event) => startTransition(() => setSearch(event.target.value))}
               aria-label="Search transactions"
@@ -1814,14 +1815,14 @@ export function TransactionsPage() {
           {selectedUnapprovedIds.length > 0 && (
             <button
               type="button"
-              className="register-bulk-action"
+              className="register-bulk-action register-bulk-approve"
               onClick={() => void approveMany(selectedUnapprovedIds)}
               disabled={writeLocked || selectedUnapprovedIds.some((id) => approvalSession.pending.has(id))}
             >
               {selectedUnapprovedIds.some((id) => approvalSession.pending.has(id)) ? "Approving…" : `Approve ${selectedUnapprovedIds.length}`}
             </button>
           )}
-          <button type="button" className="register-bulk-action" onClick={() => { setPendingBulkDeletion(selectedRows); setMutationError(null); }} disabled={mutationBusy}>
+          <button type="button" className="register-bulk-action register-bulk-delete" onClick={() => { setPendingBulkDeletion(selectedRows); setMutationError(null); }} disabled={mutationBusy}>
             {selectedRows.every((txn) => !txn.approved) ? "Reject" : "Delete"}
           </button>
           <span className="register-bulk-sep" aria-hidden="true" />
@@ -2137,7 +2138,7 @@ export function TransactionsPage() {
                     <th>Memo</th>
                     <th className="num" title="Money out: what you spent or paid">Outflow</th>
                     <th className="num" title="Money in: what you received">Inflow</th>
-                    <th className="register-status-heading"><span className="sr-only">Cleared status</span></th>
+                    <th className="register-status-heading">Cleared</th>
                   </tr>
                 </thead>
                 <tbody>

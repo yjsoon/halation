@@ -1,0 +1,33 @@
+{
+  "data": {
+    "server_knowledge": 62,
+    "transaction": {
+      "account_id": "acct-everyday",
+      "account_name": "Everyday Account",
+      "amount": -17600,
+      "approved": true,
+      "category_id": "cat-transport",
+      "category_name": "Transport",
+      "claim_status": null,
+      "claimed_on": null,
+      "cleared": "uncleared",
+      "date": "2026-05-19",
+      "deleted": false,
+      "flag_color": null,
+      "flag_name": null,
+      "id": "txn-2026-05-bus",
+      "import_id": null,
+      "import_payee_name": null,
+      "import_payee_name_original": null,
+      "matched_transaction_id": null,
+      "memo": "Demo register narrow edit",
+      "needs_confirmation": false,
+      "parent_transaction_id": null,
+      "payee_id": "payee_e4bcb053-8670-4dc0-aac4-49eb8157ed72",
+      "payee_name": "SimplyGo",
+      "subtransactions": [],
+      "transfer_account_id": null,
+      "transfer_transaction_id": null
+    }
+  }
+}

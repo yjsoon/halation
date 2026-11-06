@@ -1,0 +1,30 @@
+[
+  {
+    "account_id": "acct-everyday",
+    "account_name": "Everyday Account",
+    "amount": -4200,
+    "approved": true,
+    "category_id": "cat-dining",
+    "category_name": "Dining Out",
+    "claim_status": null,
+    "claimed_on": null,
+    "cleared": "uncleared",
+    "date": "2026-11-06",
+    "deleted": false,
+    "flag_color": null,
+    "flag_name": null,
+    "id": "29f9d4ea-4244-41d0-b7bc-1d72e9a02841",
+    "import_id": null,
+    "import_payee_name": null,
+    "import_payee_name_original": null,
+    "matched_transaction_id": null,
+    "memo": "Demo verified compose",
+    "needs_confirmation": false,
+    "parent_transaction_id": null,
+    "payee_id": "payee_7f0bb866-3813-44d3-88e6-caca93c421d8",
+    "payee_name": "Demo Register Final",
+    "subtransactions": [],
+    "transfer_account_id": null,
+    "transfer_transaction_id": null
+  }
+]

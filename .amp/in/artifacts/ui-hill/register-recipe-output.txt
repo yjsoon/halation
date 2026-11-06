@@ -1,0 +1,105 @@
+[agent-browser] restore: loaded; save: saved
+✓ Halation
+  http://localhost:4173/transactions?range=all&accounts=all
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+null
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+{
+  "rows": 1,
+  "text": "5 Mar 2026Everyday AccountFairPrice FinestGroceriesWeekly shop$142.30"
+}
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+{
+  "rows": 1,
+  "text": "5 Mar 2026Everyday AccountFairPrice FinestGroceriesWeekly shop$142.30"
+}
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+{
+  "rows": 1,
+  "text": "5 Mar 2026Everyday AccountFairPrice FinestGroceriesWeekly shop$142.30"
+}
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+{
+  "rows": 1,
+  "text": "5 Mar 2026Everyday AccountFairPrice FinestGroceriesWeekly shop$142.30"
+}
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+null
+[agent-browser] restore: loaded; save: saved
+✓ Halation
+  http://localhost:4173/transactions?from=2026-03-01&to=2026-05-31&accounts=acct-everyday
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+"Everyday scope correct"
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+{
+  "document": 320,
+  "width": 320
+}
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+{
+  "document": 390,
+  "width": 390
+}
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+{
+  "document": 768,
+  "width": 768
+}
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+{
+  "document": 1024,
+  "width": 1024
+}
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+✓ Done
+[agent-browser] restore: loaded; save: saved
+{
+  "document": 1440,
+  "width": 1440
+}

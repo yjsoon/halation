@@ -100,7 +100,7 @@
 .account-organiser-entry {
   padding: 1px 6px;
   border: 1px solid var(--sidebar-control);
-  border-radius: 4px;
+  border-radius: 16px;
   background: transparent;
   color: var(--sidebar-ink-soft);
   font-size: 11px;
@@ -547,16 +547,14 @@
   text-decoration: none;
   padding: 4px 12px;
   border: 1px solid var(--ink);
-  border-radius: 2px;
+  border-radius: 24px;
   background: var(--paper-raised);
-  box-shadow: 2px 2px 0 var(--rule);
   white-space: nowrap;
   transition: transform var(--dur-press);
 }
 
 .add-button:active {
-  box-shadow: none;
-  transform: translate(2px, 2px);
+  transform: scale(0.98);
 }
 
 .sign-out-button {
