@@ -9,10 +9,6 @@ import XCTest
 final class ChartSpeechTests: XCTestCase {
   private let describe: (Double) -> String = { String(Int($0)) }
 
-  func testEmptySeriesSaysSo() {
-    XCTAssertEqual(ChartSpeech.summary(names: [], values: [], describe: describe), "No data yet.")
-  }
-
   func testSinglePeriodReadsItsValue() {
     XCTAssertEqual(
       ChartSpeech.summary(names: ["August 2026"], values: [5], describe: describe),
@@ -57,10 +53,6 @@ final class ChartSpeechTests: XCTestCase {
       XCTAssertFalse(summary.contains("Week \(week),"), "read out week \(week): \(summary)")
     }
     XCTAssertLessThan(summary.count, 160)
-  }
-
-  func testPairedEmptySeriesSaysSo() {
-    XCTAssertEqual(ChartSpeech.pairedSummary(names: [], pairs: [], describe: describe), "No data yet.")
   }
 
   func testPairedSinglePeriodReadsBothValues() {

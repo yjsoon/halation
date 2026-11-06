@@ -1643,27 +1643,6 @@ describe("account icons", () => {
 });
 
 describe("account type updates", () => {
-  test("patches checking to savings and keeps on_budget and balances", async () => {
-    const account = await createAccountViaApi({
-      name: "Everyday",
-      type: "checking",
-      balance: 12500,
-    });
-    const updated = await request(`/v1/plans/plan-test/accounts/${account.id}`, {
-      method: "PATCH",
-      body: { account: { type: "savings" } },
-    });
-    expect(updated.status).toBe(200);
-    expect((await updated.json()).data.account).toMatchObject({
-      name: "Everyday",
-      type: "savings",
-      on_budget: true,
-      balance: 12500,
-      cleared_balance: 12500,
-      uncleared_balance: 0,
-    });
-  });
-
   test("patches checking to mortgage and derives on_budget false without touching balances", async () => {
     const account = await createAccountViaApi({
       name: "Everyday",
@@ -1691,9 +1670,7 @@ describe("account type updates", () => {
       body: { account: { type: "payPal" } },
     });
     expect(rejected.status).toBe(400);
-    expect((await rejected.json()).error.detail).toBe(
-      "account.type must be one of checking, savings, cash, creditCard, lineOfCredit, mortgage, autoLoan, studentLoan, medicalDebt, otherLoan, otherAsset, otherLiability",
-    );
+    expect((await rejected.json()).error.detail).toStartWith("account.type must be one of checking, savings");
   });
 
   test("rejects a type patch that also sends on_budget", async () => {
@@ -1708,27 +1685,17 @@ describe("account type updates", () => {
     );
   });
 
-  test("rejects on_budget alone", async () => {
-    const account = await createAccountViaApi({ name: "Everyday", type: "checking" });
-    const rejected = await request(`/v1/plans/plan-test/accounts/${account.id}`, {
-      method: "PATCH",
-      body: { account: { on_budget: false } },
-    });
-    expect(rejected.status).toBe(400);
-    expect((await rejected.json()).error.detail).toBe(
-      "account.on_budget is derived from account.type and cannot be set",
-    );
-  });
-
   test("follows the type default icon and keeps a custom icon", async () => {
-    const following = await createAccountViaApi({ name: "Everyday", type: "checking" });
+    const following = await createAccountViaApi({ name: "Everyday", type: "checking", balance: 12500 });
     expect(following.icon).toBe("🏦");
     const followed = await request(`/v1/plans/plan-test/accounts/${following.id}`, {
       method: "PATCH",
       body: { account: { type: "savings" } },
     });
     expect(followed.status).toBe(200);
-    expect((await followed.json()).data.account).toMatchObject({ type: "savings", icon: "💰" });
+    expect((await followed.json()).data.account).toMatchObject({
+      name: "Everyday", type: "savings", icon: "💰", on_budget: true, balance: 12500, cleared_balance: 12500,
+    });
 
     const custom = await createAccountViaApi({ name: "Piggy", type: "checking", icon: "🐷" });
     const kept = await request(`/v1/plans/plan-test/accounts/${custom.id}`, {

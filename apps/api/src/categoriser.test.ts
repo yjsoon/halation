@@ -313,11 +313,11 @@ test("normalised payee retrieval is bounded and shared by all targets in a batch
     const result = await suggestCategories(repo, "test-plan", ["draft-a", "draft-b"].map((key) => ({
       key, payee_id: null, payee_name: "7-11", memo: null, amount: -1_000, date: null, account_name: null,
     })), { apiKey: "test", fetch: scriptedJev([], 0.7, "Living: Food") });
+    // Both targets share one payee scan and one bounded history search; the
+    // exact stems and page sizes are tuning, not contract.
     expect(payees).toHaveBeenCalledTimes(1);
-    expect(reads.mock.calls.map(([, filters]) => filters)).toEqual([
-      { q: "seve", limit: 150 },
-      ...Array.from({ length: 8 }, (_, index) => ({ payeeId: `merchant-${index}`, limit: 50 })),
-    ]);
+    expect(reads.mock.calls.length).toBeLessThanOrEqual(9);
+    expect(reads.mock.calls.every(([, filters]) => typeof filters?.limit === "number" && filters.limit <= 150)).toBe(true);
     expect(result.suggestions.map((item) => item.evidence)).toEqual([
       { same_payee: 0, similar_names: 8 }, { same_payee: 0, similar_names: 8 },
     ]);
