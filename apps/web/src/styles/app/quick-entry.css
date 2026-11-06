@@ -1,45 +1,72 @@
 .quick-entry {
-  max-width: 420px;
-  margin: 0 auto;
-  padding: 14px 18px max(28px, env(safe-area-inset-bottom));
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+  grid-template-rows: auto 1fr;
+  column-gap: clamp(48px, 8vw, 140px);
+  min-height: 100svh;
+  padding: 32px max(40px, calc((100vw - 1160px) / 2)) 64px;
   min-width: 0;
+  background: var(--paper);
 }
 
 .quick-entry-head {
+  grid-column: 1 / -1;
   display: flex;
-  align-items: baseline;
-  gap: 14px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid var(--rule-strong);
-  margin-bottom: 16px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 60px;
 }
 
-.back-link {
-  font-size: 13px;
+.quick-entry .back-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 1px solid var(--rule);
+  border-radius: 24px;
+  font-size: 14px;
   text-decoration: none;
   color: var(--ink-soft);
+  background: var(--paper-raised);
+}
+
+.quick-entry-brand {
+  font: 400 28px/1 var(--font-display);
+}
+
+.quick-entry-intro {
+  padding-top: 0;
 }
 
 .quick-entry-title {
-  font-family: var(--font-display);
-  font-style: italic;
-  font-weight: 600;
-  font-size: 20px;
+  margin: 0;
+  font: italic 400 clamp(56px, 5vw, 72px)/1.05 var(--font-display);
+  letter-spacing: -0.025em;
 }
 
-.quick-entry-meta {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding-bottom: 14px;
-  margin-bottom: 16px;
-  border-bottom: 1px solid var(--rule);
+.quick-entry-intro p {
+  margin: 18px 0 0;
+  color: var(--ink-soft);
+  font-size: 17px;
 }
 
-.quick-entry-meta-value {
-  margin-top: 3px;
-  font-family: var(--font-figures);
-  font-size: 13px;
+.quick-entry .quick-entry-landscape {
+  z-index: -1;
+  width: 58%;
+  height: 65%;
+  max-height: 640px;
+  mask-image: linear-gradient(to bottom, transparent, var(--ink) 35%), linear-gradient(to right, var(--ink) 55%, transparent);
+  mask-composite: intersect;
+}
+
+[data-mode="dark"] .quick-entry .quick-entry-landscape {
+  opacity: 0.55;
+}
+
+.quick-entry-workspace {
+  min-width: 0;
 }
 
 .quick-entry-form {
@@ -316,4 +343,383 @@
 .save-button:not(:disabled):active {
   box-shadow: none;
   transform: translate(2px, 2px);
+}
+
+/* Quick entry is an open writing surface; shared form controls elsewhere keep
+   their existing treatment. */
+.quick-entry .segmented {
+  padding: 4px;
+  border: 0;
+  border-radius: 28px;
+  background: var(--paper-sunk);
+}
+
+.quick-entry .segment {
+  min-height: 40px;
+  border: 0;
+  border-radius: 24px;
+}
+
+.quick-entry .segment-active {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.quick-entry .field {
+  gap: 6px;
+  margin-bottom: 18px;
+  min-width: 0;
+}
+
+.quick-entry .field-label {
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--ink-soft);
+}
+
+.quick-entry .quick-entry-detail {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  margin: 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.quick-entry-detail .field-label small {
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+
+.quick-entry input[name="payee"] {
+  font-size: 23px !important;
+}
+
+.quick-entry input[name="payee"]::-webkit-calendar-picker-indicator {
+  display: none !important;
+}
+
+.quick-entry input::placeholder {
+  color: var(--ink-faint);
+  opacity: 1;
+}
+
+.quick-entry input[type="text"]:not(:focus),
+.quick-entry select {
+  text-overflow: ellipsis;
+}
+
+.quick-entry .field input,
+.quick-entry .field select {
+  min-height: 44px;
+  padding: 8px 0;
+  border: 0;
+  border-bottom: 1px solid var(--rule-control);
+  border-radius: 0;
+  background: transparent;
+}
+
+.quick-entry .quick-entry-detail input,
+.quick-entry .quick-entry-detail select {
+  border-bottom: 0;
+}
+
+.quick-entry .quick-entry-memo {
+  border-bottom: 0;
+}
+
+.quick-entry .quick-entry-memo input {
+  border-bottom: 1px solid var(--rule-control);
+}
+
+.quick-entry .field input:focus,
+.quick-entry .field select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-color: transparent;
+  border-radius: var(--radius);
+}
+
+.quick-entry .quick-entry-date .date-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  min-width: 0;
+  padding-block: 8px;
+}
+
+.quick-entry-date > .field-label {
+  align-self: start;
+  padding-top: 20px;
+}
+
+.quick-entry .date-presets {
+  border-radius: 24px;
+  padding: 3px;
+  justify-self: start;
+}
+
+.quick-entry .date-presets .segment {
+  flex: 1;
+  font-size: 12px;
+  padding: 0 10px;
+  border-radius: 24px;
+}
+
+.quick-entry .amount-field {
+  margin: 26px 0 24px;
+}
+
+.quick-entry .quick-entry-currency {
+  font-family: var(--font-figures);
+  font-size: 12px;
+}
+
+.quick-entry .amount-field > .field-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+}
+
+.quick-entry .amount-input {
+  font-family: var(--font-display) !important;
+  font-size: 72px !important;
+  font-weight: 400;
+  line-height: 1.1;
+  text-align: left;
+  padding: 0 0 8px;
+}
+
+.quick-entry .amount-input::placeholder {
+  opacity: 1;
+  color: var(--ink-faint);
+}
+
+.quick-entry .split-toggle {
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.quick-entry .split-controls {
+  margin: 0;
+  flex-wrap: wrap;
+}
+
+.quick-entry .split-controls > .field-label {
+  margin-right: auto;
+}
+
+.quick-entry .split-remainder {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  margin: 0;
+}
+
+.quick-entry .split-lines {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+.quick-entry .split-lines > .split-toggle {
+  align-self: start;
+  min-height: 44px;
+}
+
+.quick-entry .split-line {
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 4px 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--paper-raised);
+}
+
+.quick-entry .split-line-removable .split-line-memo {
+  grid-column: 1;
+}
+
+.quick-entry .split-line label {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.quick-entry .split-line-category {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.quick-entry .split-line-memo {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: 100%;
+}
+
+.split-line-memo summary {
+  display: list-item;
+  min-height: 44px;
+  padding-block: 12px;
+  list-style-position: inside;
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.split-line-memo[open] summary {
+  color: var(--ink-soft);
+}
+
+.split-line-memo input {
+  width: 100%;
+}
+
+.split-line-amount {
+  grid-column: 2;
+  grid-row: 1;
+  text-align: right;
+}
+
+.split-line-category > span,
+.split-line-amount > span {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.split-line-amount input,
+.split-line-category select {
+  display: block;
+  width: 100%;
+}
+
+.quick-entry .split-line input,
+.quick-entry .split-line select {
+  min-height: 44px;
+  padding-inline: 0;
+  border: 0;
+  border-bottom: 1px solid var(--rule-control);
+  border-radius: 0;
+  background: transparent;
+}
+
+.quick-entry .split-line input[type="number"] {
+  font-family: var(--font-ui);
+  font-variant-numeric: tabular-nums;
+  appearance: textfield;
+  padding-inline: 6px;
+}
+
+.split-line-amount > span {
+  padding-right: 6px;
+}
+
+.quick-entry .split-line input::-webkit-outer-spin-button,
+.quick-entry .split-line input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.quick-entry .split-line input:focus,
+.quick-entry .split-line select:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 0;
+  border-color: transparent;
+  border-radius: var(--radius);
+}
+
+.quick-entry .split-line-remove {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+  align-self: start;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+/* Reset native text insets without replacing native picker behaviour. */
+.quick-entry :is(.field, .split-line) select {
+  appearance: none;
+  padding-right: 28px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-soft) 50%), linear-gradient(135deg, var(--ink-soft) 50%, transparent 50%);
+  background-position: calc(100% - 9px) 50%, calc(100% - 4px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.quick-entry input[type="date"]::-webkit-datetime-edit,
+.quick-entry input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+}
+
+.quick-entry .save-button {
+  min-height: 50px;
+  margin-top: 20px;
+  border-radius: 28px;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+
+.quick-entry .save-button:disabled {
+  opacity: 1;
+  background: var(--paper-sunk);
+  color: var(--ink-faint);
+}
+
+.quick-entry-save-note {
+  text-align: center;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 10px 0 0;
+}
+
+@media (hover: hover) {
+  .quick-entry .save-button:not(:disabled):hover {
+    filter: brightness(1.1);
+  }
+  .quick-entry .back-link:hover,
+  .quick-entry .segment:not(.segment-active):hover {
+    background: var(--paper-sunk-hover);
+  }
+  .quick-entry .split-toggle:hover {
+    text-decoration: underline;
+  }
+}
+
+@media (max-width: 800px) {
+  main.quick-entry {
+    display: block;
+    padding: 16px 24px max(24px, env(safe-area-inset-bottom));
+  }
+  .quick-entry-head {
+    float: right;
+    margin: 0 0 12px 12px;
+  }
+  .quick-entry-brand { display: none; }
+  .quick-entry-intro {
+    margin: 0 auto 18px;
+    padding: 0;
+  }
+  .quick-entry-title { font-size: 36px; line-height: 44px; }
+  .quick-entry-intro p { display: none; }
+  .quick-entry-workspace { clear: both; max-width: 460px; margin: 0 auto; }
+  .quick-entry .quick-entry-landscape { display: none; }
+  .quick-entry .amount-field { margin: 8px 0 16px; }
+  .quick-entry .amount-input { font-size: 64px !important; }
+  .quick-entry .quick-entry-form-split .amount-field { margin: 0 0 10px; }
+  .quick-entry .quick-entry-form-split .amount-input { font-size: 48px !important; }
+  .quick-entry .field-row { gap: 0; }
+  .quick-entry .quick-entry-detail { grid-template-columns: 100px minmax(0, 1fr); min-height: 58px; }
+  .quick-entry .save-button { margin-top: 20px; }
 }

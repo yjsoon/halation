@@ -1,0 +1,26 @@
+[
+  {
+    "account_id": "acct-everyday",
+    "amount": -6800,
+    "date": "2026-11-06",
+    "id": "dfe34857-7d2a-4c83-9629-2fd85e8a0c9a",
+    "memo": "verify quick entry",
+    "payee_name": "Toast Box Verify"
+  },
+  {
+    "account_id": "acct-everyday",
+    "amount": -6800,
+    "date": "2026-11-06",
+    "id": "66455d10-ed8e-4952-b078-c1d78a7b6901",
+    "memo": "verify quick entry",
+    "payee_name": "Toast Box Verify"
+  },
+  {
+    "account_id": "acct-everyday",
+    "amount": -6800,
+    "date": "2026-11-06",
+    "id": "57a398e2-a101-482a-b414-71c68299bad7",
+    "memo": "verify quick entry",
+    "payee_name": "Toast Box Verify"
+  }
+]

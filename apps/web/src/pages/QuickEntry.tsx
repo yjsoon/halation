@@ -5,7 +5,7 @@ import type { QuickEntrySplitLine, Transaction } from "../api/types";
 import { CategorySelect } from "../components/CategorySelect";
 import { splitCategoryGroups } from "../lib/categories";
 import { formatDate, todayIso, yesterdayIso } from "../lib/dates";
-import { formatMoney, parseMilliunits } from "../lib/money";
+import { currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
 import { resolvePostingAccountId } from "../lib/register-compose";
 import { usePlan } from "../state/plan";
 import { StatusPanel } from "../components/StatusPanel";
@@ -66,8 +66,6 @@ export function QuickEntryPage() {
     requestedAccountId,
     accountId,
   );
-  const selectedAccountName =
-    openAccounts.find((account) => account.id === selectedAccount)?.name ?? "No open account";
   const transferTargets = useMemo(
     () => openAccounts.filter((account) => account.id !== selectedAccount && account.transfer_payee_id),
     [openAccounts, selectedAccount],
@@ -174,31 +172,27 @@ export function QuickEntryPage() {
   };
 
   return (
-    <div className="quick-entry">
+    <main className="quick-entry">
       <header className="quick-entry-head">
+        <span className="quick-entry-brand">Halation</span>
         <Link to="/transactions?range=all&accounts=all" className="back-link">
           ‹ Ledger
         </Link>
-        <span className="quick-entry-title">Quick entry</span>
       </header>
 
-      <div className="quick-entry-meta">
-        <div>
-          <span className="figure-label">Posting account</span>
-          <div className="quick-entry-meta-value">{selectedAccountName}</div>
-        </div>
-        <div>
-          <span className="figure-label">Posting date</span>
-          <div className="quick-entry-meta-value">{date}</div>
-        </div>
+      <div className="quick-entry-intro">
+        <h1 className="quick-entry-title">Quick entry</h1>
+        <p>Clarity for a longer view.</p>
       </div>
+      <div className="signin-landscape quick-entry-landscape" aria-hidden="true" />
 
+      <div className="quick-entry-workspace">
       {!openAccounts.length ? (
         <StatusPanel error title="No open accounts available.">
           <Link to="/accounts/new?then=add">Add an account</Link> before using quick entry.
         </StatusPanel>
       ) : (
-        <form onSubmit={submit} className="quick-entry-form">
+        <form onSubmit={submit} className={isSplit ? "quick-entry-form quick-entry-form-split" : "quick-entry-form"}>
           {/* Above the amount, which takes focus again after a save: on a phone
               the keyboard would hide a confirmation placed by the button. */}
           {saved && !error && (
@@ -236,7 +230,7 @@ export function QuickEntryPage() {
           </div>
 
           <label className="field amount-field">
-            <span className="field-label">Amount</span>
+            <span className="field-label">Amount <span className="quick-entry-currency">{currentCurrencyFormat()?.iso_code}</span></span>
             <input
               type="number"
               name="amount"
@@ -249,18 +243,12 @@ export function QuickEntryPage() {
                 clearStatus();
                 setAmount(event.target.value);
               }}
-              className={direction === "income" ? "amount-input amount-input-income" : "amount-input amount-input-spend"}
+              className={`amount-input amount-input-${direction}`}
               ref={amountRef}
               autoFocus
               required
             />
-            <span className="field-note">
-              {direction === "spend"
-                ? "Saved as spending."
-                : direction === "income"
-                  ? "Saved as income."
-                  : "Moves money between two accounts; both sides are recorded."}
-            </span>
+            {isTransfer && <span className="field-note">Both sides of the transfer are recorded.</span>}
           </label>
 
           {!isTransfer && (
@@ -290,7 +278,7 @@ export function QuickEntryPage() {
             </label>
           )}
 
-          <label className="field">
+          <label className="field quick-entry-detail">
             <span className="field-label">{isTransfer ? "From account" : "Account"}</span>
             <select
               name="account"
@@ -309,7 +297,7 @@ export function QuickEntryPage() {
           </label>
 
           {isTransfer && (
-            <label className="field">
+            <label className="field quick-entry-detail">
               <span className="field-label">To account</span>
               {transferTargets.length ? (
                 <select
@@ -333,8 +321,8 @@ export function QuickEntryPage() {
           )}
 
           {!isTransfer && !isSplit && (
-            <label className="field">
-              <span className="field-label">Category (optional)</span>
+            <label className="field quick-entry-detail">
+              <span className="field-label">Category <small>optional</small></span>
               <CategorySelect
                 value={categoryId}
                 onChange={(value) => {
@@ -348,58 +336,61 @@ export function QuickEntryPage() {
 
           {!isTransfer && (
             <div className="split-controls">
+              {isSplit && <span className="field-label">Split categories</span>}
               <button type="button" className="split-toggle" onClick={toggleSplit}>
-                {isSplit ? "Remove split" : "Split into multiple categories"}
+                {isSplit ? "Use one category" : "+ Split categories"}
               </button>
-              {isSplit && (
-                <span className={splitRemainderMilliunits === 0 ? "split-remainder split-remainder-ok" : "split-remainder"}>
-                  {splitRemainderMilliunits === 0
-                    ? "Lines match the total."
-                    : `${formatMoney(splitRemainderMilliunits, { sign: true })} left to assign.`}
-                </span>
-              )}
             </div>
           )}
 
           {!isTransfer && isSplit && (
             <div className="split-lines">
               {splitLines.map((line, index) => (
-                <div key={line.key} className="split-line">
-                  <CategorySelect
-                    aria-label={`Split line ${index + 1} category`}
-                    value={line.categoryId}
-                    onChange={(value) => updateSplitLine(line.key, { categoryId: value })}
-                    groups={orderedGroups}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Line memo"
-                    aria-label={`Split line ${index + 1} memo`}
-                    value={line.memo}
-                    onChange={(event) => updateSplitLine(line.key, { memo: event.target.value })}
-                  />
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    placeholder="0.00"
-                    aria-label={`Split line ${index + 1} amount`}
-                    value={line.amount}
-                    onChange={(event) => updateSplitLine(line.key, { amount: event.target.value })}
-                  />
-                  <button
+                <div key={line.key} className={splitLines.length > 2 ? "split-line split-line-removable" : "split-line"} role="group" aria-label={`Allocation ${index + 1}`}>
+                  <label className="split-line-category">
+                    <span>Category</span>
+                    <CategorySelect
+                      aria-label={`Split line ${index + 1} category`}
+                      value={line.categoryId}
+                      onChange={(value) => updateSplitLine(line.key, { categoryId: value })}
+                      groups={orderedGroups}
+                    />
+                  </label>
+                  <label className="split-line-amount">
+                    <span>Amount</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      aria-label={`Split line ${index + 1} amount`}
+                      value={line.amount}
+                      onChange={(event) => updateSplitLine(line.key, { amount: event.target.value })}
+                    />
+                  </label>
+                  <details className="split-line-memo">
+                    <summary>{line.memo ? "Note" : "Add note"}</summary>
+                    <input
+                      type="text"
+                      placeholder="Note (optional)"
+                      aria-label={`Split line ${index + 1} memo`}
+                      value={line.memo}
+                      onChange={(event) => updateSplitLine(line.key, { memo: event.target.value })}
+                    />
+                  </details>
+                  {splitLines.length > 2 && <button
                     type="button"
                     className="split-line-remove"
                     aria-label={`Remove split line ${index + 1}`}
+                    title="Remove line"
                     onClick={() => {
                       clearStatus();
                       setSplitLines((lines) => lines.filter((candidate) => candidate.key !== line.key));
                     }}
-                    disabled={splitLines.length <= 2}
                   >
-                    ×
-                  </button>
+                    Remove line
+                  </button>}
                 </div>
               ))}
               <button
@@ -410,13 +401,18 @@ export function QuickEntryPage() {
                   setSplitLines((lines) => [...lines, newSplitLine()]);
                 }}
               >
-                Add line
+                + Add line
               </button>
+              <p role="status" className={splitRemainderMilliunits === 0 ? "split-remainder split-remainder-ok" : "split-remainder"}>
+                {splitRemainderMilliunits === 0
+                  ? "✓ Lines match the total."
+                  : `${formatMoney(splitRemainderMilliunits, { sign: true })} left to assign.`}
+              </p>
             </div>
           )}
 
           <div className="field-row field-row-compact">
-            <label className="field">
+            <label className="field quick-entry-detail quick-entry-date">
               <span className="field-label">Date</span>
               <div className="date-row">
                 <input
@@ -449,13 +445,13 @@ export function QuickEntryPage() {
                       setDate(yesterdayIso());
                     }}
                   >
-                    Yest.
+                    Yesterday
                   </button>
                 </div>
               </div>
             </label>
-            <label className="field">
-              <span className="field-label">Memo (optional)</span>
+            <label className="field quick-entry-detail quick-entry-memo">
+              <span className="field-label">Memo <small>optional</small></span>
               <input
                 type="text"
                 name="memo"
@@ -469,10 +465,6 @@ export function QuickEntryPage() {
               />
             </label>
           </div>
-
-          <p className="field-note">
-            Entries post straight to the selected account and refresh the reports after the next load.
-          </p>
 
           {error && (
             <StatusPanel error className="compact-panel" title="Could not save this entry.">
@@ -488,6 +480,7 @@ export function QuickEntryPage() {
                   ? "Save income"
                   : "Save transfer"}
           </button>
+          <p className="quick-entry-save-note">Saves directly to your ledger.</p>
         </form>
       )}
 
@@ -507,6 +500,7 @@ export function QuickEntryPage() {
           </ul>
         </section>
       )}
-    </div>
+      </div>
+    </main>
   );
 }

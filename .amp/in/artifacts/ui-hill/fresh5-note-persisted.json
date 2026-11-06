@@ -1,0 +1,57 @@
+[
+  {
+    "account_id": "acct-everyday",
+    "account_name": "Everyday Account",
+    "amount": -6800,
+    "approved": true,
+    "category_id": null,
+    "category_name": "Split",
+    "claim_status": null,
+    "claimed_on": null,
+    "cleared": "uncleared",
+    "date": "2026-11-06",
+    "deleted": false,
+    "flag_color": null,
+    "flag_name": null,
+    "id": "06cf1529-7a89-4e3c-8101-9507c7d99a7e",
+    "import_id": null,
+    "import_payee_name": null,
+    "import_payee_name_original": null,
+    "matched_transaction_id": null,
+    "memo": null,
+    "needs_confirmation": false,
+    "parent_transaction_id": null,
+    "payee_id": "payee_bbca4a7a-0aff-49a0-a287-c7289228d3dd",
+    "payee_name": "Demo Note Keyboard Verify",
+    "subtransactions": [
+      {
+        "amount": -3000,
+        "category_id": "cat-groceries",
+        "category_name": "Groceries",
+        "deleted": false,
+        "id": "sub_48a845f4-9c29-44f6-aa87-fe8c88ed06a9",
+        "memo": "Demo pantry note retained",
+        "payee_id": null,
+        "payee_name": null,
+        "transaction_id": "06cf1529-7a89-4e3c-8101-9507c7d99a7e",
+        "transfer_account_id": null,
+        "transfer_transaction_id": null
+      },
+      {
+        "amount": -3800,
+        "category_id": "cat-dining",
+        "category_name": "Dining Out",
+        "deleted": false,
+        "id": "sub_fc7e163a-0626-4fb3-9190-7e313a43c6d6",
+        "memo": null,
+        "payee_id": null,
+        "payee_name": null,
+        "transaction_id": "06cf1529-7a89-4e3c-8101-9507c7d99a7e",
+        "transfer_account_id": null,
+        "transfer_transaction_id": null
+      }
+    ],
+    "transfer_account_id": null,
+    "transfer_transaction_id": null
+  }
+]
