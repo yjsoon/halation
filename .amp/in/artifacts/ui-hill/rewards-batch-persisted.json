@@ -1,0 +1,46 @@
+{
+  "rates": [
+    {
+      "id": "c-calm",
+      "rate": 1.5
+    },
+    {
+      "id": "c-capped",
+      "rate": 1.75
+    },
+    {
+      "id": "c-gate87",
+      "rate": 1.75
+    },
+    {
+      "id": "c-gate30",
+      "rate": 1.5
+    },
+    {
+      "id": "c-cap",
+      "rate": 1.5
+    },
+    {
+      "id": "c-long",
+      "rate": 40
+    },
+    {
+      "id": "c-rest",
+      "rate": 1.5
+    },
+    {
+      "id": "c-longmonth",
+      "rate": 1.5
+    },
+    {
+      "id": "c-month",
+      "rate": 1.5
+    }
+  ],
+  "totals": {
+    "cashback": 11.982500000000002,
+    "miles": 473.25,
+    "reward_dollars": 19.08125,
+    "spend": 3241.8
+  }
+}

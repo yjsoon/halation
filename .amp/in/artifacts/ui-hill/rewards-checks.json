@@ -1,0 +1,98 @@
+[
+  {
+    "name": "Nine fixture cards, baseline financial totals",
+    "result": true
+  },
+  {
+    "name": "Valuation initially folded",
+    "result": true
+  },
+  {
+    "name": "Enter opens valuation disclosure",
+    "result": true
+  },
+  {
+    "name": "Valuation saved to API, changes earned value independently",
+    "result": true
+  },
+  {
+    "name": "Valuation persists after reload",
+    "result": true
+  },
+  {
+    "name": "Card detail remains available",
+    "result": true
+  },
+  {
+    "name": "Menu identifies Capped Card 2468",
+    "result": true
+  },
+  {
+    "name": "Escape restores menu trigger Capped Card 2468",
+    "result": true
+  },
+  {
+    "name": "Menu identifies Gate Eighty 8787",
+    "result": true
+  },
+  {
+    "name": "Escape restores menu trigger Gate Eighty 8787",
+    "result": true
+  },
+  {
+    "name": "Grid is persisted on this device",
+    "result": true
+  },
+  {
+    "name": "Day step changes and restores as-of date",
+    "result": true
+  },
+  {
+    "name": "Batch featured write persisted for only selected card",
+    "result": true
+  },
+  {
+    "name": "Featured filters to saved card",
+    "result": true
+  },
+  {
+    "name": "Featured restored in API",
+    "result": true
+  },
+  {
+    "name": "Hide persists after reload without changing totals",
+    "result": true
+  },
+  {
+    "name": "Unhide restores card preference",
+    "result": true
+  },
+  {
+    "name": "No horizontal overflow at 320",
+    "result": true
+  },
+  {
+    "name": "No horizontal overflow at 390",
+    "result": true
+  },
+  {
+    "name": "No horizontal overflow at 820",
+    "result": true
+  },
+  {
+    "name": "No horizontal overflow at 1440",
+    "result": true
+  },
+  {
+    "name": "Empty account scope retains recovery",
+    "result": true
+  },
+  {
+    "name": "All time keeps historical mode",
+    "result": true
+  },
+  {
+    "name": "Today disables forward travel",
+    "result": true
+  }
+]

@@ -47,7 +47,7 @@ type BoardPreferences = {
   order: "manual" | "name" | "value" | "spend";
   cardOrder: string[];
   grouped: boolean;
-  /** Grid: the 3:2 faces in columns. Stacked: Skyline rows sized by urgency, opening in place; from 1000px a sunrise window beside aligned columns. */
+  /** Grid: shallow faces in columns. Stacked: Skyline rows sized by urgency, opening in place; from 1000px a sunrise window beside aligned columns. */
   layout: "grid" | "stacked";
   collapsedGroups: string[];
 };
@@ -76,6 +76,7 @@ function loadBoard(planId: string): BoardPreferences {
 function RewardsBoard({ planId }: { planId: string }) {
   const location = useLocation();
   const { accounts } = usePlan();
+  const isPhone = useIsPhone();
   const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ALL_TIME });
   // The mode is its own param: Historical range with no `from` (the All preset)
   // means all history, not card periods.
@@ -231,38 +232,46 @@ function RewardsBoard({ planId }: { planId: string }) {
           <h1>Rewards</h1>
           <p className="rw-hero-scope">{range ? formatDateRange(filters.from, filters.to) : `Card periods as of ${formatDate(asOf)}`} · {scopeLabel}</p>
           {storedCards.length > 0 && (
-            <p className="rw-hero-status">Showing {visibleCards.length} of {storedCards.length} cards · totals include hidden and non-featured cards</p>
+            <p className="rw-hero-status">Showing {visibleCards.length} of {storedCards.length} cards</p>
           )}
           {summary && summary.statusCounts.length > 0 && <p className="rw-hero-summary">{summary.statusCounts.join(" · ")}</p>}
         </div>
-        <div className="rw-hero-figures">
-          <Figure primary label="Value earned" value={dollars(shown?.totals.reward_dollars ?? 0)} />
-          <Figure label="Qualifying spend" value={dollars(shown?.totals.spend ?? 0)} />
-          {(shown?.totals.miles ?? 0) > 0 && <Figure label="Miles" value={Math.round(shown!.totals.miles).toLocaleString("en-GB")} />}
-          {(shown?.totals.cashback ?? 0) > 0 && <Figure label="Cashback" value={dollars(shown!.totals.cashback)} />}
-        </div>
+        {!emptyImported && (
+          <div className="rw-hero-figures">
+            <Figure primary label="Value earned" value={dollars(shown?.totals.reward_dollars ?? 0)} />
+            <Figure label="Qualifying spend" value={dollars(shown?.totals.spend ?? 0)} />
+            {(shown?.totals.miles ?? 0) > 0 && <Figure label="Miles" value={Math.round(shown!.totals.miles).toLocaleString("en-GB")} />}
+            {(shown?.totals.cashback ?? 0) > 0 && <Figure label="Cashback" value={dollars(shown!.totals.cashback)} />}
+          </div>
+        )}
         {shown && (
-          <label className="rw-valuation">Miles valued at
-            <input
-              type="text"
-              inputMode="decimal"
-              value={milesValue}
-              aria-label="Miles valuation"
-              aria-describedby="rw-valuation-note"
-              onChange={(event) => setMilesText(event.target.value)}
-              onBlur={() => void saveMilesValuation()}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") event.currentTarget.blur();
-                if (event.key === "Escape") setMilesText(null);
-              }}
-            />
-            each
-            <span id="rw-valuation-note" className="sr-only">Currency units assigned to each mile.</span>
-          </label>
+          <details className="rw-board-notes">
+            <summary>Valuation and report details</summary>
+            <p>Totals include hidden and non-featured cards.</p>
+            <p>{range ? "Rewards attributed to the selected dates; qualification shows the latest card period." : "Each card uses its own billing or reward period. Today uses the server’s Singapore date."} Capped cards stay visible until you hide them.</p>
+            <label className="rw-valuation">Miles valued at
+              <input
+                type="text"
+                inputMode="decimal"
+                value={milesValue}
+                aria-label="Miles valuation"
+                aria-describedby="rw-valuation-note"
+                onChange={(event) => setMilesText(event.target.value)}
+                onBlur={() => void saveMilesValuation()}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") event.currentTarget.blur();
+                  if (event.key === "Escape") setMilesText(null);
+                }}
+              />
+              each
+              <span id="rw-valuation-note" className="sr-only">Currency units assigned to each mile.</span>
+            </label>
+          </details>
         )}
         <Link to={addCardHref} className="add-button rw-add">Add card</Link>
       </header>
 
+      {!emptyImported && (
       <section className="rw-toolbar" aria-label="Rewards board controls">
         <div className="segmented" role="group" aria-label="Period mode">
           <button type="button" aria-pressed={!range} className={!range ? "segment segment-active" : "segment"}
@@ -298,7 +307,7 @@ function RewardsBoard({ planId }: { planId: string }) {
             onClick={() => { if (selecting) setSelected([]); setSelecting(!selecting); }}>{selecting ? "Done" : "Select"}</button>
         </div>
       </section>
-      <p className="field-note rw-mode-note">{range ? "Rewards attributed to the selected dates; qualification shows the latest card period." : "Each card uses its own billing or reward period. Today uses the server’s Singapore date."} Capped cards stay visible until you hide them.</p>
+      )}
       {range &&
       <FilterRail
         filters={filters}
@@ -306,6 +315,7 @@ function RewardsBoard({ planId }: { planId: string }) {
         showCategories={false}
         groups={[...GROUPS]}
         busy={report.loading}
+        collapsible={isPhone}
       />
       }
 
@@ -326,16 +336,22 @@ function RewardsBoard({ planId }: { planId: string }) {
       )}
 
       {emptyImported && !hasCardAccount && (
-        <StatusPanel title="Add an account first">
-          Reward cards score spending on an open spending account. <Link to="/accounts/new">Create an account</Link>,
-            or import a Rewards Tracker export from <Link to="/import/rewards">Settings → Rewards import</Link>.
+        <StatusPanel className="rw-setup" title="Add an account first">
+          Reward cards score spending on an open spending account.
+          <span className="rw-setup-actions">
+            <Link className="add-button" to="/accounts/new">Create an account</Link>
+            <Link to="/import/rewards">Import Rewards Tracker settings</Link>
+          </span>
         </StatusPanel>
       )}
 
       {emptyImported && hasCardAccount && (
-        <StatusPanel title="No reward cards in this range.">
-          Import a Rewards Tracker export from <Link to="/import/rewards">Settings → Rewards import</Link>,
-            or choose <Link to={addCardHref}>Add card</Link> to score one of your Halation cards.
+        <StatusPanel className="rw-setup" title="Add your first reward card">
+          See what your spending earns. Add rewards to one of your Halation accounts, or import your Rewards Tracker settings.
+          <span className="rw-setup-actions">
+            <Link className="add-button" to={addCardHref}>Add card</Link>
+            <Link to="/import/rewards">Import Rewards Tracker settings</Link>
+          </span>
         </StatusPanel>
       )}
 
@@ -348,6 +364,31 @@ function RewardsBoard({ planId }: { planId: string }) {
 
       {storedCards.length > 0 && (
         <div className="rw-board" data-refreshing={refreshing || undefined} aria-busy={refreshing}>
+          {(selecting || selected.length > 0) && (
+            <div className="rw-bulk" role="region" aria-label="Batch card edits">
+              <span className="rw-bulk-count" aria-live="polite">{selected.length} selected</span>
+              <button type="button" disabled={batchBusy} onClick={selectVisible}>Select visible</button>
+              <button type="button" disabled={batchBusy} onClick={() => setSelected([])}>Clear selection</button>
+              <span className="rw-bulk-rule" aria-hidden="true" />
+              <span className="rw-bulk-verb" aria-hidden="true">Set</span>
+              <select aria-label="Batch field" value={batchField} disabled={batchBusy} onChange={(event) => {
+                const field = event.target.value as typeof batchField; setBatchField(field); setBatchValue(field === "featured" ? "true" : field === "type" ? "cashback" : "");
+              }}><option value="featured">Featured status</option><option value="type">Reward type</option><option value="earningRate">Base earning rate</option></select>
+              <span className="rw-bulk-verb" aria-hidden="true">to</span>
+              {batchField === "earningRate" ? <input aria-label="Batch value" inputMode="decimal" value={batchValue} onChange={(event) => setBatchValue(event.target.value)} />
+                : <select aria-label="Batch value" value={batchValue} onChange={(event) => setBatchValue(event.target.value)}>
+                  {batchField === "featured" ? <><option value="true">Featured</option><option value="false">Not featured</option></> : <><option value="cashback">Cashback</option><option value="miles">Miles</option></>}
+                </select>}
+              <button type="button" className="rw-bulk-apply" disabled={!selected.length || batchBusy} onClick={() => void applyBatch()}>{batchBusy ? "Applying…" : "Apply to selected"}</button>
+              <button type="button" onClick={() => {
+                // The bar goes with selection mode; hand focus to the toolbar's
+                // Select button rather than letting it fall to <body>.
+                selectToggleRef.current?.focus();
+                setSelected([]);
+                setSelecting(false);
+              }}>Done</button>
+            </div>
+          )}
           {!visibleCards.length && (
             <div className="status-panel rw-empty" role="status">
               {preferences.featured && featuredCount === 0 ? <>
@@ -409,31 +450,6 @@ function RewardsBoard({ planId }: { planId: string }) {
           })}
           {hiddenCount > 0 && !preferences.showHidden && visibleCards.length > 0 &&
             <button type="button" className="rw-hidden-footer" onClick={() => arrange({ showHidden: true })}>{hiddenCount} hidden · Show</button>}
-          {(selecting || selected.length > 0) && (
-            <div className="rw-bulk" role="region" aria-label="Batch card edits">
-              <span className="rw-bulk-count" aria-live="polite">{selected.length} selected</span>
-              <button type="button" disabled={batchBusy} onClick={selectVisible}>Select visible</button>
-              <button type="button" disabled={batchBusy} onClick={() => setSelected([])}>Clear selection</button>
-              <span className="rw-bulk-rule" aria-hidden="true" />
-              <span className="rw-bulk-verb" aria-hidden="true">Set</span>
-              <select aria-label="Batch field" value={batchField} disabled={batchBusy} onChange={(event) => {
-                const field = event.target.value as typeof batchField; setBatchField(field); setBatchValue(field === "featured" ? "true" : field === "type" ? "cashback" : "");
-              }}><option value="featured">Featured status</option><option value="type">Reward type</option><option value="earningRate">Base earning rate</option></select>
-              <span className="rw-bulk-verb" aria-hidden="true">to</span>
-              {batchField === "earningRate" ? <input aria-label="Batch value" inputMode="decimal" value={batchValue} onChange={(event) => setBatchValue(event.target.value)} />
-                : <select aria-label="Batch value" value={batchValue} onChange={(event) => setBatchValue(event.target.value)}>
-                  {batchField === "featured" ? <><option value="true">Featured</option><option value="false">Not featured</option></> : <><option value="cashback">Cashback</option><option value="miles">Miles</option></>}
-                </select>}
-              <button type="button" className="rw-bulk-apply" disabled={!selected.length || batchBusy} onClick={() => void applyBatch()}>{batchBusy ? "Applying…" : "Apply to selected"}</button>
-              <button type="button" onClick={() => {
-                // The bar goes with selection mode; hand focus to the toolbar's
-                // Select button rather than letting it fall to <body>.
-                selectToggleRef.current?.focus();
-                setSelected([]);
-                setSelecting(false);
-              }}>Done</button>
-            </div>
-          )}
         </div>
       )}
 
@@ -609,6 +625,7 @@ function CardMenu({ row, search, hidden, expiry, today, onToggleHidden, onHideUn
         aria-expanded={open} aria-controls={open ? `${id}-list` : undefined} onClick={() => setOpen(!open)}>⋯</button>
       {open && (
         <ul className="rw-menu-list" id={`${id}-list`}>
+          <li className="rw-menu-title">{row.card.name}</li>
           <li><Link to={{ pathname: `/rewards/${row.card.id}`, search }}>Edit card</Link></li>
           <li><Link to={`/transactions?accounts=${encodeURIComponent(row.account_id)}&range=all`}>View transactions</Link></li>
           <li>
@@ -785,7 +802,7 @@ export function RewardTile({ row, search, asOf, hiddenUntil, projection, range, 
             <>
               <p className="rw-face-top"><span>{caps}</span>{badge}</p>
               <h3 className="rw-face-name" id={`${id}-name`}>{row.card.name}</h3>
-              <p className="rw-face-foot">
+              <p className="rw-face-foot" data-rw="foot">
                 <span className="rw-face-account">{row.account_name}</span>
                 <span className="rw-face-earned">{formatReward(calc.reward_earned, calc.reward_type)}</span>
               </p>

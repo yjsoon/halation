@@ -157,7 +157,7 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
 
   return (
     <div className="rw-face" data-variant={variant} ref={faceRef}>
-      <SceneSvg uid={uid} svgRef={svgRef} w={size.w} h={size.h} />
+      <SceneSvg uid={uid} svgRef={svgRef} w={size.w} h={size.h} markerBottom={size.footTop - 6} />
       {children}
     </div>
   );
@@ -166,7 +166,7 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
 const stops = (prefix: string, colour: string) =>
   [0, 1, 2, 3].map((i) => <stop key={i} data-p={`${prefix}${i}`} style={{ stopColor: colour }} offset="0" stopOpacity="0" />);
 
-const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; svgRef: RefObject<SVGSVGElement | null>; w: number; h: number }) {
+const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h, markerBottom }: { uid: string; svgRef: RefObject<SVGSVGElement | null>; w: number; h: number; markerBottom: number }) {
   const ref = (name: string) => `url(#${uid}-${name})`;
   return (
     <svg ref={svgRef} className="rw-scene" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true" focusable="false">
@@ -207,6 +207,7 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
         </linearGradient>
         <clipPath id={`${uid}-sky`}><path data-p="skyClip" d="" /></clipPath>
         <clipPath id={`${uid}-ground`}><path data-p="groundClip" d="" /></clipPath>
+        <clipPath id={`${uid}-marker`}><rect width={w} height={Math.max(0, markerBottom)} /></clipPath>
       </defs>
       <rect data-p="hz" width={w} height={h} fill={ref("hz")} />
       <rect data-p="hz2" width={w} height={h} fill={ref("hz")} />
@@ -236,7 +237,7 @@ const SceneSvg = memo(function SceneSvg({ uid, svgRef, w, h }: { uid: string; sv
       <g clipPath={ref("sky")}>
         <g data-p="sun"><circle data-p="sunDisc" className="rw-sun" r="0" fill={ref("sd")} /></g>
       </g>
-      <g data-p="marker" className="rw-marker">
+      <g data-p="marker" className="rw-marker" clipPath={ref("marker")}>
         {[0, 1, 2, 3].map((i) => <line key={`e${i}`} data-p={`mkE${i}`} className="rw-mk-edge" strokeLinecap="butt" />)}
         {[0, 1, 2, 3].map((i) => <line key={`l${i}`} data-p={`mk${i}`} className="rw-mk" strokeLinecap="butt" />)}
       </g>

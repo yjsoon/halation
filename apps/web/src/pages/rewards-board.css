@@ -131,6 +131,24 @@
   color: var(--ink-soft);
 }
 
+.rw-board-notes {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.rw-board-notes summary {
+  width: fit-content;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.rw-board-notes p {
+  max-width: 70ch;
+  margin: 8px 0;
+  line-height: 1.5;
+}
+
 .rw-valuation {
   grid-column: 1 / -1;
   display: inline-flex;
@@ -181,8 +199,7 @@
 /* ---------- toolbar ---------- */
 
 /* Positioned, so the controls paint over the masthead's sky where it runs on behind them. */
-.rw-toolbar,
-.rw-mode-note {
+.rw-toolbar {
   position: relative;
 }
 
@@ -202,6 +219,20 @@
   min-height: 34px;
 }
 
+.rw-toolbar :is(.segmented, .filter-trigger),
+.rw-page .filter-rail :is(.segmented, .filter-trigger) {
+  border-radius: 18px;
+}
+
+.rw-toolbar .segment,
+.rw-page .filter-rail .segment {
+  border-radius: 16px;
+}
+
+.rw-page .custom-range input {
+  border-radius: 8px;
+}
+
 .rw-toolbar-end {
   display: flex;
   gap: 8px;
@@ -213,7 +244,7 @@
   min-height: 34px;
   padding: 0 12px;
   border: 1px solid var(--rule-control);
-  border-radius: 2px;
+  border-radius: 18px;
   background: var(--paper-raised);
   font-size: 13px;
   transition: background-color var(--dur-fast), border-color var(--dur-fast);
@@ -233,7 +264,7 @@
 .rw-stepper {
   display: inline-flex;
   border: 1px solid var(--rule-control);
-  border-radius: 2px;
+  border-radius: 18px;
   background: var(--paper-raised);
 }
 
@@ -278,9 +309,8 @@
   outline-offset: 2px;
 }
 
-/* A past as-of date reads as "not now": italic display face in the needs tone. */
+/* A past as-of date keeps the same readable figures with a quieter needs tone. */
 .rw-stepper[data-past] .rw-date-face {
-  font: italic 400 15px var(--font-display);
   color: var(--tone-needs);
 }
 
@@ -306,10 +336,6 @@
   height: 6px;
   border-radius: 50%;
   background: var(--plan-accent);
-}
-
-.rw-mode-note {
-  margin: 0 0 4px;
 }
 
 /* ---------- popovers and the card menu ---------- */
@@ -358,6 +384,14 @@
 .rw-menu-list button:disabled {
   color: var(--ink-faint);
   cursor: default;
+}
+
+.rw-menu-title {
+  padding: 8px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--rule);
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .rw-menu-note {
@@ -437,6 +471,25 @@
   margin: 0;
 }
 
+.rw-setup .status-title {
+  color: var(--ink);
+  font: 400 28px / 1.2 var(--font-display);
+}
+
+.rw-setup .status-detail {
+  max-width: 60ch;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.rw-setup-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-top: 20px;
+}
+
 .rw-group-head {
   margin: 0 0 14px;
   font: inherit;
@@ -480,6 +533,14 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 22px 18px;
+}
+
+.rw-grid[data-layout="grid"] {
+  --face-aspect: 5 / 2;
+}
+
+.rw-grid[data-layout="grid"] :is(.rw-tile, .rw-face, .rw-slip) {
+  min-width: 0;
 }
 
 /* display: grid above would otherwise beat the hidden attribute. */
@@ -545,7 +606,7 @@
   z-index: 1;
   isolation: isolate;
   overflow: hidden;
-  /* clip, where supported, keeps the 3:2 frame but lets very long names grow it rather than be cut. */
+  /* clip, where supported, keeps the frame but lets very long names grow it rather than be cut. */
   overflow: clip;
   aspect-ratio: var(--face-aspect);
   display: grid;
@@ -572,9 +633,9 @@
   --rw-sky: var(--face-overcast), var(--face-miles-sky);
 }
 
-/* Monochrome: the sky and the ridges. The filter sits on the sky (a pseudo-element carrying it) and the
-   scene, not on the face, so the headline keeps FailedInk's red where it is a child of the face (the phone
-   strip). The sun and halo are not drawn. */
+/* Monochrome sky; the scene's saturation veil handles the ridges. Filtering the whole SVG would isolate
+   its blend modes from the sky, turning the transparent veil into a pale grey panel in dark mode.
+   The headline keeps FailedInk's red, and the sun and halo are not drawn. */
 .rw-card[data-mono] .rw-face {
   background: none;
 }
@@ -584,10 +645,6 @@
   position: absolute;
   inset: 0;
   background: var(--rw-sky);
-  filter: saturate(0.15);
-}
-
-.rw-card[data-mono] .rw-scene {
   filter: saturate(0.15);
 }
 
@@ -2267,7 +2324,7 @@
 
 .rw-bulk {
   position: sticky;
-  bottom: max(16px, env(safe-area-inset-bottom));
+  top: 16px;
   z-index: 30;
   display: flex;
   flex-wrap: wrap;
@@ -2275,20 +2332,13 @@
   gap: 8px 10px;
   width: fit-content;
   max-width: 100%;
-  margin: 8px auto 0;
+  margin: 0;
   padding: 8px 10px 8px 16px;
   color: var(--inverse-ink);
   background: var(--inverse-bg);
   border-radius: 12px;
   box-shadow: var(--shadow-2);
-  animation: rw-rise var(--dur-standard) var(--ease-spring) both;
-}
-
-@keyframes rw-rise {
-  from {
-    translate: 0 calc(100% + 24px);
-    opacity: 0;
-  }
+  animation: hl-drop var(--dur-fast) var(--ease-out) both;
 }
 
 .rw-bulk-count {
@@ -2300,8 +2350,8 @@
   min-height: 32px;
   padding: 0 10px;
   border: 1px solid var(--inverse-control);
-  border-radius: 6px;
-  background: transparent;
+  border-radius: 18px;
+  background: var(--inverse-hover);
   color: inherit;
   color-scheme: var(--inverse-scheme);
 }
@@ -2393,15 +2443,16 @@
   .rw-hero {
     --rw-inset: 12px;
     grid-template-columns: 1fr;
+    gap: 12px;
     margin-top: 0;
     --rw-sky-h: 200px;
-    padding: 22px calc(var(--rw-inset) + 4px) 16px;
+    padding: 18px calc(var(--rw-inset) + 4px) 8px;
   }
 
   .rw-hero-figures {
     grid-auto-flow: row;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
+    gap: 10px 16px;
     padding-top: 0;
   }
 
@@ -2409,8 +2460,15 @@
     justify-items: start;
   }
 
-  .rw-figure-primary {
-    grid-column: 1 / -1;
+  .rw-figure:nth-child(n + 3) {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .rw-figure:nth-child(n + 3) .rw-figure-value {
+    font-size: 16px;
   }
 
   .rw-add {
@@ -2456,6 +2514,7 @@
 
   .rw-toolbar-end {
     flex: none;
+    margin-left: 0;
   }
 
   .rw-grid {
@@ -2468,29 +2527,64 @@
     font-size: 19px;
   }
 
-  .rw-page[data-selecting] {
-    padding-bottom: 132px;
+  .rw-page .filter-bar {
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 8px;
   }
 
-  .rw-bulk {
-    position: fixed;
-    inset: auto 8px max(8px, env(safe-area-inset-bottom));
-    width: auto;
-    margin: 0;
-    border-radius: 14px;
-  }
-
-  /* The rule becomes a line break: selection buttons, then "Set … to …", then Apply. */
-  .rw-bulk-rule {
+  .rw-page .filter-bar .filter-summary-text {
+    order: 1;
     flex-basis: 100%;
-    height: 0;
+  }
+
+  .rw-page .filter-toggle {
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
+
+  .rw-page .filter-rail .segmented[aria-label="Date range"] {
+    flex-wrap: wrap;
+    overflow: visible;
+    gap: 4px;
+    border: 0;
     background: none;
   }
 
-  .rw-bulk select,
-  .rw-bulk input {
-    flex: 1 1 110px;
+  .rw-page .filter-rail .segmented[aria-label="Date range"] .segment {
+    flex: 0 0 auto;
+    min-height: 32px;
+    border: 1px solid var(--rule-control);
+  }
+
+  .rw-bulk {
+    top: calc(var(--masthead-h) + max(8px, env(safe-area-inset-top)));
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: auto;
+    padding: 8px;
+    border-radius: 14px;
+  }
+
+  .rw-bulk-rule,
+  .rw-bulk-verb {
+    display: none;
+  }
+
+  .rw-bulk :is(button, select, input) {
+    width: 100%;
     min-width: 0;
+    padding-inline: 6px;
+  }
+
+  .rw-bulk [aria-label="Batch field"] {
+    grid-column: 1 / -1;
+  }
+
+  .rw-bulk button:last-child {
+    grid-column: 2;
+    grid-row: 1;
   }
 
   /* Popovers become bottom sheets. */
