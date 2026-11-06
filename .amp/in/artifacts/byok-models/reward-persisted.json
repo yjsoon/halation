@@ -1,0 +1,20 @@
+{
+  "id": "synthetic-card",
+  "earningRate": 2,
+  "subcategories": [
+    {
+      "id": "cc98dcd7-59bb-48b2-8505-c389a0357be8",
+      "name": "Everything else",
+      "flagColor": "unflagged",
+      "rewardValue": 2,
+      "priority": 0,
+      "active": true,
+      "createdAt": "2026-11-06T13:39:19.333Z",
+      "updatedAt": "2026-11-06T13:39:19.333Z",
+      "milesBlockSize": null,
+      "minimumSpend": null,
+      "maximumSpend": null,
+      "excludeFromRewards": false
+    }
+  ]
+}

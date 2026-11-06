@@ -1,0 +1,2 @@
+2026-11-06T13:36:26+0000 e2b.local amp-svc-byok-api[6618]: {"fixture":"provider-boundary","url":"https://openrouter.ai/api/v1/chat/completions","model":"anthropic/claude-sonnet-4.5","image":true,"valid":true,"allow_fallbacks":false}
+2026-11-06T13:39:19+0000 e2b.local amp-svc-byok-api[6618]: {"fixture":"provider-boundary","url":"https://openrouter.ai/api/v1/chat/completions","model":"anthropic/claude-sonnet-4.5","image":false,"valid":true,"allow_fallbacks":false}

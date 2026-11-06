@@ -2276,7 +2276,7 @@ final class CaptureSnapshotTests: XCTestCase {
     defer { surface.detach() }
     await surface.waitForContent(contains: ["gpt-5.6-luna"])
     XCTAssertFalse(surface.accessibilityLabels().joined().contains("private-fixture-value"))
-    guard let picker = surface.firstControl(labelContains: "Model") else {
+    guard let picker = surface.firstControl(labelContains: "Suggested model") else {
       XCTFail("Model picker missing: \(surface.accessibilityLabels())"); return
     }
     XCTAssertTrue(surface.activate(picker))

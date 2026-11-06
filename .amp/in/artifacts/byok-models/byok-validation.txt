@@ -1,0 +1,43 @@
+Regression before fix
+/Users/runner/workspace/repo/apps/ios/HowMuch/Capture/CaptureAISettings.swift:210: error: -[HowMuchTests.CaptureAITests testExplicitOpenRouterModelSurvivesReloadWithoutPresetParameters] : failed: caught error: "configuration"
+Test Case '-[HowMuchTests.CaptureAITests testExplicitOpenRouterModelSurvivesReloadWithoutPresetParameters]' failed (1.269 seconds).
+	 Executed 1 test, with 1 failure (1 unexpected) in 1.269 (1.342) seconds
+	 Executed 1 test, with 1 failure (1 unexpected) in 1.269 (1.343) seconds
+	 Executed 1 test, with 1 failure (1 unexpected) in 1.269 (1.345) seconds
+** TEST EXECUTE FAILED **
+Full iOS suite after fix
+runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-06 13:44:11 +0000)
+/Users/runner/workspace/repo/apps/ios/HowMuchTests/CaptureInterpreterTests.swift:388: -[HowMuchTests.CaptureInterpreterTests testLiveFoundationModelsCoffeeAddUpdateAndTodayQuery] : Test skipped - Set HOWMUCH_LIVE_MODEL_VERIFY=1 to run the on-device Foundation Models regression.
+Test Case '-[HowMuchTests.CaptureInterpreterTests testLiveFoundationModelsCoffeeAddUpdateAndTodayQuery]' skipped (0.009 seconds).
+	 Executed 12 tests, with 1 test skipped and 0 failures (0 unexpected) in 0.025 (0.030) seconds
+	 Executed 826 tests, with 1 test skipped and 0 failures (0 unexpected) in 150.500 (150.808) seconds
+	 Executed 826 tests, with 1 test skipped and 0 failures (0 unexpected) in 150.500 (150.809) seconds
+✔ Test run with 3 tests in 1 suite passed after 0.014 seconds.
+** TEST EXECUTE SUCCEEDED **
+Mac landing check
+SQLiteError: output file already exists
+ 817 pass
+ 1 fail
+Ran 818 tests across 68 files. [16.10s]
+Base-only reproduction from origin/main
+bun test v1.4.4 (5d9cc0f4f)
+
+../../../../private/tmp/byok-base/scripts/import-security.test.ts:
+28 |   // VACUUM INTO accepts an empty file. Reserve it exclusively before SQLite
+29 |   // writes any ledger data, independently of the caller's umask.
+30 |   closeSync(openSync(backupPath, "wx", 0o600));
+31 |   const source = new Database(dbPath, { readonly: true });
+32 |   try {
+33 |     source.run("VACUUM INTO ?", [backupPath]);
+                ^
+SQLiteError: output file already exists
+      at run (bun:sqlite:318:19)
+      at backupSqliteDatabase (/private/tmp/byok-base/scripts/lib/sqlite-backup.ts:33:12)
+      at <anonymous> (/private/tmp/byok-base/scripts/import-security.test.ts:19:20)
+(fail) SQLite import backups stay private even with a permissive umask and existing directory [5.11ms]
+(pass) the YNAB CLI refuses secret-valued token arguments [21.07ms]
+
+ 1 pass
+ 1 fail
+ 2 expect() calls
+Ran 2 tests across 1 file. [59.00ms]

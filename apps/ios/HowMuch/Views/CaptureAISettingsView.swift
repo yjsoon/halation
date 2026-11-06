@@ -105,6 +105,8 @@ struct CaptureAISettingsView: View {
     }
     .onChange(of: draft.providerID) { _, _ in
       draft.modelID = provider?.models.first?.id ?? ""
+      draft.customAPI = provider?.models.first?.api ?? .chatCompletions
+      draft.usesCustomModel = false
       draft.providerBaseURL = nil
       clearEndpointEdits()
     }
@@ -122,20 +124,32 @@ struct CaptureAISettingsView: View {
           .textInputAutocapitalization(.never)
           .autocorrectionDisabled()
           .accessibilityLabel("AI base URL")
-        TextField("Model ID", text: $draft.modelID)
-          .textInputAutocapitalization(.never)
-          .autocorrectionDisabled()
-        Picker("API", selection: $draft.customAPI) {
-          ForEach(CaptureAIAPI.allCases, id: \.self) { api in Text(api.name).tag(api) }
-        }
+        customModelFields
       } else if let provider {
-        Picker("Model", selection: $draft.modelID) {
-          ForEach(provider.models) { model in Text(model.name).tag(model.id) }
-          if !provider.models.contains(where: { $0.id == draft.modelID }) {
-            Text("Choose an available model").tag(draft.modelID)
+        Toggle("Enter model ID", isOn: Binding(
+          get: { draft.usesCustomModel == true },
+          set: { enabled in
+            draft.usesCustomModel = enabled
+            draft.customAPI = provider.models.first(where: { $0.id == draft.modelID })?.api
+              ?? provider.models.first?.api ?? .chatCompletions
+            if !enabled && !provider.models.contains(where: { $0.id == draft.modelID }) {
+              draft.modelID = provider.models.first?.id ?? ""
+            }
           }
+        ))
+        if draft.usesCustomModel == true {
+          customModelFields
+        } else {
+          Picker("Model", selection: $draft.modelID) {
+            ForEach(provider.models) { model in Text(model.name).tag(model.id) }
+            if !provider.models.contains(where: { $0.id == draft.modelID }) {
+              Text("Choose an available model").tag(draft.modelID)
+            }
+          }
+          .pickerStyle(.navigationLink)
+          .accessibilityLabel("Suggested model")
+          Text(draft.modelID).font(.caption).foregroundStyle(.secondary)
         }
-        .pickerStyle(.navigationLink)
         if provider.allowsCustomBaseURL == true {
           LabeledContent("Endpoint") {
             TextField("Endpoint", text: providerBaseURL, prompt: Text("Standard API"))
@@ -149,10 +163,24 @@ struct CaptureAISettingsView: View {
         } else {
           Text(provider.baseURL).font(.footnote).foregroundStyle(.secondary)
         }
-        Text(draft.modelID).font(.caption).foregroundStyle(.secondary)
       } else {
         Text("This provider is no longer in the catalog. Choose another provider.")
       }
+    }
+  }
+
+  private var customModelFields: some View {
+    Group {
+      TextField("Exact model ID", text: $draft.modelID, axis: .vertical)
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
+        .accessibilityIdentifier("ai-model-id")
+      Picker("API", selection: $draft.customAPI) {
+        ForEach(CaptureAIAPI.allCases, id: \.self) { api in Text(api.name).tag(api) }
+      }
+      .pickerStyle(.navigationLink)
+      Text("Use the provider's exact ID, including its vendor prefix on OpenRouter (for example, anthropic/claude-sonnet-4.5). Choose an API the model supports. Unlisted models use provider-default reasoning and must return JSON; availability is checked only when you send a request.")
+        .font(.footnote).foregroundStyle(.secondary)
     }
   }
 

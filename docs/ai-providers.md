@@ -1,12 +1,22 @@
-# Capture AI providers
+# AI providers and model selection
+
+## Which settings affect which features?
+
+- **iOS Add, Assistant and shared documents:** Settings → AI provider, described below. Requests go directly from the phone to the provider, including in local mode with no Halation server. Keys stay in the device Keychain.
+- **Web statement formatter and reward terms drafting:** each tool accepts an exact model ID and a key held only in page memory. Both support OpenAI and OpenRouter; statements also support Gemini, and terms also support OpenCode. There is no model allow-list. For Claude through OpenRouter, choose OpenRouter and enter its full ID, for example `anthropic/claude-sonnet-4.5`, not a direct Anthropic ID. Statements need an image-capable model. Requests pass through the owner's Halation server. These two tools do not currently have native iOS equivalents.
+- **Category suggestions and automatic categories:** the server uses TypeSafe's Jev choice API, configured by the operator with `TYPESAFE_API_KEY` and optionally `TYPESAFE_MODEL` (SDK default `jev-latest`). There is no user-selectable general-purpose provider list. iOS capture can propose categories using its selected AI provider, but that is separate from the server categoriser. Local mode has no server-held TypeSafe key. Replacing Jev would require a separate design for its choice probabilities, confidence thresholds and safe application, not just more model names.
+
+## iOS capture settings
 
 In Add or an Assistant conversation, tap the **AI provider** (sparkles) toolbar button, or open **Settings → AI provider**. Choose a provider and model, enter a personal API key, and save. Saving settings does not make an inference request. Keys are device-only Keychain items scoped to the provider and normalised endpoint. An empty replacement field keeps a saved key; **Remove saved key → Save** deletes it. Choosing an external provider is enough to send capture text; there is no separate consent switch.
 
-The default remains on-device Apple Intelligence. External providers do not require Apple Intelligence hardware or a PCC entitlement. A missing key or retired model blocks that provider; HowMuch never silently switches to another service. Changes apply to the next request, including an explicit Retry.
+The default remains on-device Apple Intelligence. External providers do not require Apple Intelligence hardware or a PCC entitlement. A missing key or retired preset blocks that provider; HowMuch never silently switches to another service. Changes apply to the next request, including an explicit Retry.
+
+For a model outside the bundled suggestions, turn on **Enter model ID**, enter the provider's exact ID and select its API. OpenRouter normally uses **Chat Completions**, including for Claude. The endpoint, provider privacy controls and saved key stay unchanged. Explicit IDs use JSON-object output (schema instructions on Messages) and provider-default reasoning, rather than inheriting another model's options. They must be non-empty, at most 160 UTF-8 bytes, with no whitespace or control characters. Saving checks syntax, not availability or capability. Invalid, unavailable or incompatible models fail the request without silently choosing a replacement. Existing removed presets still require an explicit choice, so upgrading never changes their wire settings silently.
 
 ## Shipped catalog
 
-The source of truth is [`AIModels.json`](../apps/ios/HowMuch/Capture/AIModels.json), bundled as an app resource. Provider/model choices are rendered from it; no separate list lives in the UI.
+The source of truth for provider endpoints and suggested model presets is [`AIModels.json`](../apps/ios/HowMuch/Capture/AIModels.json), bundled as an app resource. Suggestions are rendered from it; it is not an allow-list for explicit model IDs.
 
 | Provider | Model IDs | API |
 | --- | --- | --- |
@@ -26,7 +36,18 @@ OpenCode Go no longer offers `deepseek-v4-flash-vision-exp`, so it was removed f
 
 OpenCode Go's [client policy](https://opencode.ai/docs/go/#where-can-i-use-it) expects coding-agent traffic. The preset is available, but users must confirm their subscription permits HowMuch. Requests identify as `HowMuch/1.0`, not a coding agent, and use a random conversation UUID for `x-opencode-session` (no account/user identifiers).
 
-## Updating models (including agent updates)
+## Keeping model choices current
+
+**Recommendation implemented: exact IDs plus bundled suggestions.** New models can be used immediately without a release, catalogue service, background downloads or a server in iPhone local mode. The small bundled list remains a set of documented request presets, not a promise to list every model. The web tools already accept exact IDs and link to OpenRouter's current list.
+
+Alternatives:
+
+- **Runtime provider lists:** OpenRouter's [models endpoint](https://openrouter.ai/docs/api/api-reference/models/get-models) includes modalities, supported parameters and API paths, making it a good future source of optional searchable suggestions. OpenAI's [models endpoint](https://platform.openai.com/api/reference/resources/models/methods/list) provides IDs and ownership but not the same capability information. A cross-provider implementation needs separate authentication, pagination, caching, offline/error handling and capability mapping. Fetching should be opt-in, directly from iOS and via the self-hosted server for web where required, never a central Halation service. Discovery must not block manual entry or change a saved model.
+- **Generated bundled list:** removes some manual copying, works offline, and permits review of capability and privacy metadata, but still goes stale until the app or self-hosted installation updates. It cannot reliably infer API and reasoning options from IDs alone.
+
+Runtime discovery can be added later for convenience, starting with OpenRouter. It is not needed to unblock Claude or future exact IDs. No live provider compatibility claim is made by accepting an ID.
+
+## Updating suggestions (including agent updates)
 
 1. Verify the provider's current official docs and exact API model ID. OpenRouter prefixes IDs with the model vendor; direct providers and Go do not. Do not invent aliases or assume OpenAI-compatible means every parameter is supported.
 2. Add/edit an entry in `AIModels.json`:

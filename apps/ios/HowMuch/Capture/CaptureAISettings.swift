@@ -80,21 +80,28 @@ struct CaptureAISelection: Codable, Equatable, Sendable {
   /// Replaces a catalog provider's base URL when the provider allows it.
   /// Optional so preferences saved before it existed still decode.
   var providerBaseURL: String?
+  /// Explicit opt-in: a removed preset must not silently change its request options.
+  var usesCustomModel: Bool?
 
   var isOnDevice: Bool { providerID == "on-device" }
 
   func resolve(in catalog: CaptureAICatalog) throws -> (URL, CaptureAIModel) {
-    if providerID == "custom" {
-      guard !modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            !modelID.contains(where: \.isNewline) else { throw CaptureAIError.configuration }
-      return (try Self.validatedBaseURL(customBaseURL), CaptureAIModel(
-        id: modelID, name: modelID, api: customAPI, format: .jsonObject, reasoning: .providerDefault
-      ))
+    if providerID == "custom" || usesCustomModel == true {
+      guard !modelID.isEmpty, modelID.utf8.count <= 160,
+            !modelID.unicodeScalars.contains(where: { CharacterSet.whitespacesAndNewlines.union(.controlCharacters).contains($0) })
+      else { throw CaptureAIError.configuration }
     }
-    guard let provider = catalog.providers.first(where: { $0.id == providerID }),
-          let model = provider.models.first(where: { $0.id == modelID }) else {
+    let customModel = CaptureAIModel(
+      id: modelID, name: modelID, api: customAPI, format: .jsonObject, reasoning: .providerDefault
+    )
+    if providerID == "custom" {
+      return (try Self.validatedBaseURL(customBaseURL), customModel)
+    }
+    guard let provider = catalog.providers.first(where: { $0.id == providerID }) else {
       throw CaptureAIError.configuration
     }
+    guard let model = usesCustomModel == true ? customModel : provider.models.first(where: { $0.id == modelID })
+    else { throw CaptureAIError.configuration }
     let override = provider.allowsCustomBaseURL == true
       ? providerBaseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "" : ""
     return (try Self.validatedBaseURL(override.isEmpty ? provider.baseURL : override), model)

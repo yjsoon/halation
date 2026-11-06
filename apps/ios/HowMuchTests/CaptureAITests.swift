@@ -4,6 +4,35 @@ import XCTest
 
 @MainActor
 final class CaptureAITests: XCTestCase {
+  // UI checks cannot see accidental reasoning parameters or a silently changed model on the wire.
+  func testExplicitOpenRouterModelSurvivesReloadWithoutPresetParameters() throws {
+    let suite = "howmuch.byok.exact.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suite)!
+    defer { defaults.removePersistentDomain(forName: suite) }
+    let keys = CaptureAIMemoryKeys()
+    let settings = CaptureAISettings(defaults: defaults, keys: keys)
+    let selection = try JSONDecoder().decode(CaptureAISelection.self, from: Data(#"{"providerID":"openrouter","modelID":"anthropic/claude-sonnet-4.5","customBaseURL":"","customAPI":"chatCompletions","usesCustomModel":true}"#.utf8))
+    try settings.save(selection, keyChange: "synthetic-openrouter-key")
+    let reloaded = CaptureAISettings(defaults: defaults, keys: keys)
+    let configuration = try XCTUnwrap(reloaded.configuration())
+    let request = try CaptureAIClient.request(configuration: configuration, context: Self.context,
+      accounts: [], categories: [], conversationID: UUID())
+    let body = try XCTUnwrap(JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as? [String: Any])
+    XCTAssertEqual(request.url?.absoluteString, "https://openrouter.ai/api/v1/chat/completions")
+    XCTAssertEqual(body["model"] as? String, "anthropic/claude-sonnet-4.5")
+    XCTAssertNil(body["reasoning"], "An unlisted model must not inherit a preset's disabled reasoning")
+    XCTAssertEqual((body["provider"] as? [String: Any])?["data_collection"] as? String, "deny")
+    XCTAssertEqual((body["response_format"] as? [String: String])?["type"], "json_object")
+    XCTAssertEqual(try selection.credentialID(in: settings.catalog),
+      try CaptureAISelection(providerID: "openrouter", modelID: "openai/gpt-5.6-luna").credentialID(in: settings.catalog))
+    for invalid in ["", " ", "vendor/model\n", "vendor/model with spaces"] {
+      var bad = selection
+      bad.modelID = invalid
+      XCTAssertThrowsError(try settings.save(bad))
+    }
+    XCTAssertEqual(settings.selection, selection)
+  }
+
   func testBundledCatalogModelsResolveAndRetiredModelsThrow() throws {
     let catalog = try CaptureAICatalog.load()
     for provider in catalog.providers {
