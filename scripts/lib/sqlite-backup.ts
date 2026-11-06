@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { chmodSync, closeSync, existsSync, lstatSync, mkdirSync, openSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 
 /**
@@ -25,16 +25,24 @@ export function backupSqliteDatabase(dbPath: string): string | null {
   const extension = extname(dbPath);
   const name = basename(dbPath, extension);
   const backupPath = join(backupDir, `${name}-${timestampForFileName()}.${extension ? extension.slice(1) : "sqlite"}`);
-  // VACUUM INTO accepts an empty file. Reserve it exclusively before SQLite
-  // writes any ledger data, independently of the caller's umask.
-  closeSync(openSync(backupPath, "wx", 0o600));
-  const source = new Database(dbPath, { readonly: true });
+  // macOS SQLite rejects even an empty existing destination. Let SQLite create
+  // it inside a private directory, then publish only the finished 0600 file.
+  const stagingDir = mkdtempSync(join(backupDir, ".pending-"));
+  const stagingPath = join(stagingDir, "snapshot.sqlite");
   try {
-    source.run("VACUUM INTO ?", [backupPath]);
+    const source = new Database(dbPath, { readonly: true });
+    try {
+      source.run("VACUUM INTO ?", [stagingPath]);
+    } finally {
+      source.close();
+    }
+    chmodSync(stagingPath, 0o600);
+    // Same filesystem: link is atomic and refuses to overwrite an existing backup.
+    linkSync(stagingPath, backupPath);
+    return backupPath;
   } finally {
-    source.close();
+    rmSync(stagingDir, { recursive: true, force: true });
   }
-  return backupPath;
 }
 
 function timestampForFileName(): string {

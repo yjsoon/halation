@@ -1,12 +1,24 @@
 # Exact AI model IDs: verification
 
+## Follow-up: macOS landing blocker resolved
+
+YJ authorised fixing the backup blocker. Backups now run `VACUUM INTO` on a nonexistent path inside a private temporary directory, set the finished file to 0600, and publish it with an atomic hard link that refuses to overwrite an existing backup. The staging directory is removed on success and failure. Existing 0700 backup-directory permissions and committed WAL data are preserved.
+
+On the unchanged implementation, the extended regression reproduced the macOS error and an incomplete backup left behind after a failed snapshot. After the fix, `bun test scripts/import-security.test.ts` passes all three tests on Mac and Linux, including WAL contents, restrictive permissions, same-timestamp collision safety and failed-snapshot cleanup.
+
+After rebasing both thread commits onto `origin/main` at `b7ce87c5`, the complete `scripts/check.sh` passed on the Amp Mac satellite: **816 Bun tests passed**, both typechecks passed, and **824 XCTest tests, one existing live-model skip, zero failures**, plus three Swift Testing tests passed. Source checked: `3ddbc5ff4ade4fd7306f4042ea02ab1db4bd0cf9`; subsequent amendments add only this evidence. Counts differ from the original run because main changed in the meantime.
+
+The real `scripts/import-ynab-export.ts` CLI also completed on macOS against an isolated demo ledger and one synthetic CSV row. The live ledger grew from 18 to 19 transactions; its backup retained exactly 18 and did not contain the new row. Backup integrity was `ok`, file mode 0600 and directory mode 0700. Commands and captured red/green/full-check/CLI output are in `backup-verification.txt`. No production database was touched.
+
+## Original AI-provider verification
+
 Date: 6 November 2026. Repository: yjsoon/howmuch. Code tested: `a5d16d16e153fdfd1b1b7b326b60bdae6341398f`, rebased onto `d137f7a8` from origin/main. This evidence is amended into the same local commit afterwards; no code changes follow these checks.
 
 ## Result and delivery gate
 
 The iOS allow-list rejection is fixed. Explicit model entry preserves OpenRouter's endpoint, key scope and privacy controls while using provider-default reasoning. Preset selection, removed-preset rejection and on-device defaults remain intact. Web already accepted Claude IDs; its two tools now explain the vendor prefix and link to OpenRouter's current list. Category suggestions remain the separate TypeSafe integration.
 
-**BLOCKED: checks. Not pushed or deployed.** `scripts/check.sh` on the Amp Mac satellite fails an unrelated existing SQLite backup test. `git archive origin/main scripts/import-security.test.ts scripts/lib/sqlite-backup.ts scripts/import-ynab-export.ts | tar -x -C /tmp/byok-base`, then `bun test /tmp/byok-base/scripts/import-security.test.ts`, reproduces `SQLiteError: output file already exists` at `scripts/lib/sqlite-backup.ts:33`. Both use Bun 1.4.4. Linux passes. The repository's landing rule forbids a push while base checks fail. No backup code was changed.
+**Initial result: BLOCKED on checks, resolved in the follow-up above.** `scripts/check.sh` on the Amp Mac satellite failed an unrelated existing SQLite backup test. `git archive origin/main scripts/import-security.test.ts scripts/lib/sqlite-backup.ts scripts/import-ynab-export.ts | tar -x -C /tmp/byok-base`, then `bun test /tmp/byok-base/scripts/import-security.test.ts`, reproduced `SQLiteError: output file already exists` at `scripts/lib/sqlite-backup.ts:33`. Both used Bun 1.4.4. Linux passed. The repository's landing rule prevented a push while base checks failed. No backup code was changed in the original AI-provider commit.
 
 ## Cases fixed before implementation
 

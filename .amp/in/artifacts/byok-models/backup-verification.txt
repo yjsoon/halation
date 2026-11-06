@@ -1,0 +1,88 @@
+Before fix: bun test scripts/import-security.test.ts
+bun test v1.4.4 (5d9cc0f4f)
+
+scripts/import-security.test.ts:
+28 |   // VACUUM INTO accepts an empty file. Reserve it exclusively before SQLite
+29 |   // writes any ledger data, independently of the caller's umask.
+30 |   closeSync(openSync(backupPath, "wx", 0o600));
+31 |   const source = new Database(dbPath, { readonly: true });
+32 |   try {
+33 |     source.run("VACUUM INTO ?", [backupPath]);
+                ^
+SQLiteError: output file already exists
+      at run (bun:sqlite:318:19)
+      at backupSqliteDatabase (/Users/runner/workspace/repo/scripts/lib/sqlite-backup.ts:33:12)
+      at <anonymous> (/Users/runner/workspace/repo/scripts/import-security.test.ts:23:20)
+(fail) SQLite import backups stay private even with a permissive umask and existing directory [8.50ms]
+43 |   const dir = mkdtempSync(join(tmpdir(), "howmuch-backup-failure-"));
+44 |   try {
+45 |     const source = join(dir, "invalid.sqlite");
+46 |     writeFileSync(source, "not a SQLite database");
+47 |     expect(() => backupSqliteDatabase(source)).toThrow();
+48 |     expect(readdirSync(join(dir, "backups"))).toEqual([]);
+                                                   ^
+error: expect(received).toEqual(expected)
+
+- []
++ [
++   "invalid-20261106-233116.sqlite",
++ ]
+
+- Expected  - 1
++ Received  + 3
+
+      at <anonymous> (/Users/runner/workspace/repo/scripts/import-security.test.ts:48:47)
+(fail) a failed SQLite snapshot leaves no apparent backup or partial ledger [0.73ms]
+(pass) the YNAB CLI refuses secret-valued token arguments [16.23ms]
+
+ 1 pass
+ 2 fail
+ 5 expect() calls
+Ran 3 tests across 1 file. [36.00ms]
+After fix: bun test scripts/import-security.test.ts
+bun test v1.4.4 (5d9cc0f4f)
+
+scripts/import-security.test.ts:
+(pass) SQLite import backups stay private even with a permissive umask and existing directory [6.48ms]
+(pass) a failed SQLite snapshot leaves no apparent backup or partial ledger [0.54ms]
+(pass) the YNAB CLI refuses secret-valued token arguments [13.19ms]
+
+ 3 pass
+ 0 fail
+ 10 expect() calls
+Ran 3 tests across 1 file. [25.00ms]
+Full landing checks on rebased source 3ddbc5ff
+==> bun test
+ 816 pass
+ 0 fail
+==> bun run --cwd apps/web typecheck
+$ tsc --noEmit
+==> bun run --cwd apps/worker typecheck
+$ tsc --noEmit
+==> scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests
+runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-06 23:44:01 +0000)
+	 Executed 824 tests, with 1 test skipped and 0 failures (0 unexpected) in 151.013 (151.334) seconds
+	 Executed 824 tests, with 1 test skipped and 0 failures (0 unexpected) in 151.013 (151.336) seconds
+✔ Test run with 3 tests in 1 suite passed after 0.012 seconds.
+check: pass
+Real import CLI and backup readback
+$ bun scripts/seed-demo.ts
+Seeded demo ledger into /tmp/backup-cli-verification/ledger.sqlite
+Fixture: /Users/runner/workspace/repo/fixtures/demo-ledger.json
+Plan id: local-plan
+Imported YNAB web export "local-plan"
+Database: /tmp/backup-cli-verification/ledger.sqlite
+Backup: /tmp/backup-cli-verification/backups/ledger-20261106-234935.sqlite
+Import session: imp_5f70218a-e904-40d5-8c39-8bde1f23f227
+Imported transactions: 1
+Duplicate transactions: 0
+Failed rows: 0
+Inferred transfer pairs: 0
+Transfer payee rows: 0
+Accounts: 4
+Payees: 20
+Category groups: 6
+Categories: 11
+Transactions: 19 active, 0 deleted
+Date range: 2026-03-01 to 2026-11-06
+{"before":18,"after":19,"markerBefore":0,"markerAfter":1,"directoryMode":"700","fileMode":"600","integrity":{"integrity_check":"ok"}}
