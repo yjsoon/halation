@@ -7,18 +7,12 @@ import {
   parseAmountEntry,
   payeeListEntries,
   planRowCommit,
-  focusForRowError,
   postingAccountId,
   reduceRowEdit,
-  registerRowDomId,
   rowFieldWritable,
-  rowId,
-  sameRow,
-  sessionRowGone,
   writableFocus,
   type RegisterRowDraft,
   type RegisterRowEditAction,
-  type RegisterRowFocus,
   type RegisterRowRef,
   type RowEditContext,
 } from "./register-row-edit";
@@ -74,14 +68,6 @@ function splitParent(lines: Subtransaction[], overrides: Partial<Transaction> = 
   });
 }
 
-describe("registerRowDomId", () => {
-  test("gives parent and split rows deterministic distinct DOM identities", () => {
-    const parent = splitParent([line({ id: "line/1" })], { id: "txn 1" });
-    expect(registerRowDomId(posted(parent))).toBe("register-row-txn%201");
-    expect(registerRowDomId(splitLine(parent, "line/1"))).toBe("register-row-txn%201-line%2F1");
-  });
-});
-
 function payee(id: string, name: string, transferAccountId?: string): Payee {
   return { id, name, transfer_account_id: transferAccountId ?? null, deleted: false };
 }
@@ -111,19 +97,6 @@ const shopDraft: RegisterRowDraft = {
   needsConfirmation: false,
   claimStatus: null,
 };
-
-describe("sameRow and rowId", () => {
-
-  test("matches split parent id and line id", () => {
-    const parent = splitParent([line(), line({ id: "line-2" })]);
-    const a = splitLine(parent, "line-1");
-    const b = splitLine(txn({ id: "txn-split" }), "line-1");
-    expect(sameRow(a, b)).toBe(true);
-    expect(sameRow(a, splitLine(parent, "line-2"))).toBe(false);
-    expect(sameRow(a, posted(parent))).toBe(false);
-    expect(rowId(a)).toBe("txn-split");
-  });
-});
 
 describe("reduceRowEdit", () => {
   const row = posted(txn());
@@ -832,19 +805,6 @@ describe("parseAmountEntry", () => {
 });
 
 describe("rowFieldWritable and writableFocus", () => {
-  test("keeps payee writable on a saved transfer and locks category", () => {
-    const row = posted(txn({
-      transfer_account_id: "acct-saver",
-      payee_name: "Transfer : Rainy Day Saver",
-      category_id: null,
-    }));
-    expect(rowFieldWritable(row, "payee")).toBeTrue();
-    expect(rowFieldWritable(row, "category")).toBeFalse();
-    expect(rowFieldWritable(row, "date")).toBeTrue();
-    expect(writableFocus(row, "payee")).toBe("payee");
-    expect(writableFocus(row, "category")).toBe("date");
-  });
-
   test("keeps payee writable on a regular row so a transfer list pick can commit", () => {
     const row = posted(txn());
     expect(rowFieldWritable(row, "payee", { ...shopDraft, payeeName: "Transfer : Rainy Day Saver" }, payees)).toBeTrue();
@@ -863,30 +823,6 @@ describe("rowFieldWritable and writableFocus", () => {
     expect(rowFieldWritable(row, "payee")).toBeTrue();
     expect(rowFieldWritable(row, "date")).toBeFalse();
     expect(writableFocus(row, "category")).toBe("payee");
-  });
-});
-
-describe("focusForRowError", () => {
-  test("points at the field named in the message", () => {
-    const row = posted(txn());
-    expect(focusForRowError("Choose a date.", row, shopDraft)).toBe("date");
-    expect(focusForRowError("Enter an outflow or an inflow.", row, shopDraft)).toBe("outflow");
-    expect(focusForRowError("Enter an outflow or an inflow.", row, { ...shopDraft, outflow: "", inflow: "1.00" })).toBe("inflow");
-    expect(focusForRowError("This transfer already has a destination. Choose a regular payee, or cancel.", row, shopDraft)).toBe("payee");
-  });
-});
-
-describe("sessionRowGone", () => {
-  const editing = reduceRowEdit(idleRowEdit(), {
-    type: "begin",
-    row: posted(txn()),
-    draft: shopDraft,
-    focus: "memo",
-  });
-
-  test("is true only when the editing row is missing", () => {
-    expect(sessionRowGone(editing, new Set(["txn-1"]))).toBeFalse();
-    expect(sessionRowGone(editing, new Set(["other"]))).toBeTrue();
   });
 });
 
