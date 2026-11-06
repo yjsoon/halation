@@ -24,7 +24,7 @@ It needs a Tinkertanker key with Admin or App Manager access. Xcode Cloud schedu
 
 The App Store Connect API cannot create an Xcode Cloud product or grant repository access, so these steps need YJ in Xcode and App Store Connect:
 
-1. In Xcode 27.2 or newer, open `apps/ios/HowMuch.xcodeproj`, choose **Product > Xcode Cloud > Create Workflow**, select the `HowMuch` app with team Tinkertanker, and grant Xcode Cloud access to `yjsoon/howmuch` on GitHub when asked. Delete or disable the default workflow Xcode proposes, or let it be replaced by step 3.
+1. In Xcode 27.2 or newer, open `apps/ios/HowMuch.xcodeproj`, choose **Integrate > Create Workflow…**, select the `HowMuch` app with team Tinkertanker, and grant Xcode Cloud access to `yjsoon/howmuch` on GitHub when asked. On GitHub, give the Xcode Cloud app **Only select repositories: `yjsoon/howmuch`**; `danielsaidi/EmojiKit` is public and needs no access. Finish with **Close**, not **Start First Build**, then disable the **Default** workflow Xcode created, because it builds on every push to `main`.
 2. In App Store Connect, **Apps > Halation > Xcode Cloud > Settings > Build Number**, set **Next Build Number** above the last TestFlight build (build 20 at the time of writing, so 21 or more). Xcode Cloud replaces `CURRENT_PROJECT_VERSION` with its own counter, and a lower number would collide with existing uploads.
 3. Run `bun scripts/xcode-cloud-workflow.ts --apply` with a Tinkertanker key. It stops with `blocked:` until steps 1 and 2 are done.
 
