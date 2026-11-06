@@ -1,0 +1,156 @@
+{
+  "checks": [
+    {
+      "name": "320 no horizontal document overflow",
+      "result": true
+    },
+    {
+      "name": "320 six section destinations fit",
+      "result": true
+    },
+    {
+      "name": "320 password jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "320 formats jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "320 export jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "320 categoriser jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "320 appearance jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "320 tools jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "390 no horizontal document overflow",
+      "result": true
+    },
+    {
+      "name": "390 six section destinations fit",
+      "result": true
+    },
+    {
+      "name": "390 password jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "390 formats jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "390 export jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "390 categoriser jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "390 appearance jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "390 tools jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "1440 no horizontal document overflow",
+      "result": true
+    },
+    {
+      "name": "1440 six section destinations fit",
+      "result": true
+    },
+    {
+      "name": "1440 password jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "1440 formats jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "1440 export jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "1440 categoriser jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "1440 appearance jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "1440 tools jump lands below masthead",
+      "result": true
+    },
+    {
+      "name": "empty password action disabled",
+      "result": true
+    },
+    {
+      "name": "complete fields enable password action",
+      "result": true
+    },
+    {
+      "name": "server rejection visible without losing form",
+      "result": true
+    },
+    {
+      "name": "saved formats independently persisted",
+      "result": true
+    },
+    {
+      "name": "saved formats survive reload",
+      "result": true
+    },
+    {
+      "name": "theme selected text and persisted choice",
+      "result": true
+    },
+    {
+      "name": "theme and mode survive reload",
+      "result": true
+    },
+    {
+      "name": "Reward terms destination opens",
+      "result": true
+    },
+    {
+      "name": "Statement formatter destination opens",
+      "result": true
+    },
+    {
+      "name": "API tokens destination opens",
+      "result": true
+    },
+    {
+      "name": "Rewards import destination opens",
+      "result": true
+    },
+    {
+      "name": "categoriser safeguard retained",
+      "result": true
+    },
+    {
+      "name": "archive download confirmation",
+      "result": true
+    },
+    {
+      "name": "CSV download confirmation",
+      "result": true
+    }
+  ]
+}

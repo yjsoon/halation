@@ -45,3 +45,5 @@ Preconditions:
 - On a viewport ≤720px, open **Open menu**: the drawer carries the accounts and the footer, so Settings and Sign out are at its bottom.
 - The theme is per device, not ledger data. Signing out keeps it.
 - Direct URLs `/api-tokens` and `/import/rewards` still work. They are not the hub.
+- The section index contains anchor links, not tabs. At 320, 390 and 1440px, choose each destination and confirm its heading receives focus and remains below the masthead. Return to the page top before choosing another link; an automation tool scrolling a hidden link behind the masthead is not a user-visible navigation failure.
+- Inspect quiet outlined disabled actions against enabled inverse actions, password mismatch and saved-format feedback at 320px in both themes. Verify formats with an independent `GET /v1/plans/{plan_id}/settings`, reload, then restore the original values. Theme selection includes `Selected` text as well as its outline. Exercise Tools row hover and all four destinations. Store exact setup, checks and media under `.amp/in/artifacts/`.

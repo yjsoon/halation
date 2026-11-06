@@ -63,7 +63,7 @@ export function SettingsPage() {
   const categoriser = useApi("settings-categoriser", async () => (await api.authStatus()).categoriser_enabled);
 
   return (
-    <>
+    <div className="settings-page">
       <header className="report-header">
         <div>
           <h1>Settings</h1>
@@ -73,6 +73,15 @@ export function SettingsPage() {
       <p className="diagnostic-note">
         Your password, plan formats, appearance, tokens and imports live here so the daily ledger stays uncluttered.
       </p>
+
+      <nav className="settings-index" aria-label="Settings sections">
+        <a href="#settings-password-heading">Password</a>
+        {account.data?.isOwner && <a href="#settings-formats-heading">Formats</a>}
+        {account.data?.canExport && <a href="#settings-export-heading">Export</a>}
+        {typeof categoriser.data === "boolean" && <a href="#settings-categoriser-heading">Categories</a>}
+        <a href="#settings-appearance-heading">Appearance</a>
+        <a href="#settings-tools-heading">Tools</a>
+      </nav>
 
       <ChangePasswordSection />
 
@@ -90,7 +99,7 @@ export function SettingsPage() {
 
       <section className="report-section" aria-labelledby="settings-appearance-heading">
         <div className="section-heading">
-          <span className="section-title" id="settings-appearance-heading">Appearance</span>
+          <h2 className="section-title" id="settings-appearance-heading" tabIndex={-1}>Appearance</h2>
           <span className="section-meta">Saved on this device</span>
         </div>
         <div className="theme-picker" role="radiogroup" aria-labelledby="settings-appearance-heading">
@@ -110,6 +119,7 @@ export function SettingsPage() {
               <span className="theme-option-name">
                 {look.name}
                 {look.id === "dusk-ridge" && <small> · default</small>}
+                {theme.look === look.id && <small className="theme-selected">Selected</small>}
               </span>
               <span className="theme-option-note">{look.note}</span>
             </label>
@@ -132,7 +142,7 @@ export function SettingsPage() {
 
       <section className="report-section" aria-labelledby="settings-tools-heading">
         <div className="section-heading">
-          <span className="section-title" id="settings-tools-heading">Tools</span>
+          <h2 className="section-title" id="settings-tools-heading" tabIndex={-1}>Tools</h2>
         </div>
         <ul className="settings-tool-list">
           {TOOLS.map((tool) => (
@@ -140,12 +150,13 @@ export function SettingsPage() {
               <NavLink to={tool.to} className="settings-tool-link">
                 <strong>{tool.name}</strong>
                 <span>{tool.detail}</span>
+                <span className="settings-tool-arrow" aria-hidden="true">›</span>
               </NavLink>
             </li>
           ))}
         </ul>
       </section>
-    </>
+    </div>
   );
 }
 
@@ -198,7 +209,7 @@ function ChangePasswordSection() {
     <section className="report-section" aria-labelledby="settings-password-heading">
       <div className="section-heading settings-heading">
         <div>
-          <span className="section-title" id="settings-password-heading">Change password</span>
+          <h2 className="section-title" id="settings-password-heading" tabIndex={-1}>Change password</h2>
           <span className="section-meta">
             Use at least {MIN_PASSWORD_LENGTH} characters. Every other browser and device signed in as you is signed out; this one stays signed in. Personal API tokens keep working;
             revoke them on the <NavLink to="/api-tokens">API tokens</NavLink> page if you need to.
@@ -271,7 +282,7 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
     <section className="report-section" aria-labelledby="settings-formats-heading">
       <div className="section-heading settings-heading">
         <div>
-          <span className="section-title" id="settings-formats-heading">Currency and date format</span>
+          <h2 className="section-title" id="settings-formats-heading" tabIndex={-1}>Currency and date format</h2>
           <span className="section-meta">
             Changing the currency only changes the symbol and decimal places shown. Nothing is converted: $100 becomes £100.
             For a currency such as JPY the cents are hidden, not lost.
@@ -307,7 +318,7 @@ function CategoriserSection({ enabled }: { enabled: boolean }) {
     <section className="report-section" aria-labelledby="settings-categoriser-heading" data-testid="settings-categoriser">
       <div className="section-heading settings-heading">
         <div>
-          <span className="section-title" id="settings-categoriser-heading">Automatic categories</span>
+          <h2 className="section-title" id="settings-categoriser-heading" tabIndex={-1}>Automatic categories</h2>
           <span className="section-meta">
             {enabled
               ? "This server sends each new transaction that has a payee but no category to TypeSafe, an outside AI service, "
@@ -352,7 +363,7 @@ function ExportSection() {
     <section className="report-section" aria-labelledby="settings-export-heading">
       <div className="section-heading settings-heading">
         <div>
-          <span className="section-title" id="settings-export-heading">Export everything</span>
+          <h2 className="section-title" id="settings-export-heading" tabIndex={-1}>Export everything</h2>
           <span className="section-meta">
             The archive holds every account, transaction, split, schedule, category and payee, the plan formats, your account
             organisation and the Rewards cards. Its ledger can be imported into an empty plan. The CSV lists every transaction for a
