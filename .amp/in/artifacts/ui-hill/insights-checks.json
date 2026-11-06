@@ -1,0 +1,469 @@
+{
+  "checks": [
+    {
+      "name": "spending no horizontal document overflow",
+      "result": true
+    },
+    {
+      "name": "spending named keyboard-scrollable table",
+      "result": true
+    },
+    {
+      "name": "Spending recipe values and category association",
+      "result": true
+    },
+    {
+      "name": "Spending complete amount fits initial 320 viewport",
+      "result": true
+    },
+    {
+      "name": "spending keyboard scroll reveals continuation, row identity stays pinned",
+      "result": true
+    },
+    {
+      "name": "spending sticky row header paints above scrolling headings",
+      "result": true
+    },
+    {
+      "name": "spending end of table removes fade and exposes final value",
+      "result": true
+    },
+    {
+      "name": "spending all seven range presets fit 320",
+      "result": true
+    },
+    {
+      "name": "spending keyboard disclosure retains exact dates",
+      "result": true
+    },
+    {
+      "name": "spending empty state has no misleading chart",
+      "result": true
+    },
+    {
+      "name": "spending desktop has no document overflow",
+      "result": true
+    },
+    {
+      "name": "income no horizontal document overflow",
+      "result": true
+    },
+    {
+      "name": "income named keyboard-scrollable table",
+      "result": true
+    },
+    {
+      "name": "income chart coordinates match CSS width and labels stay readable",
+      "result": true
+    },
+    {
+      "name": "income newest period stays first",
+      "result": true
+    },
+    {
+      "name": "Income recipe totals and original comparison order",
+      "result": true
+    },
+    {
+      "name": "income keyboard scroll reveals continuation, row identity stays pinned",
+      "result": true
+    },
+    {
+      "name": "income sticky row header paints above scrolling headings",
+      "result": true
+    },
+    {
+      "name": "income end of table removes fade and exposes final value",
+      "result": true
+    },
+    {
+      "name": "income all seven range presets fit 320",
+      "result": true
+    },
+    {
+      "name": "income keyboard disclosure retains exact dates",
+      "result": true
+    },
+    {
+      "name": "income empty state has no misleading chart",
+      "result": true
+    },
+    {
+      "name": "income chart remount recovers measured width",
+      "result": true
+    },
+    {
+      "name": "income weekly labels do not overlap",
+      "result": true
+    },
+    {
+      "name": "income desktop has no document overflow",
+      "result": true
+    },
+    {
+      "name": "income chart responds to desktop resize",
+      "result": true
+    },
+    {
+      "name": "net-worth no horizontal document overflow",
+      "result": true
+    },
+    {
+      "name": "net-worth named keyboard-scrollable table",
+      "result": true
+    },
+    {
+      "name": "net-worth chart coordinates match CSS width and labels stay readable",
+      "result": true
+    },
+    {
+      "name": "net-worth newest period stays first",
+      "result": true
+    },
+    {
+      "name": "Net worth recipe total and delta initially visible",
+      "result": true
+    },
+    {
+      "name": "net-worth keyboard scroll reveals continuation, row identity stays pinned",
+      "result": true
+    },
+    {
+      "name": "net-worth sticky row header paints above scrolling headings",
+      "result": true
+    },
+    {
+      "name": "net-worth end of table removes fade and exposes final value",
+      "result": true
+    },
+    {
+      "name": "net-worth all seven range presets fit 320",
+      "result": true
+    },
+    {
+      "name": "net-worth keyboard disclosure retains exact dates",
+      "result": true
+    },
+    {
+      "name": "Net worth carries balances through a no-activity month",
+      "result": true
+    },
+    {
+      "name": "net-worth chart remount recovers measured width",
+      "result": true
+    },
+    {
+      "name": "net-worth weekly labels do not overlap",
+      "result": true
+    },
+    {
+      "name": "net-worth desktop has no document overflow",
+      "result": true
+    },
+    {
+      "name": "net-worth chart responds to desktop resize",
+      "result": true
+    },
+    {
+      "name": "Desktop preserves account-first comparison order",
+      "result": true
+    },
+    {
+      "name": "age-of-money no horizontal document overflow",
+      "result": true
+    },
+    {
+      "name": "age-of-money named keyboard-scrollable table",
+      "result": true
+    },
+    {
+      "name": "age-of-money chart coordinates match CSS width and labels stay readable",
+      "result": true
+    },
+    {
+      "name": "age-of-money newest period stays first",
+      "result": true
+    },
+    {
+      "name": "Money age recipe latest and matched spending",
+      "result": true
+    },
+    {
+      "name": "age-of-money keyboard scroll reveals continuation, row identity stays pinned",
+      "result": true
+    },
+    {
+      "name": "age-of-money sticky row header paints above scrolling headings",
+      "result": true
+    },
+    {
+      "name": "age-of-money end of table removes fade and exposes final value",
+      "result": true
+    },
+    {
+      "name": "age-of-money all seven range presets fit 320",
+      "result": true
+    },
+    {
+      "name": "age-of-money keyboard disclosure retains exact dates",
+      "result": true
+    },
+    {
+      "name": "Money age null-only period shows no chart or invented age",
+      "result": true
+    },
+    {
+      "name": "age-of-money chart remount recovers measured width",
+      "result": true
+    },
+    {
+      "name": "age-of-money weekly labels do not overlap",
+      "result": true
+    },
+    {
+      "name": "age-of-money desktop has no document overflow",
+      "result": true
+    },
+    {
+      "name": "age-of-money chart responds to desktop resize",
+      "result": true
+    },
+    {
+      "name": "Category drill retains Groceries and historical dates",
+      "result": true
+    }
+  ],
+  "reports": {
+    "spending": {
+      "groups": [
+        {
+          "amount": 1974500,
+          "category_group_id": "grp-home",
+          "category_group_name": "Home",
+          "category_id": "cat-utilities",
+          "category_name": "Utilities",
+          "share": 0.5997327096558637,
+          "transaction_count": 2
+        },
+        {
+          "amount": 488900,
+          "category_group_id": "grp-travel",
+          "category_group_name": "Travel",
+          "category_id": "cat-holiday",
+          "category_name": "Holiday",
+          "share": 0.14849801050937034,
+          "transaction_count": 1
+        },
+        {
+          "amount": 357100,
+          "category_group_id": "grp-home",
+          "category_group_name": "Home",
+          "category_id": "cat-groceries",
+          "category_name": "Groceries",
+          "share": 0.10846520669440816,
+          "transaction_count": 3
+        },
+        {
+          "amount": 228900,
+          "category_group_id": "grp-living",
+          "category_group_name": "Living",
+          "category_id": "cat-shopping",
+          "category_name": "Shopping",
+          "share": 0.06952586337818546,
+          "transaction_count": 1
+        },
+        {
+          "amount": 125400,
+          "category_group_id": "grp-home",
+          "category_group_name": "Home",
+          "category_id": "cat-dining",
+          "category_name": "Dining Out",
+          "share": 0.038088874039425326,
+          "transaction_count": 2
+        },
+        {
+          "amount": 73500,
+          "category_group_id": "grp-living",
+          "category_group_name": "Living",
+          "category_id": "cat-health",
+          "category_name": "Health",
+          "share": 0.022324818515931114,
+          "transaction_count": 1
+        },
+        {
+          "amount": 44000,
+          "category_group_id": "grp-living",
+          "category_group_name": "Living",
+          "category_id": "cat-transport",
+          "category_name": "Transport",
+          "share": 0.013364517206815904,
+          "transaction_count": 2
+        }
+      ],
+      "top_payees": [
+        {
+          "amount": 1850000,
+          "payee_id": "payee_89900e69-0574-41ce-87c9-3a023f96d279",
+          "payee_name": "Straits View Residences",
+          "share": 0.5619172007411233
+        },
+        {
+          "amount": 488900,
+          "payee_id": "payee_2703f90b-6004-429a-87b5-38bd8685379f",
+          "payee_name": "Scoot",
+          "share": 0.14849801050937034
+        },
+        {
+          "amount": 228900,
+          "payee_id": "payee_9750f949-bcf9-4bf4-aab5-8c699ac63320",
+          "payee_name": "MUJI",
+          "share": 0.06952586337818546
+        },
+        {
+          "amount": 142300,
+          "payee_id": "payee_a62e47f9-5e6b-4cd6-a047-16f4a72dd60f",
+          "payee_name": "FairPrice Finest",
+          "share": 0.043222063602952346
+        },
+        {
+          "amount": 124500,
+          "payee_id": "payee_f6b45b02-cb56-4cb0-a548-409f8ed1b464",
+          "payee_name": "SP Services",
+          "share": 0.037815508914740455
+        }
+      ],
+      "total": 3292300
+    },
+    "income": {
+      "interval": "month",
+      "periods": [
+        {
+          "cumulative_net": 3442500,
+          "income": 5500000,
+          "net": 3442500,
+          "period": "2026-03",
+          "spending": 2057500
+        },
+        {
+          "cumulative_net": 8429500,
+          "income": 5770000,
+          "net": 4987000,
+          "period": "2026-04",
+          "spending": 783000
+        },
+        {
+          "cumulative_net": 13677700,
+          "income": 5700000,
+          "net": 5248200,
+          "period": "2026-05",
+          "spending": 451800
+        }
+      ]
+    },
+    "net-worth": {
+      "periods": [
+        {
+          "accounts": [
+            {
+              "account_id": "acct-everyday",
+              "account_name": "Everyday Account",
+              "balance": 187818900,
+              "closed": false
+            },
+            {
+              "account_id": "acct-saver",
+              "account_name": "Rainy Day Saver",
+              "balance": 420650000,
+              "closed": false
+            },
+            {
+              "account_id": "acct-credit",
+              "account_name": "Travel Card",
+              "balance": -64026400,
+              "closed": false
+            }
+          ],
+          "delta": null,
+          "end_date": "2026-03-31",
+          "net_worth": 544442500,
+          "period": "2026-03"
+        },
+        {
+          "accounts": [
+            {
+              "account_id": "acct-everyday",
+              "account_name": "Everyday Account",
+              "balance": 193294800,
+              "closed": false
+            },
+            {
+              "account_id": "acct-saver",
+              "account_name": "Rainy Day Saver",
+              "balance": 420650000,
+              "closed": false
+            },
+            {
+              "account_id": "acct-credit",
+              "account_name": "Travel Card",
+              "balance": -64515300,
+              "closed": false
+            }
+          ],
+          "delta": 4987000,
+          "end_date": "2026-04-30",
+          "net_worth": 549429500,
+          "period": "2026-04"
+        },
+        {
+          "accounts": [
+            {
+              "account_id": "acct-everyday",
+              "account_name": "Everyday Account",
+              "balance": 198008500,
+              "closed": false
+            },
+            {
+              "account_id": "acct-saver",
+              "account_name": "Rainy Day Saver",
+              "balance": 421500000,
+              "closed": false
+            },
+            {
+              "account_id": "acct-credit",
+              "account_name": "Travel Card",
+              "balance": -64830800,
+              "closed": false
+            }
+          ],
+          "delta": 5248200,
+          "end_date": "2026-05-31",
+          "net_worth": 554677700,
+          "period": "2026-05"
+        }
+      ]
+    },
+    "age-of-money": {
+      "interval": "month",
+      "periods": [
+        {
+          "age_of_money_days": 2.3352612393681653,
+          "period": "2026-03",
+          "spent": 2057500,
+          "unmatched_spending": 0
+        },
+        {
+          "age_of_money_days": 41.47254150702427,
+          "period": "2026-04",
+          "spent": 783000,
+          "unmatched_spending": 0
+        },
+        {
+          "age_of_money_days": 67.36033643204958,
+          "period": "2026-05",
+          "spent": 451800,
+          "unmatched_spending": 0
+        }
+      ]
+    }
+  }
+}

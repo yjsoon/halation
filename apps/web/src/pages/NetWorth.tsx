@@ -1,7 +1,8 @@
 import { api, useApi } from "../api/client";
 import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
-import { SteppedArea } from "../components/charts";
+import { SteppedLine } from "../components/charts";
+import { ReportTable } from "../components/ReportTable";
 import { formatDate, formatPeriod, trailingMonthsRange } from "../lib/dates";
 import { formatMoney } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
@@ -44,7 +45,7 @@ export function NetWorthPage() {
     period.accounts.find((account) => account.account_id === accountId)?.balance;
 
   return (
-    <>
+    <div className="insights-page">
       <FilterRail
         filters={filters}
         setFilters={setFilters}
@@ -59,11 +60,11 @@ export function NetWorthPage() {
           <HeadlineFigure
             label={latest ? `As at ${formatDate(latest.end_date)}` : "Current"}
             settleKey={latest?.net_worth ?? "none"}
-            tone={latest ? signTone(latest.net_worth) : "positive"}
+            tone={latest?.net_worth ? signTone(latest.net_worth) : undefined}
             value={latest ? formatMoney(latest.net_worth) : "-"}
           />
           {delta !== null && (
-            <HeadlineFigure label="Change on previous period" settleKey={delta} tone={signTone(delta)} value={formatMoney(delta, { sign: true })} />
+            <HeadlineFigure label="Change on previous period" settleKey={delta} tone={delta ? signTone(delta) : undefined} value={formatMoney(delta, { sign: true })} />
           )}
           <HeadlineFigure label="Tracked accounts" settleKey={trackedAccounts} value={trackedAccounts || "-"} />
         </div>
@@ -87,34 +88,42 @@ export function NetWorthPage() {
                   <span className="section-title">Trend</span>
                   <span className="section-meta">{periods.length} closing {periods.length === 1 ? "snapshot" : "snapshots"}</span>
                 </div>
-                <SteppedArea periods={periods} />
+                <SteppedLine periods={periods} />
               </section>
               <section className="report-section">
                 <div className="section-heading">
                   <span className="section-title">Account balances</span>
                   <span className="section-meta">Newest periods first</span>
                 </div>
-                <div className="table-wrap table-wrap-wide">
+                <p className="table-scroll-hint">Scroll table for all balances →</p>
+                <ReportTable label="Account balance history" wide>
                   <table className="ledger-table">
                     <thead>
                       <tr>
                         <th>Period</th>
+                        {isPhone && <><th className="num">Net worth</th><th className="num">Delta</th></>}
                         {columnAccounts.map((account) => (
                             <th key={account.account_id} className="num">
                               {account.account_name}
                             </th>
                           ))}
-                        <th className="num">Net worth</th>
-                        <th className="num">Delta</th>
+                        {!isPhone && <><th className="num">Net worth</th><th className="num">Delta</th></>}
                       </tr>
                     </thead>
                     <tbody>
                       {[...periods].reverse().map((period, index, reversed) => {
                         const prior = reversed[index + 1];
                         const change = prior ? period.net_worth - prior.net_worth : null;
+                        const totals = <>
+                          <td className="num strong">{formatMoney(period.net_worth)}</td>
+                          <td className={!change ? "num muted" : change > 0 ? "num amount-positive" : "num amount-negative"}>
+                            {change === null ? "-" : formatMoney(change, { sign: true })}
+                          </td>
+                        </>;
                         return (
                           <tr key={period.period}>
                             <td>{formatPeriod(period.period)}</td>
+                            {isPhone && totals}
                             {columnAccounts.map((account) => {
                               const balance = balanceFor(period, account.account_id);
                               return (
@@ -126,24 +135,13 @@ export function NetWorthPage() {
                               </td>
                               );
                             })}
-                            <td className="num strong">{formatMoney(period.net_worth)}</td>
-                            <td
-                              className={
-                                change === null
-                                  ? "num muted"
-                                  : change >= 0
-                                    ? "num amount-positive"
-                                    : "num amount-negative"
-                              }
-                            >
-                              {change === null ? "-" : formatMoney(change, { sign: true })}
-                            </td>
+                            {!isPhone && totals}
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
-                </div>
+                </ReportTable>
               </section>
             </>
           ) : (
@@ -153,6 +151,6 @@ export function NetWorthPage() {
           )}
         </>
       )}
-    </>
+    </div>
   );
 }

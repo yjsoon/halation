@@ -88,7 +88,6 @@
 
 @keyframes hl-draw-in { from { stroke-dashoffset: 1; } }
 .area-line { stroke-dasharray: 1; animation: hl-draw-in var(--dur-fill) var(--ease-out) backwards; }
-.area-fill,
 .dotted-line { animation: hl-fade-in var(--dur-fill) var(--ease-out) backwards; animation-delay: min(120ms, var(--dur-fill)); }
 .dot {
   transform-box: fill-box;

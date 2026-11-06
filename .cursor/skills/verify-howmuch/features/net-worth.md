@@ -37,3 +37,6 @@ Preconditions:
 - Heading, nav link and document title all read `Net worth`.
 - On a viewport ≤720px the filter rail sits behind **Filters ▾**. Open it before choosing `1Y` or `All`.
 - The Trend line draws in on first load and when the period set changes (range or interval), not on a refetch of the same range. Screenshot after it settles (about 0.6s).
+- The unfilled stepped line uses a zoomed value axis, with a visible `Zoomed value axis · zero not shown` note when zero is excluded. Check positive, negative, one-snapshot and zero-only ranges; tick labels must remain distinct, points finite and the note truthful. Income bars and Money age retain their zero baselines.
+- At 320/390px, Period, Net worth and Delta lead the table; desktop retains account columns before totals. Keyboard-focus the named **Account balance history** region and use ArrowRight: Period and its header stay fixed, account components become visible, and the trailing fade disappears at the last column. Repeat with one selected account so a minimum table width cannot push totals out of view.
+- Resize between 320 and 1440px: chart labels and strokes remain readable at a 240px chart height. Capture both themes and a scrolled table under `.amp/in/artifacts/`; keep API results and exact fixture/query with the captures.

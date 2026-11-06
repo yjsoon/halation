@@ -39,3 +39,5 @@ Preconditions:
 - Investing inflows (Broker transfer) count as income. They are positive amounts, not envelope assignments.
 - Heading, nav link and document title all read `Income v spending`.
 - On a viewport ≤720px the filter rail sits behind **Filters ▾**. Open it before choosing `This month` or `All`.
+- At 320px all seven range presets wrap visibly and the applied summary occupies its own row. Close/reopen Filters with Enter and confirm dates and interval survive. Use an empty preset and return to All: the chart must remount at the current width, not keep a desktop-sized coordinate system.
+- Narrow history retains Period, Income and Spending first. Focus **Income and spending history**, use ArrowRight, and confirm Net/Cumulative net are reachable while Period and its header remain fixed. The trailing fade disappears at the endpoint. Check monthly and weekly charts in both themes; visible axis labels must not collide. Store the executed recipe, API figures and media under `.amp/in/artifacts/`.

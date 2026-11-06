@@ -39,3 +39,5 @@ Preconditions:
 - On a viewport ≤720px the filter rail sits behind **Filters ▾**. Open it before choosing `All` or dates.
 - Filter query strings persist across Reports links. Leftover `from`/`to` from another report can hide the empty-default sub-feature. Use `This month` or a fresh load of `/spending` with no query to prove that path.
 - Report amounts are absolute outflows. Income (Tinkermind Payroll) does not appear here.
+- At 320px, category names and complete Amount figures fit initially; Share and Txns remain in the horizontally scrollable table. Focus **Spending by category**, use ArrowRight, and confirm Category stays fixed while the remaining columns become visible. The right fade must disappear at the endpoint rather than obscure the final value.
+- Open narrow Filters: all seven presets wrap without clipping and the summary occupies a full-width row. Check both themes, keyboard disclosure, neutral `$0.00` in the empty state and category drill-down after scrolling. Store the recipe results, API figures and captures under `.amp/in/artifacts/`.

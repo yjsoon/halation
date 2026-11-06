@@ -2,6 +2,7 @@ import { api, useApi } from "../api/client";
 import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
 import { DottedLine } from "../components/charts";
+import { ReportTable } from "../components/ReportTable";
 import { formatPeriod } from "../lib/dates";
 import { formatAmount } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
@@ -33,7 +34,7 @@ export function AgeOfMoneyPage() {
   const isPhone = useIsPhone();
 
   return (
-    <>
+    <div className="insights-page">
       <FilterRail
         filters={filters}
         setFilters={setFilters}
@@ -53,7 +54,7 @@ export function AgeOfMoneyPage() {
           <HeadlineFigure
             label="Change on previous period"
             settleKey={delta ?? "none"}
-            tone={delta === null ? "positive" : signTone(delta)}
+            tone={delta ? signTone(delta) : undefined}
             value={delta === null ? "—" : `${delta > 0 ? "+" : ""}${days(delta)}`}
           />
           <HeadlineFigure label="Spending matched" settleKey={matchedTotal} value={matchedTotal > 0 ? formatAmount(matchedTotal) : "—"} />
@@ -96,8 +97,9 @@ export function AgeOfMoneyPage() {
                   <span className="section-title">History</span>
                   <span className="section-meta">Newest periods first</span>
                 </div>
-                <div className="table-wrap">
-                  <table className="ledger-table">
+                <p className="table-scroll-hint">Scroll table for spending detail →</p>
+                <ReportTable label="Money age history">
+                  <table className="ledger-table money-age-table">
                     <thead>
                       <tr>
                         <th>Period</th>
@@ -121,7 +123,7 @@ export function AgeOfMoneyPage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </ReportTable>
               </section>
             </>
           ) : (
@@ -131,6 +133,6 @@ export function AgeOfMoneyPage() {
           )}
         </>
       )}
-    </>
+    </div>
   );
 }

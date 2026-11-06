@@ -2,6 +2,7 @@ import { api, useApi } from "../api/client";
 import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
 import { PairedColumns } from "../components/charts";
+import { ReportTable } from "../components/ReportTable";
 import { formatPeriod, ytdRange } from "../lib/dates";
 import { formatAmount, formatMoney, formatSavingsRate } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
@@ -28,7 +29,7 @@ export function IncomePage() {
   const savingsRate = formatSavingsRate(net, totals.income);
 
   return (
-    <>
+    <div className="insights-page">
       <FilterRail
         filters={filters}
         setFilters={setFilters}
@@ -82,7 +83,8 @@ export function IncomePage() {
                   <span className="section-title">History</span>
                   <span className="section-meta">Newest periods first</span>
                 </div>
-                <div className="table-wrap">
+                <p className="table-scroll-hint">Scroll table for all figures →</p>
+                <ReportTable label="Income and spending history">
                   <table className="ledger-table">
                     <thead>
                       <tr>
@@ -107,7 +109,7 @@ export function IncomePage() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </ReportTable>
               </section>
             </>
           ) : (
@@ -117,6 +119,6 @@ export function IncomePage() {
           )}
         </>
       )}
-    </>
+    </div>
   );
 }

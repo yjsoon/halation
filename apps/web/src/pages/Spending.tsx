@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import { FilterRail } from "../components/FilterRail";
+import { ReportTable } from "../components/ReportTable";
 import { isQuietGroupName } from "../lib/categories";
 import { useIsPhone } from "../lib/use-is-phone";
 import { formatAmount, formatShare } from "../lib/money";
@@ -72,12 +73,12 @@ export function SpendingPage() {
   const categoryCount = grouped.reduce((count, group) => count + group.rows.length, 0);
 
   return (
-    <>
+    <div className="insights-page">
       <FilterRail filters={filters} setFilters={setFilters} busy={report.loading} collapsible={isPhone} />
       <div className="report-header">
         <h1>Spending breakdown</h1>
         <div className="headline-row headline-row-paired">
-          <HeadlineFigure label="Total spending" settleKey={total} tone="negative" value={formatAmount(total)} />
+          <HeadlineFigure label="Total spending" settleKey={total} tone={total > 0 ? "negative" : undefined} value={formatAmount(total)} />
           <HeadlineFigure label="Largest line" settleKey={topCategory?.category_id ?? "none"} value={topCategory ? topCategory.category_name : "-"} />
           <HeadlineFigure
             label="Average transaction"
@@ -116,8 +117,9 @@ export function SpendingPage() {
                 {totalTransactions === 1 ? "transaction" : "transactions"}
               </span>
             </div>
+            {grouped.length > 0 && <p className="table-scroll-hint">Scroll table for share and transaction counts →</p>}
             {grouped.length > 0 ? (
-              <div className="table-wrap">
+              <ReportTable label="Spending by category">
                 <table className="ledger-table breakdown-table">
                   <thead>
                     <tr>
@@ -160,7 +162,7 @@ export function SpendingPage() {
                     ))}
                   </tbody>
                 </table>
-              </div>
+              </ReportTable>
             ) : (
               <StatusPanel title="No spending in this range.">
                 Adjust the dates or clear category filters to show more transactions.
@@ -169,6 +171,6 @@ export function SpendingPage() {
           </section>
         </>
       )}
-    </>
+    </div>
   );
 }

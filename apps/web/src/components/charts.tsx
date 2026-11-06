@@ -1,10 +1,24 @@
-import type { CSSProperties } from "react";
+import { useCallback, useState, type CSSProperties } from "react";
 import { formatAmount, formatMoney, withPlanDecimal } from "../lib/money";
 import { formatPeriod } from "../lib/dates";
 
 const WIDTH = 960;
 const HEIGHT = 240;
 const PAD = { top: 12, right: 8, bottom: 24, left: 64 };
+
+// Keep chart coordinates in CSS pixels so labels, dots and strokes do not shrink on narrow screens.
+function useChartWidth() {
+  const [width, setWidth] = useState(WIDTH);
+  const ref = useCallback((svg: SVGSVGElement | null) => {
+    if (!svg) return;
+    const measure = () => setWidth(svg.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
+  return { ref, width };
+}
 
 function niceTicks(min: number, max: number): number[] {
   if (min === max) {
@@ -20,13 +34,13 @@ function niceTicks(min: number, max: number): number[] {
   return ticks;
 }
 
-function shortMoney(milliunits: number): string {
+function shortMoney(milliunits: number, step: number): string {
   const value = milliunits / 1000;
   const abs = Math.abs(value);
   const sign = value < 0 ? "−" : "";
-  if (abs >= 1_000_000) return withPlanDecimal(`${sign}${(abs / 1_000_000).toFixed(1)}m`);
-  if (abs >= 1_000) return withPlanDecimal(`${sign}${(abs / 1_000).toFixed(abs >= 10_000 ? 0 : 1)}k`);
-  return `${sign}${abs.toFixed(0)}`;
+  if (abs >= 1_000_000) return withPlanDecimal(`${sign}${(abs / 1_000_000).toFixed(Math.max(1, Math.ceil(-Math.log10(step / 1_000_000_000))))}m`);
+  if (abs >= 1_000) return withPlanDecimal(`${sign}${(abs / 1_000).toFixed(Math.max(abs >= 10_000 ? 0 : 1, Math.ceil(-Math.log10(step / 1_000_000))))}k`);
+  return withPlanDecimal(`${sign}${abs.toFixed(Math.max(0, Math.ceil(-Math.log10(step / 1000))))}`);
 }
 
 interface Frame {
@@ -34,30 +48,33 @@ interface Frame {
   y: (value: number) => number;
   ticks: number[];
   innerWidth: number;
+  width: number;
 }
 
-function buildFrame(min: number, max: number): Frame {
-  const lo = Math.min(min, 0);
-  const hi = Math.max(max, 0);
+function buildFrame(min: number, max: number, width: number, includeZero = true): Frame {
+  const lo = includeZero ? Math.min(min, 0) : min;
+  const hi = includeZero ? Math.max(max, 0) : max;
   const span = hi - lo || 1;
-  const innerWidth = WIDTH - PAD.left - PAD.right;
+  const innerWidth = width - PAD.left - PAD.right;
   const innerHeight = HEIGHT - PAD.top - PAD.bottom;
   return {
     x: (index, count) => PAD.left + (innerWidth * (index + 0.5)) / Math.max(count, 1),
     y: (value) => PAD.top + innerHeight * (1 - (value - lo) / span),
     ticks: niceTicks(lo, hi),
     innerWidth,
+    width,
   };
 }
 
 function Gridlines({ frame }: { frame: Frame }) {
+  const step = frame.ticks.length > 1 ? frame.ticks[1] - frame.ticks[0] : Infinity;
   return (
     <g className="chart-grid">
       {frame.ticks.map((tick) => (
         <g key={tick}>
-          <line x1={PAD.left} x2={WIDTH - PAD.right} y1={frame.y(tick)} y2={frame.y(tick)} />
+          <line x1={PAD.left} x2={frame.width - PAD.right} y1={frame.y(tick)} y2={frame.y(tick)} />
           <text x={PAD.left - 8} y={frame.y(tick)} dy="0.32em" textAnchor="end">
-            {shortMoney(tick)}
+            {shortMoney(tick, step)}
           </text>
         </g>
       ))}
@@ -66,7 +83,7 @@ function Gridlines({ frame }: { frame: Frame }) {
 }
 
 function XLabels({ labels, frame }: { labels: string[]; frame: Frame }) {
-  const every = Math.ceil(labels.length / 10);
+  const every = Math.ceil(labels.length / Math.max(2, Math.floor(frame.innerWidth / 68)));
   return (
     <g className="chart-axis">
       {labels.map((label, index) =>
@@ -90,16 +107,17 @@ export function PairedColumns({
 }: {
   periods: Array<{ period: string; income: number; spending: number }>;
 }) {
+  const { ref, width } = useChartWidth();
   if (!periods.length) {
     return <EmptyChart />;
   }
   const max = Math.max(...periods.map((p) => Math.max(p.income, p.spending)));
-  const frame = buildFrame(0, max);
+  const frame = buildFrame(0, max, width);
   const slot = frame.innerWidth / periods.length;
   const bar = Math.min(18, Math.max(3, slot * 0.28));
 
   return (
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="chart" role="img" aria-label="Income versus spending by period">
+    <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="img" aria-label="Income versus spending by period">
       <Gridlines frame={frame} />
       <g className="chart-plot" key={plotKey(periods)}>
         {periods.map((period, index) => {
@@ -135,16 +153,23 @@ export function PairedColumns({
   );
 }
 
-export function SteppedArea({
+export function SteppedLine({
   periods,
 }: {
   periods: Array<{ period: string; net_worth: number }>;
 }) {
+  const { ref, width } = useChartWidth();
   if (!periods.length) {
     return <EmptyChart />;
   }
   const values = periods.map((p) => p.net_worth);
-  const frame = buildFrame(Math.min(...values), Math.max(...values));
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const padding = Math.max((max - min || Math.abs(max) * 0.02) * 0.1, 1000);
+  const lo = min - padding;
+  const hi = max + padding;
+  const excludesZero = lo > 0 || hi < 0;
+  const frame = buildFrame(lo, hi, width, false);
   const points = periods.map((period, index) => ({
     x: frame.x(index, periods.length),
     y: frame.y(period.net_worth),
@@ -154,22 +179,23 @@ export function SteppedArea({
   for (let index = 1; index < points.length; index += 1) {
     path += ` H ${points[index].x} V ${points[index].y}`;
   }
-  const area = `${path} V ${frame.y(0)} H ${points[0].x} Z`;
 
   return (
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="chart" role="img" aria-label="Net worth over time">
-      <Gridlines frame={frame} />
-      <g className="chart-plot" key={plotKey(periods)}>
-        <path className="area-fill" d={area} />
-        <path className="area-line" d={path} pathLength={1} />
-        {periods.map((period, index) => (
-          <circle key={period.period} className="dot" style={stagger(index)} cx={points[index].x} cy={points[index].y} r={2.5}>
-            <title>{`${formatPeriod(period.period)} ${formatMoney(period.net_worth)}`}</title>
-          </circle>
-        ))}
-      </g>
-      <XLabels labels={periods.map((p) => p.period)} frame={frame} />
-    </svg>
+    <>
+      <p className="chart-scale-note">{excludesZero ? "Zoomed value axis · zero not shown" : "Value axis includes zero"}</p>
+      <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="img" aria-label="Net worth over time">
+        <Gridlines frame={frame} />
+        <g className="chart-plot" key={plotKey(periods)}>
+          <path className="area-line" d={path} pathLength={1} />
+          {periods.map((period, index) => (
+            <circle key={period.period} className="dot" style={stagger(index)} cx={points[index].x} cy={points[index].y} r={2.5}>
+              <title>{`${formatPeriod(period.period)} ${formatMoney(period.net_worth)}`}</title>
+            </circle>
+          ))}
+        </g>
+        <XLabels labels={periods.map((p) => p.period)} frame={frame} />
+      </svg>
+    </>
   );
 }
 
@@ -178,18 +204,16 @@ export function DottedLine({
 }: {
   periods: Array<{ period: string; value: number | null }>;
 }) {
+  const { ref, width } = useChartWidth();
   const present = periods.filter((p) => p.value !== null) as Array<{ period: string; value: number }>;
   if (!present.length) {
     return <EmptyChart />;
   }
   const values = present.map((p) => p.value);
-  const lo = 0;
   const hi = Math.max(...values);
-  const innerHeight = HEIGHT - PAD.top - PAD.bottom;
-  const innerWidth = WIDTH - PAD.left - PAD.right;
-  const y = (value: number) => PAD.top + innerHeight * (1 - (value - lo) / (hi - lo || 1));
-  const x = (index: number) => PAD.left + (innerWidth * (index + 0.5)) / periods.length;
-  const ticks = niceTicks(lo, hi);
+  const frame = buildFrame(0, hi, width);
+  const { y, ticks } = frame;
+  const x = (index: number) => frame.x(index, periods.length);
 
   const points = periods
     .map((period, index) => (period.value === null ? null : { x: x(index), y: y(period.value), period }))
@@ -198,11 +222,11 @@ export function DottedLine({
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 
   return (
-    <svg viewBox={`0 0 ${WIDTH} ${HEIGHT}`} className="chart" role="img" aria-label="Age of money in days">
+    <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="img" aria-label="Age of money in days">
       <g className="chart-grid">
         {ticks.map((tick) => (
           <g key={tick}>
-            <line x1={PAD.left} x2={WIDTH - PAD.right} y1={y(tick)} y2={y(tick)} />
+            <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} />
             <text x={PAD.left - 8} y={y(tick)} dy="0.32em" textAnchor="end">
               {`${Math.round(tick)}d`}
             </text>
@@ -217,15 +241,7 @@ export function DottedLine({
           </circle>
         ))}
       </g>
-      <g className="chart-axis">
-        {periods.map((period, index) =>
-          index % Math.ceil(periods.length / 10) === 0 ? (
-            <text key={period.period} x={x(index)} y={HEIGHT - 6} textAnchor="middle">
-              {formatPeriod(period.period)}
-            </text>
-          ) : null,
-        )}
-      </g>
+      <XLabels labels={periods.map((p) => p.period)} frame={frame} />
     </svg>
   );
 }

@@ -25,7 +25,7 @@ Preconditions:
 
 - **Open report.** Open `{web_url}/age-of-money` (no query). Title is `Money age · Halation`. Heading is `Money age`. The **Reports** group is open with `Money age` marked current. Filter rail hides the category picker. Active preset is `All`.
 - **Default figure.** Latest headline is `67 days` (May 2026 is the last measured demo month). `Spending matched` is `$3,292.30`. History includes Mar / Apr / May 2026.
-- **This month empty.** Choose `This month`. If today is outside March–May 2026, status title is `No spending in this range.` with detail `Need both income and spending before age of money can be calculated.`
+- **This month empty.** Choose a month with no spending. A null-only period shows dash headline values, `No data in this range.` instead of a chart, and a history row with no age and `$0.00` spent. If the API returns no periods, the status title is `No spending in this range.` with detail `Need both income and spending before age of money can be calculated.` Do not mistake a retained null period for an invented age.
 - **Return to All.** Choose `All`. The days figure returns.
 - **HTTP match.** `control-howmuch http GET "/api/reports/age-of-money?plan_id=local-plan"` returns `data.periods` with at least one `age_of_money_days` that is not null.
 - **Proof.** Screenshot the populated All report (`artifacts/age-of-money/all-range.png`) and save the HTTP JSON (`artifacts/age-of-money/report.json`).
@@ -37,3 +37,5 @@ Preconditions:
 - Unmatched spending is income-less outflow from before the first inflow. A diagnostic note appears only when that total is above zero.
 - Heading, nav link and document title all read `Money age`; the route is still `/age-of-money` and the History column still says `Age of money`. iOS still says Age of Money under Insights.
 - On a viewport ≤720px the filter rail sits behind **Filters ▾**. Open it before choosing `This month` or `All`.
+- At 320px, the wrapped Period/Age of money/Spending matched headers and values fit; Unmatched spending continues to the right. Focus **Money age history** and use ArrowRight to reach it while Period stays fixed. Check the header stays above scrolling headings, not just that row dates remain pinned.
+- Switch a populated range to a null-only month and back with presets, then resize 320→1440: the chart remounts at the measured width, with readable axes and distinct monthly labels. Capture both themes and keep exact fixture/query, API figures and results under `.amp/in/artifacts/`.
