@@ -37,4 +37,5 @@ Preconditions:
 - **Add card** is the control on the board and in the empty copy. Both go to `/rewards/new`. The editor picks an existing credit card account. It does not invent a new ledger account.
 - Flag colour on a subcategory uses the same FlagPicker colour tags as the ledger (None plus the six colours). None stores `unflagged` and matches unflagged spend. Ledger None sends `null`.
 - Colour names live on the rewards-tracked account, not on Everyday Account. Name Red `Dining` and Blue `Online` on Travel Card. After Save, Travel Card FlagTags and the register for that account show `Dining` / `Online`. Other accounts still show plain colour tags. `document.body.innerText` uppercases FlagTags (`DINING`); `textContent` stays `Dining`.
+- Renaming a colour applies to flags set from then on. Existing rows keep the name they were flagged with, so after renaming Red from `Dining` to `Food` the demo rows still show `Dining` and **By flag** lists `Dining` and `Food` separately.
 - Viewport ≤720px hides the sidebar. Open **Open menu** before **Rewards**.

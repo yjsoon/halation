@@ -58,8 +58,7 @@ export class D1TransactionRepository {
       const patch = normaliseFollowUpEdit(old, input);
       if (snapshot.linkedSub) {
         // The split line owns this row's link, amount, date and memo, but not
-        // its flag (a rewards flag rename restamps every row in the account)
-        // or whether its amount still needs confirming or claiming back.
+        // its flag or whether its amount still needs confirming or claiming back.
         const fields = Object.keys(patch).filter((field) => (patch as Record<string, unknown>)[field] !== undefined);
         if (fields.length === 0 || fields.some((field) => !LINKED_SIDE_OWN_FIELDS.has(field))) {
           throw new ValidationError("This transaction is the linked side of a split line; edit the split parent");

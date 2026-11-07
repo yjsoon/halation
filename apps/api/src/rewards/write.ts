@@ -2,7 +2,7 @@ import { createId } from "../ids";
 import { NotFoundError, ValidationError } from "../repository";
 import { sanitizeSettings } from "../importers/rewards-tracker";
 import type { LedgerStore } from "../storage";
-import { cardFlagNames, flagNameForColour, parseCardFlagNames } from "./flag-names";
+import { cardFlagNames, flagNameForColour } from "./flag-names";
 import { parseAppSettings, parseCreditCardWrite } from "./parse";
 import type { AppSettings, CreditCard } from "./types";
 
@@ -17,7 +17,6 @@ export async function createRewardsCard(repo: LedgerStore, planId: string, raw: 
   const id = optionalString(draft.id) ?? createId("card");
   const card = parseCreditCardWrite({ ...draft, id, ynabAccountId: accountId });
   await repo.upsertRewardsTrackerCard(planId, card);
-  await retitleAccountFlagNames(repo, planId, card);
   return card;
 }
 
@@ -29,15 +28,15 @@ export async function patchRewardsCard(
 ): Promise<CreditCard> {
   const existing = findLiveCard((await repo.getRewardsTrackerSnapshot(planId)).cards, cardId);
   if (!existing) throw new NotFoundError("Rewards card not found");
-  const previousNames = storedCardFlagNames(existing);
   const draft: Record<string, unknown> = { ...existing, ...asCardObject(raw), id: cardId };
   const accountId = requireLiveAccountId(draft.ynabAccountId);
   if (!await repo.findLiveAccountId(planId, accountId)) {
     throw new RewardsAccountError("ynabAccountId must match a live account");
   }
   const card = parseCreditCardWrite({ ...draft, ynabAccountId: accountId });
+  // Only the card changes. Transactions keep the name they were flagged
+  // with: a rename applies to flags set from now on, not to history.
   await repo.upsertRewardsTrackerCard(planId, card);
-  await retitleAccountFlagNames(repo, planId, card, previousNames);
   return card;
 }
 
@@ -55,32 +54,6 @@ export async function stampTransactionFlagName(
   }) as CreditCard | undefined;
   if (!card) return;
   patch.flag_name = flagNameForColour(cardFlagNames(card), patch.flag_color ?? null);
-}
-
-async function retitleAccountFlagNames(
-  repo: LedgerStore,
-  planId: string,
-  card: CreditCard,
-  previousNames?: Record<string, string>,
-): Promise<void> {
-  // The same names a new transaction is stamped with: subcategory names,
-  // overridden by explicit colour names. A subcategory rename must restamp
-  // the rows it named, or the report groups one flag under its old name.
-  const nextNames = cardFlagNames(card);
-  const prior = previousNames ?? {};
-  const colours = new Set([...Object.keys(nextNames), ...Object.keys(prior)]);
-  if (colours.size === 0) return;
-  const rows = await repo.listTransactions(planId, { accountId: card.ynabAccountId });
-  const edits = [];
-  for (const txn of rows) {
-    const colour = typeof txn.flag_color === "string" && txn.flag_color ? txn.flag_color : "unflagged";
-    if (!colours.has(colour)) continue;
-    const next = nextNames[colour] ?? null;
-    if ((txn.flag_name ?? null) === next) continue;
-    edits.push({ lookup: { kind: "id" as const, id: String(txn.id) }, patch: { flag_name: next } });
-  }
-  if (edits.length === 0) return;
-  await repo.updateTransactions(planId, edits);
 }
 
 export async function deleteRewardsCard(repo: LedgerStore, planId: string, cardId: string): Promise<object> {
@@ -111,16 +84,6 @@ function parseSettingsWrite(body: Record<string, unknown>): { milesValuation?: n
     throw new ValidationError("milesValuation must be nonnegative");
   }
   return { milesValuation: body.milesValuation };
-}
-
-/** Names the stored card stamped, read defensively from its raw stored form. */
-function storedCardFlagNames(card: Record<string, unknown>): Record<string, string> {
-  const subcategories = (Array.isArray(card.subcategories) ? card.subcategories : []).filter((entry) =>
-    Boolean(entry && typeof entry === "object" && typeof entry.name === "string" && typeof entry.flagColor === "string"));
-  return cardFlagNames({
-    flagNames: parseCardFlagNames(card.flagNames),
-    subcategories: subcategories as NonNullable<CreditCard["subcategories"]>,
-  });
 }
 
 function asCardObject(value: unknown): Record<string, unknown> {

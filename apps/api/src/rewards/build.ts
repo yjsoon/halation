@@ -316,10 +316,13 @@ function groupKey(transaction: Transaction, groupBy: RewardGroupBy): {
   flagColor: string | null;
 } {
   if (groupBy === "flag") {
+    // A colour's name changes over time, and each row keeps the name it was
+    // flagged with, so one colour can head several groups.
     const colour = transaction.flag_color ?? "unflagged";
+    const name = transaction.flag_name?.trim();
     return {
-      key: `flag:${colour}`,
-      label: transaction.flag_name?.trim() || titleCase(colour),
+      key: name ? `flag:${colour}:${name}` : `flag:${colour}`,
+      label: name || titleCase(colour),
       flagColor: transaction.flag_color ?? null,
     };
   }

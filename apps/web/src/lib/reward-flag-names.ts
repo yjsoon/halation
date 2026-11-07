@@ -41,9 +41,12 @@ export function namedFlagLabel(
   colour: string | null | undefined,
   fallback?: string | null,
 ): string | undefined {
+  // A row's stored name is the one it was flagged with and wins over the
+  // card's current name, so renaming a colour does not relabel history.
+  const stored = fallback?.trim();
+  if (stored) return stored;
   const key: RewardFlagColour | null = !colour ? "unflagged" : isFlagColour(colour) ? colour : null;
-  const named = key ? names?.[key]?.trim() : undefined;
-  return named || fallback?.trim() || undefined;
+  return (key ? names?.[key]?.trim() : undefined) || undefined;
 }
 
 function sameFlagColour(left: string | null | undefined, right: string | null | undefined): boolean {

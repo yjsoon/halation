@@ -159,15 +159,16 @@ describe("native rewards card writes", () => {
     expect(snapshotSettings).not.toHaveProperty("cloudSyncMnemonic");
   });
 
-  test("persists colour names and retitles that account only", async () => {
-    await repo.upsertAccount("plan-test", { id: "acct-other", name: "Everyday Account", type: "checking" });
+  test("a card save keeps the names old transactions were flagged with", async () => {
+    // Categories change over time: renaming or removing a colour's name must
+    // not reach back into transactions already flagged under the old name.
     await repo.createTransaction("plan-test", {
       id: "txn-red",
       account_id: "acct-rewards",
       date: "2026-03-02",
       amount: -1000,
       flag_color: "red",
-      flag_name: "Red",
+      flag_name: "Dining",
     });
     await repo.createTransaction("plan-test", {
       id: "txn-blue",
@@ -176,26 +177,20 @@ describe("native rewards card writes", () => {
       amount: -2000,
       flag_color: "blue",
     });
-    await repo.createTransaction("plan-test", {
-      id: "txn-other-red",
-      account_id: "acct-other",
-      date: "2026-03-02",
-      amount: -3000,
-      flag_color: "red",
-      flag_name: "Red",
-    });
 
     const card = await createRewardsCard(repo, "plan-test", {
       id: "card-travel",
       name: "Travel Card",
       type: "cashback",
       ynabAccountId: "acct-rewards",
-      flagNames: { red: "Dining", blue: "Online" },
+      flagNames: { red: "Food", blue: "Online" },
     });
-    expect(card.flagNames).toEqual({ red: "Dining", blue: "Online" });
+    expect(card.flagNames).toEqual({ red: "Food", blue: "Online" });
+    await patchRewardsCard(repo, "plan-test", "card-travel", { flagNames: { red: "Groceries" } });
+    await patchRewardsCard(repo, "plan-test", "card-travel", { flagNames: {} });
+
     expect((await repo.getTransaction("plan-test", "txn-red")).flag_name).toBe("Dining");
-    expect((await repo.getTransaction("plan-test", "txn-blue")).flag_name).toBe("Online");
-    expect((await repo.getTransaction("plan-test", "txn-other-red")).flag_name).toBe("Red");
+    expect((await repo.getTransaction("plan-test", "txn-blue")).flag_name).toBeNull();
   });
 
   test("does not wipe existing flag names when colour names are omitted", async () => {
@@ -214,69 +209,6 @@ describe("native rewards card writes", () => {
       ynabAccountId: "acct-rewards",
     });
     expect((await repo.getTransaction("plan-test", "txn-named")).flag_name).toBe("Dining");
-  });
-
-  test("clears a removed colour name on that account only", async () => {
-    await repo.upsertAccount("plan-test", { id: "acct-other", name: "Everyday Account", type: "checking" });
-    await repo.createTransaction("plan-test", {
-      id: "txn-red",
-      account_id: "acct-rewards",
-      date: "2026-03-02",
-      amount: -1000,
-      flag_color: "red",
-      flag_name: "Dining",
-    });
-    await repo.createTransaction("plan-test", {
-      id: "txn-blue",
-      account_id: "acct-rewards",
-      date: "2026-03-03",
-      amount: -2000,
-      flag_color: "blue",
-      flag_name: "Online",
-    });
-    await repo.createTransaction("plan-test", {
-      id: "txn-other-blue",
-      account_id: "acct-other",
-      date: "2026-03-03",
-      amount: -3000,
-      flag_color: "blue",
-      flag_name: "Online",
-    });
-    await createRewardsCard(repo, "plan-test", {
-      id: "card-travel",
-      name: "Travel Card",
-      type: "cashback",
-      ynabAccountId: "acct-rewards",
-      flagNames: { red: "Dining", blue: "Online" },
-    });
-
-    const patched = await patchRewardsCard(repo, "plan-test", "card-travel", { flagNames: { red: "Dining" } });
-    expect(patched.flagNames).toEqual({ red: "Dining" });
-    expect((await repo.getTransaction("plan-test", "txn-red")).flag_name).toBe("Dining");
-    expect((await repo.getTransaction("plan-test", "txn-blue")).flag_name).toBeNull();
-    expect((await repo.getTransaction("plan-test", "txn-other-blue")).flag_name).toBe("Online");
-  });
-
-  test("explicit empty colour names clear stored names", async () => {
-    await repo.createTransaction("plan-test", {
-      id: "txn-red",
-      account_id: "acct-rewards",
-      date: "2026-03-02",
-      amount: -1000,
-      flag_color: "red",
-      flag_name: "Dining",
-    });
-    await createRewardsCard(repo, "plan-test", {
-      id: "card-travel",
-      name: "Travel Card",
-      type: "cashback",
-      ynabAccountId: "acct-rewards",
-      flagNames: { red: "Dining" },
-    });
-
-    const patched = await patchRewardsCard(repo, "plan-test", "card-travel", { flagNames: {} });
-    expect(patched.flagNames).toBeUndefined();
-    expect((await repo.getTransaction("plan-test", "txn-red")).flag_name).toBeNull();
   });
 
   test("stamps a transaction flag name from the tracked card", async () => {

@@ -74,6 +74,20 @@ test("Singapore midnight is today even when the server is on the preceding date"
   expect(report.cards[0]!.calculation.periods?.[0]?.start).toBe("2026-06-01");
 });
 
+test("group by flag keeps each name a colour was flagged with", () => {
+  const report = reportFor([
+    txn({ id: "old", date: "2026-04-03", amount: -10000, flag_color: "red", flag_name: "Dining" }),
+    txn({ id: "new", date: "2026-05-03", amount: -20000, flag_color: "red", flag_name: "Groceries" }),
+    txn({ id: "new-2", date: "2026-05-04", amount: -5000, flag_color: "red", flag_name: "Groceries" }),
+    txn({ id: "plain", date: "2026-05-05", amount: -1000, flag_color: "red" }),
+  ], { groupBy: "flag" });
+  expect(report.groups.map(({ label, flag_color, spend, transaction_count }) => ({ label, flag_color, spend, transaction_count }))).toEqual([
+    { label: "Groceries", flag_color: "red", spend: 25, transaction_count: 2 },
+    { label: "Dining", flag_color: "red", spend: 10, transaction_count: 1 },
+    { label: "Red", flag_color: "red", spend: 1, transaction_count: 1 },
+  ]);
+});
+
 test("report dates reject malformed and reversed ranges rather than silently changing the period", () => {
   for (const date of ["2026-02-30", "2026-2-01", "invalid"]) {
     expect(() => reportFor([], { from: null, to: date })).toThrow("valid YYYY-MM-DD");
