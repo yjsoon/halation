@@ -168,10 +168,10 @@ Read; it never falls back to the deployment credential.
    named `howmuch-d1-read (GitHub Actions)` with **only Account > D1 > Read**.
    Scope it to Tinkertanker (`b8b1032c61d9475cd00229c74db7ec72`), not all accounts
    or YJ. Do not grant D1 Edit or any Workers permissions.
-2. In `yjsoon/howmuch`, open Settings > Secrets and variables > Actions >
+2. In `yjsoon/halation`, open Settings > Secrets and variables > Actions >
    New repository secret, name it **`CLOUDFLARE_D1_READ_TOKEN`**, and paste the
    token value. Alternatively, run
-   `gh secret set CLOUDFLARE_D1_READ_TOKEN --repo yjsoon/howmuch` and paste it
+   `gh secret set CLOUDFLARE_D1_READ_TOKEN --repo yjsoon/halation` and paste it
    at the private prompt. Leave `CLOUDFLARE_API_TOKEN` unchanged.
 3. Verify access read-only from the repo root in a Bash subshell, without
    putting the value in shell history (paste the **D1 Read** token at the prompt):
@@ -210,7 +210,7 @@ as a second guard. The current token was created with no expiry.
   "Edit Cloudflare Workers" style set it was created with). Do not add D1 Read
   for the pending-migrations check; that step uses its own token. The workflow
   never writes to D1, so D1 Edit is not required.
-- Where it lives: only in the `yjsoon/howmuch` repository secrets (Settings >
+- Where it lives: only in the `yjsoon/halation` repository secrets (Settings >
   Secrets and variables > Actions) and in the Tinkertanker account's API token
   list. Cloudflare shows the value once at creation; never write it into the
   repo, an issue, a PR, a log, or chat.
@@ -221,11 +221,11 @@ Rotation is an owner action, because step 3 deploys production:
    the same deployment permissions and the expiry set by the policy
    below. Keep it scoped to the Tinkertanker account.
 2. Store it without putting it on the command line: run
-   `gh secret set CLOUDFLARE_API_TOKEN --repo yjsoon/howmuch` and paste the
+   `gh secret set CLOUDFLARE_API_TOKEN --repo yjsoon/halation` and paste the
    value at the prompt. Leave `CLOUDFLARE_D1_READ_TOKEN` unchanged; the migration
    check does not validate the replacement deploy token's permissions.
 3. Run the Deploy workflow via `workflow_dispatch` (Actions > Deploy > Run
-   workflow, or `gh workflow run deploy.yml --repo yjsoon/howmuch --ref main`)
+   workflow, or `gh workflow run deploy.yml --repo yjsoon/halation --ref main`)
    from a ref that is safe to ship, and confirm the migrations check, the
    deploy, and the `/health` step all pass.
 4. Revoke the old token in the Tinkertanker dashboard, and confirm only the

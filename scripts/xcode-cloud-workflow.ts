@@ -24,7 +24,7 @@ import { createSign } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 const APP_ID = "6829787957"; // Halation - Finance and Rewards, com.tinkertanker.halation
-const REPO = { owner: "yjsoon", name: "howmuch" };
+const REPO = { owner: "yjsoon", name: "halation" };
 const WORKFLOW_NAME = "Daily TestFlight";
 const XCODE = "Xcode 27.2"; // iPhoneOS SDK 27.1 or newer is required (docs/speedflight.md)
 const SCHEDULE = { frequency: "DAILY", hour: 3, minute: 0, timezone: "Asia/Singapore" };

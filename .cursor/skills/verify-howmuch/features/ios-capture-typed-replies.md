@@ -1,6 +1,6 @@
 # iOS capture typed replies
 
-Conversational **Add Transactions** types a short British waiting line while a reply is in flight, then types the finished helper text once the model returns a complete reply. Failed and stopped replies dump in full immediately. Spec: `docs/frontend/intake-ui.md`. Lives on PR [#153](https://github.com/yjsoon/howmuch/pull/153) (`cursor/capture-rename-payee-a557`, commit `29f42e7`). Not on `cursor/ios-build-4-8d47`.
+Conversational **Add Transactions** types a short British waiting line while a reply is in flight, then types the finished helper text once the model returns a complete reply. Failed and stopped replies dump in full immediately. Spec: `docs/frontend/intake-ui.md`. Lives on PR [#153](https://github.com/yjsoon/halation/pull/153) (`cursor/capture-rename-payee-a557`, commit `29f42e7`). Not on `cursor/ios-build-4-8d47`.
 
 ## Sub-features
 

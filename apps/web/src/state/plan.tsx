@@ -639,7 +639,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   );
 }
 
-const REPOSITORY_URL = "https://github.com/yjsoon/howmuch";
+const REPOSITORY_URL = "https://github.com/yjsoon/halation";
 const SELF_HOSTING_DOCS_URL = `${REPOSITORY_URL}/blob/main/docs/self-hosting.md`;
 const SETUP_TOKEN_DOCS_URL = `${SELF_HOSTING_DOCS_URL}#4-create-the-setup-token`;
 

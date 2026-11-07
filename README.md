@@ -20,7 +20,7 @@ You have two options:
 - **On your iPhone alone.** Install the app (see [Getting the iPhone app](#getting-the-iphone-app)), then choose **Start on this iPhone** when it first opens. The ledger lives on the device.
 - **On your own Cloudflare account.** Run the web app and API as a Cloudflare Worker with a D1 database. One instance serves one person or household, and the iPhone app can connect to it. It needs the Workers Paid plan (US$5 a month), because password hashing exceeds the free plan's CPU limit. Use the button below, or follow the [self-hosting guide](docs/self-hosting.md) for the manual route and what to do after deploying.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yjsoon/howmuch)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yjsoon/halation)
 
 ### Getting the iPhone app
 

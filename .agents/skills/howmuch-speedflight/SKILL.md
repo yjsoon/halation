@@ -28,7 +28,7 @@ needs its own authorization.
 
 Never cut an IPA from a stale local checkout.
 
-1. `git fetch origin` (verify it is `yjsoon/howmuch`), then resolve the
+1. `git fetch origin` (verify it is `yjsoon/halation`), then resolve the
    requested branch/tag/SHA. An explicit SHA or tag wins over newer code;
    an unqualified "latest" request resolves to fetched `origin/main`.
 2. Record the resolved commit and build a clean checkout at exactly that

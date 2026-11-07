@@ -1,6 +1,6 @@
 # App Intents — Shortcuts capture
 
-Design only. No Swift in this slice. Paired with [#87](https://github.com/yjsoon/howmuch/issues/87) intake (compose, share, reader) and the capture UI in [`intake-ui.md`](./intake-ui.md).
+Design only. No Swift in this slice. Paired with [#87](https://github.com/yjsoon/halation/issues/87) intake (compose, share, reader) and the capture UI in [`intake-ui.md`](./intake-ui.md).
 
 **v1 is structured.** Shortcuts exposes amount, payee, category, flag, memo, account, date, direction, cleared. The user lands on the existing **Add Transaction** sheet, already filled. They tap Save. Nothing is recorded until then.
 

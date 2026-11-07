@@ -4,7 +4,7 @@ Halation's TestFlight builds come from one Xcode Cloud workflow, **Daily TestFli
 
 | Setting | Value |
 |---|---|
-| Source | `main` of `yjsoon/howmuch` |
+| Source | `main` of `yjsoon/halation` |
 | Start | Daily at 03:00 Asia/Singapore, plus manual start on `main` |
 | Action | Archive `HowMuch` (`apps/ios/HowMuch.xcodeproj`) for any iOS device, clean build |
 | Xcode | Xcode 27.2 (the iPhoneOS 27.1 SDK or newer is required; see [Speedflight](speedflight.md)) |
@@ -34,7 +34,7 @@ It needs a Tinkertanker key with Admin or App Manager access. Xcode Cloud schedu
 
 The App Store Connect API cannot create an Xcode Cloud product or grant repository access, so these steps need YJ in Xcode and App Store Connect:
 
-1. In Xcode 27.2 or newer, open `apps/ios/HowMuch.xcodeproj`, choose **Integrate > Create Workflow…**, select the `HowMuch` app with team Tinkertanker, and grant Xcode Cloud access to `yjsoon/howmuch` on GitHub when asked. On GitHub, give the Xcode Cloud app **Only select repositories: `yjsoon/howmuch`**; `danielsaidi/EmojiKit` is public and needs no access. Finish with **Close**, not **Start First Build**, then disable the **Default** workflow Xcode created, because it builds on every push to `main`.
+1. In Xcode 27.2 or newer, open `apps/ios/HowMuch.xcodeproj`, choose **Integrate > Create Workflow…**, select the `HowMuch` app with team Tinkertanker, and grant Xcode Cloud access to `yjsoon/halation` on GitHub when asked. On GitHub, give the Xcode Cloud app **Only select repositories: `yjsoon/halation`**; `danielsaidi/EmojiKit` is public and needs no access. Finish with **Close**, not **Start First Build**, then disable the **Default** workflow Xcode created, because it builds on every push to `main`.
 2. In App Store Connect, **Apps > Halation > Xcode Cloud > Settings > Build Number**, set **Next Build Number** above the last TestFlight build (build 20 at the time of writing, so 21 or more). Xcode Cloud replaces `CURRENT_PROJECT_VERSION` with its own counter, and a lower number would collide with existing uploads.
 3. Run `bun scripts/xcode-cloud-workflow.ts --apply` with a Tinkertanker key and the `BETA_*` values. It stops with `blocked:` until steps 1 and 2 are done.
 4. In Xcode (**Integrate > Manage Workflows…**) or App Store Connect (**Xcode Cloud > Manage Workflows**), edit **Daily TestFlight**: under **Post-Actions** add **TestFlight External Testing** and choose the group `Halation Public`. Xcode Cloud then adds each build to the group and submits it for Beta App Review.

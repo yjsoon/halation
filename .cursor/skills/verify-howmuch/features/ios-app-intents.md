@@ -1,6 +1,6 @@
 # iOS App Intents
 
-Shortcuts adds a spend by opening HowMuch with the existing Add Transaction sheet already filled. Nothing is saved until the user taps **Save**. Structured parameters only in v1. Spec: `docs/frontend/app-intents.md`. Issues [#98](https://github.com/yjsoon/howmuch/issues/98), [#100](https://github.com/yjsoon/howmuch/issues/100), [#101](https://github.com/yjsoon/howmuch/issues/101). Later text/image: [#105](https://github.com/yjsoon/howmuch/issues/105).
+Shortcuts adds a spend by opening HowMuch with the existing Add Transaction sheet already filled. Nothing is saved until the user taps **Save**. Structured parameters only in v1. Spec: `docs/frontend/app-intents.md`. Issues [#98](https://github.com/yjsoon/halation/issues/98), [#100](https://github.com/yjsoon/halation/issues/100), [#101](https://github.com/yjsoon/halation/issues/101). Later text/image: [#105](https://github.com/yjsoon/halation/issues/105).
 
 ## Sub-features
 

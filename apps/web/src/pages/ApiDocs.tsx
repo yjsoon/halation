@@ -18,7 +18,7 @@ export function ApiDocsPage() {
         <BrandLockup tagline="API documentation" href="/" />
         <a
           className="api-docs-source"
-          href="https://github.com/yjsoon/howmuch/blob/main/docs/api-contract.md"
+          href="https://github.com/yjsoon/halation/blob/main/docs/api-contract.md"
         >
           View source
         </a>

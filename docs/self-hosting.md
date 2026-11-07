@@ -14,7 +14,7 @@ Self-hosting is the only way to run Halation on a server. There is no hosted ser
 
 ## One-click install
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yjsoon/howmuch)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/yjsoon/halation)
 
 The button sets up the same Worker and D1 database as the manual steps below, without a terminal.
 
@@ -28,7 +28,7 @@ The button sets up the same Worker and D1 database as the manual steps below, wi
 
 Scheduled transactions are entered daily at 00:05 UTC. To run them at your local midnight instead, change `triggers.crons` in `wrangler.jsonc` in your copy of the repository, as described in [step 2](#2-create-your-config).
 
-Each push to your copy's main branch rebuilds and redeploys, applying any new migrations first. To update, bring the latest release tag from `yjsoon/howmuch` into your copy and push it. Your copy's `wrangler.jsonc` holds your database ID, so keep yours when the two differ. For backups, clone your copy and run this from its root, so the export lands in the gitignored `data/` folder:
+Each push to your copy's main branch rebuilds and redeploys, applying any new migrations first. To update, bring the latest release tag from `yjsoon/halation` into your copy and push it. Your copy's `wrangler.jsonc` holds your database ID, so keep yours when the two differ. For backups, clone your copy and run this from its root, so the export lands in the gitignored `data/` folder:
 
 ```sh
 mkdir -p data/backups
@@ -48,7 +48,7 @@ The rest of this guide is the manual route, which gives you a local clone and fu
 ## 1. Get the code
 
 ```sh
-git clone https://github.com/yjsoon/howmuch.git
+git clone https://github.com/yjsoon/halation.git
 cd howmuch
 bun install
 cd apps/worker

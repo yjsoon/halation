@@ -101,4 +101,4 @@ If the provider can't be used or fails (no key saved, a retired model, authentic
 - [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion)
 - [Claude models](https://platform.claude.com/docs/en/about-claude/models/overview), [effort](https://platform.claude.com/docs/en/build-with-claude/effort) and [structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs)
 
-PCC is tracked separately in [#142](https://github.com/yjsoon/howmuch/issues/142); this implementation addresses [#143](https://github.com/yjsoon/howmuch/issues/143).
+PCC is tracked separately in [#142](https://github.com/yjsoon/halation/issues/142); this implementation addresses [#143](https://github.com/yjsoon/halation/issues/143).

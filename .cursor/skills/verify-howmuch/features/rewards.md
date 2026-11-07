@@ -8,7 +8,7 @@ Rewards shows stored reward cards against the HowMuch ledger as a board of card 
 - `rewards-add-card` shows **Add card** in the hero, top right, and opens `/rewards/new`.
 - `rewards-empty-import` on a fresh verify instance, with no export imported, points at Rewards import and **Add card** for an existing HowMuch card.
 - `rewards-import-then-view` after importing `fixtures/rewards-tracker-export.json` shows the Travel Card face in the Miles group.
-- `rewards-historical-all` keeps **Historical range** selected when the rail's **All** preset clears the dates, and scores every card across all history ([#278](https://github.com/yjsoon/howmuch/issues/278)).
+- `rewards-historical-all` keeps **Historical range** selected when the rail's **All** preset clears the dates, and scores every card across all history ([#278](https://github.com/yjsoon/halation/issues/278)).
 - `rewards-as-of` steps the as-of date with **Previous day** and **Next day**, or sets it with the **As of** date input. **Next day** and **Today** are disabled at today. A future date clamps to today.
 - `rewards-flags` lists Dining and Online flag rows on Travel Card.
 - `rewards-group` switches **Report grouping** (in the breakdown heading) to Payee and lists Candlenut.

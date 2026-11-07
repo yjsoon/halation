@@ -1,6 +1,6 @@
 # iOS share and screenshots
 
-Share and a later screenshot offer are more writers of the same inbox. The extension copies files and quits. For a share, the main app turns the entry into an Inbox job, reads it on the phone, matches it against the register and waits for **Approve all**. The screenshot offer also becomes an Inbox job; only App Intents still go through the conversation and the density rule. Default-off screenshot offer lives on Accounts. Issues [#104](https://github.com/yjsoon/howmuch/issues/104), [#106](https://github.com/yjsoon/howmuch/issues/106). Spec: `docs/frontend/intake-ui.md` (Apple Intelligence and Skill & Memory sections).
+Share and a later screenshot offer are more writers of the same inbox. The extension copies files and quits. For a share, the main app turns the entry into an Inbox job, reads it on the phone, matches it against the register and waits for **Approve all**. The screenshot offer also becomes an Inbox job; only App Intents still go through the conversation and the density rule. Default-off screenshot offer lives on Accounts. Issues [#104](https://github.com/yjsoon/halation/issues/104), [#106](https://github.com/yjsoon/halation/issues/106). Spec: `docs/frontend/intake-ui.md` (Apple Intelligence and Skill & Memory sections).
 
 ## Sub-features
 
