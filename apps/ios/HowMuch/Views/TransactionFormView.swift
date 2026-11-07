@@ -192,6 +192,7 @@ enum TransactionFormRowID {
 struct TransactionFormView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var draft: TransactionDraft
   @State private var keypad: AmountKeypadEngine
   @State private var isKeypadVisible: Bool
@@ -286,6 +287,11 @@ struct TransactionFormView: View {
           .padding(16)
         }
         .scrollDismissesKeyboard(.immediately)
+        .overlay(alignment: .bottom) {
+          LinearGradient(colors: [Theme.canvas.opacity(0), Theme.canvas], startPoint: .top, endPoint: .bottom)
+            .frame(height: 16)
+            .allowsHitTesting(false)
+        }
 
         if isKeypadVisible {
           CalculatorKeypad(
@@ -325,6 +331,8 @@ struct TransactionFormView: View {
       }
       .navigationTitle(formTitle)
       .navigationBarTitleDisplayMode(.inline)
+      .toolbarBackground(Theme.canvas, for: .navigationBar)
+      .toolbarBackground(.visible, for: .navigationBar)
       .toolbar {
         if showsStandaloneChrome {
           ToolbarItem(placement: .cancellationAction) {
@@ -354,10 +362,16 @@ struct TransactionFormView: View {
           }
         }
       }
-      .overlay(alignment: .bottomTrailing) {
+      .safeAreaInset(edge: .bottom, spacing: 0) {
         if showsStandaloneChrome, !isKeypadVisible {
-          saveButton
-            .padding(20)
+          HStack {
+            Spacer()
+            saveButton
+          }
+          .padding(.horizontal, 20)
+          .padding(.top, 8)
+          .padding(.bottom, 12)
+          .background(Theme.canvas)
         }
       }
       .binaryConfirm(
@@ -484,7 +498,7 @@ struct TransactionFormView: View {
 
   /// Amount tap resigns memo focus and shows CalculatorKeypad again.
   private var amountHeader: some View {
-    VStack(spacing: 14) {
+    VStack(spacing: 10) {
       directionToggle
         .opacity(draft.isSplit ? 0 : 1)
         .allowsHitTesting(!draft.isSplit)
@@ -516,7 +530,7 @@ struct TransactionFormView: View {
       .accessibilityHint(draft.isSplit ? "The total of the split lines." : isKeypadVisible ? "" : "Opens the keypad.")
     }
     .frame(maxWidth: .infinity)
-    .padding(.vertical, 16)
+    .padding(.vertical, 8)
     .padding(.horizontal, 12)
     .background(
       showsInflowHeader ? Theme.lime : Color.clear,
@@ -599,7 +613,8 @@ struct TransactionFormView: View {
           caption: "Payee",
           value: "Set on each split line",
           placeholder: "",
-          rowIdentifier: TransactionFormRowID.payee
+          rowIdentifier: TransactionFormRowID.payee,
+          valueColor: Theme.rowSecondary
         )
       } else {
         NavigationLink {
@@ -610,7 +625,8 @@ struct TransactionFormView: View {
             caption: "Payee",
             value: draft.payeeName,
             placeholder: "Choose Payee",
-            rowIdentifier: TransactionFormRowID.payee
+            rowIdentifier: TransactionFormRowID.payee,
+            valueColor: Theme.rowSecondary
           )
         }
         .buttonStyle(.plain)
@@ -635,7 +651,8 @@ struct TransactionFormView: View {
           caption: "Account",
           value: model.account(withID: draft.accountID)?.name,
           placeholder: "Choose Account",
-          rowIdentifier: TransactionFormRowID.account
+          rowIdentifier: TransactionFormRowID.account,
+          valueColor: Theme.rowSecondary
         )
       }
       .buttonStyle(.plain)
@@ -658,7 +675,8 @@ struct TransactionFormView: View {
           caption: "Date",
           value: draft.date.formatted(date: .long, time: .omitted),
           placeholder: "Date",
-          rowIdentifier: TransactionFormRowID.date
+          rowIdentifier: TransactionFormRowID.date,
+          valueColor: Theme.rowSecondary
         )
       }
       .buttonStyle(.plain)
@@ -679,7 +697,8 @@ struct TransactionFormView: View {
         caption: "Category",
         value: "Split (\(draft.subtransactions.count))",
         placeholder: "",
-        rowIdentifier: TransactionFormRowID.category
+        rowIdentifier: TransactionFormRowID.category,
+        valueColor: Theme.rowSecondary
       )
     } else if hidesCategory {
       DisclosureValueRow(
@@ -689,7 +708,8 @@ struct TransactionFormView: View {
         placeholder: "Choose Category",
         showsChevron: false,
         appliesCardMetrics: true,
-        rowIdentifier: TransactionFormRowID.category
+        rowIdentifier: TransactionFormRowID.category,
+        valueColor: Theme.rowSecondary
       )
     } else {
       NavigationLink {
@@ -700,7 +720,8 @@ struct TransactionFormView: View {
           caption: "Category",
           value: model.categoryName(forID: draft.categoryID),
           placeholder: "Choose Category",
-          rowIdentifier: TransactionFormRowID.category
+          rowIdentifier: TransactionFormRowID.category,
+          valueColor: Theme.rowSecondary
         )
       }
       .buttonStyle(.plain)
@@ -824,7 +845,10 @@ struct TransactionFormView: View {
   }
 
   private var followUpChips: some View {
-    HStack(spacing: 8) {
+    let layout = dynamicTypeSize.isAccessibilitySize
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+      : AnyLayout(HStackLayout(spacing: 8))
+    return layout {
       FollowUpChip(
         title: "To confirm",
         glyph: .text("≈"),
@@ -936,7 +960,7 @@ struct TransactionFormView: View {
           .font(.footnote.weight(.semibold))
         Text("Enter a signed amount on every line. Transfers pair with the selected account when saved.")
           .font(.footnote)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Theme.rowSecondary)
         if let message = splitValidationMessage {
           Text(message)
             .font(.footnote)
@@ -1017,21 +1041,26 @@ struct TransactionFormView: View {
         iconColor: Theme.flagColour(named: draft.flag.rawValue) ?? .secondary,
         rowIdentifier: TransactionFormRowID.flag
       ) {
-        HStack(spacing: 8) {
+        let layout = dynamicTypeSize.isAccessibilitySize
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+          : AnyLayout(HStackLayout(spacing: 8))
+        layout {
           Text("Flag")
             .foregroundStyle(Theme.textPrimary)
             .fixedSize()
           // The native picker's label can wrap without reporting its full
           // height. Own the label so available width and row growth agree.
-          Text(flagNames[RewardFlagColour(ledgerColour: draft.flag)] ?? draft.flag.title)
-            .foregroundStyle(.secondary)
-            .multilineTextAlignment(.trailing)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .trailing)
-          Image(systemName: "chevron.up.chevron.down")
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .accessibilityHidden(true)
+          HStack(spacing: 8) {
+            Text(flagNames[RewardFlagColour(ledgerColour: draft.flag)] ?? draft.flag.title)
+              .foregroundStyle(.secondary)
+              .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+              .fixedSize(horizontal: false, vertical: true)
+              .frame(maxWidth: .infinity, alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+            Image(systemName: "chevron.up.chevron.down")
+              .font(.caption)
+              .foregroundStyle(.secondary)
+              .accessibilityHidden(true)
+          }
         }
       }
     }
@@ -1045,7 +1074,8 @@ struct TransactionFormView: View {
       alignment: .top,
       rowIdentifier: TransactionFormRowID.memo
     ) {
-      TextField("Enter a memo…", text: $draft.memo, axis: .vertical)
+      TextField("Enter a memo…", text: $draft.memo,
+        prompt: Text("Enter a memo…").foregroundStyle(Theme.rowSecondary), axis: .vertical)
         .lineLimit(1 ... 3)
         .foregroundStyle(Theme.textPrimary)
         .focused($isTextInputFocused)

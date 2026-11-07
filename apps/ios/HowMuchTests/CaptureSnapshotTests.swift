@@ -201,9 +201,12 @@ final class CaptureSnapshotTests: XCTestCase {
         continue
       }
       defer { surface.detach() }
+      // The display-link overlay follows the tab bar after its first layout.
+      // Presence alone can capture the old simulator-width position.
       let appeared = await surface.waitUntil {
-        surface.firstControl(label: CompactRootBar.action.title) != nil
-          && surface.tabRowOverlayButton(label: "Assistant") != nil
+        guard let add = surface.firstControl(label: CompactRootBar.action.title),
+              let assistant = surface.tabRowOverlayButton(label: "Assistant") else { return false }
+        return abs(add.frame.midX - assistant.frame.midX) <= 18
       }
       XCTAssertTrue(appeared, "compact chrome must host Add and a floating Assistant: \(surface.accessibilityLabels())")
       guard let button = surface.firstControl(label: CompactRootBar.action.title) else { continue }
@@ -748,6 +751,9 @@ final class CaptureSnapshotTests: XCTestCase {
           && rowFrames[TransactionFormRowID.flag] != nil
       }
       XCTAssertTrue(loaded, "\(name): mapped selection missing: \(surface.accessibilityLabels())")
+      // Start at zero before converting the global row position to an absolute
+      // offset. UIKit initially uses a negative navigation safe-area inset.
+      _ = await surface.setMainScrollOffsetY(0)
       let initialFrame = try XCTUnwrap(rowFrames[TransactionFormRowID.flag])
       _ = await surface.setMainScrollOffsetY(initialFrame.minY - 180)
       await surface.settleVisible()
@@ -755,6 +761,9 @@ final class CaptureSnapshotTests: XCTestCase {
       heights[name] = frame.height
       let image = surface.captureVisible()
       attachImage(image, name: "flag-layout-\(name)")
+      XCTAssertGreaterThanOrEqual(frame.minX, 0, "\(name): form rows must not overflow horizontally")
+      XCTAssertLessThanOrEqual(frame.maxX, surface.windowBounds.maxX,
+        "\(name): form controls must remain inside the viewport at larger text sizes")
       // Read only pixels inside Flag's row: text that spills into Memo must
       // not count as a fully rendered selection, even when AX has its full name.
       let crop = frame.intersection(CGRect(origin: .zero, size: image.size))
@@ -905,6 +914,13 @@ final class CaptureSnapshotTests: XCTestCase {
           )
         }
       }
+      _ = await surface.setMainScrollOffsetY(.greatestFiniteMagnitude)
+      let save = try XCTUnwrap(surface.firstControl(label: "Save"))
+      let claim = try XCTUnwrap(surface.firstControl(label: "To claim"))
+      XCTAssertFalse(save.frame.intersects(claim.frame),
+        "\(name): Save must leave the final follow-up control unobstructed")
+      XCTAssertTrue(surface.windowBounds.contains(claim.frame),
+        "\(name): the final follow-up control must scroll fully into view")
     }
   }
 

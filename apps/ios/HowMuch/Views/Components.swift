@@ -55,7 +55,7 @@ struct FollowUpChip: View {
       }
       .padding(.horizontal, 10)
       .padding(.vertical, 5)
-      .foregroundStyle(isOn ? tint : Color.secondary)
+      .foregroundStyle(isOn ? tint : Theme.rowSecondary)
       .background(Capsule().fill(isOn ? tint.opacity(0.14) : Color.clear))
       .overlay(Capsule().strokeBorder(isOn ? tint : Color.secondary.opacity(0.45), lineWidth: 1))
       .contentShape(Capsule())
@@ -187,6 +187,7 @@ struct DisclosureValueRow: View {
   /// inherit the list's own chrome, so they pass `false` with `showsChevron`.
   var appliesCardMetrics = true
   var rowIdentifier: String?
+  var valueColor: Color
 
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -197,7 +198,8 @@ struct DisclosureValueRow: View {
     placeholder: String,
     showsChevron: Bool = true,
     appliesCardMetrics: Bool? = nil,
-    rowIdentifier: String? = nil
+    rowIdentifier: String? = nil,
+    valueColor: Color = .secondary
   ) {
     self.icon = icon
     self.caption = caption
@@ -206,6 +208,7 @@ struct DisclosureValueRow: View {
     self.showsChevron = showsChevron
     self.appliesCardMetrics = appliesCardMetrics ?? showsChevron
     self.rowIdentifier = rowIdentifier
+    self.valueColor = valueColor
   }
 
   var body: some View {
@@ -242,7 +245,7 @@ struct DisclosureValueRow: View {
           Text(caption)
             .foregroundStyle(Theme.textPrimary)
           Text(value)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(valueColor)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
       } else {
@@ -252,7 +255,7 @@ struct DisclosureValueRow: View {
             .layoutPriority(1)
           Spacer(minLength: 8)
           Text(value)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(valueColor)
             .multilineTextAlignment(.trailing)
             .lineLimit(1)
         }

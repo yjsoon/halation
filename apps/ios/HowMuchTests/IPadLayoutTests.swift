@@ -456,11 +456,13 @@ final class IPadLayoutTests: XCTestCase {
     defer { surface.detach() }
 
     let appeared = await surface.waitUntil {
-      surface.firstControl(label: "Accounts") != nil
+      guard let add = surface.firstControl(label: CompactRootBar.action.title),
+            let assistant = surface.tabRowOverlayButton(label: "Assistant") else { return false }
+      // Allow the display-link overlay to follow the tab bar's settled frame.
+      return abs(add.frame.midX - assistant.frame.midX) <= 18
+        && surface.firstControl(label: "Accounts") != nil
         && surface.firstControl(label: "Rewards") != nil
         && surface.firstControl(label: "Insights") != nil
-        && surface.firstControl(label: CompactRootBar.action.title) != nil
-        && surface.tabRowOverlayButton(label: "Assistant") != nil
     }
     attachImage(surface.captureVisible(), name: "compact-root-accounts")
     XCTAssertTrue(
