@@ -1,0 +1,66 @@
+[
+  {
+    "name": "1024/light Tab reaches every edit field",
+    "result": true
+  },
+  {
+    "name": "1024/light keyboard focus uses one inside edge",
+    "result": true
+  },
+  {
+    "name": "1024/light Escape returns focus to row",
+    "result": true
+  },
+  {
+    "name": "1024/light payee keyboard opens menu",
+    "result": true
+  },
+  {
+    "name": "1024/dark Tab reaches every edit field",
+    "result": true
+  },
+  {
+    "name": "1024/dark keyboard focus uses one inside edge",
+    "result": true
+  },
+  {
+    "name": "1024/dark Escape returns focus to row",
+    "result": true
+  },
+  {
+    "name": "1024/dark payee keyboard opens menu",
+    "result": true
+  },
+  {
+    "name": "390/light Tab reaches every edit field",
+    "result": true
+  },
+  {
+    "name": "390/light keyboard focus uses one inside edge",
+    "result": true
+  },
+  {
+    "name": "390/light Escape returns focus to row",
+    "result": true
+  },
+  {
+    "name": "390/light payee keyboard opens menu",
+    "result": true
+  },
+  {
+    "name": "390/dark Tab reaches every edit field",
+    "result": true
+  },
+  {
+    "name": "390/dark keyboard focus uses one inside edge",
+    "result": true
+  },
+  {
+    "name": "390/dark Escape returns focus to row",
+    "result": true
+  },
+  {
+    "name": "390/dark payee keyboard opens menu",
+    "result": true
+  }
+]

@@ -312,7 +312,7 @@ export function Shell() {
           )}
           {typeIndex.length > 0 && (
             <div className="account-list-band account-list-band-index">
-              <p className="account-list-band-label">By type</p>
+              {collections.length > 0 && <p className="account-list-band-label">By type</p>}
               <AccountGroupSections groups={typeIndex} selectedAccountId={selectedAccount?.id} tone="index" onChangeIcon={updateAccountIcon} collapsed={collapsedGroups} onToggle={toggleGroup} />
             </div>
           )}
@@ -478,4 +478,3 @@ function snapshotMostUsedOrders(preferences: AccountPreferences, groups: Account
   }
   return changed ? { ...preferences, account_order_by_group: accountOrderByGroup } : preferences;
 }
-

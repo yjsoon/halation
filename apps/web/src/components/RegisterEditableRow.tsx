@@ -12,6 +12,7 @@ import {
   rowApproved,
   rowFieldWritable,
   rowGestureHandlers,
+  rowId,
   sameRow,
   type RegisterRowEditAction,
   type RegisterRowEditSession,
@@ -96,7 +97,10 @@ export function RegisterEditableRow(props: {
     wasActive.current = active;
     if (!ended) return;
     const lost = document.activeElement === null || document.activeElement === document.body;
-    if (lost) rowRef.current?.focus({ preventScroll: true });
+    if (lost) {
+      rowRef.current?.focus({ preventScroll: true });
+      rowRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
   }, [active]);
 
   useEffect(() => {
@@ -148,7 +152,7 @@ export function RegisterEditableRow(props: {
             {formatDate(row.transaction.date)}
           </IdleCell>
         )}
-        <td className="muted">{split ? null : account}</td>
+        <td className="muted" title={typeof account === "string" ? account : undefined}>{split ? null : account}</td>
         <IdleCell
           row={row}
           focus="payee"
@@ -194,7 +198,7 @@ export function RegisterEditableRow(props: {
     );
   }
 
-  const busy = committing;
+  const busy = committing || surface.context.writeLocked || surface.context.mutatingId === rowId(row);
   const rowClass = [split ? "split-line-row" : null, "register-compose-row", targeted ? "register-row-targeted" : null].filter(Boolean).join(" ");
   const fieldId = domId;
   const saved = row.kind === "posted" ? savedClaim(row.transaction) : { status: null, claimedOn: null };
@@ -245,7 +249,7 @@ export function RegisterEditableRow(props: {
             )}
           </td>
         )}
-        <td className="muted">{split ? null : account}</td>
+        <td className="muted" title={typeof account === "string" ? account : undefined}>{split ? null : account}</td>
         <td className={split ? "muted split-line-cell" : undefined}>
           {rowFieldWritable(row, "payee", draft, surface.payees) ? (
             <PayeeInput
@@ -324,7 +328,7 @@ export function RegisterEditableRow(props: {
             idleInflow(row, line)
           )}
         </td>
-        <td className="register-status" />
+        <td className="register-status">{split || !approved ? null : status}</td>
       </tr>
       <tr
         className="register-compose-actions-row"

@@ -1,0 +1,42 @@
+[
+  {
+    "name": "1024 active cleared toggle visible and contained",
+    "result": true
+  },
+  {
+    "name": "1024 cleared persists without discarding draft",
+    "result": true
+  },
+  {
+    "name": "1024 Save preserves cleared and memo",
+    "result": true
+  },
+  {
+    "name": "1024 Cancel discards draft not immediate clearing",
+    "result": true
+  },
+  {
+    "name": "1024 reconciled editor keeps non-interactive lock",
+    "result": true
+  },
+  {
+    "name": "1200 active cleared toggle visible and contained",
+    "result": true
+  },
+  {
+    "name": "1200 cleared persists without discarding draft",
+    "result": true
+  },
+  {
+    "name": "1200 Save preserves cleared and memo",
+    "result": true
+  },
+  {
+    "name": "1200 Cancel discards draft not immediate clearing",
+    "result": true
+  },
+  {
+    "name": "1200 reconciled editor keeps non-interactive lock",
+    "result": true
+  }
+]

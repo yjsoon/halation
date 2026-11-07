@@ -327,10 +327,9 @@
   margin-top: 6px;
   font-size: 15px;
   font-weight: 600;
-  color: var(--inverse-ink);
-  background: var(--inverse-bg);
-  border-radius: 2px;
-  box-shadow: 3px 3px 0 var(--rule);
+  color: var(--on-accent);
+  background: var(--plan-accent);
+  border-radius: var(--radius-action);
   transition: transform var(--dur-press);
 }
 
@@ -342,7 +341,7 @@
 
 .save-button:not(:disabled):active {
   box-shadow: none;
-  transform: translate(2px, 2px);
+  transform: scale(0.98);
 }
 
 /* Quick entry is an open writing surface; shared form controls elsewhere keep
@@ -414,7 +413,7 @@
 .quick-entry .field input,
 .quick-entry .field select {
   min-height: 44px;
-  padding: 8px 0;
+  padding: 8px 4px;
   border: 0;
   border-bottom: 1px solid var(--rule-control);
   border-radius: 0;
@@ -432,14 +431,6 @@
 
 .quick-entry .quick-entry-memo input {
   border-bottom: 1px solid var(--rule-control);
-}
-
-.quick-entry .field input:focus,
-.quick-entry .field select:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 4px;
-  border-color: transparent;
-  border-radius: var(--radius);
 }
 
 .quick-entry .quick-entry-date .date-row {
@@ -624,14 +615,6 @@
 .quick-entry .split-line input::-webkit-inner-spin-button {
   -webkit-appearance: none;
   margin: 0;
-}
-
-.quick-entry .split-line input:focus,
-.quick-entry .split-line select:focus {
-  outline: 2px solid var(--accent);
-  outline-offset: 0;
-  border-color: transparent;
-  border-radius: var(--radius);
 }
 
 .quick-entry .split-line-remove {

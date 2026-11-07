@@ -1,0 +1,34 @@
+[
+  {
+    "name": "1440 empty account disabled",
+    "result": true
+  },
+  {
+    "name": "1440 invalid amount disabled",
+    "result": true
+  },
+  {
+    "name": "1440 credit account persisted negative balance",
+    "result": true
+  },
+  {
+    "name": "1440 account register survives reload",
+    "result": true
+  },
+  {
+    "name": "390 empty account disabled",
+    "result": true
+  },
+  {
+    "name": "390 invalid amount disabled",
+    "result": true
+  },
+  {
+    "name": "390 credit account persisted negative balance",
+    "result": true
+  },
+  {
+    "name": "390 account register survives reload",
+    "result": true
+  }
+]

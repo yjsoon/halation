@@ -209,15 +209,16 @@
   min-height: 34px;
   padding: 6px 10px;
   border: 1px solid var(--rule-strong);
-  border-radius: 2px;
+  border-radius: var(--radius-action);
   background: var(--paper-raised);
   font-size: 12px;
   font-weight: 600;
 }
 
 .organiser-primary-button {
-  color: var(--inverse-ink);
-  background: var(--inverse-bg);
+  color: var(--on-accent);
+  background: var(--plan-accent);
+  border-color: var(--plan-accent);
 }
 
 .organiser-danger-button {
@@ -286,7 +287,7 @@
   display: inline-flex;
   flex: 0 0 auto;
   border: 1px solid var(--rule);
-  border-radius: 2px;
+  border-radius: var(--radius-action);
   overflow: hidden;
 }
 
@@ -297,7 +298,6 @@
   place-items: center;
   color: var(--ink-soft);
   background: var(--paper);
-  border-right: 1px solid var(--rule);
 }
 
 .organiser-move-buttons button:last-child {

@@ -26,8 +26,20 @@ button {
   color: inherit;
   background: none;
   border: none;
+  border-radius: var(--radius-action);
   cursor: pointer;
   padding: 0;
+}
+
+input[type="file"]::file-selector-button {
+  margin-right: 8px;
+  padding: 5px 12px;
+  border: 1px solid var(--rule-control);
+  border-radius: var(--radius-action);
+  background: var(--paper-raised);
+  color: var(--ink);
+  font: inherit;
+  cursor: pointer;
 }
 
 a {
@@ -41,6 +53,15 @@ select:focus-visible,
 summary:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* Text fields share an inside edge, including native date-picker buttons.
+   Keep a real outline so the indicator survives forced-colour modes. */
+:root body :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"]), select, textarea):focus-within {
+  border-color: var(--plan-accent);
+  outline: 2px solid var(--plan-accent);
+  outline-offset: -2px;
+  box-shadow: none;
 }
 
 /* iOS Safari zooms the page when a focused control is below 16px. */

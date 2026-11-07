@@ -106,6 +106,49 @@ a.page-eyebrow:hover {
   background: var(--paper);
 }
 
+/* Keep editing in the transaction's columns. Reserve space for dates and
+   money while allowing the memo and payee to share the remaining width. */
+@media (min-width: 1001px) {
+  /* The global field-size floor prevents Safari zoom on phones. Desktop
+     register fields instead follow the row's compact, readable type. */
+  .register-compose-row input,
+  .register-compose-row select {
+    font-size: inherit !important;
+  }
+
+  .register-table th:nth-child(1) { width: 32px; }
+  .register-table th:nth-child(2) { width: 124px; }
+  .register-table th:nth-child(3) { width: 12%; }
+  .register-table th:nth-child(4) { width: 20%; }
+  .register-table th:nth-child(5) { width: 16%; }
+  .register-table th:nth-child(7),
+  .register-table th:nth-child(8) { width: 108px; }
+  .register-table th:nth-child(9) { width: 48px; }
+
+  .register-table td:not([colspan]) {
+    overflow-wrap: anywhere;
+  }
+
+  .register-table td:nth-child(3) {
+    max-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .register-table .register-compose-meta {
+    flex: 1 1 auto;
+  }
+}
+
+@media (min-width: 1001px) and (max-width: 1199px) {
+  .register-table td { padding-inline: 6px; }
+  .register-table .register-compose-row td { padding-inline: 3px; }
+  .register-table th:nth-child(2) { width: 118px; }
+  .register-table th:nth-child(7),
+  .register-table th:nth-child(8) { width: 100px; }
+}
+
 .ledger-table.register-table th {
   padding-block: 10px;
   border-color: var(--rule);
@@ -206,12 +249,18 @@ a.page-eyebrow:hover {
   }
 
   .register-toolbar > .headline-row {
-    grid-column: 1;
-    grid-row: 1;
+    display: contents;
   }
 
   .register-toolbar > .headline-row .search-stack {
+    grid-column: 1;
+    grid-row: 1;
     min-width: 0;
+  }
+
+  .register-toolbar > .headline-row > button {
+    grid-column: 1 / -1;
+    justify-self: start;
   }
 
   .register-footer .register-hint {
@@ -305,19 +354,14 @@ a.page-eyebrow:hover {
 }
 
 .register-bulk-bar {
-  position: fixed;
-  left: calc(280px + (100vw - 280px) / 2);
-  bottom: 18px;
-  transform: translateX(-50%);
+  position: sticky;
+  top: calc(var(--masthead-h) + max(8px, env(safe-area-inset-top)));
   z-index: 20;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 12px;
-  /* Fixed at left: 50%, the bar would otherwise shrink to the half-width left of
-     its centre and stack every action on a phone. */
-  width: max-content;
-  max-width: calc(100vw - 32px);
+  margin-bottom: 16px;
   padding: 8px 14px;
   border: 0;
   border-radius: 10px;
@@ -330,7 +374,7 @@ a.page-eyebrow:hover {
 .register-bulk-action {
   padding: 4px 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-action);
   background: transparent;
   color: var(--inverse-ink);
   font-size: 12.5px;
@@ -344,6 +388,11 @@ a.page-eyebrow:hover {
 
 .register-bulk-action:disabled {
   opacity: 0.5;
+}
+
+.register-bulk-bar .register-bulk-delete {
+  color: var(--red);
+  background: var(--paper);
 }
 
 .register-bulk-clear {
@@ -370,17 +419,9 @@ a.page-eyebrow:hover {
 
 @media (max-width: 720px) {
   .register-header ~ .register-bulk-bar {
-    position: sticky;
-    top: calc(var(--masthead-h) + max(8px, env(safe-area-inset-top)));
-    bottom: auto;
-    left: auto;
-    transform: none;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px 8px;
-    width: auto;
-    max-width: none;
-    margin-bottom: 16px;
     padding: 8px;
     box-shadow: var(--shadow-1);
   }
@@ -445,7 +486,7 @@ a.page-eyebrow:hover {
 .register-load-more-button {
   padding: 7px 11px;
   border: 1px solid var(--rule-strong);
-  border-radius: 4px;
+  border-radius: var(--radius-action);
   background: var(--paper-raised);
   font-size: 12px;
   font-weight: 600;
@@ -465,18 +506,66 @@ a.page-eyebrow:hover {
   white-space: nowrap;
 }
 
-.register-select-heading input,
-.register-select input {
-  width: 14px;
-  height: 14px;
+.register-table input[type="checkbox"] {
+  appearance: none;
+  position: relative;
+  flex: none;
+  width: 16px;
+  height: 16px;
   margin: 0;
+  border: 1px solid var(--ink-faint);
+  border-radius: 4px;
+  background: var(--paper-raised);
   accent-color: var(--plan-accent);
   vertical-align: middle;
 }
 
-:root[data-mode="dark"] .register-table input[type="checkbox"]:not(:checked):not(:disabled) {
-  box-shadow: 0 0 0 1px var(--ink-faint);
-  border-radius: 2px;
+.register-table input[type="checkbox"]:is(:checked, :indeterminate) {
+  border-color: var(--plan-accent);
+  background: var(--plan-accent);
+}
+
+.register-table input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 8px;
+  height: 4px;
+  border: solid var(--on-accent);
+  border-width: 0 0 2px 2px;
+  transform: rotate(-45deg);
+}
+
+.register-table input[type="checkbox"]:indeterminate::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 6px;
+  width: 8px;
+  height: 0;
+  border: 0;
+  border-bottom: 2px solid var(--on-accent);
+  transform: none;
+}
+
+.register-table input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.register-table input[type="checkbox"]:disabled {
+  opacity: 0.5;
+}
+
+@media (forced-colors: active) {
+  .register-table input[type="checkbox"] {
+    appearance: auto;
+  }
+
+  .register-table input[type="checkbox"]:is(:checked, :indeterminate)::after {
+    content: none;
+  }
 }
 
 /* An estimated amount still to check against the statement. Declared before
@@ -492,6 +581,10 @@ a.page-eyebrow:hover {
 }
 
 /* Idle-row hover, keyboard focus and selection. Colour only and never animated. */
+.register-row-idle {
+  scroll-margin-block: calc(var(--masthead-h) + 16px) 16px;
+}
+
 .register-table tbody tr.register-row-idle:not(.register-row-targeted):hover > td {
   background: var(--row-hover);
 }
@@ -607,7 +700,7 @@ a.page-eyebrow:hover {
 
 .register-compose-row select {
   appearance: none;
-  min-width: 150px;
+  min-width: 0;
   text-overflow: ellipsis;
   padding-right: 24px;
   background-image: var(--select-chevron);
@@ -626,13 +719,6 @@ a.page-eyebrow:hover {
 .register-compose-row input::placeholder {
   color: var(--ink-faint);
   opacity: 1;
-}
-
-.register-compose-row input:focus,
-.register-compose-row select:focus {
-  border-color: var(--plan-accent);
-  outline: 2px solid var(--plan-accent-wash);
-  outline-offset: 0;
 }
 
 .register-compose-row input:disabled,
@@ -665,6 +751,7 @@ a.page-eyebrow:hover {
 
 .register-compose-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -697,7 +784,8 @@ a.page-eyebrow:hover {
   filter: brightness(0.92);
 }
 
-.register-compose-cancel {
+.register-compose-cancel,
+.register-compose-save-secondary {
   border: 1px solid var(--rule-strong);
   background: var(--paper-raised);
   color: var(--ink);
@@ -712,8 +800,8 @@ a.page-eyebrow:hover {
 .register-compose-delete {
   height: 28px;
   padding: 0 10px;
-  border: 0;
-  background: none;
+  border: 1px solid var(--red);
+  background: var(--red-wash);
   color: var(--red);
   font-size: 12.5px;
   font-weight: 600;
@@ -936,7 +1024,7 @@ a.page-eyebrow:hover {
 .transaction-delete-button {
   padding: 6px 9px;
   border: 1px solid var(--red);
-  border-radius: 2px;
+  border-radius: var(--radius-action);
   background: var(--red);
   color: var(--paper);
   font-size: 12px;
@@ -1260,6 +1348,7 @@ button.estimate-mark:disabled {
 .register-compose-meta {
   display: flex;
   flex-wrap: wrap;
+  flex-basis: 100%;
   align-items: center;
   gap: 8px 18px;
   margin-right: auto;

@@ -238,7 +238,7 @@ export function RegisterComposeRow({
             <button type="button" className="register-compose-save" onClick={() => onSave(false)} disabled={busy}>
               {state.saving ? "Saving…" : "Save"}
             </button>
-            <button type="button" className="register-compose-save" onClick={() => onSave(true)} disabled={busy}>
+            <button type="button" className="register-compose-save register-compose-save-secondary" onClick={() => onSave(true)} disabled={busy}>
               Save and add another
             </button>
           </div>

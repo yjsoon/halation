@@ -22,7 +22,7 @@
 .boot-message button {
   border: 1px solid var(--ink);
   padding: 5px 16px;
-  border-radius: 2px;
+  border-radius: var(--radius-action);
   background: var(--paper-raised);
 }
 
@@ -301,7 +301,7 @@
 .filter-toggle {
   padding: 2px 8px;
   border: 1px solid var(--rule-control);
-  border-radius: 4px;
+  border-radius: var(--radius-action);
   background: var(--paper-raised);
   font-size: 12px;
   font-weight: 600;
@@ -329,7 +329,7 @@
 .segmented {
   display: inline-flex;
   border: 1px solid var(--rule-control);
-  border-radius: 2px;
+  border-radius: var(--radius-action);
   background: var(--paper-raised);
   overflow: hidden;
   max-width: 100%;
@@ -339,7 +339,6 @@
   padding: 4px 10px;
   font-size: 12px;
   color: var(--ink-soft);
-  border-right: 1px solid var(--rule);
   flex: 0 0 auto;
   transition: background-color var(--dur-fast), color var(--dur-fast);
 }
@@ -374,7 +373,7 @@
   display: inline-flex;
   align-items: center;
   border: 1px solid var(--rule-control);
-  border-radius: 2px;
+  border-radius: var(--radius-action);
   background: var(--paper-raised);
 }
 
@@ -424,7 +423,7 @@
   font-size: 12px;
   padding: 4px 10px;
   border: 1px solid var(--rule-control);
-  border-radius: 2px;
+  border-radius: var(--radius-action);
   background: var(--paper-raised);
   color: var(--ink-soft);
 }

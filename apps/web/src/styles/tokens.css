@@ -24,6 +24,7 @@
   --font-ui: "IBM Plex Sans", "Helvetica Neue", sans-serif;
   --font-figures: "IBM Plex Mono", "SF Mono", monospace;
   --radius: 4px; --radius-lg: 14px;
+  --radius-action: 999px;
 
   --paper: #f8f4ee; --paper-raised: #fffcf7; --paper-sunk: #f1e9e3; --paper-sunk-hover: #ebe0da;
   --row-hover: #f2ebe5; --paper-grain: #231d1f05;

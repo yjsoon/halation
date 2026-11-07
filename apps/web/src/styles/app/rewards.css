@@ -27,6 +27,10 @@
   font-size: 13px;
 }
 
+.rewards-controls > button {
+  border-radius: var(--radius-action);
+}
+
 .rewards-controls button:disabled {
   opacity: 0.45;
   cursor: default;

@@ -1,0 +1,76 @@
+{
+  "checks": [
+    {
+      "name": "1024 cleared independently persisted",
+      "result": true
+    },
+    {
+      "name": "1024 native date segments changed",
+      "result": true
+    },
+    {
+      "name": "1024 date payee category memo outflow flag persisted",
+      "result": true
+    },
+    {
+      "name": "1024 follow-up controls persisted",
+      "result": true
+    },
+    {
+      "name": "1024 Cancel discards changes",
+      "result": true
+    },
+    {
+      "name": "1024 Cancel returns focus to a visible row",
+      "result": true
+    },
+    {
+      "name": "1024 inflow replaces outflow",
+      "result": true
+    },
+    {
+      "name": "1024 cancelling delete preserves row",
+      "result": true
+    },
+    {
+      "name": "1024 confirmed delete persists",
+      "result": true
+    },
+    {
+      "name": "390 cleared independently persisted",
+      "result": true
+    },
+    {
+      "name": "390 native date segments changed",
+      "result": true
+    },
+    {
+      "name": "390 date payee category memo outflow flag persisted",
+      "result": true
+    },
+    {
+      "name": "390 follow-up controls persisted",
+      "result": true
+    },
+    {
+      "name": "390 Cancel discards changes",
+      "result": true
+    },
+    {
+      "name": "390 Cancel returns focus to a visible row",
+      "result": true
+    },
+    {
+      "name": "390 inflow replaces outflow",
+      "result": true
+    },
+    {
+      "name": "390 cancelling delete preserves row",
+      "result": true
+    },
+    {
+      "name": "390 confirmed delete persists",
+      "result": true
+    }
+  ]
+}

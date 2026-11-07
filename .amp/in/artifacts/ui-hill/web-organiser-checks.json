@@ -1,0 +1,22 @@
+[
+  {
+    "name": "favourite and group membership persisted",
+    "result": true
+  },
+  {
+    "name": "drawer shows saved group",
+    "result": true
+  },
+  {
+    "name": "reload retains groups",
+    "result": true
+  },
+  {
+    "name": "rename persisted",
+    "result": true
+  },
+  {
+    "name": "delete group preserves accounts",
+    "result": true
+  }
+]

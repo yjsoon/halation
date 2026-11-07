@@ -1,0 +1,44 @@
+{
+  "checks": [
+    {
+      "name": "1440 split parent amounts and category read-only",
+      "result": true
+    },
+    {
+      "name": "1440 intended split allocation opened",
+      "result": true
+    },
+    {
+      "name": "1440 split fields and parent sum persisted",
+      "result": true
+    },
+    {
+      "name": "1440 reconciled status stays locked",
+      "result": true
+    },
+    {
+      "name": "1440 memo edit preserves reconciliation",
+      "result": true
+    },
+    {
+      "name": "390 split parent amounts and category read-only",
+      "result": true
+    },
+    {
+      "name": "390 intended split allocation opened",
+      "result": true
+    },
+    {
+      "name": "390 split fields and parent sum persisted",
+      "result": true
+    },
+    {
+      "name": "390 reconciled status stays locked",
+      "result": true
+    },
+    {
+      "name": "390 memo edit preserves reconciliation",
+      "result": true
+    }
+  ]
+}

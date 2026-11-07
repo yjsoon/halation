@@ -1,0 +1,41 @@
+{
+  "revision": "50f70d0e69797e2451d9961c7ef4759a8d285f62",
+  "checks": [
+    {
+      "name": "320/light status chip below aligned Search/Reconcile",
+      "result": true
+    },
+    {
+      "name": "320/dark status chip below aligned Search/Reconcile",
+      "result": true
+    },
+    {
+      "name": "390/light status chip below aligned Search/Reconcile",
+      "result": true
+    },
+    {
+      "name": "390/dark status chip below aligned Search/Reconcile",
+      "result": true
+    },
+    {
+      "name": "1024 menu navigates to account and closes",
+      "result": true
+    },
+    {
+      "name": "rebased editor persists exact values",
+      "result": true
+    },
+    {
+      "name": "native bulk category change persists",
+      "result": true
+    },
+    {
+      "name": "header Space selects all",
+      "result": true
+    },
+    {
+      "name": "header Space clears all",
+      "result": true
+    }
+  ]
+}

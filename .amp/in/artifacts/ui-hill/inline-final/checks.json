@@ -1,0 +1,154 @@
+[
+  {
+    "name": "all/1440/light inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "all/1440/light composer fits",
+    "result": true
+  },
+  {
+    "name": "all/1440/dark inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "all/1440/dark composer fits",
+    "result": true
+  },
+  {
+    "name": "all/1200/light inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "all/1200/light composer fits",
+    "result": true
+  },
+  {
+    "name": "all/1200/dark inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "all/1200/dark composer fits",
+    "result": true
+  },
+  {
+    "name": "all/1024/light inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "all/1024/light composer fits",
+    "result": true
+  },
+  {
+    "name": "all/1024/dark inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "all/1024/dark composer fits",
+    "result": true
+  },
+  {
+    "name": "all/390/light inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "all/390/light composer fits",
+    "result": true
+  },
+  {
+    "name": "all/390/dark inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "all/390/dark composer fits",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1440/light inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1440/light composer fits",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1440/dark inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1440/dark composer fits",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1200/light inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1200/light composer fits",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1200/dark inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1200/dark composer fits",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1024/light inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1024/light composer fits",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1024/dark inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1024/dark composer fits",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/390/light inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/390/light composer fits",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/390/dark inline editor fields fit",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/390/dark composer fits",
+    "result": true
+  },
+  {
+    "name": "add/light common inside focus",
+    "result": true
+  },
+  {
+    "name": "add/dark common inside focus",
+    "result": true
+  },
+  {
+    "name": "account/light common inside focus",
+    "result": true
+  },
+  {
+    "name": "account/dark common inside focus",
+    "result": true
+  },
+  {
+    "name": "tokens/light common inside focus",
+    "result": true
+  },
+  {
+    "name": "tokens/dark common inside focus",
+    "result": true
+  }
+]

@@ -1,0 +1,54 @@
+[
+  {
+    "name": "720 selection bar fits",
+    "result": true
+  },
+  {
+    "name": "721 selection bar fits",
+    "result": true
+  },
+  {
+    "name": "1000 selection bar fits",
+    "result": true
+  },
+  {
+    "name": "1001 selection bar fits",
+    "result": true
+  },
+  {
+    "name": "1024 selection bar fits",
+    "result": true
+  },
+  {
+    "name": "1280 selection bar fits",
+    "result": true
+  },
+  {
+    "name": "1281 selection bar fits",
+    "result": true
+  },
+  {
+    "name": "1440 selection bar fits",
+    "result": true
+  },
+  {
+    "name": "native checkbox roles and mixed header",
+    "result": true
+  },
+  {
+    "name": "1440/light rounded Tools hover fits",
+    "result": true
+  },
+  {
+    "name": "1440/dark rounded Tools hover fits",
+    "result": true
+  },
+  {
+    "name": "390/light rounded Tools hover fits",
+    "result": true
+  },
+  {
+    "name": "390/dark rounded Tools hover fits",
+    "result": true
+  }
+]

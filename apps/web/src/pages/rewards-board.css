@@ -373,7 +373,7 @@
   font-size: 13px;
   text-align: left;
   text-decoration: none;
-  border-radius: 2px;
+  border-radius: var(--radius-action);
 }
 
 .rw-menu-list :is(a, button):hover:not(:disabled),
@@ -2185,7 +2185,7 @@
     margin-top: 12px;
     padding: 0 12px 0 14px;
     border: 1px solid var(--rule-control);
-    border-radius: 8px;
+    border-radius: var(--radius-action);
     background: var(--paper-raised);
     white-space: nowrap;
   }

@@ -1,0 +1,138 @@
+[
+  {
+    "name": "all/1440 account context",
+    "result": true
+  },
+  {
+    "name": "all/1440 no horizontal editor overflow",
+    "result": true
+  },
+  {
+    "name": "all/1440 persisted correct account and amount",
+    "result": true
+  },
+  {
+    "name": "all/1440 add another resets payee",
+    "result": true
+  },
+  {
+    "name": "all/1024 account context",
+    "result": true
+  },
+  {
+    "name": "all/1024 no horizontal editor overflow",
+    "result": true
+  },
+  {
+    "name": "all/1024 persisted correct account and amount",
+    "result": true
+  },
+  {
+    "name": "all/1024 add another resets payee",
+    "result": true
+  },
+  {
+    "name": "all/390 account context",
+    "result": true
+  },
+  {
+    "name": "all/390 no horizontal editor overflow",
+    "result": true
+  },
+  {
+    "name": "all/390 persisted correct account and amount",
+    "result": true
+  },
+  {
+    "name": "all/390 add another resets payee",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1440 account context",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1440 no horizontal editor overflow",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1440 persisted correct account and amount",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1440 add another resets payee",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1024 account context",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1024 no horizontal editor overflow",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1024 persisted correct account and amount",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/1024 add another resets payee",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/390 account context",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/390 no horizontal editor overflow",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/390 persisted correct account and amount",
+    "result": true
+  },
+  {
+    "name": "acct-everyday/390 add another resets payee",
+    "result": true
+  },
+  {
+    "name": "320 table fits at breakpoint",
+    "result": true
+  },
+  {
+    "name": "720 table fits at breakpoint",
+    "result": true
+  },
+  {
+    "name": "721 table fits at breakpoint",
+    "result": true
+  },
+  {
+    "name": "1000 table fits at breakpoint",
+    "result": true
+  },
+  {
+    "name": "1001 table fits at breakpoint",
+    "result": true
+  },
+  {
+    "name": "1024 table fits at breakpoint",
+    "result": true
+  },
+  {
+    "name": "1101 table fits at breakpoint",
+    "result": true
+  },
+  {
+    "name": "1280 table fits at breakpoint",
+    "result": true
+  },
+  {
+    "name": "1281 table fits at breakpoint",
+    "result": true
+  },
+  {
+    "name": "1440 table fits at breakpoint",
+    "result": true
+  }
+]

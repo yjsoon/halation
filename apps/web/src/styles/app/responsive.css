@@ -44,6 +44,7 @@
 
   .mobile-nav-open .sidebar {
     display: block;
+    background: var(--sidebar-bg);
   }
 
   .sidebar-brand,
@@ -316,7 +317,7 @@
     min-height: 40px;
     border: 0;
     border-top: 1px solid var(--on-green-rule);
-    border-radius: 0 0 2px 2px;
+    border-radius: var(--radius-action);
   }
 
   .api-token-create-button {
@@ -386,10 +387,6 @@
 
   .register-toolbar-actions {
     justify-content: space-between;
-  }
-
-  .register-bulk-bar {
-    left: 50%;
   }
 
   .transaction-delete-confirm {
@@ -698,11 +695,11 @@
   }
 }
 
-/* Phone ledger: each transaction is a two-line card instead of a 680px table
+/* Compact ledger: each transaction is a two-line card instead of a wide table
    row, so the amount is always beside the payee. Every register row renders
    the same nine cells (select, date, account, payee, category, memo, outflow,
    inflow, status), so the cells are placed by position. */
-@media (max-width: 720px) {
+@media (max-width: 1000px) {
   .table-wrap-wide:has(> .register-table) {
     overflow-x: visible;
     background: none;
@@ -890,11 +887,10 @@
   }
 
   .register-table tbody tr.register-compose-row > td::before {
-    font-size: 10.5px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--ink-faint);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-soft);
   }
 
   .register-table tbody tr.register-compose-row > td:nth-child(2)::before { content: "Date"; }
@@ -905,7 +901,7 @@
   .register-table tbody tr.register-compose-row > td:nth-child(7)::before { content: "Outflow (money out)"; }
   .register-table tbody tr.register-compose-row > td:nth-child(8)::before { content: "Inflow (money in)"; }
 
-  .register-table tbody tr.register-compose-row input,
+  .register-table tbody tr.register-compose-row input:not([type="checkbox"]),
   .register-table tbody tr.register-compose-row select,
   .register-table tbody tr.register-compose-row .payee-combobox {
     width: 100%;
