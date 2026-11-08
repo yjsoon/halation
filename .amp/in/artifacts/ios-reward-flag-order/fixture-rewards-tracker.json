@@ -1,0 +1,80 @@
+{
+ "ynab": {
+  "selectedBudgetId": "local-plan",
+  "selectedBudgetName": "HowMuch Demo",
+  "trackedAccountIds": [
+   "acct-credit"
+  ]
+ },
+ "cards": [
+  {
+   "id": "card-travel",
+   "name": "Travel Card",
+   "issuer": "DBS",
+   "type": "miles",
+   "ynabAccountId": "acct-credit",
+   "billingCycle": {
+    "type": "calendar"
+   },
+   "featured": true,
+   "earningRate": 1.2,
+   "minimumSpend": 200,
+   "subcategoriesEnabled": true,
+   "subcategories": [
+    {
+     "id": "s-tap",
+     "name": "Tap",
+     "flagColor": "unflagged",
+     "rewardValue": 1.2,
+     "priority": 1,
+     "active": true,
+     "createdAt": "2026-01-15T00:00:00.000Z",
+     "updatedAt": "2026-01-15T00:00:00.000Z"
+    },
+    {
+     "id": "s-nc",
+     "name": "Not Counted",
+     "flagColor": "red",
+     "rewardValue": 0,
+     "priority": 2,
+     "active": true,
+     "createdAt": "2026-01-15T00:00:00.000Z",
+     "updatedAt": "2026-01-15T00:00:00.000Z",
+     "excludeFromRewards": true
+    },
+    {
+     "id": "s-fcy",
+     "name": "FCY",
+     "flagColor": "orange",
+     "rewardValue": 3,
+     "priority": 3,
+     "active": true,
+     "createdAt": "2026-01-15T00:00:00.000Z",
+     "updatedAt": "2026-01-15T00:00:00.000Z"
+    },
+    {
+     "id": "s-online",
+     "name": "Online",
+     "flagColor": "blue",
+     "rewardValue": 4,
+     "priority": 4,
+     "active": true,
+     "createdAt": "2026-01-15T00:00:00.000Z",
+     "updatedAt": "2026-01-15T00:00:00.000Z"
+    }
+   ]
+  }
+ ],
+ "rules": [],
+ "tagMappings": [],
+ "calculations": [],
+ "themeGroups": [],
+ "hiddenCards": [],
+ "settings": {
+  "theme": "auto",
+  "currency": "SGD",
+  "milesValuation": 0.015,
+  "dashboardViewMode": "summary",
+  "groupCardsByType": true
+ }
+}

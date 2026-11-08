@@ -325,6 +325,42 @@ struct RewardCardDraft: Equatable {
     return names
   }
 
+  /// Transaction flag choices for a card: named colours first, with names
+  /// that earn nothing at any spending level last among them, then the
+  /// colour-only choices. Each group keeps the ledger's colour order.
+  static func flagMenu(for card: CreditCard?) -> (named: [FlagColour], colourOnly: [FlagColour]) {
+    guard let card else { return ([], FlagColour.allCases) }
+    let names = colourNames(from: card)
+    let named = FlagColour.allCases.filter { names[RewardFlagColour(ledgerColour: $0)] != nil }
+    let earning = named.filter { earns(RewardFlagColour(ledgerColour: $0), on: card) }
+    return (
+      earning + named.filter { !earning.contains($0) },
+      FlagColour.allCases.filter { !named.contains($0) }
+    )
+  }
+
+  /// Mirrors the API engine's `resolveSubcategory` and `getRewardRate`:
+  /// a flag earns when its resolved rule is not excluded and the base level
+  /// or any spending tier gives it a positive rate.
+  private static func earns(_ colour: RewardFlagColour, on card: CreditCard) -> Bool {
+    let tiers = card.spendingTiers ?? []
+    guard card.subcategoriesEnabled == true else {
+      return ([card.earningRate] + tiers.map(\.earningRate)).contains { ($0 ?? 0) > 0 }
+    }
+    // Stable sort by priority, then the last rule per colour wins, as in the engine's map.
+    let active = (card.subcategories ?? []).filter(\.active).enumerated()
+      .sorted { ($0.element.priority, $0.offset) < ($1.element.priority, $1.offset) }
+      .map(\.element)
+    guard let rule = active.last(where: { $0.flagColor == colour })
+      ?? active.last(where: { $0.flagColor == .unflagged }),
+      rule.excludeFromRewards != true
+    else { return false }
+    let tierRates = tiers.compactMap { tier in
+      tier.subcategories?.last { $0.subcategoryId == rule.id }?.rewardValue
+    }
+    return ([rule.rewardValue] + tierRates).contains { $0 > 0 }
+  }
+
   mutating func addFlag(_ flag: RewardFlagDraft? = nil) {
     flags.append(flag ?? RewardFlagDraft.fresh(priority: String(flags.count + 1)))
   }

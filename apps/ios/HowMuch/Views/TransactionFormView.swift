@@ -1021,17 +1021,29 @@ struct TransactionFormView: View {
     draft.subtransactions.remove(at: index)
   }
 
+  private var rewardCard: CreditCard? {
+    rewardCards.first(where: { $0.ynabAccountId == draft.accountID })
+  }
+
   private var flagNames: [RewardFlagColour: String] {
-    guard let card = rewardCards.first(where: { $0.ynabAccountId == draft.accountID }) else { return [:] }
-    return RewardCardDraft.colourNames(from: card)
+    rewardCard.map(RewardCardDraft.colourNames(from:)) ?? [:]
   }
 
   /// Flag sits with the details card, directly under Date.
   private var flagRow: some View {
     Menu {
+      let menu = RewardCardDraft.flagMenu(for: rewardCard)
+      // An inline picker flattens sections and dividers, so each group is its
+      // own picker on the same binding; the menu separates them natively.
       Picker("Flag", selection: $draft.flag) {
-        ForEach(FlagColour.allCases) { flag in
+        ForEach(menu.named) { flag in
           Text(flagNames[RewardFlagColour(ledgerColour: flag)] ?? flag.title).tag(flag)
+        }
+      }
+      .pickerStyle(.inline)
+      Picker("Flag", selection: $draft.flag) {
+        ForEach(menu.colourOnly) { flag in
+          Text(flag.title).tag(flag)
         }
       }
       .pickerStyle(.inline)

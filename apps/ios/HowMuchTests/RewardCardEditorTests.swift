@@ -178,4 +178,62 @@ final class RewardCardEditorTests: XCTestCase {
     XCTAssertEqual((payload["flagNames"] as? [String: String])?["blue"], "Online")
   }
 
+  // Failure modes the picker E2E run cannot cover across every card shape:
+  // judging "earns nothing" by label text, ignoring the unflagged fallback,
+  // ignoring tier overrides or the disabled-rules switch, and reordering
+  // colours that keep their place.
+  func testFlagMenuPutsEarningNamesFirstThenZeroRewardNamesThenColours() throws {
+    func card(_ fields: String) throws -> CreditCard {
+      let json = #"{"id":"card","name":"Card","issuer":"Bank","type":"cashback","ynabAccountId":"account","featured":false,"#
+        + fields + "}"
+      return try JSONDecoder().decode(CreditCard.self, from: Data(json.utf8))
+    }
+    func rule(_ id: String, _ colour: String, _ rate: Double, priority: Int = 1, extra: String = "") -> String {
+      #"{"id":"\#(id)","name":"\#(id)","flagColor":"\#(colour)","rewardValue":\#(rate),"priority":\#(priority)\#(extra)}"#
+    }
+    func menu(_ card: CreditCard?) -> [[FlagColour]] {
+      let menu = RewardCardDraft.flagMenu(for: card)
+      return [menu.named, menu.colourOnly]
+    }
+
+    // Screenshot shape: an excluded rule whose name says nothing about rewards
+    // still sinks, and a name with no rule follows the unflagged fallback.
+    let mixed = try card(#""subcategoriesEnabled":true,"flagNames":{"green":"Groceries"},"subcategories":["#
+      + [
+        rule("Tap", "unflagged", 1),
+        rule("Plain", "red", 3, extra: #","excludeFromRewards":true"#),
+        rule("FCY", "orange", 2),
+        rule("Online", "blue", 4),
+      ].joined(separator: ",") + "]")
+    XCTAssertEqual(menu(mixed), [[.none, .orange, .green, .blue, .red], [.yellow, .purple]])
+
+    // A zero base rate that a spending tier raises still earns; an inactive
+    // rule falls back to the unflagged rule, which earns nothing here.
+    let tiered = try card(#""subcategoriesEnabled":true,"subcategories":["#
+      + [
+        rule("Base", "unflagged", 0),
+        rule("Zero", "red", 0),
+        rule("Tiered", "orange", 0),
+        rule("Paused", "yellow", 5, extra: #","active":false"#),
+        rule("Earns", "green", 1),
+      ].joined(separator: ",")
+      + #"],"spendingTiers":[{"id":"t","spendThreshold":500,"subcategories":[{"subcategoryId":"Tiered","rewardValue":2}]}]"#)
+    XCTAssertEqual(menu(tiered), [[.orange, .green, .none, .red, .yellow], [.blue, .purple]])
+
+    // Rules switched off: names follow the card rate, so exclusion no longer
+    // applies and every name keeps its colour order.
+    let disabled = try card(#""subcategoriesEnabled":false,"earningRate":0,"#
+      + #""spendingTiers":[{"id":"t","spendThreshold":500,"earningRate":1}],"subcategories":["#
+      + rule("Plain", "red", 3, extra: #","excludeFromRewards":true"#) + #"],"flagNames":{"purple":"Online"}"#)
+    XCTAssertEqual(menu(disabled), [[.red, .purple], [.none, .orange, .yellow, .green, .blue]])
+
+    // Two active rules on one colour: the engine uses the later priority.
+    let duplicate = try card(#""subcategoriesEnabled":true,"subcategories":["#
+      + rule("Later", "red", 2, priority: 2) + ","
+      + rule("Earlier", "blue", 0, priority: 1) + ","
+      + rule("Hidden", "red", 0, priority: 1, extra: #","excludeFromRewards":true"#) + "]")
+    XCTAssertEqual(menu(duplicate), [[.red, .blue], [.none, .orange, .yellow, .green, .purple]])
+
+    XCTAssertEqual(menu(nil), [[], FlagColour.allCases])
+  }
 }

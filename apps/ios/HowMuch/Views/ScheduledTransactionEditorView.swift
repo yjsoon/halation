@@ -444,8 +444,16 @@ struct ScheduledTransactionEditorView: View {
 
         Section("Details") {
           Picker("Flag", selection: $draft.flag) {
-            ForEach(FlagColour.allCases) { flag in
-              Text(flagNames[RewardFlagColour(ledgerColour: flag)] ?? flag.title).tag(flag)
+            let menu = RewardCardDraft.flagMenu(for: rewardCard)
+            Section {
+              ForEach(menu.named) { flag in
+                Text(flagNames[RewardFlagColour(ledgerColour: flag)] ?? flag.title).tag(flag)
+              }
+            }
+            Section {
+              ForEach(menu.colourOnly) { flag in
+                Text(flag.title).tag(flag)
+              }
             }
           }
           TextField("Memo", text: $draft.memo, axis: .vertical)
@@ -523,9 +531,12 @@ struct ScheduledTransactionEditorView: View {
     }
   }
 
+  private var rewardCard: CreditCard? {
+    rewardCards.first(where: { $0.ynabAccountId == draft.accountID })
+  }
+
   private var flagNames: [RewardFlagColour: String] {
-    guard let card = rewardCards.first(where: { $0.ynabAccountId == draft.accountID }) else { return [:] }
-    return RewardCardDraft.colourNames(from: card)
+    rewardCard.map(RewardCardDraft.colourNames(from:)) ?? [:]
   }
 
   private var payeeLabel: String? {
