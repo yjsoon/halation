@@ -465,6 +465,22 @@ struct RewardsView: View {
           onOpenAccount: chrome == nil ? nil : { chrome?.showAccount(row.accountId) }
         )
         .transition(.opacity)
+        HStack {
+          Spacer()
+          Button {
+            sheet = .editor(.edit(projection.cardID))
+          } label: {
+            Text("Edit Rewards")
+              .frame(minHeight: 44)
+              .contentShape(Rectangle())
+          }
+          .font(.footnote)
+          .foregroundStyle(Theme.accent)
+          .buttonStyle(.plain)
+          .accessibilityLabel("Edit rewards for \(projection.title)")
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 4)
       }
     }
     .background {

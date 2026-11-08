@@ -1,0 +1,24 @@
+Command: scripts/check.sh
+Platform: Amp Mac satellite, macOS 27, Xcode 27.2, iOS 27.2 Simulator
+Implementation: d0dc7efdb8ab2528bab5d2adc15e22c8877b6205
+Base: b2659e4eb9d432fd9a6382cf00c7a0a1388ca8bf
+Exit: 0
+==> bun test
+ 815 pass
+ 0 fail
+==> bun run --cwd apps/web typecheck
+==> bun run --cwd apps/worker typecheck
+==> scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests
+** TEST BUILD SUCCEEDED **
+	 Executed 824 tests, with 1 test skipped and 0 failures (0 unexpected) in 148.882 (149.203) seconds
+	 Executed 824 tests, with 1 test skipped and 0 failures (0 unexpected) in 148.882 (149.204) seconds
+✔ Test run with 3 tests in 1 suite passed after 0.011 seconds.
+** TEST EXECUTE SUCCEEDED **
+check: pass
+
+Real local API native footer recipe:
+Test Case '-[HowMuchTests.RewardsSnapshotTests testLandingNativeDisclosureAgainstLocalAPI]' passed (3.947 seconds).
+	 Executed 1 test, with 0 failures (0 unexpected) in 3.947 (3.951) seconds
+	 Executed 1 test, with 0 failures (0 unexpected) in 3.947 (3.951) seconds
+	 Executed 1 test, with 0 failures (0 unexpected) in 3.947 (3.952) seconds
+** TEST EXECUTE SUCCEEDED **

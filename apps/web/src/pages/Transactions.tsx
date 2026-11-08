@@ -4,6 +4,7 @@ import { ApiError, api, BulkApprovalError, useApi } from "../api/client";
 import type {
   AccountReconciliationPreview,
   AccountReconciliationResult,
+  CreditCard,
   Payee,
   ReconciliationMismatchDetail,
   ScheduledTransaction,
@@ -14,6 +15,7 @@ import { FilterRail } from "../components/FilterRail";
 import { FlagTag } from "../components/FlagTag";
 import { CategorySelect } from "../components/CategorySelect";
 import { CardTermsDialog } from "../components/CardTermsDialog";
+import { CardCategoryNames } from "../components/CardCategoryNames";
 import { CategorySuggestionReview } from "../components/CategorySuggestionReview";
 import { RegisterComposeRow } from "../components/RegisterComposeRow";
 import { RegisterEditableRow, type RowEditSurface } from "../components/RegisterEditableRow";
@@ -133,9 +135,13 @@ export function TransactionsPage() {
     cacheEpoch,
   });
   const rewardsSnapshot = useApi(`${planId}:reward-flag-names`, () => api.rewardsTrackerSnapshot(planId));
+  const [savedRewardCards, setSavedRewardCards] = useState<{ planId: string; cards: Record<string, CreditCard> }>({ planId, cards: {} });
+  const rewardCards = useMemo(() => rewardsSnapshot.data?.cards.map((card) =>
+    savedRewardCards.planId === planId ? savedRewardCards.cards[card.id] ?? card : card),
+  [planId, rewardsSnapshot.data, savedRewardCards]);
   const colourNamesByAccountId = useMemo(
-    () => colourNamesByAccount(rewardsSnapshot.data?.cards),
-    [rewardsSnapshot.data],
+    () => colourNamesByAccount(rewardCards),
+    [rewardCards],
   );
   const [params] = useSearchParams();
   const deepLinkParameterKey = JSON.stringify([
@@ -160,6 +166,9 @@ export function TransactionsPage() {
   const flow = params.get("flow");
   const selectedAccount = filters.accountIds.length === 1
     ? accounts.find((account) => account.id === filters.accountIds[0])
+    : undefined;
+  const selectedRewardCard = selectedAccount && isCardAccount(selectedAccount)
+    ? rewardCards?.find((card) => card.ynabAccountId === selectedAccount.id)
     : undefined;
   const visibleAccounts = useMemo(
     () => filters.accountIds.length
@@ -268,6 +277,11 @@ export function TransactionsPage() {
     suggestButtonRef.current?.isConnected ? suggestButtonRef.current : selectAllFallback());
   const [reconcileDraft, setReconcileDraft] = useState<ReconcileDraft | null>(null);
   const [cardTermsOpen, setCardTermsOpen] = useState(false);
+  const [categoryNamesCardId, setCategoryNamesCardId] = useState<string | null>(null);
+  const [categoryNamesSaving, setCategoryNamesSaving] = useState(false);
+  const categoryNamesButtonRef = useRef<HTMLButtonElement>(null);
+  const categoryNamesFirstFieldRef = useRef<HTMLInputElement>(null);
+  useConfirmationFocus(selectedRewardCard?.id === categoryNamesCardId, categoryNamesFirstFieldRef, () => categoryNamesButtonRef.current);
   const reconcileFirstFieldRef = useRef<HTMLSelectElement>(null);
   useConfirmationFocus(reconcileDraft?.operationSeed, reconcileFirstFieldRef, () => addTransactionRef.current);
   const [reconciliationPreviewGeneration, setReconciliationPreviewGeneration] = useState(0);
@@ -1718,6 +1732,19 @@ export function TransactionsPage() {
               Payment reminders
             </button>
           )}
+          {selectedRewardCard && (
+            <button
+              type="button"
+              ref={categoryNamesButtonRef}
+              className="register-add-link register-secondary-action register-reward-categories"
+              aria-expanded={categoryNamesCardId === selectedRewardCard.id}
+              aria-controls="card-category-names"
+              disabled={categoryNamesSaving}
+              onClick={() => setCategoryNamesCardId((current) => current === selectedRewardCard.id ? null : selectedRewardCard.id)}
+            >
+              Reward categories <span aria-hidden="true">{categoryNamesCardId === selectedRewardCard.id ? "▴" : "▾"}</span>
+            </button>
+          )}
           {cardTermsOpen && selectedAccount && (
             <CardTermsDialog
               accountId={selectedAccount.id}
@@ -2112,6 +2139,21 @@ export function TransactionsPage() {
 
       {registerLoaded && (
         <section className="report-section">
+          {selectedRewardCard && categoryNamesCardId === selectedRewardCard.id && <CardCategoryNames
+            key={`${planId}:${selectedRewardCard.id}`}
+            planId={planId}
+            card={selectedRewardCard}
+            firstFieldRef={categoryNamesFirstFieldRef}
+            onSavingChange={setCategoryNamesSaving}
+            onClose={() => setCategoryNamesCardId(null)}
+            onSaved={(card) => {
+              setSavedRewardCards((previous) => ({ planId, cards: { ...(previous.planId === planId ? previous.cards : {}), [card.id]: card } }));
+              setMutationError(null);
+              setMutationSuccess("Category names saved.");
+              refreshFirstPage();
+              reload();
+            }}
+          />}
           {rows.length > 0 || showScheduledDisclosure || compose.status === "open" ? (
             <div className="table-wrap table-wrap-wide">
               <table className={selectedAccount ? "ledger-table register-table register-table-one-account" : "ledger-table register-table"}>

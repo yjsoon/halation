@@ -223,13 +223,21 @@ a.page-eyebrow:hover {
     flex-direction: column;
   }
 
-  .register-toolbar-actions:has(.register-payment-reminders) {
+  .register-toolbar-actions:has(.register-payment-reminders, .register-reward-categories) {
     display: contents;
   }
 
-  .register-toolbar-actions:has(.register-payment-reminders) > .register-secondary-action:not(.register-payment-reminders) {
+  .register-toolbar-actions:has(.register-payment-reminders, .register-reward-categories) > .register-secondary-action:not(.register-payment-reminders, .register-reward-categories) {
     grid-column: 2;
     grid-row: 1;
+  }
+
+  .register-toolbar-actions > .register-reward-categories {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    justify-self: start;
+    min-height: 32px;
+    padding: 4px 12px;
   }
 
   .register-toolbar-actions > .register-payment-reminders {
@@ -295,6 +303,7 @@ a.page-eyebrow:hover {
 
 .register-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -305,7 +314,89 @@ a.page-eyebrow:hover {
   display: flex;
   flex: 0 0 auto;
   flex-wrap: wrap;
+  max-width: 100%;
   gap: 12px;
+}
+
+.card-category-names {
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.card-category-names-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 24px;
+}
+
+.card-category-name-field {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.card-category-name-field > span {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-category-name-field input {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 6px 10px;
+}
+
+.card-category-name-field input[aria-invalid="true"] {
+  border-color: var(--red);
+}
+
+.card-category-names-footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.card-category-names-footer p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.card-category-names-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.card-category-names > .error {
+  margin: 10px 0 0;
+}
+
+@media (max-width: 1100px) {
+  .card-category-names-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .card-category-names-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .card-category-name-field input {
+    height: 40px;
+  }
+
+  .card-category-names-actions {
+    margin-left: auto;
+  }
 }
 
 .register-add-link {

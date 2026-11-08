@@ -1,0 +1,18 @@
+{
+  "cardNames": {
+    "blue": "Web purchases",
+    "red": "Food & cafés"
+  },
+  "rulesUnchanged": true,
+  "transactionsUnchanged": true,
+  "reportBefore": {
+    "total_spend": 315.5,
+    "counted_spend": 315.5,
+    "reward_earned": 1033.1
+  },
+  "reportAfter": {
+    "total_spend": 315.5,
+    "counted_spend": 315.5,
+    "reward_earned": 1033.1
+  }
+}
