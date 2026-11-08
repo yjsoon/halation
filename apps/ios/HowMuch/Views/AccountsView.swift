@@ -74,6 +74,9 @@ struct AccountsView: View {
   @State private var autoSelectedPane: AccountsPane?
   @State private var columnVisibility = NavigationSplitViewVisibility.all
   @State private var shortcutsWidth: CGFloat = 0
+  /// Moved forward when the outbox card's reveal date passes; see
+  /// `AppModel.outboxCardRevealDate`.
+  @State private var outboxCardClock = Date()
   /// A column tile this wide keeps the longest title, "Scheduled", on one
   /// line at the full 16pt padding; it grows with Dynamic Type.
   @ScaledMetric(relativeTo: .subheadline) private var roomyShortcutTileWidth = 104.0
@@ -278,9 +281,13 @@ struct AccountsView: View {
     let groups = model.accountListGroups()
     let collectionGroups = groups.filter { $0.kind == .collection }
     let indexGroups = groups.filter { $0.kind == .index }
+    let outboxCardRevealDate = model.outboxCardRevealDate
+    // Reading the clock makes its bump re-render; `Date()` keeps an already
+    // due card from dropping out for a frame when the reveal date changes.
+    let showsOutboxCard = outboxCardRevealDate.map { $0 <= max(outboxCardClock, Date()) } ?? false
     return ScrollView {
       VStack(alignment: .leading, spacing: 16) {
-        if model.unsentChangeCount > 0 || model.outboxNotice != nil {
+        if showsOutboxCard {
           OutboxCard()
             .transition(.move(edge: .top).combined(with: .opacity))
         }
@@ -328,6 +335,20 @@ struct AccountsView: View {
       .padding(.horizontal, 16)
       .padding(.bottom, 24)
       .animation(Theme.Motion.standard, value: model.pendingRows.isEmpty)
+      .animation(Theme.Motion.standard, value: showsOutboxCard)
+    }
+    .task(id: outboxCardRevealDate) {
+      guard let outboxCardRevealDate else {
+        return
+      }
+      let wait = outboxCardRevealDate.timeIntervalSinceNow
+      guard wait > 0 else {
+        return
+      }
+      try? await Task.sleep(for: .seconds(wait))
+      if !Task.isCancelled {
+        outboxCardClock = Date()
+      }
     }
     .background(Theme.canvas)
     .navigationTitle("Accounts")

@@ -1479,6 +1479,24 @@ final class AppModel {
     currentOutbox.count
   }
 
+  /// When the Accounts outbox card should appear, or nil when it has nothing
+  /// to show. Refusals and outbox read problems show at once; a change that
+  /// is merely queued waits `outboxCardGrace` from when it was made, so a
+  /// healthy send (debounce plus one round trip) never inserts and removes
+  /// the card under the user. The row's own glyph covers that moment.
+  var outboxCardRevealDate: Date? {
+    if outboxNotice != nil {
+      return .distantPast
+    }
+    let commands = currentOutbox
+    if commands.contains(where: { if case .rejected = $0.state { return true }; return false }) {
+      return .distantPast
+    }
+    return commands.map(\.createdAt).min().map { $0.addingTimeInterval(Self.outboxCardGrace) }
+  }
+
+  static let outboxCardGrace: TimeInterval = 3
+
   /// New transactions waiting to be sent, as the register shows them.
   var pendingRows: [PendingRow] {
     let commands = currentOutbox
