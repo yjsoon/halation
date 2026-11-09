@@ -1,6 +1,6 @@
 # Standalone iOS (local-first) plan
 
-Status: phase 1 done on `feat/standalone-ios` (2026-09-26). See [the handover](standalone-ios-handover.md).
+Status: phase 1 done (2026-09-26) and merged to `main`.
 
 ## Goal
 
