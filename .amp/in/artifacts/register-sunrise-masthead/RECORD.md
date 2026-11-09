@@ -46,3 +46,18 @@
 - Tapping the reconcile caption and the reward words in the shipped app.
 - The search drawer over the masthead.
 - Selection mode. The code drops the masthead while selecting.
+
+## Follow-up verification (9 Nov 2026, on 52d8e60 plus the fade fix)
+
+These were driven through the same temporary host on the rebased tree, which includes the swipe fix's 16pt List inset. The List frame was x 16, width 370 on iPhone 17, and x 16, width 802 on iPad Pro 11. Taps went through the elements' accessibility activation. The ⋯ menu was opened through the button's real context-menu interaction, and its "Select Transactions" action came from the presented menu.
+
+| Check | Expected | Observed |
+| --- | --- | --- |
+| Tap the `Not reconciled` caption | Reconcile opens for this account | Pass: the Reconcile sheet opens on Account Travel Card, with Statement date and Statement balance |
+| Tap the reward words | Card details open over the register | Pass: the sheet shows Travel Card, Period 1 Nov – 30 Nov, Done and Edit Rewards |
+| Search | Drawer opens; the masthead stays intact | Pass: the field sits at the bottom and the bar hides, as on an account without a card (`final/search-drawer.jpg`). Closing search was not exercised, because the host could not reach the system Close |
+| ⋯ menu → Select Transactions, then Done | Plain header while selecting, sunrise back after Done | Pass: Select All and Done take the bar, and the plain balance and paper reward row show. After Done the sunrise returns, in light and dark (`final/selection-mode.jpg`) |
+| iPad Pro 11 after the swipe inset | Full-width sky; words aligned with the inset card | Pass (`final/ipad-rest.jpg`) |
+| Scroll, iPad 40–140pt and iPhone 30–100pt | Nothing ghosts behind the title | Initially failed on iPad at 100pt: the reward line showed faintly behind the title. The fade now reaches zero 8pt into the bar instead of 24pt. Rechecked as a pass (`final/ipad-scroll-dark.jpg`, `final/iphone-scroll-fade.jpg`) |
+
+HowMuchTests ran 825 tests, 1 skipped, 0 failures, on a fresh build that matched the worktree.

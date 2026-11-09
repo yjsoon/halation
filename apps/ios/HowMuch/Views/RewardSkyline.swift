@@ -773,12 +773,13 @@ struct RegisterMastheadSky: View {
 }
 
 extension View {
-  /// The masthead's words fade as they pass under the navigation bar, so no balance ghosts behind the
-  /// title over the sky. `barBottom` is the list's top inset.
+  /// The masthead's words fade as they pass under the navigation bar, so no balance or reward line ghosts
+  /// behind the title over the sky: full at rest, where the balance sits 4pt under the bar, and gone 8pt
+  /// into it. `barBottom` is the list's top inset.
   func mastheadFadesUnderBar(_ barBottom: CGFloat) -> some View {
     visualEffect { content, proxy in
       let distance = proxy.frame(in: .scrollView).minY - barBottom
-      return content.opacity(min(1, max(0, (distance + 24) / 28)))
+      return content.opacity(min(1, max(0, (distance + 8) / 12)))
     }
   }
 }
