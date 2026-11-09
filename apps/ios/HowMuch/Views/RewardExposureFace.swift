@@ -182,12 +182,17 @@ private struct ExposurePainter {
       .init(color: Theme.Face.horizon, location: 0), .init(color: Theme.Face.horizon, location: 0.45),
       .init(color: Theme.Face.horizon.opacity(0), location: 0.8),
     ])
+    // The masthead's frame runs up behind the bar, so its warmth rises from the horizon, not the frame's top.
+    var warmthTop = 0.0
+    if case .masthead = scene.layout {
+      warmthTop = max(0, min(scene.horizonY(at: 0), scene.horizonY(at: 1)) - 110)
+    }
     let up = GraphicsContext.Shading.linearGradient(
-      warmth, startPoint: CGPoint(x: 0, y: height), endPoint: CGPoint(x: 0, y: 0))
+      warmth, startPoint: CGPoint(x: 0, y: height), endPoint: CGPoint(x: 0, y: warmthTop))
     context.fill(Path(frame), with: up)
     if !daytime, pose.v > 0 {
       var more = context
-      more.opacity = 0.5 * pose.v
+      if case .masthead = scene.layout { more.opacity = 0.15 * pose.v } else { more.opacity = 0.5 * pose.v }
       more.fill(Path(frame), with: up)
     }
   }
@@ -346,7 +351,7 @@ private struct ExposurePainter {
   private func drawGround(in context: inout GraphicsContext) {
     if daytime {
       return
-    } else if case .strip(_, let footTop, _, _) = scene.layout {
+    } else if let footTop = scene.layout.measuredFootTop {
       let top = (footTop ?? 0.54 * height) - 8
       let scrim = Gradient(colors: [Theme.Face.ridgeFront.opacity(0), Theme.Face.ridgeFront.opacity(0.55)])
       context.fill(

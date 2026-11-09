@@ -244,6 +244,7 @@ The "✦" after "DBS · MILES" on the web face and in the lab is the Featured fl
 | --- | --- | --- |
 | **Strip** | Rewards board rows | Full row width, about 114pt tall since the phone cut (104pt before it). The row is the frame. |
 | **Paper row with print** | Account register strip | About 96pt, with a 90 × 60pt print on the trailing side |
+| **Register masthead** | An account register with one reward card | The strip scene behind the whole header, from the top of the screen to the transactions (`ExposureLayout.masthead`) |
 | **Paper row with band** | Board and register rows at accessibility text sizes | A 64pt scene band above the text |
 | **Paper row, plain** | Range Report "Cards" section | As today, no picture |
 | **Hero** | Detail sheet header | A 3:2 print with a 6pt border |
@@ -430,6 +431,15 @@ The foot inks resolve by appearance: dark in light mode, on the light ground; li
 - **Foot scrim, dark mode only.** A `RidgeFront` gradient at 55% runs under the foot text block, from its top edge down. The foot always sits on the spend ridge, so the scrim is a guard: no layout or text size can put light ink on a light pour or bloom. Light mode draws none: its foot ink is dark, and dark ink clears 4.5:1 on the light ground, the gold, the desaturated side and every sky alike, so there is nothing to guard against.
 - **Exceptions** are more lines of the foot, on the ground under the basis line, so the card stays one surface (the owner's ask, 15 Oct 2026: the paper slip read as a separate card). Lines are IBM Plex Sans Medium 13pt in `FootInk` with the triangle icon in `UrgentInk`: at most 2, then "+N more". Each line adds about 20pt to the frame; the ridges follow the measured foot, so the sky band does not change. The paper rows and the band row keep their exceptions below the foot as before.
 - The strip leaves out the chevron that today's title line has, and does not take the web face's issuer and type caps line or a Featured mark. See The Featured mark and open question 4. The sun's column leaves room for the chevron if it comes back.
+
+### Register masthead
+
+An account register with exactly one reward card draws that card's scene behind its whole header (9 Nov 2026, the owner's ask: bleed into the title and repeat nothing). `RegisterMastheadSky` lays the strip's ridges and sun out around the header's measured words: the balance, with the reconcile date as a caption on its line, in the sky, and the reward words on the ground. They are set in SF with monospaced digits beside the balance, not Plex, and carry no name unless the card's differs from the account's.
+
+- `.masthead` lights the sky edge to edge with no veil, so no lit edge runs up through the title. In the minimum journey the strip's own picture (lit to the sun, unlit beyond) is laid over it in a band from 56pt above the horizon to 6pt above the words, so the left and right still read where the sun is.
+- The climb's sun rises to just under the navigation bar rather than off the top edge, and draws no pour; the dark-mode bloom and warmth are reduced, so nothing tints the title or the bar's glass buttons.
+- The ground runs 28pt under the transactions card's top and fades into the page. Scrolling, the words fade before they pass under the bar and the scene fades over 56pt once the horizon reaches it.
+- Two cards on one account, accessibility text sizes and selection mode keep the paper rows below.
 
 ### Paper row with print (register)
 

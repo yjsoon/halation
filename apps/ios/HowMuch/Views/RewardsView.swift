@@ -962,6 +962,9 @@ struct RewardFilledRow: View {
     case register
     /// The detail sheet: the 3:2 hero over the slip. The sheet names the card itself.
     case sheet
+    /// An account register's sunrise masthead: only the words on the ground. The scene is drawn behind the
+    /// whole header by `RegisterMastheadSky`, and the account's own title names the card.
+    case masthead
   }
 
   let projection: RewardRowProjection
@@ -980,6 +983,8 @@ struct RewardFilledRow: View {
   var windowWidth: CGFloat? = nil
   /// The sheet slip's caps line: issuer, type and "Featured" when it is.
   var capsLine: String?
+  /// Masthead only: the card's name, when it is not the account's own title.
+  var mastheadName = false
 
   @Environment(\.colorSchemeContrast) private var contrast
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -1025,7 +1030,7 @@ struct RewardFilledRow: View {
   private static let heroMaxWidth: CGFloat = 520
 
   private var bold: Bool { legibilityWeight == .bold }
-  private var showsTitle: Bool { placement != .sheet }
+  private var showsTitle: Bool { placement != .sheet && placement != .masthead }
 
   /// What the words sit on, which sets their inks.
   private enum Surface {
@@ -1070,6 +1075,8 @@ struct RewardFilledRow: View {
           }
         case .sheet:
           heroRow(text, exposure: exposure)
+        case .masthead:
+          mastheadFoot(text)
         }
       } else {
         paperRow(text)
@@ -1189,6 +1196,23 @@ struct RewardFilledRow: View {
     .overlay { outline }
   }
 
+  /// The register masthead: the strip's foot on the ground of the scene behind the header, with no name
+  /// unless the card's differs from the account's title above it.
+  private func mastheadFoot(_ text: RewardRowText) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+      if mastheadName {
+        Text(projection.title)
+          .font(.headline)
+          .foregroundStyle(Theme.Face.footInk)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+      foot(text, surface: .ridge)
+      exceptions(text, surface: .ridge)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .accessibilityIgnoresInvertColors(true)
+  }
+
   /// The detail sheet: a 3:2 print in a 6pt border, so it reads as a photograph, not a payment card,
   /// and the slip below it on the grouped background.
   private func heroRow(_ text: RewardRowText, exposure: RewardExposure) -> some View {
@@ -1223,7 +1247,7 @@ struct RewardFilledRow: View {
       VStack(alignment: .leading, spacing: 3) {
         if let capsLine, !capsLine.isEmpty {
           Text(capsLine)
-            .font(CardType.sans(.semibold, 11, relativeTo: .caption2, bold: bold))
+            .font(sansType(.semibold, 11, relativeTo: .caption2, bold: bold))
             .tracking(capsTracking)
             .textCase(.uppercase)
             .foregroundStyle(Theme.rowSecondary)
@@ -1369,7 +1393,7 @@ struct RewardFilledRow: View {
         statementDeadline(text, pace: stature == .tall)
         if let basis = projection.basis {
           Text("\(money(basis.spend)) / \(money(basis.target))")
-            .font(CardType.mono(.regular, CardType.size(.footnote), relativeTo: .footnote, bold: bold))
+            .font(monoType(.regular, CardType.size(.footnote), relativeTo: .footnote, bold: bold))
             .foregroundStyle(Theme.rowSecondary)
         }
       }
@@ -1381,16 +1405,16 @@ struct RewardFilledRow: View {
   private func statementDeadline(_ text: RewardRowText, pace: Bool) -> some View {
     let paceText: Text? = pace ? text.pacePerDay.map { paceLine($0, surface: .paper, style: .subheadline) } : nil
     if let deadline = text.deadline, let paceText {
-      Text("\(Text(deadline).font(CardType.sans(.medium, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold)).foregroundStyle(text.isUrgent ? urgentInk(.paper) : Theme.textPrimary)) · \(paceText)")
-        .font(CardType.sans(.regular, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
+      Text("\(Text(deadline).font(sansType(.medium, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold)).foregroundStyle(text.isUrgent ? urgentInk(.paper) : Theme.textPrimary)) · \(paceText)")
+        .font(sansType(.regular, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
         .foregroundStyle(Theme.rowSecondary)
         .fixedSize(horizontal: false, vertical: true)
     } else if let deadline = text.deadline {
       Text(deadline)
-        .font(CardType.sans(.medium, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
+        .font(sansType(.medium, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
         .foregroundStyle(text.isUrgent ? urgentInk(.paper) : Theme.textPrimary)
     } else if let paceText {
-      paceText.font(CardType.sans(.regular, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold)).foregroundStyle(Theme.rowSecondary)
+      paceText.font(sansType(.regular, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold)).foregroundStyle(Theme.rowSecondary)
     }
   }
 
@@ -1398,13 +1422,13 @@ struct RewardFilledRow: View {
     VStack(alignment: .leading, spacing: 3) {
       columnLabel("Earned")
       Text(projection.rewardType == .miles ? "\(RewardRowText.milesString(projection.earned)) mi" : text.earned)
-        .font(CardType.mono(.medium, CardType.size(.title3), relativeTo: .title3, bold: bold))
+        .font(monoType(.medium, CardType.size(.title3), relativeTo: .title3, bold: bold))
         .foregroundStyle(Theme.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(0.7)
       if case .capReached(let beyond, _) = projection.action, beyond > 0 {
         Text("\(money(beyond)) beyond cap")
-          .font(CardType.sans(.regular, CardType.size(.caption), relativeTo: .caption, bold: bold))
+          .font(sansType(.regular, CardType.size(.caption), relativeTo: .caption, bold: bold))
           .foregroundStyle(Theme.rowSecondary)
           .fixedSize(horizontal: false, vertical: true)
       }
@@ -1414,8 +1438,8 @@ struct RewardFilledRow: View {
   private func periodFigures(_ period: RewardRowProjection.PeriodPosition) -> some View {
     VStack(alignment: .leading, spacing: 5) {
       columnLabel("Period")
-      Text("\(Text("\(period.day)").font(CardType.mono(.medium, CardType.size(.title3), relativeTo: .title3, bold: bold))) of \(period.length) days")
-        .font(CardType.sans(.regular, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
+      Text("\(Text("\(period.day)").font(monoType(.medium, CardType.size(.title3), relativeTo: .title3, bold: bold))) of \(period.length) days")
+        .font(sansType(.regular, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
         .foregroundStyle(Theme.textPrimary)
         .lineLimit(1)
         .minimumScaleFactor(0.8)
@@ -1425,7 +1449,7 @@ struct RewardFilledRow: View {
 
   private func columnLabel(_ title: String) -> some View {
     Text(title.uppercased())
-      .font(CardType.sans(.medium, CardType.size(.caption2), relativeTo: .caption2, bold: bold))
+      .font(sansType(.medium, CardType.size(.caption2), relativeTo: .caption2, bold: bold))
       .tracking(1.2)
       .foregroundStyle(Theme.rowSecondary)
   }
@@ -1495,13 +1519,13 @@ struct RewardFilledRow: View {
       actionLine(text, surface: surface, tall: tall)
       if tall || pace, let perDay = text.pacePerDay {
         paceLine(perDay, surface: surface)
-          .font(CardType.sans(.regular, CardType.size(.footnote), relativeTo: .footnote, bold: bold))
+          .font(sansType(.regular, CardType.size(.footnote), relativeTo: .footnote, bold: bold))
           .foregroundStyle(secondaryInk(surface))
           .fixedSize(horizontal: false, vertical: true)
       }
       if let basis = text.basisLine {
         Text(basis)
-          .font(CardType.mono(.regular, 12, relativeTo: .caption, bold: bold))
+          .font(monoType(.regular, 12, relativeTo: .caption, bold: bold))
           .foregroundStyle(secondaryInk(surface))
           .fixedSize(horizontal: false, vertical: true)
       }
@@ -1513,15 +1537,15 @@ struct RewardFilledRow: View {
   /// "about $5.94 a day to make it": the figure in the headline's ink, the words in the caller's.
   private func paceLine(_ perDay: String, surface: Surface, style: Font.TextStyle = .footnote) -> Text {
     let figure = Text(perDay)
-      .font(CardType.mono(.medium, CardType.size(style), relativeTo: style, bold: bold))
+      .font(monoType(.medium, CardType.size(style), relativeTo: style, bold: bold))
       .foregroundStyle(headlineInk(surface))
     return Text("about \(figure) a day to make it")
   }
 
   /// The slim noon row's one line: status and earnings, with the reset at the right.
   private func noonFoot(_ text: RewardRowText, surface: Surface) -> some View {
-    let status = Text("\(Text(text.actionLabel).font(CardType.sans(.semibold, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))) · \(Text(text.earned).font(CardType.mono(.medium, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))) earned")
-      .font(CardType.sans(.regular, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
+    let status = Text("\(Text(text.actionLabel).font(sansType(.semibold, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))) · \(Text(text.earned).font(monoType(.medium, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))) earned")
+      .font(sansType(.regular, CardType.size(.subheadline), relativeTo: .subheadline, bold: bold))
       .foregroundStyle(headlineInk(surface))
     let deadline = deadlineText(text, surface: surface)
     return ViewThatFits(in: .horizontal) {
@@ -1552,7 +1576,7 @@ struct RewardFilledRow: View {
           .fixedSize(horizontal: false, vertical: true)
       }
       .foregroundStyle(exceptionInk(at: index, surface: surface))
-      .font(CardType.sans(.medium, 13, relativeTo: .footnote, bold: bold))
+      .font(sansType(.medium, 13, relativeTo: .footnote, bold: bold))
       .padding(.top, surface == .ridge ? 4 : 2)
     }
   }
@@ -1597,7 +1621,7 @@ struct RewardFilledRow: View {
   private func deadlineText(_ text: RewardRowText, surface: Surface) -> Text? {
     text.deadline.map { value in
       Text(value)
-        .font(CardType.sans(text.isUrgent ? .semibold : .regular, 13, relativeTo: .footnote, bold: bold))
+        .font(sansType(text.isUrgent ? .semibold : .regular, 13, relativeTo: .footnote, bold: bold))
         .foregroundStyle(text.isUrgent ? urgentInk(surface) : secondaryInk(surface))
     }
   }
@@ -1632,15 +1656,40 @@ struct RewardFilledRow: View {
     let ink = headlineInk(surface)
     if let amount = text.amount {
       let figure = Text(amount)
-        .font(tall ? CardType.mono(.medium, 22, relativeTo: .title2, bold: bold) : CardType.mono(.medium, 17, relativeTo: .headline, bold: bold))
+        .font(tall ? monoType(.medium, 22, relativeTo: .title2, bold: bold) : monoType(.medium, 17, relativeTo: .headline, bold: bold))
         .foregroundStyle(projection.tone == .needsMinimum ? urgentInk(surface) : ink)
       return Text("\(figure) \(text.actionLabel)")
-        .font(tall ? CardType.sans(.semibold, 17, relativeTo: .headline, bold: bold) : CardType.sans(.regular, 15, relativeTo: .subheadline, bold: bold))
+        .font(tall ? sansType(.semibold, 17, relativeTo: .headline, bold: bold) : sansType(.regular, 15, relativeTo: .subheadline, bold: bold))
         .foregroundStyle(ink)
     }
     return Text(text.actionLabel)
-      .font(CardType.sans(.semibold, 17, relativeTo: .headline, bold: bold))
+      .font(sansType(.semibold, 17, relativeTo: .headline, bold: bold))
       .foregroundStyle(ink)
+  }
+
+  // MARK: Type
+
+  /// The register masthead sets its words in SF with monospaced digits, the register's own voice beside the
+  /// balance; every other placement keeps the card's IBM Plex faces.
+  private var nativeType: Bool { placement == .masthead }
+
+  private func sansType(_ weight: CardType.Weight, _ size: CGFloat, relativeTo style: Font.TextStyle, bold: Bool) -> Font {
+    nativeType ? .system(style, weight: Self.systemWeight(weight.stepped(bold))) : CardType.sans(weight, size, relativeTo: style, bold: bold)
+  }
+
+  private func monoType(_ weight: CardType.Weight, _ size: CGFloat, relativeTo style: Font.TextStyle, bold: Bool) -> Font {
+    nativeType
+      ? .system(style, weight: Self.systemWeight(weight.stepped(bold))).monospacedDigit()
+      : CardType.mono(weight, size, relativeTo: style, bold: bold)
+  }
+
+  private static func systemWeight(_ weight: CardType.Weight) -> Font.Weight {
+    switch weight {
+    case .regular: return .regular
+    case .medium: return .medium
+    case .semibold: return .semibold
+    case .bold: return .bold
+    }
   }
 }
 
@@ -2412,6 +2461,8 @@ struct RegisterRewardRow: View {
   let accountID: String
   let row: RewardsCardRow
   let asOf: String?
+  var placement: RewardFilledRow.Placement = .register
+  var mastheadName = false
   @State private var sheet: Sheet?
 
   private enum Sheet: Identifiable {
@@ -2427,7 +2478,8 @@ struct RegisterRewardRow: View {
       sheet = .detail
     } label: {
       RewardFilledRow(
-        projection: projection, currencyFormat: model.currencyFormat, placement: .register, memoryScope: "register")
+        projection: projection, currencyFormat: model.currencyFormat, placement: placement, memoryScope: "register",
+        mastheadName: mastheadName)
     }
     .buttonStyle(.plain)
     .accessibilityLabel("Rewards, \(projection.title)")

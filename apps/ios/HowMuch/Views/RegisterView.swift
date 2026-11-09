@@ -305,6 +305,8 @@ struct RegisterView: View {
   /// Rows picked to add up, by id; nil outside selection mode. Rows are kept
   /// so a pick survives a search or filter that hides it.
   @State private var selection: [String: Transaction]?
+  @State private var mastheadMetrics = RegisterMastheadMetrics()
+  @Environment(\.dynamicTypeSize) private var mastheadTypeSize
 
   init(
     scope: RegisterScope,
@@ -349,6 +351,7 @@ struct RegisterView: View {
       mode: showingUnapprovedQueue ? .inbox : .ledger
     )
     let prefetchRowID = olderPagePrefetchRowID(snapshot)
+    let masthead = scopedAccount.flatMap { mastheadScene(account: $0, rewards: model.registerRewards(forAccount: $0.id)) }
     List {
       workingBalanceSection(ledger: ledger)
       loadingOrFilterSections(snapshot, ledgerIsEmpty: ledger.isEmpty)
@@ -381,11 +384,26 @@ struct RegisterView: View {
     // On iPhone the List draws a swiped row past its own edge without this.
     .scrollClipDisabled(false)
     .padding(.horizontal, RegisterCard.inset)
+    // After the inset, so the sunrise runs edge to edge behind the inset rows.
+    .background {
+      if let masthead {
+        RegisterMastheadSky(
+          metrics: mastheadMetrics, exposure: masthead.exposure,
+          key: "\(model.settings.planID)|masthead|\(masthead.projection.cardID)")
+          .ignoresSafeArea(edges: .top)
+      }
+    }
     .background(Theme.canvas)
     // While selecting, Select All and Done take the bar and the card says
     // what is going on; a title between them got clipped.
     .navigationTitle(selection == nil ? title : "")
     .navigationBarTitleDisplayMode(.inline)
+    .onScrollGeometryChange(for: CGPoint.self) { geometry in
+      CGPoint(x: geometry.contentInsets.top, y: geometry.contentOffset.y + geometry.contentInsets.top)
+    } action: { [mastheadMetrics] _, value in
+      mastheadMetrics.topInset = value.x
+      mastheadMetrics.offset = value.y
+    }
     .toolbar {
       if selection == nil, let account = scopedAccount {
         ToolbarItem(placement: .principal) {
@@ -827,49 +845,160 @@ struct RegisterView: View {
       let working = account.balance
       let current = currentBalance(for: account, ledger: ledger)
       let reconciledSubtitle = lastReconciledSubtitle(ledger: ledger)
+      // Reward minimum/cap for this account's card, in view while adding.
+      let rewards = model.registerRewards(forAccount: account.id)
       Section {
-        VStack(alignment: .leading, spacing: 2) {
-          Text(MoneyCodec.displayString(for: current, currencyFormat: model.currencyFormat))
-            .font(.title2.weight(.bold))
-            .monospacedDigit()
-            .rollingNumber(current)
-            .foregroundStyle(Theme.textPrimary)
-            .accessibilityLabel(headlineAccessibilityLabel(current: current, working: working))
-          if current != working {
-            Text("Working \(MoneyCodec.displayString(for: working, currencyFormat: model.currencyFormat)) including posted scheduled")
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .accessibilityHidden(true)
+        if let masthead = mastheadScene(account: account, rewards: rewards) {
+          mastheadRow(
+            masthead, account: account, rewards: rewards, current: current, working: working,
+            reconciledSubtitle: reconciledSubtitle, ledger: ledger)
+        } else {
+          VStack(alignment: .leading, spacing: 2) {
+            Text(MoneyCodec.displayString(for: current, currencyFormat: model.currencyFormat))
+              .font(.title2.weight(.bold))
+              .monospacedDigit()
+              .rollingNumber(current)
+              .foregroundStyle(Theme.textPrimary)
+              .accessibilityLabel(headlineAccessibilityLabel(current: current, working: working))
+            if current != working {
+              Text("Working \(MoneyCodec.displayString(for: working, currencyFormat: model.currencyFormat)) including posted scheduled")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            }
+            Button {
+              isShowingReconciliation = true
+            } label: {
+              Text(reconciledSubtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(reconciledSubtitle)
+            .accessibilityHint("Opens reconcile.")
           }
-          Button {
-            isShowingReconciliation = true
-          } label: {
-            Text(reconciledSubtitle)
-              .font(.caption)
-              .foregroundStyle(.secondary)
-              .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+          .padding(.vertical, 8)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .listRowInsets(EdgeInsets())
+          .listRowBackground(Color.clear)
+          .listRowSeparator(.hidden)
+          .loadsRegisterRewards(accountID: account.id)
+          ForEach(rewards.rows) { row in
+            RegisterRewardRow(accountID: account.id, row: row, asOf: rewards.asOf)
+              .padding(.bottom, 8)
+              .listRowInsets(EdgeInsets())
+              .listRowBackground(Color.clear)
+              .listRowSeparator(.hidden)
           }
-          .buttonStyle(.plain)
-          .accessibilityLabel(reconciledSubtitle)
-          .accessibilityHint("Opens reconcile.")
-        }
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .listRowInsets(EdgeInsets())
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
-        .loadsRegisterRewards(accountID: account.id)
-        // Reward minimum/cap for this account's card, in view while adding.
-        let rewards = model.registerRewards(forAccount: account.id)
-        ForEach(rewards.rows) { row in
-          RegisterRewardRow(accountID: account.id, row: row, asOf: rewards.asOf)
-            .padding(.bottom, 8)
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
         }
       }
     }
+  }
+
+  // MARK: Sunrise masthead
+
+  private struct MastheadScene {
+    let exposure: RewardExposure
+    let projection: RewardRowProjection
+  }
+
+  /// The account's reward card, when it has a picture. One card only: two cards' words on one ground would
+  /// read as one scene for both. Accessibility sizes keep the paper row with its scene band, and selecting
+  /// keeps the plain header under the selection bar.
+  private func mastheadScene(account: Account, rewards: RegisterRewards) -> MastheadScene? {
+    guard selection == nil, !mastheadTypeSize.isAccessibilitySize, rewards.rows.count == 1,
+      let row = rewards.rows.first
+    else { return nil }
+    let projection = RewardRowProjection.make(row: row, asOf: rewards.asOf, isRange: false)
+    guard let exposure = RewardExposure(projection) else { return nil }
+    return MastheadScene(exposure: exposure, projection: projection)
+  }
+
+  /// The whole header as one row on the sunrise that `RegisterMastheadSky` draws behind the list: the
+  /// balance in the sky, with the reconcile date beside it, and the reward card's words on the ground.
+  /// The title above already names the card, so the words carry no name unless the card's differs.
+  private func mastheadRow(
+    _ masthead: MastheadScene, account: Account, rewards: RegisterRewards, current: Int, working: Int,
+    reconciledSubtitle: String, ledger: [Transaction]
+  ) -> some View {
+    let ink = masthead.projection.rewardType == .miles ? Theme.Face.inkMiles : Theme.Face.inkCashback
+    let softInk = ink.opacity(0.78)
+    let metrics = mastheadMetrics
+    let barBottom = mastheadMetrics.topInset
+    let balance = Text(MoneyCodec.displayString(for: current, currencyFormat: model.currencyFormat))
+      .font(.title2.weight(.bold))
+      .monospacedDigit()
+      .accessibilityLabel(headlineAccessibilityLabel(current: current, working: working))
+    let reconcile = Button {
+      isShowingReconciliation = true
+    } label: {
+      Text(mastheadReconciled(ledger: ledger))
+        .font(.footnote)
+        .foregroundStyle(softInk)
+        .frame(minHeight: 44)
+        .contentShape(.rect)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(reconciledSubtitle)
+    .accessibilityHint("Opens reconcile.")
+    return VStack(alignment: .leading, spacing: 0) {
+      VStack(alignment: .leading, spacing: 0) {
+        ViewThatFits(in: .horizontal) {
+          HStack(alignment: .firstTextBaseline, spacing: 12) {
+            balance.lineLimit(1)
+            Spacer(minLength: 0)
+            reconcile
+          }
+          VStack(alignment: .leading, spacing: 0) {
+            balance
+            reconcile
+          }
+        }
+        .rollingNumber(current)
+        .foregroundStyle(ink)
+        .accessibilityElement(children: .contain)
+        if current != working {
+          Text("Working \(MoneyCodec.displayString(for: working, currencyFormat: model.currencyFormat)) including posted scheduled")
+            .font(.caption)
+            .foregroundStyle(softInk)
+            .accessibilityHidden(true)
+        }
+      }
+      .mastheadFadesUnderBar(barBottom)
+      .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named("masthead")).maxY } action: {
+        metrics.skyWordsBottom = $0
+      }
+      RegisterRewardRow(
+        accountID: account.id, row: rewards.rows[0], asOf: rewards.asOf, placement: .masthead,
+        mastheadName: masthead.projection.title != account.name)
+        .mastheadFadesUnderBar(barBottom)
+        .padding(.top, RegisterMasthead.band)
+        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .named("masthead")).minY } action: {
+          metrics.groundWordsTop = $0
+        }
+    }
+    .padding(.top, 4)
+    .padding(.bottom, 14)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .coordinateSpace(.named("masthead"))
+    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { metrics.rowHeight = $0 }
+    .onDisappear { metrics.rowHeight = 0 }
+    .listRowInsets(EdgeInsets())
+    .listRowBackground(Color.clear)
+    .listRowSeparator(.hidden)
+    .loadsRegisterRewards(accountID: account.id)
+  }
+
+  /// The reconcile date as a caption beside the balance: "Reconciled Thu 11 Sep 2025".
+  private func mastheadReconciled(ledger: [Transaction]) -> String {
+    if let date = lastReconciledISODate(ledger: ledger) {
+      return "Reconciled \(LedgerDate.friendlyString(fromISO: date))"
+    }
+    if model.ledgerPhase != .loaded || model.isFillingHorizon {
+      return "Reconciled …"
+    }
+    return "Not reconciled"
   }
 
   @ViewBuilder

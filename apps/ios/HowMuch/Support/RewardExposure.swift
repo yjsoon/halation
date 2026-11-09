@@ -162,9 +162,24 @@ enum ExposureLayout: Equatable {
   /// A framed print: the detail sheet's 3:2 hero and the register's 90 × 60pt thumbnail. The full
   /// scene: the brand ridges, a level spend floor, the posterised rings and the hairline marker.
   case photo
+  /// An account register's masthead: the strip's ridges and sun behind the whole header, from the top of the
+  /// screen to the transactions. The light runs edge to edge with no veil, so the half-sun is the only
+  /// marker: a veil's edge would be a seam from the status bar down through the title.
+  /// `ceiling` is the bottom of the navigation bar: the climbing sun stops under it and draws no pour, so no
+  /// light washes the title or the bar's buttons.
+  case masthead(nameBottom: Double?, footTop: Double?, ceiling: Double = 0)
 
   /// The phone strip and band: the sun is the marker, and one soft glow stands in for the rings.
   var isPhone: Bool { self != .photo }
+
+  /// The strip and masthead lay their ground under measured words; nil elsewhere. The outer optional is
+  /// whether the layout has a foot at all.
+  var measuredFootTop: Double?? {
+    switch self {
+    case .strip(_, let footTop, _, _), .masthead(_, let footTop, _): return .some(footTop)
+    default: return nil
+    }
+  }
 }
 
 /// The brand ridges' rise (the app icon's two slopes), sampled at 65 even x from the web's shipped
@@ -201,7 +216,7 @@ struct ExposureScene {
   /// The sun's radius.
   var sunRadius: Double {
     switch layout {
-    case .strip, .window: return 10
+    case .strip, .window, .masthead: return 10
     case .band: return 7
     case .photo: return 0.045 * width
     }
@@ -215,6 +230,9 @@ struct ExposureScene {
     case .strip(let nameBottom, _, let drop, let relief):
       let name = (nameBottom ?? 0.28 * height) + max(0, drop)
       return (name + 2, name + 2 + max(0, relief))
+    case .masthead(let nameBottom, _, _):
+      let name = nameBottom ?? 0.28 * height
+      return (name + 2, name + 14)
     case .band: return (0.42 * height, 0.56 * height)
     case .window(let nameBottom):
       let high = max((nameBottom ?? 0.25 * height) + 2, 0.36 * height)
@@ -228,7 +246,7 @@ struct ExposureScene {
   /// there and its far end rises as the minimum fills.
   private var floorGap: Double {
     switch layout {
-    case .strip(_, let footTop, _, _):
+    case .strip(_, let footTop, _, _), .masthead(_, let footTop, _):
       let foot = footTop ?? 0.58 * height
       return max(4, foot - 3 - horizonRange.low)
     case .band: return 0.26 * height
@@ -293,13 +311,23 @@ struct ExposureScene {
     guard exposure.hasSun else { return nil }
     let u = pose.sunX
     let seat = layout.isPhone ? 0 : 0.08
-    return (u * width, pose.sunY(horizon: horizonY(at: u), r: sunRadius, seat: seat, lift: lifted))
+    let horizon = horizonY(at: u)
+    if case .masthead(_, _, let ceiling) = layout, pose.h >= 1 {
+      // The climb rises from its rest to just under the bar rather than off the top edge.
+      let rest = horizon - 1.15 * sunRadius
+      let top = min(rest, ceiling + 1.6 * sunRadius)
+      return (u * width, rest + (top - rest) * pose.v)
+    }
+    return (u * width, pose.sunY(horizon: horizon, r: sunRadius, seat: seat, lift: lifted))
   }
 
   /// The glow's radius `R`: grows with the climb, capped by the frame's height. The phone draws one
   /// smooth falloff rather than the posterised rings, which a short frame clips into arcs.
   var ringRadius: Double {
     let r = (0.14 + 0.24 * pose.v) * width
+    if case .masthead(_, _, let ceiling) = layout {
+      return min(r, (0.42 + 0.6 * pose.v) * max(20, horizonRange.high - ceiling))
+    }
     return layout.isPhone ? min(r, (0.42 + 0.6 * pose.v) * height) : r
   }
 
@@ -325,6 +353,7 @@ struct ExposureScene {
   /// (a card $2 short of $2,000 keeps its dusk), and a met card's first showing while its sweep runs,
   /// so the lit edge sweeps to the right edge instead of the whole band lighting at once.
   var inMinimumJourney: Bool {
+    if case .masthead = layout { return false }
     if exposure.stage == .gate { return true }
     // The print has no lift to light the last of the band, so a met card's sweep would end in a pop: it
     // shows the whole band lit, as the web's face does.
@@ -357,12 +386,16 @@ struct ExposureScene {
 
   /// Dark mode: the bloom's alpha over the sky.
   var bloomAlpha: Double {
-    appearance == .print && exposure.light == .journey ? 0.3 * pose.v : 0
+    guard appearance == .print, exposure.light == .journey else { return 0 }
+    // The masthead's sky runs behind the bar; a full bloom there tints the title and the glass buttons.
+    if case .masthead = layout { return 0.1 * pose.v }
+    return 0.3 * pose.v
   }
 
   /// The pour from the top edge: its alpha and radius (in points). Fades in from `v` 0.4.
   var pour: (alpha: Double, radius: Double)? {
     guard exposure.hasSun, exposure.light == .journey else { return nil }
+    if case .masthead = layout { return nil }
     let night = appearance == .print && exposure.miles
     let peak = appearance == .print && !exposure.miles ? 0.45 : 0.65
     let alpha = peak * min(1, max(0, (pose.v - 0.4) / 0.6))

@@ -678,3 +678,107 @@ struct RewardCardSlip: View {
     RewardsCalendar.shortLabel(iso, referenceISO: RewardsCalendar.today())
   }
 }
+
+// MARK: Register masthead
+
+/// An account register's sunrise masthead: the reward card's scene behind the whole header.
+enum RegisterMasthead {
+  /// The sky between the balance and the ground: the strip's band.
+  static let band: CGFloat = 34
+  /// How far the ground runs on under the transactions card, fading into the canvas.
+  static let underlap: CGFloat = 28
+}
+
+/// Where the masthead's words sit, measured in the header row, and the list's scroll, so that scrolling
+/// redraws the sky alone and never rebuilds the register.
+@MainActor
+@Observable
+final class RegisterMastheadMetrics {
+  /// The list's top inset (status bar, navigation bar and anything inset above the rows) and scroll offset.
+  var topInset: CGFloat = 0
+  var offset: CGFloat = 0
+  /// In the header row's own coordinates.
+  var skyWordsBottom: CGFloat?
+  var groundWordsTop: CGFloat?
+  var rowHeight: CGFloat = 0
+}
+
+/// The exposure scene behind the whole register header, from the top of the screen down to the
+/// transactions: the strip's sky, ridges and sun, laid out around the header's words. The `.masthead`
+/// layout lights the sky edge to edge, so no lit edge runs up through the title. While the minimum is
+/// still to reach, the strip's own picture (lit to the sun, unlit beyond) shows in a band about the
+/// horizon, fading out above it and before the words on the ground, so the read of how far there is to go
+/// stays where the sun is. Scrolling, the sky stays behind the bar while the horizon and the ground ride up
+/// with the words, and the scene fades once the horizon reaches the bar. The ground runs on under the top
+/// of the transactions card and fades into the canvas there. Pulled down, the sky stretches.
+struct RegisterMastheadSky: View {
+  let metrics: RegisterMastheadMetrics
+  let exposure: RewardExposure
+  let key: String
+
+  /// The scroll over which the scene fades once the horizon reaches the bar.
+  private static let fade: CGFloat = 56
+  /// How far above the horizon the lit edge reaches before it has faded out.
+  private static let edgeReach: CGFloat = 56
+
+  var body: some View {
+    let shift = metrics.offset
+    let top = metrics.topInset
+    let sky = metrics.skyWordsBottom.map { top + $0 - shift } ?? top
+    let ground = metrics.groundWordsTop.map { top + $0 - shift }
+    let underlap = RegisterMasthead.underlap
+    let height = max(top, top + metrics.rowHeight + underlap - shift)
+    let opacity = min(1, max(0, (sky + 2 - top + 12) / Self.fade))
+    ZStack(alignment: .top) {
+      RewardExposureAnimator(
+        exposure: exposure,
+        layout: .masthead(nameBottom: Double(sky), footTop: ground.map { Double($0) }, ceiling: Double(top)),
+        key: key)
+      if exposure.stage == .gate, let ground, height > 0 {
+        RewardExposureAnimator(
+          exposure: exposure,
+          layout: .strip(nameBottom: Double(sky), footTop: Double(ground)),
+          key: key + "|edge")
+          .mask { edgeBand(sky: sky, ground: ground, height: height) }
+      }
+    }
+    .frame(height: height)
+    .mask {
+      VStack(spacing: 0) {
+        Color.black
+        LinearGradient(colors: [.black, .black.opacity(0)], startPoint: .top, endPoint: .bottom)
+          .frame(height: underlap)
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    .opacity(metrics.rowHeight > 0 ? opacity : 0)
+    .allowsHitTesting(false)
+    .accessibilityHidden(true)
+    .accessibilityIgnoresInvertColors(true)
+  }
+
+  /// Opaque from just above the horizon down to the ground under it, clear above the reach and 6pt above
+  /// the ground's words.
+  private func edgeBand(sky: CGFloat, ground: CGFloat, height: CGFloat) -> some View {
+    let stops = [sky - Self.edgeReach, sky, ground - 16, ground - 6].map { min(1, max(0, $0 / height)) }
+    return LinearGradient(
+      stops: [
+        .init(color: .black.opacity(0), location: stops[0]),
+        .init(color: .black, location: max(stops[0], stops[1])),
+        .init(color: .black, location: max(stops[1], stops[2])),
+        .init(color: .black.opacity(0), location: max(stops[2], stops[3])),
+      ],
+      startPoint: .top, endPoint: .bottom)
+  }
+}
+
+extension View {
+  /// The masthead's words fade as they pass under the navigation bar, so no balance ghosts behind the
+  /// title over the sky. `barBottom` is the list's top inset.
+  func mastheadFadesUnderBar(_ barBottom: CGFloat) -> some View {
+    visualEffect { content, proxy in
+      let distance = proxy.frame(in: .scrollView).minY - barBottom
+      return content.opacity(min(1, max(0, (distance + 24) / 28)))
+    }
+  }
+}
