@@ -373,6 +373,14 @@ struct RegisterView: View {
     .listSectionMargins(.vertical, 0)
     .environment(\.defaultMinListHeaderHeight, 0)
     .scrollContentBackground(.hidden)
+    // The card's inset is the List's, so a swiped row is clipped at the card
+    // edge and its actions open inside it. It also keeps the List off the
+    // column's edges: a List touching the iPad sidebar is stretched under it,
+    // and the sidebar's width as safe area widened every swipe-action pane
+    // (a 70pt Approve opened 420pt).
+    // On iPhone the List draws a swiped row past its own edge without this.
+    .scrollClipDisabled(false)
+    .padding(.horizontal, RegisterCard.inset)
     .background(Theme.canvas)
     // While selecting, Select All and Done take the bar and the card says
     // what is going on; a title between them got clipped.
@@ -845,7 +853,6 @@ struct RegisterView: View {
           .accessibilityLabel(reconciledSubtitle)
           .accessibilityHint("Opens reconcile.")
         }
-        .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity, alignment: .leading)
         .listRowInsets(EdgeInsets())
@@ -856,7 +863,6 @@ struct RegisterView: View {
         let rewards = model.registerRewards(forAccount: account.id)
         ForEach(rewards.rows) { row in
           RegisterRewardRow(accountID: account.id, row: row, asOf: rewards.asOf)
-            .padding(.horizontal, 16)
             .padding(.bottom, 8)
             .listRowInsets(EdgeInsets())
             .listRowBackground(Color.clear)
@@ -956,7 +962,6 @@ struct RegisterView: View {
             style: .continuous
           )
         )
-        .padding(.horizontal, RegisterCard.inset)
         .listRowInsets(EdgeInsets())
     }
     .listSectionMargins(.vertical, 0)
@@ -1007,7 +1012,8 @@ struct RegisterView: View {
         } label: {
           Label("Approve", systemImage: "checkmark")
         }
-        .tint(Theme.inflow)
+        // The colour of the New dot that approving clears.
+        .tint(Theme.newStatus)
       }
       if selection == nil, transaction.isToConfirm {
         Button {
@@ -2704,7 +2710,7 @@ struct TransactionRow: View {
   }
 }
 
-/// The dated register rows sit on one card, inset like the balance above them.
+/// The List's side inset: the dated rows' card and the balance above it.
 private enum RegisterCard {
   static let inset: CGFloat = 16
 }
@@ -2721,7 +2727,6 @@ private extension View {
     return background(Theme.card)
       .clipShape(shape)
       .contentShape(shape)
-      .padding(.horizontal, RegisterCard.inset)
       .listRowInsets(EdgeInsets())
       .listRowBackground(Color.clear)
       .listRowSeparator(.hidden)
