@@ -96,6 +96,8 @@ interface PlanContextValue {
   accountPreferencesSync: AccountPreferencesState;
   updateAccountPreferences: (updater: (preferences: AccountPreferences) => AccountPreferences) => void;
   updateAccountIcon: (accountId: string, icon: string) => Promise<void>;
+  /** Renames an account and updates the sidebar once the server confirms. */
+  renameAccount: (accountId: string, name: string) => Promise<void>;
   /** Creates an account and adds it to the sidebar before resolving. */
   createAccount: (account: NewAccountBody) => Promise<Account>;
   retryAccountPreferences: () => void;
@@ -188,6 +190,7 @@ function provisionalPlanValue(
     },
     updateAccountPreferences: () => {},
     updateAccountIcon: async () => {},
+    renameAccount: async () => {},
     createAccount: () => Promise.reject(new Error("Still loading. Try again in a moment.")),
     createCategory: () => Promise.reject(new Error("Still loading. Try again in a moment.")),
     retryAccountPreferences: () => {},
@@ -513,6 +516,12 @@ export function PlanProvider({ children }: { children: ReactNode }) {
               setGeneration((n) => n + 1);
               throw cause;
             }
+          },
+          renameAccount: async (accountId, name) => {
+            const updated = await api.renameAccount(planId, accountId, name);
+            setValue((current) => current?.planId === planId
+              ? { ...current, accounts: current.accounts.map((account) => account.id === updated.id ? updated : account) }
+              : current);
           },
           createAccount: async (account) => {
             const first = accountsSnapshot.accounts.every((existing) => existing.deleted);

@@ -5,6 +5,8 @@ import type { LedgerStore } from "../storage";
 import { cardFlagNames, flagNameForColour } from "./flag-names";
 import { parseAppSettings, parseCreditCardWrite } from "./parse";
 import type { AppSettings, CreditCard } from "./types";
+import { rewardsToday } from "./engine/date-utils";
+import { cardOnDate, ruleChangeDates, withRuleHistory, type RuleChangeScope } from "./versions";
 
 export class RewardsAccountError extends Error {}
 
@@ -20,12 +22,20 @@ export async function createRewardsCard(repo: LedgerStore, planId: string, raw: 
   return card;
 }
 
+/**
+ * `appliesFrom` is the first day of the reward period the rule change starts
+ * in, "current_period" or "next_period" for the card's own period starts, or
+ * "everywhere" to correct every period. Without it (older clients) the latest
+ * rules change in place and earlier rules stay as they were.
+ */
 export async function patchRewardsCard(
   repo: LedgerStore,
   planId: string,
   cardId: string,
   raw: unknown,
+  appliesFrom?: unknown,
 ): Promise<CreditCard> {
+  const requested = parseRuleChangeScope(appliesFrom);
   const existing = findLiveCard((await repo.getRewardsTrackerSnapshot(planId)).cards, cardId);
   if (!existing) throw new NotFoundError("Rewards card not found");
   const draft: Record<string, unknown> = { ...existing, ...asCardObject(raw), id: cardId };
@@ -33,18 +43,36 @@ export async function patchRewardsCard(
   if (!await repo.findLiveAccountId(planId, accountId)) {
     throw new RewardsAccountError("ynabAccountId must match a live account");
   }
-  const card = parseCreditCardWrite({ ...draft, ynabAccountId: accountId });
+  // The server owns the history: a client's copy may be stale.
+  const previous = parseCreditCardWrite({ ...existing, ynabAccountId: accountId });
+  const scope = requested === "current_period" || requested === "next_period"
+    ? ruleChangeDates(previous, rewardsToday())[requested === "current_period" ? "current" : "next"]
+    : requested;
+  const next = parseCreditCardWrite({ ...draft, ynabAccountId: accountId, ruleHistory: undefined });
+  const card = withRuleHistory(previous, next, scope);
   // Only the card changes. Transactions keep the name they were flagged
   // with: a rename applies to flags set from now on, not to history.
   await repo.upsertRewardsTrackerCard(planId, card);
   return card;
 }
 
+function parseRuleChangeScope(value: unknown): RuleChangeScope | "current_period" | "next_period" | undefined {
+  if (value == null) return undefined;
+  if (value === "everywhere" || value === "current_period" || value === "next_period") return value;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value) {
+    return value;
+  }
+  throw new ValidationError("applies_from must be a YYYY-MM-DD date, current_period, next_period or everywhere");
+}
+
 export async function stampTransactionFlagName(
   repo: LedgerStore,
   planId: string,
   accountId: string,
-  patch: { flag_color?: string | null; flag_name?: string | null },
+  patch: { flag_color?: string | null; flag_name?: string | null; date?: unknown },
+  /** The transaction's date when the patch does not change it; defaults to today. */
+  date?: string,
 ): Promise<void> {
   if (!Object.prototype.hasOwnProperty.call(patch, "flag_color")) return;
   if (Object.prototype.hasOwnProperty.call(patch, "flag_name")) return;
@@ -53,7 +81,9 @@ export async function stampTransactionFlagName(
     return Boolean(entry && typeof entry === "object" && !Array.isArray(entry) && (entry as { ynabAccountId?: string }).ynabAccountId === accountId);
   }) as CreditCard | undefined;
   if (!card) return;
-  patch.flag_name = flagNameForColour(cardFlagNames(card), patch.flag_color ?? null);
+  // The name in force on the transaction's date, not a later one.
+  const on = typeof patch.date === "string" ? patch.date : date ?? rewardsToday();
+  patch.flag_name = flagNameForColour(cardFlagNames(cardOnDate(card, on)), patch.flag_color ?? null);
 }
 
 export async function deleteRewardsCard(repo: LedgerStore, planId: string, cardId: string): Promise<object> {

@@ -585,10 +585,11 @@ async function handleV1(
       // edit does; otherwise the row keeps the old colour's name.
       for (const edit of edits) {
         if (!Object.prototype.hasOwnProperty.call(edit.patch, "flag_color") || Object.prototype.hasOwnProperty.call(edit.patch, "flag_name")) continue;
-        const accountId = typeof edit.patch.account_id === "string" && edit.patch.account_id
-          ? edit.patch.account_id
-          : (await repo.getTransaction(planId, await repo.resolveTransactionLookup(planId, edit.lookup))).account_id;
-        await stampTransactionFlagName(repo, planId, accountId, edit.patch);
+        const movesTo = typeof edit.patch.account_id === "string" && edit.patch.account_id ? edit.patch.account_id : null;
+        const current = movesTo && typeof edit.patch.date === "string"
+          ? null
+          : await repo.getTransaction(planId, await repo.resolveTransactionLookup(planId, edit.lookup));
+        await stampTransactionFlagName(repo, planId, movesTo ?? current!.account_id, edit.patch, current?.date);
       }
       const result = await repo.updateTransactions(planId, edits);
       return json({ data: result });
@@ -697,10 +698,9 @@ async function handleV1(
       assertTransactionFieldTypes(patch);
       if (Object.prototype.hasOwnProperty.call(patch, "flag_color") && !Object.prototype.hasOwnProperty.call(patch, "flag_name")) {
         // A move and a flag in one edit take the destination card's names.
-        const accountId = typeof patch.account_id === "string" && patch.account_id
-          ? patch.account_id
-          : (await repo.getTransaction(planId, transactionId)).account_id;
-        await stampTransactionFlagName(repo, planId, accountId, patch);
+        const movesTo = typeof patch.account_id === "string" && patch.account_id ? patch.account_id : null;
+        const current = movesTo && typeof patch.date === "string" ? null : await repo.getTransaction(planId, transactionId);
+        await stampTransactionFlagName(repo, planId, movesTo ?? current!.account_id, patch, current?.date);
       }
       const updated = await repo.updateTransaction(planId, transactionId, patch);
       return json({ data: { transaction: updated, server_knowledge: await repo.getServerKnowledge(planId) } });
@@ -991,7 +991,7 @@ async function handleNative(
       return json({ data: { card } }, 201);
     }
     if (segments[2] === "cards" && segments.length === 4 && method === "PATCH") {
-      const card = await patchRewardsCard(repo, targetPlanId, segments[3], body.card);
+      const card = await patchRewardsCard(repo, targetPlanId, segments[3], body.card, body.applies_from);
       return json({ data: { card } });
     }
     if (segments[2] === "cards" && segments.length === 4 && method === "DELETE") {

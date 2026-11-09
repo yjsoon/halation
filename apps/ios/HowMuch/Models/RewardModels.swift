@@ -211,6 +211,11 @@ struct CardSpendingTier: Codable, Equatable, Identifiable, Sendable {
   var subcategories: [SpendingTierSubcategory]?
 }
 
+struct CardRuleVersion: Codable, Equatable, Sendable {
+  /// The first day of the reward period that uses later rules.
+  var until: String
+}
+
 struct CreditCard: Codable, Equatable, Identifiable, Sendable {
   var id: String
   var name: String
@@ -229,6 +234,9 @@ struct CreditCard: Codable, Equatable, Identifiable, Sendable {
   var subcategories: [CardSubcategory]?
   var spendingTiers: [CardSpendingTier]?
   var flagNames: [String: String]?
+  /// Earlier rule sets, oldest first, each kept for periods starting before
+  /// `until`. The server owns this list and ignores a client's copy.
+  var ruleHistory: [CardRuleVersion]?
 
   private enum CodingKeys: String, CodingKey {
     case id
@@ -248,6 +256,7 @@ struct CreditCard: Codable, Equatable, Identifiable, Sendable {
     case subcategories
     case spendingTiers
     case flagNames
+    case ruleHistory
   }
 
   init(
@@ -267,7 +276,8 @@ struct CreditCard: Codable, Equatable, Identifiable, Sendable {
     subcategoriesEnabled: Bool? = nil,
     subcategories: [CardSubcategory]? = nil,
     spendingTiers: [CardSpendingTier]? = nil,
-    flagNames: [String: String]? = nil
+    flagNames: [String: String]? = nil,
+    ruleHistory: [CardRuleVersion]? = nil
   ) {
     self.id = id
     self.name = name
@@ -286,6 +296,7 @@ struct CreditCard: Codable, Equatable, Identifiable, Sendable {
     self.subcategories = subcategories
     self.spendingTiers = spendingTiers
     self.flagNames = flagNames
+    self.ruleHistory = ruleHistory
   }
 
   init(from decoder: Decoder) throws {
@@ -315,6 +326,7 @@ struct CreditCard: Codable, Equatable, Identifiable, Sendable {
       spendingTiers = nil
     }
     flagNames = try container.decodeIfPresent([String: String].self, forKey: .flagNames)
+    ruleHistory = try container.decodeIfPresent([CardRuleVersion].self, forKey: .ruleHistory)
   }
 
   func encode(to encoder: Encoder) throws {
@@ -336,6 +348,19 @@ struct CreditCard: Codable, Equatable, Identifiable, Sendable {
     try container.encodeIfPresent(subcategories, forKey: .subcategories)
     try container.encodeIfPresent(spendingTiers, forKey: .spendingTiers)
     try container.encodeIfPresent(flagNames, forKey: .flagNames)
+    // `ruleHistory` is read-only here: the app keeps only its dates, and the
+    // server owns the list.
+  }
+
+  /// Whether the rules that change by reward period match. Period settings
+  /// and the card's name are not rules.
+  func hasSameRules(as other: CreditCard) -> Bool {
+    earningRate == other.earningRate && earningBlockSize == other.earningBlockSize
+      && minimumSpend == other.minimumSpend && maximumSpend == other.maximumSpend
+      && (subcategoriesEnabled ?? false) == (other.subcategoriesEnabled ?? false)
+      && (subcategories ?? []) == (other.subcategories ?? [])
+      && (spendingTiers ?? []) == (other.spendingTiers ?? [])
+      && (flagNames ?? [:]) == (other.flagNames ?? [:])
   }
 
   func jsonObject(clearMissing: Bool = false) -> [String: Any] {

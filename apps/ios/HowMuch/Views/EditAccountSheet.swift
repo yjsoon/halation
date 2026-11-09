@@ -10,6 +10,9 @@ struct EditAccountSheet: View {
   @State private var error: String?
   @State private var isSaving = false
   @State private var isEditingReminders = false
+  @State private var isEditingRewards = false
+  /// The account's rewards card once loaded: `.some(nil)` when it has none.
+  @State private var rewardsCard: CreditCard??
   @FocusState private var nameFocused: Bool
 
   init(account: Account) {
@@ -41,35 +44,24 @@ struct EditAccountSheet: View {
               .foregroundStyle(Theme.outflow)
           }
           if AccountKind(rawValue: account.type)?.isCredit == true {
-            Button {
+            settingsRow(icon: "bell", title: "Payment reminders", summary: reminderSummary) {
               isEditingReminders = true
-            } label: {
-              HStack(spacing: 12) {
-                Image(systemName: "bell")
-                  .foregroundStyle(Theme.accent)
-                  .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                  Text("Payment reminders")
-                    .font(.body)
-                    .foregroundStyle(Theme.textPrimary)
-                  Text(reminderSummary)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                  .font(.footnote.weight(.semibold))
-                  .foregroundStyle(.tertiary)
-                  .accessibilityHidden(true)
-              }
-              .padding(.horizontal, Theme.FormRow.horizontalPadding)
-              .padding(.vertical, Theme.FormRow.verticalPadding)
-              .contentShape(Rectangle())
             }
-            .buttonStyle(.plain)
-            .ynabCard()
-            .disabled(isSaving)
             .accessibilityIdentifier("edit-account-payment-reminders")
+          }
+          if let card = rewardsCard, card != nil || AccountKind(rawValue: account.type)?.isCredit == true {
+            settingsRow(
+              icon: "creditcard", title: card == nil ? "Set Up Rewards" : "Rewards",
+              summary: rewardsSummary(card)
+            ) {
+              isEditingRewards = true
+            }
+            .accessibilityIdentifier("edit-account-rewards")
+            if card != nil {
+              Text("Rules change by reward period. Earlier periods keep their rules.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            }
           }
         }
         .padding(16)
@@ -84,7 +76,57 @@ struct EditAccountSheet: View {
       .sheet(isPresented: $isEditingReminders) {
         CardPaymentTermsSheet(account: account, existing: model.cardPayments.terms(for: account.id))
       }
+      .sheet(isPresented: $isEditingRewards, onDismiss: { Task { await loadRewardsCard() } }) {
+        RewardCardEditorView(cardID: rewardsCard??.id, accountID: account.id)
+      }
+      .task { await loadRewardsCard() }
     }
+  }
+
+  private func loadRewardsCard() async {
+    guard let snapshot = try? await model.apiClient.fetchRewardsTrackerSnapshot(
+      planID: model.settings.planID)
+    else { return }
+    rewardsCard = .some(snapshot.cards.first { $0.ynabAccountId == account.id })
+  }
+
+  private func rewardsSummary(_ card: CreditCard?) -> String {
+    guard let card else { return "Earning rate, maximum spend and flags" }
+    let earlier = card.ruleHistory?.count ?? 0
+    return earlier == 0
+      ? "Earning rate, maximum spend and flags"
+      : "Earning rate, maximum spend and flags · Earlier rules (\(earlier))"
+  }
+
+  private func settingsRow(
+    icon: String, title: String, summary: String, action: @escaping () -> Void
+  ) -> some View {
+    Button(action: action) {
+      HStack(spacing: 12) {
+        Image(systemName: icon)
+          .foregroundStyle(Theme.accent)
+          .accessibilityHidden(true)
+        VStack(alignment: .leading, spacing: 2) {
+          Text(title)
+            .font(.body)
+            .foregroundStyle(Theme.textPrimary)
+          Text(summary)
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+        }
+        Spacer()
+        Image(systemName: "chevron.right")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(.tertiary)
+          .accessibilityHidden(true)
+      }
+      .padding(.horizontal, Theme.FormRow.horizontalPadding)
+      .padding(.vertical, Theme.FormRow.verticalPadding)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .ynabCard()
+    .disabled(isSaving)
   }
 
   private var reminderSummary: String {

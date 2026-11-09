@@ -620,8 +620,12 @@ struct RewardCardEditorView: View {
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   let cardID: String?
+  /// Preselects the account when setting up rewards from an account.
+  var accountID: String? = nil
 
   @State private var draft = RewardCardDraft.empty()
+  @State private var originalCard: CreditCard?
+  @State private var pendingRuleChange: CreditCard?
   @State private var loadPhase: LoadPhase = .idle
   @State private var errorMessage: String?
   @State private var isSaving = false
@@ -732,6 +736,27 @@ struct RewardCardEditorView: View {
           Text("Discard the unsaved changes in this draft?")
         }
       ) { dismiss() }
+      .confirmationDialog(
+        "When do the rule changes apply?",
+        isPresented: Binding(
+          get: { pendingRuleChange != nil }, set: { if !$0 { pendingRuleChange = nil } }),
+        titleVisibility: .visible,
+        presenting: pendingRuleChange
+      ) { card in
+        let dates = ruleChangeDates
+        Button(dates.map { "This period, from \(dateLabel($0.current))" } ?? "This period") {
+          Task { await write(card, appliesFrom: "current_period") }
+        }
+        Button(dates.map { "Next period, from \(dateLabel($0.next))" } ?? "Next period") {
+          Task { await write(card, appliesFrom: "next_period") }
+        }
+        Button("Correct everywhere") {
+          Task { await write(card, appliesFrom: "everywhere") }
+        }
+        Button("Cancel", role: .cancel) {}
+      } message: { _ in
+        Text("Earlier periods keep their rules. Correct everywhere also changes them.")
+      }
       .interactiveDismissDisabled(isDirty || isSaving || isDeleting)
       .task(id: cardID ?? "new") {
         await loadCard()
@@ -1036,6 +1061,16 @@ struct RewardCardEditorView: View {
       colour == .unflagged ? "None" : colour.title, text: colourNameBinding(for: colour)
     )
     .accessibilityLabel("\(colour == .unflagged ? "None" : colour.title) name")
+  }
+
+  /// The first days of the saved card's current and next reward periods, as
+  /// the server resolves "current_period" and "next_period".
+  private var ruleChangeDates: (current: String, next: String)? {
+    guard let originalCard, let period = RewardDraftPeriod.make(RewardCardDraft(card: originalCard)),
+      let end = RewardsCalendar.date(period.end),
+      let next = RewardsCalendar.calendar.date(byAdding: .day, value: 1, to: end)
+    else { return nil }
+    return (period.start, RewardsCalendar.isoString(next))
   }
 
   private func dateLabel(_ iso: String) -> String {
@@ -1376,8 +1411,16 @@ struct RewardCardEditorView: View {
           return
         }
         draft = RewardCardDraft(card: card)
+        originalCard = card
       } else {
         draft = .empty()
+        if let accountID, !takenAccountIDs.contains(accountID),
+          let account = model.accounts.first(where: { $0.id == accountID })
+        {
+          draft.ynabAccountId = accountID
+          draft.name = RewardCardAccounts.syncedName(
+            name: draft.name, previousAccountName: nil, nextAccountName: account.name)
+        }
       }
       originalDraft = draft
       loadPhase = .loaded
@@ -1422,6 +1465,16 @@ struct RewardCardEditorView: View {
       path = rule.map { [.rule($0)] } ?? []
       return
     }
+    // A cap never changes partway through a reward period, so changed rules
+    // ask which period they start in.
+    if let originalCard, !written.hasSameRules(as: originalCard) {
+      pendingRuleChange = written
+      return
+    }
+    await write(written, appliesFrom: nil)
+  }
+
+  private func write(_ written: CreditCard, appliesFrom: String?) async {
     isSaving = true
     errorMessage = nil
     do {
@@ -1429,7 +1482,8 @@ struct RewardCardEditorView: View {
         _ = try await model.apiClient.updateRewardCard(
           planID: model.settings.planID,
           cardID: cardID,
-          card: written
+          card: written,
+          appliesFrom: appliesFrom
         )
       } else {
         _ = try await model.apiClient.createRewardCard(

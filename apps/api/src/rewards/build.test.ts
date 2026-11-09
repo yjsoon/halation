@@ -198,3 +198,38 @@ function txn(partial: Partial<Transaction> & Pick<Transaction, "id" | "amount">)
     ...partial,
   };
 }
+
+// Rule history: later edits must not change past rewards. The latest rules
+// apply only from the last history entry's `until`.
+test("a closed period keeps the rules that were in force for it", () => {
+  const card: CreditCard = {
+    ...cappedCard, maximumSpend: null, earningRate: 3,
+    ruleHistory: [{ until: "2026-05-01", rules: { earningRate: 2, maximumSpend: null } }],
+  };
+  const report = reportFor([
+    txn({ id: "april", date: "2026-04-10", amount: -100000 }),
+    txn({ id: "may", date: "2026-05-10", amount: -100000 }),
+  ], { cards: [card] });
+  expect(report.transaction_rewards).toEqual({
+    april: { reward: 200, reward_dollars: 4 },
+    may: { reward: 300, reward_dollars: 6 },
+  });
+});
+
+test("a change partway through a multi-month reward period waits for the next period", () => {
+  // Version boundary on 1 Apr, inside the 1 Mar to 31 May period: the whole
+  // period keeps the cap and rate it started with.
+  const card: CreditCard = {
+    ...cappedCard, earningRate: 3, maximumSpend: 500,
+    rewardPeriod: { monthCount: 3, anchorDate: "2026-03-01", monthlyMinimumSpend: 0 },
+    ruleHistory: [{ until: "2026-04-01", rules: { earningRate: 2, maximumSpend: 1000 } }],
+  };
+  const report = reportFor([
+    txn({ id: "march", date: "2026-03-10", amount: -600000 }),
+    txn({ id: "april", date: "2026-04-10", amount: -600000 }),
+  ], { cards: [card], from: null, to: "2026-05-31" });
+  const calculation = report.cards[0]!.calculation;
+  expect(calculation.periods?.map((p) => [p.start, p.end])).toEqual([["2026-03-01", "2026-05-31"]]);
+  expect(calculation.maximum_spend).toBe(1000);
+  expect(calculation.reward_earned).toBe(2000);
+});

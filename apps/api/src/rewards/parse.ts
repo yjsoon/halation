@@ -1,6 +1,8 @@
 import { ValidationError } from "../repository";
 import { parseCardFlagNames } from "./flag-names";
 import { UNFLAGGED_FLAG, YNAB_FLAG_COLORS, type YnabFlagColor } from "./flags";
+import type { CardRules, CardRuleVersion } from "@howmuch/contract";
+import { cardRules } from "./versions";
 import type {
   AppSettings,
   CardRewardPeriod,
@@ -128,7 +130,33 @@ export function parseCreditCardWrite(value: unknown): CreditCard {
   if (spendingTiers) card.spendingTiers = spendingTiers;
   const flagNames = parseCardFlagNames(raw.flagNames);
   if (flagNames) card.flagNames = flagNames;
+  const ruleHistory = parseRuleHistory(raw.ruleHistory);
+  if (ruleHistory) card.ruleHistory = ruleHistory;
   return card;
+}
+
+function parseRuleHistory(value: unknown): CardRuleVersion[] | undefined {
+  if (value == null) return undefined;
+  if (!Array.isArray(value)) throw new ValidationError("ruleHistory must be an array");
+  let previous = "";
+  const history = value.map((entry) => {
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new ValidationError("ruleHistory entries must be objects");
+    const { until, rules } = entry as Record<string, unknown>;
+    if (typeof until !== "string" || !isCalendarDate(until) || until <= previous) {
+      throw new ValidationError("ruleHistory until dates must be valid and increasing");
+    }
+    previous = until;
+    if (!rules || typeof rules !== "object" || Array.isArray(rules)) throw new ValidationError("ruleHistory rules must be an object");
+    const parsed = parseCreditCardWrite({ ...cardRules(rules as CardRules), id: "rules", name: "rules", ynabAccountId: "rules" });
+    return { until, rules: cardRules(parsed) };
+  });
+  return history.length ? history : undefined;
+}
+
+function isCalendarDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }
 
 function parseBillingCycle(value: unknown): CreditCard["billingCycle"] | undefined {

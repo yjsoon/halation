@@ -15,7 +15,7 @@ import { FilterRail } from "../components/FilterRail";
 import { FlagTag } from "../components/FlagTag";
 import { CategorySelect } from "../components/CategorySelect";
 import { CardTermsDialog } from "../components/CardTermsDialog";
-import { CardCategoryNames } from "../components/CardCategoryNames";
+import { CardSettings } from "../components/CardSettings";
 import { CategorySuggestionReview } from "../components/CategorySuggestionReview";
 import { RegisterComposeRow } from "../components/RegisterComposeRow";
 import { RegisterEditableRow, type RowEditSurface } from "../components/RegisterEditableRow";
@@ -277,11 +277,13 @@ export function TransactionsPage() {
     suggestButtonRef.current?.isConnected ? suggestButtonRef.current : selectAllFallback());
   const [reconcileDraft, setReconcileDraft] = useState<ReconcileDraft | null>(null);
   const [cardTermsOpen, setCardTermsOpen] = useState(false);
-  const [categoryNamesCardId, setCategoryNamesCardId] = useState<string | null>(null);
-  const [categoryNamesSaving, setCategoryNamesSaving] = useState(false);
-  const categoryNamesButtonRef = useRef<HTMLButtonElement>(null);
-  const categoryNamesFirstFieldRef = useRef<HTMLInputElement>(null);
-  useConfirmationFocus(selectedRewardCard?.id === categoryNamesCardId, categoryNamesFirstFieldRef, () => categoryNamesButtonRef.current);
+  const [cardTermsGeneration, setCardTermsGeneration] = useState(0);
+  const [cardSettingsAccountId, setCardSettingsAccountId] = useState<string | null>(null);
+  const [cardSettingsSaving, setCardSettingsSaving] = useState(false);
+  const cardSettingsButtonRef = useRef<HTMLButtonElement>(null);
+  const cardSettingsFirstFieldRef = useRef<HTMLInputElement>(null);
+  const cardSettingsOpen = Boolean(selectedAccount && cardSettingsAccountId === selectedAccount.id);
+  useConfirmationFocus(cardSettingsOpen, cardSettingsFirstFieldRef, () => cardSettingsButtonRef.current);
   const reconcileFirstFieldRef = useRef<HTMLSelectElement>(null);
   useConfirmationFocus(reconcileDraft?.operationSeed, reconcileFirstFieldRef, () => addTransactionRef.current);
   const [reconciliationPreviewGeneration, setReconciliationPreviewGeneration] = useState(0);
@@ -1723,33 +1725,24 @@ export function TransactionsPage() {
               Reconcile
             </button>
           )}
-          {selectedAccount && isCardAccount(selectedAccount) && !selectedAccount.closed && (
+          {selectedAccount && isCardAccount(selectedAccount) && (
             <button
               type="button"
-              className="register-add-link register-secondary-action register-payment-reminders"
-              onClick={() => setCardTermsOpen(true)}
+              ref={cardSettingsButtonRef}
+              className="register-add-link register-secondary-action register-card-settings"
+              aria-expanded={cardSettingsOpen}
+              aria-controls="card-settings"
+              disabled={cardSettingsSaving}
+              onClick={() => setCardSettingsAccountId(cardSettingsOpen ? null : selectedAccount.id)}
             >
-              Payment reminders
-            </button>
-          )}
-          {selectedRewardCard && (
-            <button
-              type="button"
-              ref={categoryNamesButtonRef}
-              className="register-add-link register-secondary-action register-reward-categories"
-              aria-expanded={categoryNamesCardId === selectedRewardCard.id}
-              aria-controls="card-category-names"
-              disabled={categoryNamesSaving}
-              onClick={() => setCategoryNamesCardId((current) => current === selectedRewardCard.id ? null : selectedRewardCard.id)}
-            >
-              Reward categories <span aria-hidden="true">{categoryNamesCardId === selectedRewardCard.id ? "▴" : "▾"}</span>
+              Card settings <span aria-hidden="true">{cardSettingsOpen ? "▴" : "▾"}</span>
             </button>
           )}
           {cardTermsOpen && selectedAccount && (
             <CardTermsDialog
               accountId={selectedAccount.id}
               onClose={() => setCardTermsOpen(false)}
-              onSaved={(message) => { setMutationError(null); setMutationSuccess(message); }}
+              onSaved={(message) => { setMutationError(null); setMutationSuccess(message); setCardTermsGeneration((n) => n + 1); }}
             />
           )}
         </div>
@@ -2139,17 +2132,20 @@ export function TransactionsPage() {
 
       {registerLoaded && (
         <section className="report-section">
-          {selectedRewardCard && categoryNamesCardId === selectedRewardCard.id && <CardCategoryNames
-            key={`${planId}:${selectedRewardCard.id}`}
+          {selectedAccount && cardSettingsOpen && <CardSettings
+            key={`${planId}:${selectedAccount.id}:${selectedRewardCard?.id ?? "none"}`}
             planId={planId}
+            account={selectedAccount}
             card={selectedRewardCard}
-            firstFieldRef={categoryNamesFirstFieldRef}
-            onSavingChange={setCategoryNamesSaving}
-            onClose={() => setCategoryNamesCardId(null)}
-            onSaved={(card) => {
-              setSavedRewardCards((previous) => ({ planId, cards: { ...(previous.planId === planId ? previous.cards : {}), [card.id]: card } }));
+            termsGeneration={cardTermsGeneration}
+            onEditTerms={() => setCardTermsOpen(true)}
+            firstFieldRef={cardSettingsFirstFieldRef}
+            onSavingChange={setCardSettingsSaving}
+            onClose={() => setCardSettingsAccountId(null)}
+            onSaved={(message, card) => {
+              if (card) setSavedRewardCards((previous) => ({ planId, cards: { ...(previous.planId === planId ? previous.cards : {}), [card.id]: card } }));
               setMutationError(null);
-              setMutationSuccess("Category names saved.");
+              setMutationSuccess(message);
               refreshFirstPage();
               reload();
             }}

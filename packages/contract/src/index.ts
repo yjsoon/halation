@@ -370,4 +370,29 @@ export interface CreditCard {
   subcategories?: CardSubcategory[];
   spendingTiers?: CardSpendingTier[];
   flagNames?: Record<string, string>;
+  /**
+   * Rules the card used before later changes, oldest first. An entry applies
+   * to reward periods that start before its `until` date and on or after the
+   * previous entry's. The card's own rule fields apply from the last `until`.
+   * The server keeps this list; clients send `applies_from` with a save.
+   */
+  ruleHistory?: CardRuleVersion[];
+}
+
+/** The fields that change by reward period and keep their history. */
+export type CardRules = Pick<
+  CreditCard,
+  | "earningRate"
+  | "earningBlockSize"
+  | "minimumSpend"
+  | "maximumSpend"
+  | "subcategoriesEnabled"
+  | "subcategories"
+  | "spendingTiers"
+  | "flagNames"
+>;
+
+export interface CardRuleVersion {
+  until: string;
+  rules: CardRules;
 }

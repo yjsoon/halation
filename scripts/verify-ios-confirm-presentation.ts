@@ -7,6 +7,7 @@ const iosRoot = join(root, "apps/ios");
 const ALLOWED: string[] = [
   'apps/ios/HowMuch/Views/RegisterView.swift:"This transaction hasn’t reached the server."', // Retry and discard are two actions
   'apps/ios/HowMuch/Views/AddTransactionsView.swift:"Attach"', // Photo Library / Camera is multi-choice, not a binary confirmation
+  'apps/ios/HowMuch/Views/RewardCardEditorView.swift:"When do the rule changes apply?"', // This period / Next period / Correct everywhere is multi-choice
 ];
 const pattern = /\.confirmationDialog\s*\(/g;
 

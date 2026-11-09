@@ -8,6 +8,7 @@ An existing account’s name, type, and icon can be edited on device. Accounts r
 - `ios-edit-account-type` changes Everyday Account from Checking to Savings and keeps the balance.
 - `ios-edit-account-tracking` shows the Budget / Tracking note when a type move crosses the plan.
 - `ios-edit-account-http` matches `type` `savings` and unchanged `balance` after save.
+- `ios-edit-account-rewards` shows **Payment reminders** and **Rewards** rows on a credit card. **Rewards** opens **Edit Rewards**; changed rules ask when they apply.
 
 ## How to get to it (user POV)
 
@@ -28,6 +29,7 @@ Preconditions:
 - **Save.** Trailing `Save` is enabled. Choose `Save`. Sheet dismisses. Everyday Account stays under `Cash`.
 - **HTTP match.** `control-howmuch http GET /v1/plans/local-plan/accounts` includes Everyday Account with `type` `savings`, `on_budget` true, and the same `balance` as before the edit.
 - **Tracking note.** Open **Edit Account** again. Change Type to `Mortgage`. Footnote `Moves the account from Budget to Tracking. Balances do not change.` Cancel without saving.
+- **Rewards.** With `fixtures/rewards-tracker-export.json` imported, open **Edit Account** on Travel Card. Rows `Payment reminders` and `Rewards`, then the footnote `Rules change by reward period. Earlier periods keep their rules.` Tap `Rewards`. **Edit Rewards** opens. Change the earning rate and tap `Save`. A dialog `When do the rule changes apply?` offers `This period, from …`, `Next period, from …` and `Correct everywhere`. Choose `This period`. The snapshot shows a `ruleHistory` entry as in [rewards card edit](./rewards-card-edit.md). A credit card without rewards shows `Set Up Rewards`, which opens the editor with that account chosen.
 - **Proof.** Screenshot the open sheet with Type Savings (`artifacts/ios-edit-account/sheet.png`) and the HTTP JSON (`artifacts/ios-edit-account/account.json`).
 
 ## Gotchas

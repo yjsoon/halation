@@ -8,6 +8,7 @@ Rewards cards are stored on the plan and edited in HowMuch. **Add card** opens `
 - `rewards-create` saves a native card mapped to **Travel Card** and returns to Rewards.
 - `rewards-edit-delete` loads a stored card at `/rewards/:cardId`, then **Delete card** after the in-page confirm.
 - `rewards-capped-visible` keeps a capped tile on the board with **Cap reached** and still opens the same card at `/rewards/:cardId`.
+- `card-settings-rules` edits rates, caps and colour names from **Card settings** on the card's register. Changed rules apply from a reward period's start and earlier periods keep theirs.
 
 ## How to get to it (user POV)
 
@@ -29,6 +30,8 @@ Preconditions:
 - **Create.** HowMuch card `Travel Card`. Name fills to `Travel Card`. Issuer `UOB`. Type `Cashback`. Featured stays checked. Earning rate `1`. Choose **Save card**. Rewards lists a Cashback tile named `Travel Card`.
 - **Edit.** Choose the `Travel Card` cashback tile. Title is `Edit card · Halation`. HowMuch card is `Travel Card`. The account ledger lists Travel Card rows. Choose **Delete card**. Confirm heading is `Delete this reward card?`. Choose **Delete card**. Rewards no longer lists that cashback `Travel Card`.
 - **Lane 5.** Import `fixtures/rewards-tracker-export.json` from Settings → Rewards import if Travel Card is not already stored. Open `{web_url}/rewards/card-travel`. Set Maximum spend to `1`. Choose **Save card**. The Rewards board still shows the Travel Card tile, with the **Cap reached** meter and the sun set behind the ridge. Open `{web_url}/rewards/card-travel` again. The editor still opens with heading `Edit card` and account `Travel Card`.
+- **Card settings.** With `card-travel` imported, open the Travel Card register and choose **Card settings**. Bands are `Account`, `Payment reminders` and `Rewards`. Rename Red to `Food` and set its reward value from `4` to `3`. **Applies from** offers `This period, from …`, `Next period, from …` and `Correct everywhere`. Keep **This period** and choose **Save rewards**. `control-howmuch http GET "/api/import/rewards-tracker?plan_id=local-plan"` shows `card-travel` with one `ruleHistory` entry whose `until` is the current period's first day and whose rules keep Red at `4`. The rewards report for a closed demo period still uses `4`; the current period uses `3`. **Earlier rules (1)** lists the old rate. No transaction row changes.
+- **Correct everywhere.** Rename Blue and save with **Correct everywhere**. The new name is in the latest rules and in every `ruleHistory` entry, while the earlier rate stays `4`.
 - **Proof.** Screenshot empty Rewards with **Add card** (`artifacts/rewards-card-edit/empty.png`), `/rewards/new` (`artifacts/rewards-card-edit/new.png`), the board after create (`artifacts/rewards-card-edit/created.png`), the board after the capped save (`artifacts/rewards-card-edit/capped-visible.png`), and the editor still open for `card-travel` (`artifacts/rewards-card-edit/capped-editor.png`).
 
 ## Gotchas
@@ -38,4 +41,5 @@ Preconditions:
 - Flag colour on a subcategory uses the same FlagPicker colour tags as the ledger (None plus the six colours). None stores `unflagged` and matches unflagged spend. Ledger None sends `null`.
 - Colour names live on the rewards-tracked account, not on Everyday Account. Name Red `Dining` and Blue `Online` on Travel Card. After Save, Travel Card FlagTags and the register for that account show `Dining` / `Online`. Other accounts still show plain colour tags. `document.body.innerText` uppercases FlagTags (`DINING`); `textContent` stays `Dining`.
 - Renaming a colour applies to flags set from then on. Existing rows keep the name they were flagged with, so after renaming Red from `Dining` to `Food` the demo rows still show `Dining` and **By flag** lists `Dining` and `Food` separately.
+- `applies_from` on `PATCH /api/rewards/cards/:id` is a date, `current_period`, `next_period` or `everywhere`. Without it (older apps) only the latest rules change. The server keeps `ruleHistory` and ignores a client's copy. Billing cycle, reward period and promotion are not versioned.
 - Viewport ≤720px hides the sidebar. Open **Open menu** before **Rewards**.

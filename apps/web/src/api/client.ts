@@ -439,6 +439,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ account }),
     }).then((data) => data.account),
+  renameAccount: (planId: string, accountId: string, name: string) =>
+    request<{ account: Account; server_knowledge: number }>(planUrl(planId, "accounts", accountId), {
+      method: "PATCH",
+      body: JSON.stringify({ account: { name } }),
+    }).then((data) => data.account),
   updateAccountIcon: (planId: string, accountId: string, icon: string) =>
     request<{ account: Account; server_knowledge: number }>(planUrl(planId, "accounts", accountId), {
       method: "PATCH",
@@ -716,10 +721,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ plan_id: planId, card }),
     }).then((data) => data.card),
-  updateRewardCard: (planId: string, cardId: string, card: Partial<CreditCard>) =>
+  /** `appliesFrom`: the first day of the card period the rule change starts in, or "everywhere". */
+  updateRewardCard: (planId: string, cardId: string, card: Partial<CreditCard>, appliesFrom?: string) =>
     request<{ card: CreditCard }>(`/api/rewards/cards/${encodeURIComponent(cardId)}`, {
       method: "PATCH",
-      body: JSON.stringify({ plan_id: planId, card }),
+      body: JSON.stringify({ plan_id: planId, card, ...(appliesFrom ? { applies_from: appliesFrom } : {}) }),
     }).then((data) => data.card),
   deleteRewardCard: (planId: string, cardId: string) =>
     request<{ card: CreditCard }>(`/api/rewards/cards/${encodeURIComponent(cardId)}`, {

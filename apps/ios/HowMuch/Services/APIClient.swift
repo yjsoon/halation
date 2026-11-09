@@ -611,11 +611,17 @@ struct APIClient {
     return response.data.card
   }
 
-  func updateRewardCard(planID: String, cardID: String, card: CreditCard) async throws -> CreditCard {
+  /// `appliesFrom` is "current_period", "next_period" or "everywhere": when
+  /// changed rules take effect. Earlier periods keep their rules otherwise.
+  func updateRewardCard(
+    planID: String, cardID: String, card: CreditCard, appliesFrom: String? = nil
+  ) async throws -> CreditCard {
+    var body: [String: Any] = ["plan_id": planID, "card": card.jsonObject(clearMissing: true)]
+    if let appliesFrom { body["applies_from"] = appliesFrom }
     let response: APIEnvelope<RewardCardPayload> = try await executeRequest(
       path: "/api/rewards/cards/\(cardID)",
       method: "PATCH",
-      bodyData: try rewardCardBody(planID: planID, card: card, clearMissing: true)
+      bodyData: try JSONSerialization.data(withJSONObject: body)
     )
     return response.data.card
   }

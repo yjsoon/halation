@@ -1,6 +1,7 @@
 import { SimpleRewardsCalculator, type CalculationPeriod, type SimplifiedCalculation } from "./engine/simple-calculator";
 import { resolveCardSpendingTier } from "./engine/utils/spending-tiers";
 import { parseYnabDate, rewardsToday } from "./engine/date-utils";
+import { cardForPeriod } from "./versions";
 import { ValidationError } from "../repository";
 import type {
   AppSettings,
@@ -66,18 +67,21 @@ export function buildRewardsReport(input: {
     }
     const results = [...periods.values()].sort((a, b) => a.start.localeCompare(b.start) || a.end.localeCompare(b.end)).map((period) => {
       const periodHistory = history.filter((transaction) => transaction.date >= period.start && transaction.date <= period.end);
-      const calculation = SimpleRewardsCalculator.calculateCardRewards(card, periodHistory, period, input.settings);
+      // Each period keeps the rules in force when it started, so a later
+      // edit never changes it and a change never applies partway through.
+      const rules = cardForPeriod(card, period.start);
+      const calculation = SimpleRewardsCalculator.calculateCardRewards(rules, periodHistory, period, input.settings);
       const transactions = assigned.get(periodKey(period)) ?? [];
       for (const transaction of transactions) {
         const result = calculation.transactionRewards[transaction.id];
         rewardByTransaction.set(transaction.id, { reward: result?.reward ?? 0, rewardDollars: result?.rewardDollars ?? 0 });
       }
-      const full = serializeCalculation(card, calculation);
-      full.minimum_met_on = minimumMetOn(card, periodHistory, period, calculation, input.settings);
+      const full = serializeCalculation(rules, calculation);
+      full.minimum_met_on = minimumMetOn(rules, periodHistory, period, calculation, input.settings);
       return {
         period,
         full,
-        attributed: from ? attributeCalculation(card, periodHistory, transactions, period, calculation, input.settings) : full,
+        attributed: from ? attributeCalculation(rules, periodHistory, transactions, period, calculation, input.settings) : full,
       };
     });
     const latest = results.find((result) => periodKey(result.period) === periodKey(current))!;

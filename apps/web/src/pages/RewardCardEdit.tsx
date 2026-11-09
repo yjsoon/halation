@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import type {
   CardSubcategory,
@@ -13,7 +13,9 @@ import type {
 import { CategorySelect } from "../components/CategorySelect";
 import { FlagPicker, FlagTag } from "../components/FlagTag";
 import { splitCategoryGroups } from "../lib/categories";
-import { formatDate, monthRange, todayIso } from "../lib/dates";
+import { formatDate, formatDayMonth, monthRange, todayIso } from "../lib/dates";
+import { rewardsToday } from "../../../api/src/rewards/engine/date-utils";
+import { ruleChangeDates } from "../../../api/src/rewards/versions";
 import { isFlagColour, ledgerFlagFromReward, rewardFlagFromLedger } from "../lib/flags";
 import { formatMoney } from "../lib/money";
 import { rewardCardAccountChoices, syncedRewardCardName } from "../lib/reward-card-accounts";
@@ -118,7 +120,15 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   const location = useLocation();
   const navigate = useNavigate();
   const rewardsHref = { pathname: "/rewards", search: location.search };
-  const [draft, setDraft] = useState<CardDraft>(() => (card ? draftFromCard(card) : emptyDraft()));
+  const [searchParams] = useSearchParams();
+  const [draft, setDraft] = useState<CardDraft>(() => {
+    if (card) return draftFromCard(card);
+    // Set up rewards from a card's settings opens with that account chosen.
+    const chosen = rewardCardAccountChoices(accounts, takenAccountIds).find((account) => account.id === searchParams.get("account"));
+    return chosen ? { ...emptyDraft(), ynabAccountId: chosen.id, name: chosen.name } : emptyDraft();
+  });
+  const [scope, setScope] = useState<"current" | "next" | "everywhere">("current");
+  const changeDates = card ? ruleChangeDates(card, rewardsToday()) : null;
   const [busy, setBusy] = useState<"save" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState(false);
@@ -163,8 +173,9 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
     setBusy("save");
     setError(null);
     try {
-      if (card) {
-        await api.updateRewardCard(planId, card.id, written.card);
+      if (card && changeDates) {
+        await api.updateRewardCard(planId, card.id, written.card,
+          scope === "everywhere" ? "everywhere" : scope === "next" ? changeDates.next : changeDates.current);
       } else {
         await api.createRewardCard(planId, written.card);
       }
@@ -452,6 +463,14 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
             </label>
           </div>
 
+          {card ? (
+            <fieldset className="transaction-editor-splits rewards-editor-block">
+              <legend>Colour names</legend>
+              <p className="field-note">
+                Edit colour names in <Link to={`/transactions?accounts=${encodeURIComponent(card.ynabAccountId)}&range=all`}>Card settings on this card’s register</Link>.
+              </p>
+            </fieldset>
+          ) : (
           <fieldset className="transaction-editor-splits rewards-editor-block">
             <legend>Colour names</legend>
             <p className="field-note">These names show on this account’s flags. Everyday Account and other untracked accounts keep the plain colour tags.</p>
@@ -479,6 +498,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
               })}
             </div>
           </fieldset>
+          )}
 
           <fieldset className="transaction-editor-splits rewards-editor-block">
             <legend>Flag subcategories</legend>
@@ -573,6 +593,27 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
               Add spending tier
             </button>
           </fieldset>
+
+          {changeDates && (
+            <fieldset className="card-settings-scope">
+              <legend>Rule changes apply from</legend>
+              {([
+                ["current", `This period, from ${formatDayMonth(changeDates.current)}`],
+                ["next", `Next period, from ${formatDayMonth(changeDates.next)}`],
+                ["everywhere", "Correct everywhere"],
+              ] as const).map(([value, label]) => (
+                <label key={value} className={scope === value ? "card-settings-scope-option card-settings-scope-selected" : "card-settings-scope-option"}>
+                  <input type="radio" name="rule-change-scope" value={value} checked={scope === value} onChange={() => setScope(value)} />
+                  {label}
+                </label>
+              ))}
+              <p className="field-note">
+                {scope === "everywhere"
+                  ? "Every period, including closed ones, uses these rule changes. For mistakes."
+                  : `Periods before ${formatDate(scope === "next" ? changeDates.next : changeDates.current)} keep their rules. Billing cycle, reward period and promotion changes apply to every period.`}
+              </p>
+            </fieldset>
+          )}
 
           <div className="transaction-editor-actions">
             <Link to={rewardsHref} className="text-button">Cancel</Link>

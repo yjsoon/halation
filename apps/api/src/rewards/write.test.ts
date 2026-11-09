@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite";
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
 import { applyMigrations } from "../db";
 import { LedgerRepository, NotFoundError, ValidationError } from "../repository";
 import { parseCreditCardWrite } from "./parse";
@@ -234,6 +234,87 @@ describe("native rewards card writes", () => {
     const other: { flag_color?: string | null; flag_name?: string | null } = { flag_color: "red" };
     await stampTransactionFlagName(repo, "plan-test", "acct-missing", other);
     expect(other).not.toHaveProperty("flag_name");
+  });
+
+  describe("rule history", () => {
+    const base = {
+      id: "card-history", name: "Travel Card", type: "miles", ynabAccountId: "acct-rewards",
+      earningRate: 2, flagNames: { red: "Dining", blue: "Onlin" },
+    };
+
+    test("a change from a date keeps the earlier rules for earlier periods", async () => {
+      await createRewardsCard(repo, "plan-test", base);
+      const card = await patchRewardsCard(repo, "plan-test", "card-history",
+        { earningRate: 3, flagNames: { red: "Food", blue: "Onlin" } }, "2026-05-01");
+      expect(card.earningRate).toBe(3);
+      expect(card.ruleHistory).toEqual([
+        { until: "2026-05-01", rules: { earningRate: 2, flagNames: { red: "Dining", blue: "Onlin" } } },
+      ]);
+      // A second save in the same period edits that period's rules, not a new version.
+      const again = await patchRewardsCard(repo, "plan-test", "card-history", { earningRate: 4 }, "2026-05-01");
+      expect(again.earningRate).toBe(4);
+      expect(again.ruleHistory).toEqual(card.ruleHistory);
+      // Saving fields outside the rules adds nothing.
+      const renamed = await patchRewardsCard(repo, "plan-test", "card-history", { issuer: "UOB" }, "2026-06-01");
+      expect(renamed.ruleHistory).toEqual(card.ruleHistory);
+    });
+
+    test("correct everywhere changes only the edited fields in earlier rules", async () => {
+      await createRewardsCard(repo, "plan-test", base);
+      await patchRewardsCard(repo, "plan-test", "card-history",
+        { earningRate: 3, flagNames: { red: "Food", blue: "Onlin" } }, "2026-05-01");
+      const fixed = await patchRewardsCard(repo, "plan-test", "card-history",
+        { flagNames: { red: "Food", blue: "Online" } }, "everywhere");
+      expect(fixed.flagNames).toEqual({ red: "Food", blue: "Online" });
+      expect(fixed.ruleHistory).toEqual([
+        { until: "2026-05-01", rules: { earningRate: 2, flagNames: { red: "Dining", blue: "Online" } } },
+      ]);
+    });
+
+    test("correct everywhere does not copy unedited names into rules that had none", async () => {
+      // Names can come only from subcategories; a correction to Blue must not
+      // give the earlier rules the later name for Red.
+      await createRewardsCard(repo, "plan-test", {
+        ...base, flagNames: undefined,
+        subcategories: [{ id: "red", name: "Dining", flagColor: "red", rewardValue: 4, priority: 1, active: true, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" }],
+      });
+      await patchRewardsCard(repo, "plan-test", "card-history", { flagNames: { red: "Food" } }, "2026-05-01");
+      const fixed = await patchRewardsCard(repo, "plan-test", "card-history", { flagNames: { red: "Food", blue: "Online" } }, "everywhere");
+      expect(fixed.ruleHistory?.[0]?.rules.flagNames).toEqual({ blue: "Online" });
+    });
+
+    test("current and next period resolve to the card's own period starts", async () => {
+      setSystemTime(new Date("2026-05-20T04:00:00Z"));
+      try {
+        await createRewardsCard(repo, "plan-test", { ...base, billingCycle: { type: "billing", dayOfMonth: 16 } });
+        const current = await patchRewardsCard(repo, "plan-test", "card-history", { earningRate: 3 }, "current_period");
+        expect(current.ruleHistory?.map((entry) => entry.until)).toEqual(["2026-05-16"]);
+        const next = await patchRewardsCard(repo, "plan-test", "card-history", { earningRate: 4 }, "next_period");
+        expect(next.ruleHistory?.map((entry) => entry.until)).toEqual(["2026-05-16", "2026-06-16"]);
+      } finally {
+        setSystemTime();
+      }
+    });
+
+    test("a save without a date, as older apps send, keeps the history", async () => {
+      await createRewardsCard(repo, "plan-test", base);
+      const dated = await patchRewardsCard(repo, "plan-test", "card-history", { earningRate: 3 }, "2026-05-01");
+      const legacy = await patchRewardsCard(repo, "plan-test", "card-history", { earningRate: 5, ruleHistory: [] });
+      expect(legacy.earningRate).toBe(5);
+      expect(legacy.ruleHistory).toEqual(dated.ruleHistory);
+    });
+
+    test("stamps the name in force on the transaction's date", async () => {
+      await createRewardsCard(repo, "plan-test", base);
+      await patchRewardsCard(repo, "plan-test", "card-history",
+        { flagNames: { red: "Food", blue: "Onlin" } }, "2026-05-01");
+      const april: { flag_color?: string | null; flag_name?: string | null } = { flag_color: "red" };
+      await stampTransactionFlagName(repo, "plan-test", "acct-rewards", april, "2026-04-10");
+      expect(april.flag_name).toBe("Dining");
+      const may: { flag_color?: string | null; flag_name?: string | null } = { flag_color: "red" };
+      await stampTransactionFlagName(repo, "plan-test", "acct-rewards", may, "2026-05-01");
+      expect(may.flag_name).toBe("Food");
+    });
   });
 
   test("treats a closed account as live", async () => {
