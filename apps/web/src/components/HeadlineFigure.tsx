@@ -1,6 +1,6 @@
 import type { Key, ReactNode } from "react";
 
-export type FigureTone = "positive" | "negative";
+type FigureTone = "positive" | "negative";
 
 export function signTone(value: number): FigureTone {
   return value >= 0 ? "positive" : "negative";

@@ -7,7 +7,7 @@ type AccountPresentation = {
 
 const graphemeSegmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
 
-export function graphemes(value: string): string[] {
+function graphemes(value: string): string[] {
   return [...graphemeSegmenter.segment(value)].map((part) => part.segment);
 }
 

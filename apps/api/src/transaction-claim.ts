@@ -7,7 +7,6 @@ import type { ClaimStatus, TransactionInput } from "./types";
  * and `TOCHECK` for an estimate); `normaliseFollowUpWords` turns those into the
  * fields so every writer lands on the same state.
  */
-export const CLAIM_STATUSES: readonly ClaimStatus[] = ["to_claim", "claimed"];
 
 /** The `type` filter values that list rows to claim and rows claimed. */
 export const TO_CLAIM_TYPE = "to_claim";
@@ -33,7 +32,7 @@ function marker(pattern: RegExp, text: string, colonGroup: number): RegExpExecAr
   return match[1] === match[1]!.toUpperCase() || match[colonGroup] === ":" ? match : null;
 }
 
-export type FollowUpWords = {
+type FollowUpWords = {
   memo: string | null;
   claim_status?: ClaimStatus;
   claimed_on?: string | null;
@@ -45,7 +44,7 @@ export type FollowUpWords = {
  * without it plus the fields it stands for. Several words can lead one memo
  * ("TOCHECK TODO: Taxi"). Words later in the memo are ordinary text.
  */
-export function followUpWords(memo: string | null): FollowUpWords {
+function followUpWords(memo: string | null): FollowUpWords {
   const result: FollowUpWords = { memo };
   let text = memo ?? "";
   for (;;) {

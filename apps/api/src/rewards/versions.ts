@@ -7,7 +7,7 @@ import { parseYnabDate } from "./engine/date-utils";
  * edit never changes rewards already earned. Period settings (billing cycle,
  * reward period, promotion) are not versioned.
  */
-export const CARD_RULE_FIELDS = [
+const CARD_RULE_FIELDS = [
   "earningRate",
   "earningBlockSize",
   "minimumSpend",
