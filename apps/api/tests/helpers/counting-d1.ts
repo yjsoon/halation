@@ -7,7 +7,7 @@ import type { BatchStatement, RepositoryStatement } from "../../src/repository-d
  * One recorded Worker-to-D1 round trip. Only the statement text is kept, so
  * counts can be attributed without ever recording bound ledger values.
  */
-export type RoundTrip = { kind: "get" | "all" | "run" | "batch"; sql: string };
+type RoundTrip = { kind: "get" | "all" | "run" | "batch"; sql: string };
 
 // Multiline, because a batch records its statements one per line and any of
 // them may write even when the first is a SELECT or an assertion.

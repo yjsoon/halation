@@ -41,7 +41,7 @@ function matchRank(text: string, key: string): number {
  * Transfers first, then payees. Word-start matches lead; names the owner has
  * tidied come before raw bank strings; card digits do not decide the order.
  */
-export function payeeMenuSections(entries: readonly PayeeListEntry[], query: string) {
+function payeeMenuSections(entries: readonly PayeeListEntry[], query: string) {
   const key = matchKey(query);
   type Ranked = { entry: PayeeListEntry; rank: number; raw: number; sort: string };
   const transfers: Ranked[] = [];

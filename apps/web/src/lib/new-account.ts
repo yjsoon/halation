@@ -41,7 +41,7 @@ export function storesLiability(kind: NewAccountKind): boolean {
   return LIABILITY_KINDS.has(kind);
 }
 
-export type NewAccountDraft = { name: string; kind: NewAccountKind; balance: string };
+type NewAccountDraft = { name: string; kind: NewAccountKind; balance: string };
 
 export type NewAccountBody = { name: string; type: NewAccountKind; balance: number };
 

@@ -4,7 +4,7 @@ import { stableHash } from "./hash";
 import { formatMoney } from "./money";
 
 /** Account types that can carry card payment terms; the server refuses the rest. */
-export const CARD_ACCOUNT_TYPES: ReadonlySet<string> = new Set(["creditCard", "lineOfCredit"]);
+const CARD_ACCOUNT_TYPES: ReadonlySet<string> = new Set(["creditCard", "lineOfCredit"]);
 
 export function isCardAccount(account: Pick<Account, "type" | "deleted">): boolean {
   return !account.deleted && CARD_ACCOUNT_TYPES.has(account.type ?? "");
@@ -83,7 +83,7 @@ export function cardPaymentMemo(cardName: string, statementDate: string): string
   return `${cardName} statement ${Number(statementDate.slice(8, 10))} ${MEMO_MONTHS[Number(statementDate.slice(5, 7)) - 1]}`;
 }
 
-export type CoverageTone = "needs" | "scheduled" | "posted" | "paid" | "overdue" | "quiet";
+type CoverageTone = "needs" | "scheduled" | "posted" | "paid" | "overdue" | "quiet";
 
 export function coverageStatus(cycle: CardPaymentCycle, accountNames: Map<string, string>): { label: string; tone: CoverageTone } {
   const coverage = cycle.coverage;

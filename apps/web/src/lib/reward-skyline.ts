@@ -10,7 +10,7 @@ import type { Stage } from "./reward-exposure";
 type Calculation = RewardsReport["cards"][number]["calculation"];
 
 /** Gate: still working towards a minimum. Climb: climbing to a cap or a tier. Noon: everything settled. */
-export type RowSize = "gate" | "climb" | "noon";
+type RowSize = "gate" | "climb" | "noon";
 
 export function rowSize(stage: Stage | null | undefined): RowSize {
   return stage === "gate" ? "gate" : stage === "climb" ? "climb" : "noon";

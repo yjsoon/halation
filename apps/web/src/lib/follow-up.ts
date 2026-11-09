@@ -27,7 +27,7 @@ function calendarDay(value: string | undefined): string | null {
 }
 
 export type ClaimStatus = "to_claim" | "claimed";
-export type ClaimState = "to-claim" | "claimed" | null;
+type ClaimState = "to-claim" | "claimed" | null;
 
 const TOCHECK_WORD = /^\s*(TOCHECK)\b(:?)\s*/i;
 
@@ -82,7 +82,7 @@ export function legacyWords(
 }
 
 /** A legacy claim word at the start of a memo, and the memo without it. */
-export function legacyClaim(memo: string | null | undefined): { claim: ClaimStatus | null; text: string } {
+function legacyClaim(memo: string | null | undefined): { claim: ClaimStatus | null; text: string } {
   const { claim, text } = legacyWords(memo, false);
   return { claim, text };
 }
