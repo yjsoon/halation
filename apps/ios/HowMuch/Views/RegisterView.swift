@@ -982,8 +982,9 @@ struct RegisterView: View {
     .padding(.bottom, 14)
     .frame(maxWidth: .infinity, alignment: .leading)
     .coordinateSpace(.named("masthead"))
+    // Not reset when the row disappears: the list unloads it once it scrolls far off, and on its way back its
+    // height has not changed, so this never reports again and the sky would stay hidden.
     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { metrics.rowHeight = $0 }
-    .onDisappear { metrics.rowHeight = 0 }
     .listRowInsets(EdgeInsets())
     .listRowBackground(Color.clear)
     .listRowSeparator(.hidden)

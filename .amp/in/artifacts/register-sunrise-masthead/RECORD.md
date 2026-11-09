@@ -61,3 +61,21 @@ These were driven through the same temporary host on the rebased tree, which inc
 | Scroll, iPad 40–140pt and iPhone 30–100pt | Nothing ghosts behind the title | Initially failed on iPad at 100pt: the reward line showed faintly behind the title. The fade now reaches zero 8pt into the bar instead of 24pt. Rechecked as a pass (`final/ipad-scroll-dark.jpg`, `final/iphone-scroll-fade.jpg`) |
 
 HowMuchTests ran 825 tests, 1 skipped, 0 failures, on a fresh build that matched the worktree.
+
+## Scroll away and back (10 Nov 2026)
+
+- **Report (YJ, on the 03:00 TestFlight build):** "When I scroll down and then back up there's no more rewards header."
+- **Cause:** the header row reset the sky's row height to 0 in `onDisappear`. Once the list unloads the row a few screens down, its height is unchanged when it comes back, so `onGeometryChange` never reports again and the sky stays transparent. The words, which live in the row, came back without it.
+- **Fix:** drop the reset. The sky is drawn only when the header row is (both read the same `mastheadScene`), and while the row is off screen the sky's own scroll-position fade already hides it.
+- **Setup:** the same stack, plus 120 invented October rows on Travel Card (`acct-credit`), so the header leaves the list.
+- **Driven:** a temporary XCTest host (removed before landing) mounted the real `RegisterView` in a `NavigationStack` on iPhone 17. It scrolled the list 3000pt down in 120pt steps, then back to the top, and captured each stage.
+
+| Stage | Before the fix | After the fix |
+| --- | --- | --- |
+| Rest | Sunrise behind the header | Same |
+| 3000pt down | No sky | No sky |
+| Back at the top, settled | Balance and words on the plain page, no sunrise | Sunrise as at rest (the capture matches the rest capture byte for byte in size) |
+
+`final/scroll-back-before-after.jpg` shows rest, back before the fix, and back after the fix.
+
+HowMuchTests: 825 tests, 1 skipped, 0 failures on a fresh build of the fixed tree (Xcode 27.3, iPhone 17). A first run on the cold simulator failed four Add Transaction sheet snapshot tests with empty accessibility trees; they passed on rerun and the full rerun was clean. `bun test` 823 pass; web and worker typechecks pass.
