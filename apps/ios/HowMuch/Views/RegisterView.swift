@@ -1135,15 +1135,36 @@ struct RegisterView: View {
       isSelected: selection.map { $0[transaction.id] != nil }
     )
     // Selecting turns the row into a checkbox; row actions wait until Done.
+    // A swipe right does what the status circle does. A row with no
+    // leading action let the List treat the swipe as a tap and open it.
     .swipeActions(edge: .leading, allowsFullSwipe: true) {
-      if selection == nil, !transaction.approved {
-        Button {
-          approve(transaction)
-        } label: {
-          Label("Approve", systemImage: "checkmark")
+      if selection == nil {
+        switch transaction.registerStatus {
+        case .new:
+          Button {
+            approve(transaction)
+          } label: {
+            Label("Approve", systemImage: "checkmark")
+          }
+          // The colour of the New dot that approving clears.
+          .tint(Theme.newStatus)
+        case .uncleared:
+          Button {
+            toggleCleared(transaction)
+          } label: {
+            Label("Clear", systemImage: "checkmark")
+          }
+          .tint(Theme.inflow)
+        case .cleared:
+          Button {
+            toggleCleared(transaction)
+          } label: {
+            Label("Unclear", systemImage: "arrow.uturn.backward")
+          }
+          .tint(.gray)
+        case .reconciled:
+          EmptyView()
         }
-        // The colour of the New dot that approving clears.
-        .tint(Theme.newStatus)
       }
       if selection == nil, transaction.isToConfirm {
         Button {
