@@ -1,7 +1,7 @@
 import type { ApiConfig } from "../../api/src/config";
 import { D1Database as HowMuchD1Database, type D1Binding } from "../../api/src/d1";
 import { D1LedgerRepository } from "../../api/src/d1-ledger-repository";
-import { D1ReportService } from "../../api/src/d1-reports";
+import { AsyncReportService } from "../../api/src/async-reports";
 import { runDailyScheduledMaterialization } from "../../api/src/scheduled-materialization-runner";
 import { runD1ScheduledYnabSync } from "../../api/src/d1-scheduled-sync-runner";
 import { createHandler } from "../../api/src/http";
@@ -66,7 +66,7 @@ export default {
 
     const config = workerConfig(env);
     const database = new HowMuchD1Database(requiredBinding(env.DB, "DB"));
-    return withTransportSecurity(await createHandler({ repo: new D1LedgerRepository(database, config.defaultPlanId), reports: new D1ReportService(database.binding), auth: new D1AuthStore(database), config })(request));
+    return withTransportSecurity(await createHandler({ repo: new D1LedgerRepository(database, config.defaultPlanId), reports: new AsyncReportService(database), auth: new D1AuthStore(database), config })(request));
   },
 
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {

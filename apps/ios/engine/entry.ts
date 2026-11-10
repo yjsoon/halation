@@ -13,7 +13,7 @@ import "./shims/polyfills.js";
 import type { ApiConfig } from "../../api/src/config";
 import { D1Database, type D1Binding, type D1Result, type D1Statement } from "../../api/src/d1";
 import { D1LedgerRepository } from "../../api/src/d1-ledger-repository";
-import { D1ReportService } from "../../api/src/d1-reports";
+import { AsyncReportService } from "../../api/src/async-reports";
 import { D1AuthStore } from "../../api/src/auth-store";
 import { createHandler } from "../../api/src/http";
 import { runDailyScheduledMaterialization } from "../../api/src/scheduled-materialization-runner";
@@ -121,7 +121,7 @@ async function configure(configJson: string): Promise<void> {
   const repo = new D1LedgerRepository(database, config.defaultPlanId);
   const handler = createHandler({
     repo,
-    reports: new D1ReportService(database.binding),
+    reports: new AsyncReportService(database),
     auth: new D1AuthStore(database),
     config: apiConfig,
   });

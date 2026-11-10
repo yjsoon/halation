@@ -17,8 +17,8 @@ import type { CardPaymentCoverage, CardPaymentCycle, CardPaymentTerms } from "@h
 export type { CardPaymentCoverage, CardPaymentCycle, CardPaymentTerms };
 /** The stored, writable fields: everything but the server-set `created_at`. */
 export type CardPaymentTermsFields = Omit<CardPaymentTerms, "created_at">;
-export type DueWeekendRule = CardPaymentTerms["due_weekend_rule"];
-export type DefaultAmountRule = CardPaymentTerms["default_amount_rule"];
+type DueWeekendRule = CardPaymentTerms["due_weekend_rule"];
+type DefaultAmountRule = CardPaymentTerms["default_amount_rule"];
 
 /** Optional extra non-working days (public holidays). Weekends are always non-working. */
 export type HolidayList = ReadonlySet<string> | readonly string[];
@@ -141,7 +141,7 @@ export function termsFromRow(row: Record<string, any>): CardPaymentTerms {
 }
 
 /** SQLite's `CURRENT_TIMESTAMP` ("2026-10-18 12:01:48", UTC) as ISO 8601 with a Z. */
-export function isoTimestamp(value: unknown): string {
+function isoTimestamp(value: unknown): string {
   const text = String(value ?? "");
   const match = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})/.exec(text);
   return match ? `${match[1]}T${match[2]}Z` : text;
@@ -170,7 +170,7 @@ export function addDays(value: string, count: number): string {
 }
 
 /** The statement date in a month: `statementDay` clamped to that month's length. */
-export function statementDateInMonth(year: number, monthIndex: number, statementDay: number): string {
+function statementDateInMonth(year: number, monthIndex: number, statementDay: number): string {
   const normalisedYear = year + Math.floor(monthIndex / 12);
   const normalisedMonth = ((monthIndex % 12) + 12) % 12;
   return format(normalisedYear, normalisedMonth, Math.min(statementDay, daysInMonth(normalisedYear, normalisedMonth)));
@@ -187,7 +187,7 @@ export function isWorkingDay(value: string, holidays?: HolidayList): boolean {
 }
 
 /** Moves a date off a weekend or holiday: forwards for `next`, backwards for `previous`. */
-export function adjustToWorkingDay(value: string, rule: DueWeekendRule, holidays?: HolidayList): string {
+function adjustToWorkingDay(value: string, rule: DueWeekendRule, holidays?: HolidayList): string {
   const set = holidaySet(holidays);
   let date = value;
   for (let guard = 0; !isWorkingDay(date, set); guard += 1) {
@@ -203,7 +203,7 @@ export function dueDate(statementDate: string, gapDays: number, rule: DueWeekend
 }
 
 /** The date `count` working days before `value`; `count` 0 returns `value` itself. */
-export function workingDaysBefore(value: string, count: number, holidays?: HolidayList): string {
+function workingDaysBefore(value: string, count: number, holidays?: HolidayList): string {
   const set = holidaySet(holidays);
   let date = value;
   let remaining = count;
@@ -216,7 +216,7 @@ export function workingDaysBefore(value: string, count: number, holidays?: Holid
 
 type CycleTerms = Pick<CardPaymentTerms, "statement_day" | "due_gap_days" | "due_weekend_rule" | "pay_days_before_due">;
 
-export type CycleDates = {
+type CycleDates = {
   statement_date: string;
   next_statement_date: string;
   due_date: string;
@@ -242,7 +242,7 @@ function rawCycle(terms: CycleTerms, year: number, monthIndex: number, holidays?
  * previous cycle, and with a gap longer than the month the cycle keeps its
  * window until its due date.
  */
-export function cycleDatesInMonth(terms: CycleTerms, year: number, monthIndex: number, holidays?: HolidayList): CycleDates {
+function cycleDatesInMonth(terms: CycleTerms, year: number, monthIndex: number, holidays?: HolidayList): CycleDates {
   const cycle = rawCycle(terms, year, monthIndex, holidays);
   const previous = rawCycle(terms, year, monthIndex - 1, holidays);
   return {
@@ -285,7 +285,7 @@ export function minimumDue(statementBalance: number, floorMilli: number, rateBp:
 // ---- Coverage ------------------------------------------------------------
 
 /** A live register row in the card account. */
-export type CardLedgerRow = {
+type CardLedgerRow = {
   id: string;
   date: string;
   amount: number;
@@ -317,7 +317,7 @@ type CardContext = {
   schedules: readonly CardScheduleRow[];
 };
 
-export type CoverageInput = CardContext & {
+type CoverageInput = CardContext & {
   dates: CycleDates;
   asOf: string;
   statementBalance: number;
@@ -365,7 +365,7 @@ function occurrencesThrough(schedule: CardScheduleRow, through: string): string[
  * - `partial`: something was paid, but less than the minimum;
  * - `unscheduled`.
  */
-export function coverageFor(input: CoverageInput): CardPaymentCoverage {
+function coverageFor(input: CoverageInput): CardPaymentCoverage {
   const transfers = input.rows
     .filter((row) => row.amount > 0 && row.transfer_account_id != null && inWindow(row.date, input.dates))
     .sort((left, right) => left.date.localeCompare(right.date) || left.id.localeCompare(right.id));
@@ -415,7 +415,7 @@ export function coverageFor(input: CoverageInput): CardPaymentCoverage {
   return { state: "unscheduled" };
 }
 
-export type CardCyclesInput = CardContext & {
+type CardCyclesInput = CardContext & {
   terms: CardPaymentTermsFields;
   /** Date part of the terms' `created_at`. */
   termsCreatedOn: string;

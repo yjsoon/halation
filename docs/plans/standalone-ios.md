@@ -14,7 +14,7 @@ The iOS app is a thin client of the Worker API. The server computes balances, re
 
 Instead, the app embeds the same TypeScript backend (`apps/api`) in JavaScriptCore, on top of an on-device SQLite database:
 
-- `createHandler` is composed exactly as in `apps/worker/src/index.ts`: `D1Database`, `D1LedgerRepository`, `D1ReportService` and `D1AuthStore`.
+- `createHandler` is composed exactly as in `apps/worker/src/index.ts`: `D1Database`, `D1LedgerRepository`, `AsyncReportService` and `D1AuthStore`.
 - A small JS D1 binding wraps one synchronous Swift bridge, `__sqlite.exec(sql, paramsJson)`. `batch` is `BEGIN IMMEDIATE`/`COMMIT`, with `ROLLBACK` on error.
 - The D1 migrations (`apps/api/d1-migrations`) apply unmodified. The device records the ones it has applied.
 - In local mode, `APIClient` sends requests to the engine instead of `URLSession`. The views, models and HTTP contract are unchanged.

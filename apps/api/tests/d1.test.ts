@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
 import { D1Database, type D1Binding, type D1Result, type D1Statement } from "../src/d1";
-import { D1ReportService } from "../src/d1-reports";
+import { AsyncReportService } from "../src/async-reports";
 import { D1ScheduledSyncState } from "../src/d1-scheduled-sync";
 import { runD1ScheduledYnabSync } from "../src/d1-scheduled-sync-runner";
 import { runDailyScheduledMaterialization, scheduledLocalDate, scheduledMaterializationOperationId } from "../src/scheduled-materialization-runner";
@@ -1128,7 +1128,7 @@ describe("D1 foundation", () => {
     db.run("INSERT INTO transactions(id,plan_id,account_id,date,amount_milli) VALUES('early','p','a','2026-04-03',-80000),('late','p','a','2026-04-20',-60000),('may','p','a','2026-05-02',-130000),('excluded','p','a','2026-06-01',-999000)");
     const filters = { from: "2026-04-15", to: "2026-05-31" };
     const local = new ReportService(db).rewards("p", filters);
-    const remote = await new D1ReportService(fakeD1(db)).rewards("p", filters);
+    const remote = await new AsyncReportService(new D1Database(fakeD1(db))).rewards("p", filters);
     expect(remote).toEqual(local);
     expect(local.totals).toEqual({ spend: 190, miles: 240, cashback: 0, reward_dollars: 2.4 });
     expect(local.transaction_rewards).toEqual({ late: { reward: 40, reward_dollars: 0.4 }, may: { reward: 200, reward_dollars: 2 } });
@@ -1160,7 +1160,7 @@ describe("D1 foundation", () => {
       const db = await ledgerSqlite();
       if (payload !== null) db.run("INSERT INTO rewards_tracker_snapshots(plan_id,payload_json) VALUES('p',?)", [payload]);
       const local = () => new ReportService(db).rewards("p");
-      const remote = () => new D1ReportService(fakeD1(db)).rewards("p");
+      const remote = () => new AsyncReportService(new D1Database(fakeD1(db))).rewards("p");
       if (miles === "throws") {
         expect(local, payload!).toThrow();
         await expect(remote(), payload!).rejects.toThrow();
@@ -1174,7 +1174,7 @@ describe("D1 foundation", () => {
   test("D1 net-worth reports stay below the binding cap across long daily ranges", async () => {
     const db = await ledgerSqlite();
     db.run("INSERT INTO transactions(id,plan_id,account_id,date,amount_milli) VALUES('long-range-row','p','a','2026-01-02',100)");
-    const reports = new D1ReportService(fakeD1(db, { maxBindings: 100 }));
+    const reports = new AsyncReportService(new D1Database(fakeD1(db, { maxBindings: 100 })));
     const result = await reports.netWorth("p", { from: "2026-01-01", to: "2026-04-30", interval: "day" });
     expect(result.periods).toHaveLength(120);
     expect(result.periods.at(-1).net_worth).toBe(100);
