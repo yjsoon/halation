@@ -86,7 +86,6 @@
   --face-cashback-ink: #1c1b18; --face-miles-ink: #1c1b18; --face-foot-ink: #1c1b18;
   --face-foot-soft: #2c3832; --face-urgent-ink: #5a2f00; --face-failed-ink: #701510;
   --ridge-back: #a9d6b1; --ridge-front: #86c396; --ridge-crest: #ffd98c;
-  --masthead-edge: #689172;   /* the register masthead's ground edge: the front ridge, deepened */
   --face-crest-target: 0.4; --face-crest-spend: 0.75; --face-crest-merged: 0.9;
   --face-scrim: transparent;
   /* Gold laid over the blue to the marker, the cool dim beyond it, and the contrail (miles). */
@@ -168,7 +167,6 @@
   --face-cashback-ink: #f7f5ef; --face-miles-ink: #f7f5ef; --face-foot-ink: #f7f5ef;
   --face-foot-soft: #d4e2d9; --face-urgent-ink: #ffd98c; --face-failed-ink: #ffabae;
   --ridge-back: #2a6648; --ridge-front: #1e4433;
-  --masthead-edge: var(--ridge-crest);
   --face-scrim: #1e44338c;
   --face-lit-top: transparent; --face-lit-bottom: transparent; --face-contrail: transparent; --face-veil-dim: transparent;
   --face-veil-cashback: #d4cbd4; --face-veil-miles: #8a8496; --face-veil-grey: #808080; --face-bloom: #ffe3ac;

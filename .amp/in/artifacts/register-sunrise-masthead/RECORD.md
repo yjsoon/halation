@@ -105,6 +105,7 @@ Checks: `bun run check` (bun test and the web and worker typechecks). No iOS fil
 ### Web ground edge (10 Nov 2026)
 
 - **Request (YJ):** "I'm not sure I like the fade between the grass and the body. Can we have a solid line or some alternative?"
-- **Options captured** at 1280 and 390, light and dark: the fade as landed (`web/edge-fade-before.jpg`); a hard edge with a 2px line (`web/edge-line.jpg`); a hard edge with the app's glowing `--crest` header rule (`web/edge-option-crest.jpg`); a plain hard edge (`web/edge-option-plain.jpg`).
-- **Chosen:** the solid line, as asked. The horizon's gold, used as the line in light mode, was nearly invisible on the cream page, so light mode uses a deeper green (`#689172`) and dark mode keeps the gold.
-- **Observed:** `.register-masthead::after` computes to 2px of `rgb(255, 217, 140)` in dark mode. No horizontal scroll at 390 or 1280. Desktop and phone captures (`web/desktop-*.jpg`, `web/phone-light-dark.jpg`, `web/edge-line-phone.jpg`) were redone with the line.
+- **Options captured** at 1280 and 390, light and dark: the fade as landed (`web/edge-fade-before.jpg`); a hard edge with a 2px solid line (green in light, gold in dark); a hard edge with the app's glowing `--crest` header rule; a plain hard edge (`web/edge-option-plain.jpg`).
+- **First landed:** the solid line (1f52844).
+- **Chosen by YJ:** the glowing rule. The edge is hard and `.register-masthead::after` draws `var(--crest)`, the same rule the other page headers end on. In light mode the glow is pale on the cream page, so the hard edge carries most of the boundary there.
+- **Observed:** `::after` computes to 2px of `linear-gradient(90deg, transparent, rgb(58, 47, 28) 50%, ...)` in dark mode. No horizontal scroll at 390 or 1280 (`web/edge-crest.jpg`, `web/edge-crest-phone.jpg`). The desktop and phone captures were redone.

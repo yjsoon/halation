@@ -445,7 +445,7 @@ An account register with exactly one reward card draws that card's scene behind 
 - **Bleed.** It reaches the content area's top and side edges, as the Rewards masthead does.
 - **Sky.** The title, working balance, cleared and uncleared line and any `as of today` or `Last reconciled` note sit in the sky in the face ink, left-aligned and within 72% of the width, so the sun's column stays clear. The band to the ground is 44px.
 - **Ground.** The words are a link to `/rewards?accounts={id}`. They use the board's type, Plex figures and basis line, since Plex is the web's own voice. The card's name shows only when it differs from the account's.
-- **Edge and scrim.** The ground ends in a solid 2px line above Filters (the owner's ask, 10 Nov 2026: no fade into the page). The line is `--masthead-edge`: a deeper green (`#689172`) in light mode, where the horizon's gold is lost against the page, and the horizon's gold in dark. Dark mode's foot scrim runs down to that edge.
+- **Edge and scrim.** The ground ends at a hard edge above Filters with the glowing 2px rule the app's other page headers end on (`--crest`), the owner's choice on 10 Nov 2026 over the fade, a solid line and a plain edge. Dark mode's foot scrim runs down to that edge.
 - **Pour and bloom** are held to 35%, so the sky's soft ink keeps 4.5:1 on a capped card in dark mode (5.4:1 measured).
 - **Fallbacks.** Two cards, no reward card and a multi-account view keep the plain header.
 - **Refresh.** The report refetches when the ledger moves, keeping the last one on screen meanwhile.

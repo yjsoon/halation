@@ -84,13 +84,12 @@ a.page-eyebrow:hover {
   box-shadow: none;
 }
 
-/* The ground ends in a solid line above the filters: the horizon's gold in dark mode, a deeper green in light,
-   where the gold is lost against the page. */
+/* The ground ends in the glowing rule the app's other page headers end on (--crest), above the filters. */
 .register-masthead::after {
   content: "";
   display: block;
   height: 2px;
-  background: var(--masthead-edge);
+  background: var(--crest);
 }
 
 /* The title and balance sit in the sky the climbing sun pours into: keep the pour and dark mode's bloom
