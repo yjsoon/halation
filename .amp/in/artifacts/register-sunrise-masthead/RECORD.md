@@ -109,3 +109,28 @@ Checks: `bun run check` (bun test and the web and worker typechecks). No iOS fil
 - **First landed:** the solid line (1f52844).
 - **Chosen by YJ:** the glowing rule. The edge is hard and `.register-masthead::after` draws `var(--crest)`, the same rule the other page headers end on. In light mode the glow is pale on the cream page, so the hard edge carries most of the boundary there.
 - **Observed:** `::after` computes to 2px of `linear-gradient(90deg, transparent, rgb(58, 47, 28) 50%, ...)` in dark mode. No horizontal scroll at 390 or 1280 (`web/edge-crest.jpg`, `web/edge-crest-phone.jpg`). The desktop and phone captures were redone.
+
+## Sun sweep on showing (10 Nov 2026)
+
+- **Request (YJ):** "an understated animation with the sun moving across when this header is shown (on both web and mobile)".
+- **Change:**
+  - Before, the masthead's sun swept in only on the first showing of a session, at the board's pace.
+  - Now every showing starts the sun at its journey's start, waits 0.3s, and glides into place over 1.2s.
+  - iOS: `RewardExposureAnimator` `replays` and `pace` 2, on `.smooth`.
+  - Web: `ExposureFace` `gentle`, on `--ease-in-out`. The web's `--ease-out` front-loaded the glide into about 180ms, which read as a jump.
+  - Reduce Motion draws the sun in place on both.
+- **Web, production build (`vite build` plus `vite preview` on the stack), Travel Card at $450 of $800:**
+  - The sun's x was sampled every frame after navigating from Everyday Account. It rests at 0.07 of the width to about 715ms, moves through 0.151 (874ms), 0.344 (1033ms) and 0.512 (1260ms), and rests at 0.563 from about 1630ms.
+  - A second visit gives the same curve.
+  - Under `prefers-reduced-motion` it is at 0.563 from the first frame.
+  - Clip: `motion/web-sweep.webm`. A vision check found a smooth sweep from the left edge on both visits, with no jumps.
+  - In dev, StrictMode's double effect run plays the board's quick glide instead, so measure on a production build.
+- **iOS, temporary XCTest host (removed) on iPhone 17, mounting the real `RegisterView` twice after a 3s warm-up:**
+  - Sun at the left at 0.1 and 0.45s, part-way at 0.75 and 1.1s, at rest by 1.7s, on both mounts (`motion/ios-sweep-frames.jpg`).
+  - With nothing but captures at 0.9s and 2.5s, both mounts were mid-sweep at 0.9s and at rest at 2.5s.
+  - The host has limits:
+    - Mounting before the app had finished launching left the first mount at its start pose.
+    - So did capturing every 50 or 100ms, which saturated the main thread.
+    - Neither applies with the main thread idle, which is how the app runs.
+  - The Simulator's screen recording shows the host app's own window, not the test window, so there is no iOS clip.
+- **Checks:** HowMuchTests ran 825 tests, 1 skipped, 0 failures, on a fresh build; `bun run check` passes.

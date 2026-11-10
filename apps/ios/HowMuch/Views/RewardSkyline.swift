@@ -687,6 +687,8 @@ enum RegisterMasthead {
   static let band: CGFloat = 34
   /// How far the ground runs on under the transactions card, fading into the canvas.
   static let underlap: CGFloat = 28
+  /// The sun's sweep into place each time the header is shown takes twice the board's glide: 1.2s.
+  static let pace = 2.0
 }
 
 /// Where the masthead's words sit, measured in the header row, and the list's scroll, so that scrolling
@@ -733,12 +735,12 @@ struct RegisterMastheadSky: View {
       RewardExposureAnimator(
         exposure: exposure,
         layout: .masthead(nameBottom: Double(sky), footTop: ground.map { Double($0) }, ceiling: Double(top)),
-        key: key)
+        key: key, replays: true, pace: RegisterMasthead.pace)
       if exposure.stage == .gate, let ground, height > 0 {
         RewardExposureAnimator(
           exposure: exposure,
           layout: .strip(nameBottom: Double(sky), footTop: Double(ground)),
-          key: key + "|edge")
+          key: key + "|edge", replays: true, pace: RegisterMasthead.pace)
           .mask { edgeBand(sky: sky, ground: ground, height: height) }
       }
     }

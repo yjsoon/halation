@@ -476,6 +476,7 @@ final class ExposureMemory {
 /// - A fall (a new period or month), a change of light, or the minimum being met: the face
 ///   crossfades. The marker never glides backwards and the sun never sinks, and the gate keeps
 ///   its dusk and its half-sun to the end, so the met face is a new picture.
+/// - The register masthead (`replays`): every showing sweeps from the journey's start, at half speed.
 /// - Reduce Motion: the pose jumps.
 @MainActor
 struct RewardExposureAnimator: View {
@@ -484,6 +485,11 @@ struct RewardExposureAnimator: View {
   /// Scope and card, so the same card shown in two places remembers each separately.
   let key: String
   var index = 0
+  /// The register masthead: every showing starts from the journey's start, after a moment for the push to
+  /// settle, rather than from where this card was last shown.
+  var replays = false
+  /// How many board glides the first glide takes; the masthead's is slower and quieter.
+  var pace = 1.0
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.colorScheme) private var colorScheme
@@ -494,12 +500,18 @@ struct RewardExposureAnimator: View {
   @State private var faceID = 0
   @State private var glideTask: Task<Void, Never>?
 
-  init(exposure: RewardExposure, layout: ExposureLayout, key: String, index: Int = 0) {
+  init(
+    exposure: RewardExposure, layout: ExposureLayout, key: String, index: Int = 0, replays: Bool = false,
+    pace: Double = 1
+  ) {
     self.exposure = exposure
     self.layout = layout
     self.key = key
     self.index = index
-    _shown = State(initialValue: ExposureMemory.shared.startPose(for: key, exposure: exposure))
+    self.replays = replays
+    self.pace = pace
+    _shown = State(
+      initialValue: replays ? exposure.journeyStart : ExposureMemory.shared.startPose(for: key, exposure: exposure))
   }
 
   var body: some View {
@@ -512,7 +524,7 @@ struct RewardExposureAnimator: View {
     .transition(.opacity)
     .onAppear {
       ExposureMemory.shared.remember(exposure, key: key)
-      glide(to: exposure.pose, after: Double(min(index, 12)) * 0.028)
+      glide(to: exposure.pose, after: replays ? 0.3 : Double(min(index, 12)) * 0.028, pace: pace)
     }
     .onChange(of: exposure) { old, new in
       ExposureMemory.shared.remember(new, key: key)
@@ -531,7 +543,7 @@ struct RewardExposureAnimator: View {
     .onDisappear { glideTask?.cancel() }
   }
 
-  private func glide(to target: RewardExposure.Pose, after delay: Double) {
+  private func glide(to target: RewardExposure.Pose, after delay: Double, pace: Double = 1) {
     glideTask?.cancel()
     let from = shown
     guard !reduceMotion, from != target else {
@@ -542,17 +554,17 @@ struct RewardExposureAnimator: View {
       // The light sweeps in the first 40% of the glide and the sun rises in the rest, so
       // the sun never moves diagonally. Two writes in one transaction would be merged,
       // so the second waits for the first.
-      let sweep = 0.6 * 0.4
+      let sweep = 0.6 * pace * 0.4
       withAnimation(Animation.smooth(duration: sweep).delay(delay)) {
         shown = RewardExposure.Pose(h: target.h, v: from.v)
       }
       glideTask = Task { @MainActor in
         try? await Task.sleep(for: .seconds(delay + sweep))
         guard !Task.isCancelled else { return }
-        withAnimation(.smooth(duration: 0.6 - sweep)) { shown = target }
+        withAnimation(.smooth(duration: 0.6 * pace - sweep)) { shown = target }
       }
     } else {
-      withAnimation(Theme.Motion.chart.delay(delay)) { shown = target }
+      withAnimation((pace == 1 ? Theme.Motion.chart : .smooth(duration: 0.6 * pace)).delay(delay)) { shown = target }
     }
   }
 }

@@ -33,9 +33,8 @@ export function mastheadScene(report: RewardsReport | null | undefined, accountI
  * words on the ground, and the ground fading into the page above the filters. The title already names the
  * card, so the words carry no name unless the card's differs from the account's.
  */
-export function RegisterMasthead({ scene, planId, accountName, children }: {
+export function RegisterMasthead({ scene, accountName, children }: {
   scene: MastheadScene;
-  planId: string;
   accountName: string;
   /** The sky: the title and the balance. */
   children: ReactNode;
@@ -45,7 +44,8 @@ export function RegisterMasthead({ scene, planId, accountName, children }: {
   return (
     <div className="report-header register-header register-masthead rw-card" data-type={row.card.type} data-tone={p.tone}
       data-stage={picture.stage} data-mono={picture.stage === "failed" || undefined}>
-      <ExposureFace exposure={picture} variant="strip" index={0} memoryKey={`${planId}|${row.card.id}|register`}>
+      {/* No session memory: the sun sweeps quietly into place each time the header is shown. */}
+      <ExposureFace exposure={picture} variant="strip" index={0} gentle>
         <div className="register-masthead-sky" data-rw="name">{children}</div>
         <Link to={`/rewards?accounts=${encodeURIComponent(row.account_id)}`} className="rw-strip-foot register-masthead-ground"
           data-rw="foot" aria-label={`Rewards, ${row.card.name}. ${text.accessibilityValue}`}>

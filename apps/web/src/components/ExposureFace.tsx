@@ -40,13 +40,15 @@ function layoutOf(variant: FaceVariant, s: FaceSize): SceneLayout {
   return variant === "strip" ? { kind: "strip", w: s.w, h: s.h, nameBottom: s.nameBottom, footTop: s.footTop } : { kind: "face", w: s.w, h: s.h };
 }
 
-export function ExposureFace({ exposure, variant, index, memoryKey, children }: {
+export function ExposureFace({ exposure, variant, index, memoryKey, gentle = false, children }: {
   exposure: Exposure;
   variant: FaceVariant;
   /** Position in its group: the first rise is staggered by it. */
   index: number;
-  /** Plan and card: the session memory that stops a rise replaying. */
+  /** Plan and card: the session memory that stops a rise replaying. Without it every showing rises from the journey's start. */
   memoryKey?: string;
+  /** The register masthead: the first showing's glide waits 300ms, then takes two fills on --ease-in-out, a quiet sweep. */
+  gentle?: boolean;
   children: ReactNode;
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
@@ -69,8 +71,8 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
   const lastGate = useRef(exposure.stage === "gate");
 
   // Where the first showing sits and what it is remembered by; read once, on that showing.
-  const introRef = useRef({ index, memoryKey });
-  introRef.current = { index, memoryKey };
+  const introRef = useRef({ index, memoryKey, gentle });
+  introRef.current = { index, memoryKey, gentle };
 
   const draw = useCallback((ex: Exposure, pose: Pose) => {
     poseRef.current = pose;
@@ -111,7 +113,7 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
   // The pose: the first showing rises from the journey's start; a changed target glides, or crossfades where it would fall.
   useIsoLayoutEffect(() => {
     const exposure = exposureRef.current;
-    const { index, memoryKey } = introRef.current;
+    const { index, memoryKey, gentle } = introRef.current;
     const target = exposure.pose;
     const first = !seen.current;
     const remembered = memoryKey ? SHOWN.get(memoryKey) : undefined;
@@ -142,9 +144,9 @@ export function ExposureFace({ exposure, variant, index, memoryKey, children }: 
       return;
     }
     cancel.current = tweenPose(start, target, {
-      duration: cssTime("--dur-fill", 600),
-      delay: first ? Math.min(index, 12) * cssTime("--stagger", 28) : 0,
-      ease: cssEase("--ease-out"),
+      duration: cssTime("--dur-fill", 600) * (first && gentle ? 2 : 1),
+      delay: !first ? 0 : gentle ? 300 : Math.min(index, 12) * cssTime("--stagger", 28),
+      ease: cssEase(first && gentle ? "--ease-in-out" : "--ease-out"),
       onFrame: (pose) => draw(exposureRef.current, pose),
     });
     return () => cancel.current();

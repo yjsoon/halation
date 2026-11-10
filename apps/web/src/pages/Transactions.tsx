@@ -1708,7 +1708,7 @@ export function TransactionsPage() {
           </div>
         );
         return masthead && selectedAccount
-          ? <RegisterMasthead scene={masthead} planId={planId} accountName={selectedAccount.name}>{title}{balanceRow}</RegisterMasthead>
+          ? <RegisterMasthead key={`${planId}|${selectedAccount.id}`} scene={masthead} accountName={selectedAccount.name}>{title}{balanceRow}</RegisterMasthead>
           : (
             <div className="report-header register-header">
               <div>{title}</div>
