@@ -17,3 +17,8 @@
 - Other screenshots from the first web run: `web-card-settings-open.png`, `web-correct-everywhere.png`, `web-card-settings-narrow.png` (390 px, no overflow), `web-edit-card-scope.png`.
 - Also run: `bun test apps/api/src/rewards` 58 pass; `scripts/ios-xcodebuild.sh test` 825 tests, 0 failures, 1 skipped; iOS engine rebuilt with Bun 1.4.0 and `check:ios-engine` up to date.
 - Not covered: a physical device, the production stack, multi-month reward periods in the browser (covered by `build.test.ts`).
+
+## Soft fields (follow-up)
+
+- Change: Card settings text fields had no border or radius of their own, so they showed the browser's square black box. They now use the register add row's field style: `var(--rule)` border, 8px radius, `var(--paper-raised)` fill, darker border on hover, and placeholders such as `No cap` in the UI font.
+- Run: fresh `control-howmuch launch`, owner `verifier`, `fixtures/rewards-tracker-export.json` imported, Travel Card register, **Card settings** open at 1280 px. Computed style of a rate field: border `rgb(220, 207, 210)`, radius `8px`, background `rgb(255, 252, 247)`. Screenshots: `web-soft-fields.png`, `web-soft-fields-focus.png` (Red name focused, plum ring follows the corners).

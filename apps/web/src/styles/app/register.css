@@ -377,6 +377,25 @@ a.page-eyebrow:hover {
   color: var(--ink-soft);
 }
 
+/* Soft fields, as in the register's add row, not the browser's square box. */
+.card-settings input:not([type="radio"], [type="checkbox"]) {
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-sizing: border-box;
+}
+
+.card-settings input:not([type="radio"], [type="checkbox"]):hover:not(:disabled) {
+  border-color: var(--rule-control);
+}
+
+.card-settings input::placeholder {
+  color: var(--ink-faint);
+  font-family: var(--font-ui);
+  opacity: 1;
+}
+
 .card-settings-name input {
   width: min(360px, 100%);
   height: 36px;
