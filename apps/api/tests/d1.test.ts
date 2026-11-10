@@ -2,8 +2,6 @@ import { Database } from "bun:sqlite";
 import { afterEach, describe, expect, test } from "bun:test";
 import { D1Database, type D1Binding, type D1Result, type D1Statement } from "../src/d1";
 import { AsyncReportService } from "../src/async-reports";
-import { D1ScheduledSyncState } from "../src/d1-scheduled-sync";
-import { runD1ScheduledYnabSync } from "../src/d1-scheduled-sync-runner";
 import { runDailyScheduledMaterialization, scheduledLocalDate, scheduledMaterializationOperationId } from "../src/scheduled-materialization-runner";
 import { D1TransactionRepository } from "../src/d1-transaction-repository";
 import { D1MetadataRepository } from "../src/d1-metadata-repository";
@@ -187,7 +185,6 @@ describe("D1 foundation", () => {
       HOWMUCH_API_TOKEN: "worker-token",
       HOWMUCH_DEFAULT_PLAN_ID: "p",
       HOWMUCH_TIME_ZONE: "Asia/Singapore",
-      HOWMUCH_TRANSITION_READ_ONLY: "false",
     };
     const headers = { authorization: "Bearer worker-token", "content-type": "application/json" };
 
@@ -232,8 +229,6 @@ describe("D1 foundation", () => {
     expect(wranglerConfig.env.tk.vars).toEqual({
       HOWMUCH_DEFAULT_PLAN_ID: "80bc6db0-d926-4635-a37a-1ba0787c4c4e",
       HOWMUCH_TIME_ZONE: "Asia/Singapore",
-      HOWMUCH_YNAB_PLAN_ID: "",
-      HOWMUCH_TRANSITION_READ_ONLY: "false",
       HOWMUCH_APPLE_APP_IDS: "PQ6U5ESLN2.com.tinkertanker.halation,PQ6U5ESLN2.sg.soon.howmuch",
     });
     expect(wranglerConfig.env.tk.vars).not.toHaveProperty("HOWMUCH_REDIRECT_TARGET");
@@ -244,7 +239,6 @@ describe("D1 foundation", () => {
     expect(wranglerConfig.env.preview.vars).toEqual({
       HOWMUCH_DEFAULT_PLAN_ID: "80bc6db0-d926-4635-a37a-1ba0787c4c4e",
       HOWMUCH_TIME_ZONE: "Asia/Singapore",
-      HOWMUCH_TRANSITION_READ_ONLY: "false",
       HOWMUCH_APPLE_APP_IDS: "PQ6U5ESLN2.com.tinkertanker.halation,PQ6U5ESLN2.sg.soon.howmuch",
     });
   });
@@ -259,7 +253,6 @@ describe("D1 foundation", () => {
       DB: fakeD1(db),
       HOWMUCH_DEFAULT_PLAN_ID: "p",
       HOWMUCH_TIME_ZONE: "Asia/Singapore",
-      HOWMUCH_TRANSITION_READ_ONLY: "false",
     };
     const status = await worker.fetch(new Request("http://localhost/api/auth/status"), env as any);
     expect(status.status).toBe(200);
@@ -273,76 +266,10 @@ describe("D1 foundation", () => {
     expect(db.query("SELECT COUNT(*) AS count FROM users").get()).toEqual({ count: 0 });
   });
 
-  test("Worker routes exact crons while allowing YNAB sync after financial writes are enabled", async () => {
-    const db = await ledgerSqlite();
-    const setup = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
-    await setup.createScheduledTransaction("p", {
-      id: "transition-schedule", account_id: "a", date_first: "2026-08-21", frequency: "never", amount: -200,
-    });
-    let fetchCount = 0;
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      fetchCount += 1;
-      const url = String(input);
-      if (url.endsWith("/plans/p")) {
-        return new Response(JSON.stringify({ data: { plan: {
-          id: "p", name: "Plan", accounts: [{ id: "a", name: "Cash" }], category_groups: [], categories: [], payees: [],
-          months: [], transactions: [], scheduled_transactions: [], scheduled_subtransactions: [], payee_locations: [],
-        }, server_knowledge: 9 } }), { headers: { "content-type": "application/json" } });
-      }
-      if (url.endsWith("/plans/p/settings")) {
-        return new Response(JSON.stringify({ data: { settings: {} } }), { headers: { "content-type": "application/json" } });
-      }
-      return new Response("not found", { status: 404 });
-    }) as typeof fetch;
-    const baseEnv = {
-      ASSETS: { fetch: async () => new Response("asset") }, DB: fakeD1(db), HOWMUCH_API_TOKEN: "worker-token",
-      HOWMUCH_DEFAULT_PLAN_ID: "p", HOWMUCH_TIME_ZONE: "Asia/Singapore",
-    };
-    const transitionEnv = {
-      ...baseEnv, HOWMUCH_TRANSITION_READ_ONLY: "true", HOWMUCH_YNAB_TOKEN: "secret-token", HOWMUCH_YNAB_PLAN_ID: "p",
-    };
-    const writableEnv = { ...baseEnv, HOWMUCH_TRANSITION_READ_ONLY: "false" };
-    const writableYnabEnv = { ...transitionEnv, HOWMUCH_TRANSITION_READ_ONLY: "false" };
-    const transitionController = { cron: "10 16 * * *", scheduledTime: Date.UTC(2026, 7, 20, 16, 10) } as any;
-    const logs: string[] = [];
-    const originalLog = console.log;
-    console.log = (value: string) => { logs.push(value); };
-    try {
-      await worker.scheduled(transitionController, transitionEnv as any);
-      expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 0 });
-      expect(logs).toHaveLength(1);
-      expect(JSON.parse(logs[0])).toMatchObject({
-        event: "ynab_delta_sync", status: "completed", imported_transaction_count: 0, cursor: 9,
-      });
-      expect(JSON.stringify(JSON.parse(logs[0]))).not.toContain("secret-token");
-      expect(JSON.stringify(JSON.parse(logs[0]))).not.toContain("Plan");
-
-      const fetchesAfterCompletion = fetchCount;
-      await worker.scheduled(transitionController, transitionEnv as any);
-      expect(fetchCount).toBe(fetchesAfterCompletion);
-      expect(JSON.parse(logs[1])).toMatchObject({ event: "ynab_delta_sync", status: "duplicate" });
-
-      await expect(worker.scheduled({ cron: "5 16 * * *", scheduledTime: transitionController.scheduledTime } as any, transitionEnv as any))
-        .rejects.toThrow("does not match transition read-only mode");
-      await expect(worker.scheduled(transitionController, writableYnabEnv as any)).resolves.toBeUndefined();
-      expect(JSON.parse(logs[2])).toMatchObject({ event: "ynab_delta_sync", status: "duplicate" });
-      await expect(worker.scheduled({ cron: "0 0 * * *", scheduledTime: transitionController.scheduledTime } as any, transitionEnv as any))
-        .rejects.toThrow("does not match transition read-only mode");
-      await expect(worker.scheduled({ scheduledTime: transitionController.scheduledTime } as any, transitionEnv as any))
-        .rejects.toThrow("Unknown scheduled cron: missing");
-
-      await worker.scheduled({ cron: "5 16 * * *", scheduledTime: Date.UTC(2026, 7, 20, 16, 5) } as any, writableEnv as any);
-      expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
-    } finally {
-      console.log = originalLog;
-    }
-  });
-
   // Failure modes guarded here, for self-hosted crons that differ from production's `5 16 * * *`:
   //  1. a self-hoster's local-midnight cron is rejected as "Unknown scheduled cron", so schedules never materialise;
-  //  2. a custom cron is mistaken for the YNAB sync and runs it (or the YNAB sync cron is mistaken for materialisation);
-  //  3. the transition read-only guard stops protecting a read-only instance from materialising on a custom cron.
-  test("Worker runs materialisation for any cron except the YNAB sync cron, which stays configurable", async () => {
+  //  2. a cron left over from the removed YNAB sync (`10 16 * * *`) is mistaken for something other than materialisation.
+  test("Worker runs materialisation for any cron", async () => {
     const db = await ledgerSqlite();
     const setup = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
     await setup.createScheduledTransaction("p", {
@@ -350,7 +277,7 @@ describe("D1 foundation", () => {
     });
     const env = {
       ASSETS: { fetch: async () => new Response("asset") }, DB: fakeD1(db), HOWMUCH_API_TOKEN: "worker-token",
-      HOWMUCH_DEFAULT_PLAN_ID: "p", HOWMUCH_TIME_ZONE: "Asia/Singapore", HOWMUCH_TRANSITION_READ_ONLY: "false",
+      HOWMUCH_DEFAULT_PLAN_ID: "p", HOWMUCH_TIME_ZONE: "Asia/Singapore",
     };
     const logs: string[] = [];
     const originalLog = console.log;
@@ -364,7 +291,7 @@ describe("D1 foundation", () => {
       await expect(worker.scheduled({ cron: "5 16 * * *", scheduledTime: Date.UTC(2026, 7, 20, 16, 5) } as any, env as any)).resolves.toBeUndefined();
       expect(JSON.parse(logs[1])).toMatchObject({ event: "scheduled_materialization" });
 
-      // A self-hoster may pick the default YNAB cron time. Without any YNAB configuration it must still materialise.
+      // A self-hoster may still have the former YNAB sync cron configured; it must materialise like any other.
       const dbCollision = await ledgerSqlite();
       await new D1LedgerRepository(new D1Database(fakeD1(dbCollision)), "p").createScheduledTransaction("p", {
         id: "collision-schedule", account_id: "a", date_first: "2026-08-20", frequency: "never", amount: -200,
@@ -375,13 +302,6 @@ describe("D1 foundation", () => {
 
       // A missing cron is still refused rather than silently materialising.
       await expect(worker.scheduled({ scheduledTime: Date.UTC(2026, 7, 20, 15, 0) } as any, env as any)).rejects.toThrow("Unknown scheduled cron: missing");
-
-      // Read-only instances still refuse non-YNAB crons; a custom YNAB cron replaces the default.
-      const readOnlyEnv = { ...env, HOWMUCH_TRANSITION_READ_ONLY: "true", HOWMUCH_YNAB_SYNC_CRON: "30 3 * * *" };
-      await expect(worker.scheduled({ cron: "0 15 * * *", scheduledTime: Date.UTC(2026, 7, 20, 15, 0) } as any, readOnlyEnv as any))
-        .rejects.toThrow("does not match transition read-only mode");
-      await expect(worker.scheduled({ cron: "10 16 * * *", scheduledTime: Date.UTC(2026, 7, 20, 16, 10) } as any, readOnlyEnv as any))
-        .rejects.toThrow("does not match transition read-only mode");
     } finally {
       console.log = originalLog;
     }
@@ -400,7 +320,7 @@ describe("D1 foundation", () => {
     db.run("UPDATE payees SET deleted=1 WHERE plan_id='p' AND id='cron-deleted-payee'");
     const env = {
       ASSETS: { fetch: async () => new Response("asset") }, DB: fakeD1(db), HOWMUCH_API_TOKEN: "worker-token",
-      HOWMUCH_DEFAULT_PLAN_ID: "p", HOWMUCH_TIME_ZONE: "Asia/Singapore", HOWMUCH_TRANSITION_READ_ONLY: "false",
+      HOWMUCH_DEFAULT_PLAN_ID: "p", HOWMUCH_TIME_ZONE: "Asia/Singapore",
     };
     const logs: string[] = [];
     const originalLog = console.log;
@@ -1180,143 +1100,6 @@ describe("D1 foundation", () => {
     expect(result.periods.at(-1).net_worth).toBe(100);
   });
 
-  test("scheduled sync atomically acquires, deduplicates, fences, and completes leases", async () => {
-    const db = sqlite();
-    db.exec(await Bun.file(new URL("../d1-migrations/0001_initial.sql", import.meta.url)).text());
-    db.run("INSERT INTO plans (id, name) VALUES ('p', 'Plan')");
-    const state = new D1ScheduledSyncState(new D1Database(fakeD1(db)));
-
-    expect(await state.acquire("p", "run-1", "attempt-1", "2026-01-01T00:00:00.000Z")).toEqual({
-      status: "acquired", runId: "run-1", attemptId: "attempt-1", serverKnowledge: 0,
-    });
-    expect(await state.acquire("p", "run-1", "attempt-duplicate", "2026-01-01T00:00:00.000Z")).toEqual({
-      status: "leased", runId: "run-1",
-    });
-    expect(db.query("SELECT status FROM sync_runs WHERE id='run-1'").get()).toEqual({status:"running"});
-    await state.renew("p","run-1","attempt-1");
-    expect(await state.acquire("p", "run-2", "attempt-2", "2026-01-01T01:00:00.000Z")).toEqual({
-      status: "leased", runId: "run-2",
-    });
-    expect(db.query("SELECT status FROM sync_runs WHERE id = 'run-2'").get()).toEqual({ status: "leased" });
-    db.run("UPDATE ynab_sync_state SET lease_until = datetime('now', '-1 minute') WHERE plan_id = 'p'");
-    expect(await state.acquire("p", "ignored-retry-id", "attempt-3", "2026-01-01T00:00:00.000Z")).toEqual({
-      status: "acquired", runId: "run-1", attemptId: "attempt-3", serverKnowledge: 0,
-    });
-    expect(db.query("SELECT status FROM sync_attempts WHERE id = 'attempt-1'").get()).toEqual({ status: "expired" });
-    await state.renew("p", "run-1", "attempt-3");
-    await expect(state.complete("p", "run-1", "attempt-1", 10, {})).rejects.toThrow("lease is no longer owned");
-    await expect(state.complete("p", "wrong-run", "attempt-3", 10, {})).rejects.toThrow("lease is no longer owned");
-    expect(db.query("SELECT server_knowledge, lease_id FROM ynab_sync_state WHERE plan_id = 'p'").get()).toEqual({
-      server_knowledge: 0, lease_id: "attempt-3",
-    });
-    await state.complete("p", "run-1", "attempt-3", 10, { imported: 1 });
-    await state.complete("p", "run-1", "attempt-3", 10, { imported: 1 });
-    await expect(state.complete("p", "run-1", "attempt-3", 11, { imported: 2 })).rejects.toThrow("lease is no longer owned");
-    expect(db.query("SELECT server_knowledge, lease_id FROM ynab_sync_state WHERE plan_id = 'p'").get()).toEqual({
-      server_knowledge: 10, lease_id: null,
-    });
-    expect(db.query("SELECT status FROM sync_runs WHERE id = 'run-1'").get()).toEqual({ status: "completed" });
-    expect(await state.acquire("p", "ignored-terminal-id", "attempt-4", "2026-01-01T00:00:00.000Z")).toEqual({
-      status: "duplicate", runId: "run-1",
-    });
-
-    expect(await state.acquire("p", "run-fail", "attempt-fail", "2026-01-01T02:00:00.000Z")).toEqual({
-      status: "acquired", runId: "run-fail", attemptId: "attempt-fail", serverKnowledge: 10,
-    });
-    await state.fail("p", "run-fail", "attempt-fail", "expected failure");
-    await state.fail("p", "run-fail", "attempt-fail", "expected failure");
-    await expect(state.fail("p", "run-fail", "attempt-fail", "different failure")).rejects.toThrow("lease is no longer owned");
-    expect(db.query("SELECT server_knowledge FROM ynab_sync_state WHERE plan_id = 'p'").get()).toEqual({ server_knowledge: 10 });
-
-    expect(await state.acquire("p", "run-expire", "attempt-expire", "2026-01-01T03:00:00.000Z")).toEqual({
-      status: "acquired", runId: "run-expire", attemptId: "attempt-expire", serverKnowledge: 10,
-    });
-    db.run("UPDATE ynab_sync_state SET lease_until = datetime('now', '-1 minute') WHERE plan_id = 'p'");
-    await expect(state.renew("p", "run-expire", "attempt-expire")).rejects.toThrow("scheduled sync renewal rejected");
-  });
-
-  test("scheduled completion recovers an ambiguous committed response", async () => {
-    const db = await ledgerSqlite();
-    const state = new D1ScheduledSyncState(new D1Database(fakeD1(db, {
-      commitThenThrowSql: /^INSERT INTO sync_transition_receipts/i,
-    })));
-    await state.acquire("p", "run", "attempt", "2026-01-01T00:00:00.000Z");
-    await state.complete("p", "run", "attempt", 7, { imported: 1 });
-    expect(db.query("SELECT status FROM sync_runs WHERE id = 'run'").get()).toEqual({ status: "completed" });
-    expect(db.query("SELECT server_knowledge FROM ynab_sync_state WHERE plan_id = 'p'").get()).toEqual({ server_knowledge: 7 });
-  });
-
-  test("D1 scheduled runner uses and advances the cursor, preserves it on failure, and deduplicates replays", async () => {
-    const db = await ledgerSqlite();
-    const d1 = new D1Database(fakeD1(db));
-    let clock = 0;
-    let failWithPrivateBody = false;
-    const fetchedUrls: string[] = [];
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
-      const url = String(input);
-      fetchedUrls.push(url);
-      if (failWithPrivateBody && url.includes("/plans/p")) {
-        return new Response("private YNAB response detail", { status: 500 });
-      }
-      const serverKnowledge = url.includes("last_knowledge_of_server=9") ? 12 : 9;
-      if (url === "https://api.ynab.com/v1/plans/p" || url === "https://api.ynab.com/v1/plans/p?last_knowledge_of_server=9") {
-        return new Response(JSON.stringify({ data: { plan: {
-          id: "p", name: "Plan", accounts: [{ id: "a", name: "Cash" }], category_groups: [], categories: [], payees: [],
-          months: [], transactions: [{ id: "ynab-1", account_id: "a", date: "2026-01-01", amount: -10, deleted: false, subtransactions: [] }],
-          scheduled_transactions: [], scheduled_subtransactions: [], payee_locations: [],
-        }, server_knowledge: serverKnowledge } }), { headers: { "content-type": "application/json" } });
-      }
-      if (url.endsWith("/plans/p/settings")) {
-        return new Response(JSON.stringify({ data: { settings: {} } }), { headers: { "content-type": "application/json" } });
-      }
-      return new Response("not found", { status: 404 });
-    }) as typeof fetch;
-    const config = {
-      dbPath: "", port: 0, defaultPlanId: "p", transitionReadOnly: true,
-      ynabToken: "token", ynabPlanId: "p", ynabMinSimilarity: 0.95,
-    };
-    const logs: string[] = [];
-    const errors: string[] = [];
-    const logger = { log: (message: string) => logs.push(message), warn() {}, error: (message: string) => errors.push(message) };
-
-    const first = await runD1ScheduledYnabSync({
-      db: d1, config, scheduledTime: Date.UTC(2026, 0, 1), now: () => clock += 360_001, logger,
-    });
-    expect(first.status).toBe("completed");
-    expect(db.query("SELECT status FROM sync_runs").get()).toEqual({ status: "completed" });
-    expect(db.query("SELECT COUNT(*) count FROM sync_renewal_receipts").get()).toEqual({ count: 1 });
-    expect(db.query("SELECT id FROM transactions WHERE id='ynab-1'").get()).toEqual({ id: "ynab-1" });
-    expect(db.query("SELECT server_knowledge FROM ynab_sync_state WHERE plan_id='p'").get()).toEqual({ server_knowledge: 9 });
-    expect(logs).toEqual([]);
-
-    const fetchesAfterFirst = fetchedUrls.length;
-    const duplicate = await runD1ScheduledYnabSync({ db: d1, config, scheduledTime: Date.UTC(2026, 0, 1), logger });
-    expect(duplicate.status).toBe("duplicate");
-    expect(fetchedUrls).toHaveLength(fetchesAfterFirst);
-
-    const delta = await runD1ScheduledYnabSync({ db: d1, config, scheduledTime: Date.UTC(2026, 0, 2), logger });
-    expect(delta).toMatchObject({ status: "completed", result: { server_knowledge: 12 } });
-    expect(fetchedUrls).toContain("https://api.ynab.com/v1/plans/p?last_knowledge_of_server=9");
-    expect(db.query("SELECT server_knowledge FROM ynab_sync_state WHERE plan_id='p'").get()).toEqual({ server_knowledge: 12 });
-
-    failWithPrivateBody = true;
-    const failedScheduledTime = Date.UTC(2026, 0, 3);
-    await expect(runD1ScheduledYnabSync({ db: d1, config, scheduledTime: failedScheduledTime, logger }))
-      .rejects.toThrow("YNAB scheduled sync failed");
-    expect(db.query("SELECT server_knowledge FROM ynab_sync_state WHERE plan_id='p'").get()).toEqual({ server_knowledge: 12 });
-    expect(errors).toEqual([JSON.stringify({ event: "ynab_delta_sync", status: "failed" })]);
-    expect(JSON.stringify(errors)).not.toContain("private YNAB response detail");
-    expect(db.query("SELECT error FROM sync_runs WHERE scheduled_for=?").get(new Date(failedScheduledTime).toISOString()))
-      .toEqual({ error: "YNAB scheduled sync failed" });
-    expect(db.query("SELECT summary_json FROM import_sessions WHERE status='failed' ORDER BY started_at DESC LIMIT 1").get())
-      .toEqual({ summary_json: JSON.stringify({ error: "YNAB fetch failed for /plans/p?last_knowledge_of_server=12: 500" }) });
-
-    const fetchesAfterFailure = fetchedUrls.length;
-    const replayedFailure = await runD1ScheduledYnabSync({ db: d1, config, scheduledTime: failedScheduledTime, logger });
-    expect(replayedFailure.status).toBe("duplicate");
-    expect(fetchedUrls).toHaveLength(fetchesAfterFailure);
-  });
-
   test("write commands bind exactly one version increment and reject stale batches", async () => {
     const db = sqlite();
     db.exec(await Bun.file(new URL("../d1-migrations/0001_initial.sql", import.meta.url)).text());
@@ -1372,7 +1155,7 @@ describe("D1 foundation", () => {
       } })), "p");
       const handle = createHandler({
         db, repo,
-        config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "p", transitionReadOnly: false },
+        config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "p" },
       });
       const patch = (path: string, body: unknown) => handle(new Request(`http://howmuch.test/v1/plans/p/transactions${path}`, {
         method: "PATCH", headers: { authorization: "Bearer test-token", "content-type": "application/json" }, body: JSON.stringify(body),

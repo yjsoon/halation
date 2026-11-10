@@ -23,7 +23,6 @@ beforeEach(async () => {
       port: 0,
       apiToken: "test-token",
       defaultPlanId: "plan-test",
-      transitionReadOnly: false,
     },
   });
 });
@@ -37,7 +36,7 @@ describe("YNAB-compatible API", () => {
     const repo = new LedgerRepository(db, "plan-test");
     handler = createHandler({
       db, repo,
-      config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "plan-test", transitionReadOnly: false },
+      config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "plan-test" },
     });
     await createAccount("cash", { name: "Cash", type: "checking" });
     // Ordinary sequential E2E saves miss the gap between HTTP parsing and
@@ -632,7 +631,7 @@ describe("YNAB-compatible API", () => {
     applyMigrations(empty);
     const emptyHandler = createHandler({
       db: empty,
-      config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "plan-test", transitionReadOnly: false },
+      config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "plan-test" },
     });
     const read = (path: string) => emptyHandler(new Request(`http://howmuch.test${path}`, {
       headers: { authorization: "Bearer test-token" },
@@ -848,97 +847,6 @@ describe("YNAB-compatible API", () => {
       { id: "delete-race-a", balance_milli: 0 },
       { id: "delete-race-b", balance_milli: 0 },
     ]);
-  });
-
-  test("transition mode locks only authenticated financial writes after CSRF", async () => {
-    const transitionHandler = createHandler({
-      db,
-      config: {
-        dbPath: ":memory:",
-        port: 0,
-        apiToken: "test-token",
-        defaultPlanId: "plan-test",
-        transitionReadOnly: true,
-      },
-    });
-    const transitionRequest = (path: string, method: string, body: unknown = {}) => transitionHandler(
-      new Request(`https://howmuch.test${path}`, {
-        method,
-        headers: { authorization: "Bearer test-token", "content-type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    );
-    const lockedRoutes: Array<[string, string]> = [
-      ["/v1/plans/plan-test/accounts", "POST"],
-      ["/v1/plans/plan-test/accounts/account-1/reconcile", "POST"],
-      ["/v1/plans/plan-test/payees", "POST"],
-      ["/v1/plans/plan-test/transactions", "POST"],
-      ["/v1/plans/plan-test/transactions", "PATCH"],
-      ["/v1/plans/plan-test/transactions/import", "POST"],
-      ["/v1/plans/plan-test/transactions/cleared", "POST"],
-      ["/v1/plans/plan-test/transactions/delete", "POST"],
-      ["/v1/plans/plan-test/transactions/transaction-1", "PUT"],
-      ["/v1/plans/plan-test/transactions/transaction-1", "PATCH"],
-      ["/v1/budgets/plan-test/transactions/transaction-1", "DELETE"],
-      ["/v1/plans/plan-test/scheduled_transactions", "POST"],
-      ["/v1/plans/plan-test/scheduled_transactions/materialize", "POST"],
-      ["/v1/plans/plan-test/scheduled_transactions/scheduled-1", "PUT"],
-      ["/v1/plans/plan-test/scheduled_transactions/scheduled-1", "PATCH"],
-      ["/v1/plans/plan-test/scheduled_transactions/scheduled-1", "DELETE"],
-      ["/v1/plans/plan-test/scheduled_transactions/scheduled-1/materialize", "POST"],
-      ["/v1/plans/plan-test/import_snapshot", "POST"],
-      ["/api/mobile/quick-entry", "POST"],
-      ["/api/import/csv", "POST"],
-      ["/api/import/ynab", "POST"],
-      ["/api/import/rewards-tracker", "POST"],
-    ];
-
-    for (const [path, method] of lockedRoutes) {
-      const response = await transitionRequest(path, method);
-      expect(response.status, `${method} ${path}`).toBe(423);
-      expect((await response.json()).error).toEqual({
-        id: "423",
-        name: "transition_read_only",
-        detail: "Financial changes are temporarily locked while YNAB is the source of truth",
-      });
-    }
-
-    const unauthenticated = await transitionHandler(new Request("https://howmuch.test/v1/plans/plan-test/transactions", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-    }));
-    expect(unauthenticated.status).toBe(401);
-
-    expect((await transitionRequest("/v1/plans", "GET")).status).toBe(200);
-    expect((await transitionRequest("/v1/plans/plan-test/transactions", "GET")).status).toBe(200);
-    expect((await transitionRequest("/api/mobile/not-a-route", "POST")).status).toBe(404);
-    expect((await transitionRequest("/v1/plans/plan-test/accounts/account-1", "PATCH", { account: { icon: "🐷" } })).status).not.toBe(423);
-
-    const setup = await transitionHandler(new Request("https://howmuch.test/api/auth/setup", {
-      method: "POST",
-      headers: { authorization: "Bearer test-token", origin: "https://howmuch.test", "content-type": "application/json" },
-      body: JSON.stringify({ username: "transition-owner", password: "transition-owner-password" }),
-    }));
-    expect(setup.status).toBe(200);
-    const cookie = setup.headers.get("set-cookie")!.split(";", 1)[0];
-    const csrfFirst = await transitionHandler(new Request("https://howmuch.test/v1/plans/plan-test/accounts", {
-      method: "POST",
-      headers: { cookie, "content-type": "application/json" },
-      body: "{}",
-    }));
-    expect(csrfFirst.status).toBe(403);
-    const lockedAfterCsrf = await transitionHandler(new Request("https://howmuch.test/v1/plans/plan-test/accounts", {
-      method: "POST",
-      headers: { cookie, origin: "https://howmuch.test", "content-type": "application/json" },
-      body: "{}",
-    }));
-    expect(lockedAfterCsrf.status).toBe(423);
-    expect((await transitionHandler(new Request("https://howmuch.test/api/auth/status", { headers: { cookie } }))).status).toBe(200);
-    expect((await transitionHandler(new Request("https://howmuch.test/api/auth/logout", {
-      method: "POST",
-      headers: { cookie, origin: "https://howmuch.test" },
-    }))).status).toBe(200);
   });
 
   test("rejects a new linked split-transfer side without a 500", async () => {
@@ -1706,38 +1614,6 @@ describe("account type updates", () => {
     expect((await kept.json()).data.account).toMatchObject({ type: "savings", icon: "🐷" });
   });
 
-  test("name and icon stay writable in transition while type is locked", async () => {
-    const account = await createAccountViaApi({ name: "Everyday", type: "checking" });
-    const transitionHandler = createHandler({
-      db,
-      config: {
-        dbPath: ":memory:",
-        port: 0,
-        apiToken: "test-token",
-        defaultPlanId: "plan-test",
-        transitionReadOnly: true,
-      },
-    });
-    const transitionRequest = (body: unknown) => transitionHandler(
-      new Request(`http://howmuch.test/v1/plans/plan-test/accounts/${account.id}`, {
-        method: "PATCH",
-        headers: { authorization: "Bearer test-token", "content-type": "application/json" },
-        body: JSON.stringify(body),
-      }),
-    );
-
-    const iconOnly = await transitionRequest({ account: { icon: "🐷" } });
-    expect(iconOnly.status).toBe(200);
-    const nameOnly = await transitionRequest({ account: { name: "Daily" } });
-    expect(nameOnly.status).toBe(200);
-    const typeChange = await transitionRequest({ account: { type: "savings" } });
-    expect(typeChange.status).toBe(423);
-    expect((await typeChange.json()).error).toEqual({
-      id: "423",
-      name: "transition_read_only",
-      detail: "Financial changes are temporarily locked while YNAB is the source of truth",
-    });
-  });
 });
 
 describe("account creation", () => {
@@ -2760,7 +2636,6 @@ describe("native reports and imports", () => {
         port: 0,
         apiToken: "test-token",
         defaultPlanId: "plan-test",
-        transitionReadOnly: false,
         ynabBaseUrl: "https://ynab.example/v1",
       },
     });
@@ -2918,7 +2793,6 @@ describe("password authentication", () => {
         dbPath: ":memory:",
         port: 0,
         defaultPlanId: "plan-test",
-        transitionReadOnly: false,
       },
     });
     const status = await localHandler(new Request("http://localhost:8787/api/auth/status"));
@@ -2945,7 +2819,6 @@ describe("password authentication", () => {
         dbPath: ":memory:",
         port: 0,
         defaultPlanId: "plan-test",
-        transitionReadOnly: false,
       },
     });
     for (const origin of ["http://rebind.attacker.example:8787", "https://howmuch-tunnel.example"]) {
@@ -2973,7 +2846,6 @@ describe("password authentication", () => {
         dbPath: ":memory:",
         port: 0,
         defaultPlanId: "plan-test",
-        transitionReadOnly: false,
         refuseTokenlessSetup: true,
       },
     });
@@ -3335,7 +3207,6 @@ describe("plans that do not exist", () => {
     port: 0,
     apiToken: "test-token",
     defaultPlanId: "plan-ghost",
-    transitionReadOnly: false,
   };
 
   function ghostRequest(path: string, init: { method?: string; body?: unknown } = {}): Promise<Response> {

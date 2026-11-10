@@ -103,13 +103,6 @@ export function createHandler(options: HandlerOptions): (request: Request) => Pr
         && !sameOrigin(request, url)) {
         return apiError(403, "forbidden", "CSRF validation failed");
       }
-      if (config.transitionReadOnly && isTransitionFinancialWrite(request.method, segments)) {
-        return apiError(
-          423,
-          "transition_read_only",
-          "Financial changes are temporarily locked while YNAB is the source of truth",
-        );
-      }
 
       const categoriser: CategoriserConfig = {
         apiKey: config.typesafeApiKey,
@@ -118,7 +111,7 @@ export function createHandler(options: HandlerOptions): (request: Request) => Pr
       };
 
       if (segments[0] === "v1") {
-        return await handleV1(request, url, segments, repo, principal, config.defaultPlanId, config.transitionReadOnly, categoriser, config.timeZone);
+        return await handleV1(request, url, segments, repo, principal, config.defaultPlanId, categoriser, config.timeZone);
       }
 
       if (segments[0] === "api") {
@@ -206,7 +199,6 @@ async function handleV1(
   repo: LedgerStore,
   principal: Principal,
   defaultPlanId: string,
-  transitionReadOnly: boolean,
   categoriser: CategoriserConfig,
   timeZone: string | undefined,
 ): Promise<Response> {
@@ -370,13 +362,6 @@ async function handleV1(
       };
       if (patch.icon === undefined && patch.name === undefined && patch.kind === undefined) {
         throw new ValidationError("account.icon, account.name, or account.type is required");
-      }
-      if (transitionReadOnly && patch.kind !== undefined) {
-        return apiError(
-          423,
-          "transition_read_only",
-          "Financial changes are temporarily locked while YNAB is the source of truth",
-        );
       }
       const account = await repo.updateAccount(planId, accountId, patch);
       return json({ data: { account, server_knowledge: await repo.getServerKnowledge(planId) } });
@@ -1520,51 +1505,6 @@ function sameOrigin(request: Request, url: URL): boolean {
 
 function isUnsafeMethod(method: string): boolean {
   return !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase());
-}
-
-function isTransitionFinancialWrite(methodValue: string, segments: string[]): boolean {
-  const method = methodValue.toUpperCase();
-
-  if (segments[0] === "api" && segments.length === 3 && method === "POST") {
-    return (segments[1] === "mobile" && segments[2] === "quick-entry")
-      || (segments[1] === "import" && (segments[2] === "csv" || segments[2] === "ynab" || segments[2] === "rewards-tracker"));
-  }
-
-  if (segments[0] !== "v1" || (segments[1] !== "plans" && segments[1] !== "budgets")) {
-    return false;
-  }
-
-  const resource = segments[3];
-  if ((resource === "accounts" || resource === "payees") && segments.length === 4) {
-    return method === "POST";
-  }
-  if (resource === "import_snapshot" && segments.length === 4) {
-    return method === "POST";
-  }
-  if (resource === "category_groups" || resource === "categories") {
-    if (segments.length === 4) return method === "POST";
-    if (segments.length === 5) return method === "PATCH" || method === "DELETE";
-    return false;
-  }
-  if (resource === "accounts" && segments.length === 6 && segments[5] === "reconcile") {
-    return method === "POST";
-  }
-  if (resource === "transactions") {
-    if (segments.length === 4) return method === "POST" || method === "PATCH";
-    if (segments.length === 5 && segments[4] === "import") return method === "POST";
-    if (segments.length === 5 && (segments[4] === "cleared" || segments[4] === "delete")) return method === "POST";
-    if (segments.length === 5) return method === "PUT" || method === "PATCH" || method === "DELETE";
-    if (segments.length === 6 && segments[5] === "cleared") return method === "PATCH";
-    return false;
-  }
-  if (resource === "scheduled_transactions") {
-    if (segments.length === 4) return method === "POST";
-    if (segments.length === 5 && segments[4] === "materialize") return method === "POST";
-    if (segments.length === 5) return method === "PUT" || method === "PATCH" || method === "DELETE";
-    if (segments.length === 6 && segments[5] === "materialize") return method === "POST";
-    return false;
-  }
-  return false;
 }
 
 function isToggleClearedState(value: unknown): value is "uncleared" | "cleared" {

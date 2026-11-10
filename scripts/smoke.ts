@@ -20,7 +20,6 @@ const handler = createHandler({
     port: 8787,
     apiToken: token,
     defaultPlanId: planId,
-    transitionReadOnly: false,
   },
 });
 const headers = {

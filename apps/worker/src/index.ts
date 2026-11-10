@@ -3,12 +3,9 @@ import { D1Database as HowMuchD1Database, type D1Binding } from "../../api/src/d
 import { D1LedgerRepository } from "../../api/src/d1-ledger-repository";
 import { AsyncReportService } from "../../api/src/async-reports";
 import { runDailyScheduledMaterialization } from "../../api/src/scheduled-materialization-runner";
-import { runD1ScheduledYnabSync } from "../../api/src/d1-scheduled-sync-runner";
 import { createHandler } from "../../api/src/http";
 import { D1AuthStore } from "../../api/src/auth-store";
 import { withDocumentSecurityHeaders, withTransportSecurity } from "./security-headers";
-
-const DEFAULT_YNAB_SYNC_CRON = "10 16 * * *";
 
 interface Env {
   ASSETS: Fetcher;
@@ -16,12 +13,7 @@ interface Env {
   HOWMUCH_API_TOKEN?: string;
   HOWMUCH_DEFAULT_PLAN_ID: string;
   HOWMUCH_TIME_ZONE: string;
-  HOWMUCH_YNAB_TOKEN?: string;
-  HOWMUCH_YNAB_PLAN_ID?: string;
   HOWMUCH_YNAB_BASE_URL?: string;
-  HOWMUCH_TRANSITION_READ_ONLY?: string;
-  /** Cron expression that runs the YNAB sync; any other cron runs scheduled-transaction materialisation. */
-  HOWMUCH_YNAB_SYNC_CRON?: string;
   HOWMUCH_APPLE_APP_IDS?: string;
   HOWMUCH_REDIRECT_TARGET?: string;
   TYPESAFE_API_KEY?: string;
@@ -70,29 +62,9 @@ export default {
   },
 
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
+    if (!controller.cron) throw new Error("Unknown scheduled cron: missing");
     const config = workerConfig(env);
     const database = new HowMuchD1Database(requiredBinding(env.DB, "DB"));
-    const explicitYnabCron = optional(env.HOWMUCH_YNAB_SYNC_CRON);
-    const ynabSyncCron = explicitYnabCron ?? DEFAULT_YNAB_SYNC_CRON;
-    assertCronMatchesMode(controller.cron, ynabSyncCron, config.transitionReadOnly);
-
-    if (controller.cron === ynabSyncCron && isYnabInPlay(explicitYnabCron, config)) {
-      const result = await runD1ScheduledYnabSync({
-        db: database,
-        config,
-        scheduledTime: controller.scheduledTime,
-      });
-      console.log(JSON.stringify({
-        event: "ynab_delta_sync",
-        status: result.status,
-        run_id: result.run_id,
-        imported_transaction_count: result.result?.imported_transactions ?? 0,
-        raw_object_counts: result.result?.raw_objects ?? {},
-        cursor: result.result?.server_knowledge ?? null,
-      }));
-      return;
-    }
-
     const result = await runDailyScheduledMaterialization({
       repo: new D1LedgerRepository(database, config.defaultPlanId),
       planId: config.defaultPlanId,
@@ -113,9 +85,6 @@ function workerConfig(env: Env): ApiConfig & { timeZone: string } {
     apiToken: optional(env.HOWMUCH_API_TOKEN),
     refuseTokenlessSetup: true,
     defaultPlanId: required(env.HOWMUCH_DEFAULT_PLAN_ID, "HOWMUCH_DEFAULT_PLAN_ID"),
-    transitionReadOnly: env.HOWMUCH_TRANSITION_READ_ONLY === "true",
-    ynabToken: optional(env.HOWMUCH_YNAB_TOKEN),
-    ynabPlanId: optional(env.HOWMUCH_YNAB_PLAN_ID),
     ynabBaseUrl: optional(env.HOWMUCH_YNAB_BASE_URL),
     typesafeApiKey: optional(env.TYPESAFE_API_KEY),
     typesafeModel: optional(env.TYPESAFE_MODEL),
@@ -131,24 +100,6 @@ function workerConfig(env: Env): ApiConfig & { timeZone: string } {
 function failAfterScheduleFailures(failureCount: number): void {
   if (failureCount > 0) {
     throw new Error("Scheduled materialisation completed with schedule failures");
-  }
-}
-
-/**
- * The default YNAB cron time is also a plausible materialisation time for a
- * self-hoster, so it only means "YNAB sync" when YNAB is actually in play.
- */
-function isYnabInPlay(explicitCron: string | undefined, config: ApiConfig): boolean {
-  return explicitCron !== undefined || config.transitionReadOnly
-    || config.ynabToken !== undefined || config.ynabPlanId !== undefined;
-}
-
-function assertCronMatchesMode(cron: string | undefined, ynabSyncCron: string, transitionReadOnly: boolean): void {
-  if (!cron) {
-    throw new Error("Unknown scheduled cron: missing");
-  }
-  if (transitionReadOnly && cron !== ynabSyncCron) {
-    throw new Error(`Scheduled cron ${cron} does not match transition read-only mode`);
   }
 }
 

@@ -42,7 +42,7 @@ export async function nativeHarness(
   const writeBatches: number[] = [];
   let repo: LedgerStore;
   let handler: (request: Request) => Promise<Response>;
-  const config = { dbPath: ":memory:", port: 0, apiToken: API_TOKEN, defaultPlanId: "p", transitionReadOnly: false };
+  const config = { dbPath: ":memory:", port: 0, apiToken: API_TOKEN, defaultPlanId: "p" };
   if (backend === "SQLite") {
     applyMigrations(db);
     repo = new LedgerRepository(db, "p");

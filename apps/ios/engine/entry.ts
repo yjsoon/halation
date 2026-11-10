@@ -114,7 +114,6 @@ async function configure(configJson: string): Promise<void> {
     port: 0,
     apiToken: config.apiToken,
     defaultPlanId: config.defaultPlanId,
-    transitionReadOnly: false,
     timeZone: config.timeZone,
   };
   const database = new D1Database(binding);

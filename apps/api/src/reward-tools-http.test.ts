@@ -5,7 +5,7 @@ import { createHandler } from "./http";
 
 test("native tools require authentication, same-origin CSRF, and plan permission before parsing", async () => {
   const db = new Database(":memory:"); applyMigrations(db);
-  const handler = createHandler({ db, config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "test-plan", transitionReadOnly: false } });
+  const handler = createHandler({ db, config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "test-plan" } });
   try {
     for (const route of ["reward-terms", "statement-formatter"]) {
       const request = (headers: Record<string, string>, plan = "test-plan") => handler(new Request(`https://howmuch.test/api/tools/${route}?plan_id=${plan}`, { method: "POST", headers, body: "not JSON" }));

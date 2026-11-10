@@ -140,7 +140,7 @@ cmd_launch() {
   )
 
   tmux new-session -d -s "$session" -c "$ROOT" \
-    "export HOWMUCH_DB_PATH='$db_path' HOWMUCH_PORT='$api_port' PORT='$api_port' HOWMUCH_API_TOKEN='$DEFAULT_TOKEN' HOWMUCH_DEFAULT_PLAN_ID='$DEFAULT_PLAN_ID' HOWMUCH_TRANSITION_READ_ONLY=false; bun run api:dev"
+    "export HOWMUCH_DB_PATH='$db_path' HOWMUCH_PORT='$api_port' PORT='$api_port' HOWMUCH_API_TOKEN='$DEFAULT_TOKEN' HOWMUCH_DEFAULT_PLAN_ID='$DEFAULT_PLAN_ID'; bun run api:dev"
   tmux rename-window -t "$session" api
   tmux new-window -t "$session" -n web -c "$ROOT/apps/web" \
     "export HOWMUCH_API_URL='http://127.0.0.1:$api_port'; bun run dev -- --host 127.0.0.1 --port $web_port --strictPort"

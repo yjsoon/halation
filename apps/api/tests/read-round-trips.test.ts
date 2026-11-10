@@ -89,7 +89,7 @@ async function harness(makeRepo: (db: CountingD1Database) => LedgerStore) {
     repo: makeRepo(counting),
     reports: new AsyncReportService(counting),
     auth: new D1AuthStore(counting),
-    config: { dbPath: "", port: 0, apiToken: "api-token", defaultPlanId: PLAN_ID, transitionReadOnly: false },
+    config: { dbPath: "", port: 0, apiToken: "api-token", defaultPlanId: PLAN_ID },
   });
 
   return { counting, handler, token: session.token };

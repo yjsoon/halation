@@ -268,39 +268,3 @@ describe("D1 category commands re-check their preconditions inside the batch", (
     expect(count(db, "SELECT COUNT(*) AS n FROM category_groups")).toBe(0);
   });
 });
-
-describe("transition read-only lock", () => {
-  test("blocks category management writes and snapshot import, but not reads", async () => {
-    const db = new Database(":memory:", { strict: true });
-    applyMigrations(db);
-    await new LedgerRepository(db, "p").ensurePlan("p");
-    try {
-      const handler = createHandler({
-        db,
-        config: { dbPath: ":memory:", port: 0, apiToken: API_TOKEN, defaultPlanId: "p", transitionReadOnly: true },
-      });
-      const send = (path: string, method: string) => handler(new Request(`https://howmuch.test${path}`, {
-        method,
-        headers: { authorization: `Bearer ${API_TOKEN}`, "content-type": "application/json", "idempotency-key": "lock-1" },
-        ...(method === "GET" ? {} : { body: "{}" }),
-      }));
-      const locked: Array<[string, string]> = [
-        ["/v1/plans/p/category_groups", "POST"],
-        ["/v1/plans/p/category_groups/grp", "PATCH"],
-        ["/v1/plans/p/categories", "POST"],
-        ["/v1/plans/p/categories/cat", "PATCH"],
-        ["/v1/plans/p/categories/cat", "DELETE"],
-        ["/v1/plans/p/import_snapshot", "POST"],
-      ];
-      for (const [path, method] of locked) {
-        const response = await send(path, method);
-        expect(response.status, `${method} ${path}`).toBe(423);
-        expect((await response.json()).error.name).toBe("transition_read_only");
-      }
-      expect((await send("/v1/plans/p/categories", "GET")).status).toBe(200);
-      expect(count(db, "SELECT COUNT(*) AS n FROM category_groups")).toBe(0);
-    } finally {
-      db.close();
-    }
-  });
-});

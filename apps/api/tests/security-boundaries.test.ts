@@ -63,11 +63,11 @@ test("replayed scheduled occurrences consume the cron work budget", async () => 
   expect(h.db.query("SELECT COUNT(*) AS n FROM transactions").get()).toEqual({ n: 10 });
 });
 
-test("native write routes reject extra segments under the transition lock", async () => {
+test("native write routes reject extra segments", async () => {
   const h = await open();
   await h.repo.upsertAccount("p", { id: "a", name: "A" });
   const handler = createHandler({ db: h.db, repo: h.repo,
-    config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "p", transitionReadOnly: true } });
+    config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "p" } });
   for (const path of ["mobile/quick-entry", "import/csv", "import/ynab", "import/rewards-tracker"]) {
     const response = await handler(new Request(`https://howmuch.test/api/${path}/extra`, {
       method: "POST", headers: { authorization: "Bearer test-token", "content-type": "application/json" },

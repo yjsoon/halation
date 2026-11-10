@@ -7,7 +7,7 @@ import { categoryOptions, suggestCategories } from "./categoriser";
 import { reviewRows, suggestionRequestItems } from "../../web/src/lib/category-suggestions";
 import { api } from "../../web/src/api/client";
 
-const config = { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "test-plan", transitionReadOnly: false };
+const config = { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "test-plan" };
 
 async function seeded() {
   const db = new Database(":memory:"); applyMigrations(db);

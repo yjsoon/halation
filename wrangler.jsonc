@@ -33,9 +33,7 @@
     // IANA time zone that decides what "today" means for scheduled
     // transactions. Change it here in your copy and push: every deploy sets
     // it from this file, so a value changed only in the dashboard is reset.
-    "HOWMUCH_TIME_ZONE": "UTC",
-    // Must be "false" so the instance accepts writes.
-    "HOWMUCH_TRANSITION_READ_ONLY": "false"
+    "HOWMUCH_TIME_ZONE": "UTC"
     // Deliberately absent: YNAB variables, HOWMUCH_REDIRECT_TARGET and
     // HOWMUCH_APPLE_APP_IDS (see apps/worker/wrangler.self-host.example.jsonc).
     // HOWMUCH_API_TOKEN is a secret, prompted for from .dev.vars.example.

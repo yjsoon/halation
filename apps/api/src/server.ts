@@ -1,8 +1,6 @@
-import { DEFAULT_HOSTNAME, DEFAULT_YNAB_SYNC_INTERVAL_MS, isLoopbackHost, loadConfig } from "./config";
+import { DEFAULT_HOSTNAME, isLoopbackHost, loadConfig } from "./config";
 import { openDatabase } from "./db";
 import { createHandler } from "./http";
-import { LedgerRepository } from "./repository";
-import { startYnabSync } from "./sync";
 
 const config = loadConfig();
 const hostname = config.hostname ?? DEFAULT_HOSTNAME;
@@ -30,9 +28,3 @@ Bun.serve({
 });
 
 console.log(`HowMuch API listening on http://${hostname.includes(":") ? `[${hostname}]` : hostname}:${config.port}`);
-
-const ynabSync = startYnabSync(new LedgerRepository(db, config.defaultPlanId), config);
-if (ynabSync) {
-  const intervalMs = config.ynabSyncIntervalMs ?? DEFAULT_YNAB_SYNC_INTERVAL_MS;
-  console.log(`YNAB sync enabled, checking every ${Math.round(intervalMs / 60000)} minutes`);
-}

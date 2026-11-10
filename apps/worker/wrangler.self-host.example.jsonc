@@ -23,13 +23,9 @@
     // and never change it afterwards: it is the id of your plan.
     "HOWMUCH_DEFAULT_PLAN_ID": "REPLACE-WITH-A-NEW-UUID",
     // IANA time zone that decides what "today" means for scheduled transactions.
-    "HOWMUCH_TIME_ZONE": "Europe/London",
-    // Must be "false" so the instance accepts writes.
-    "HOWMUCH_TRANSITION_READ_ONLY": "false"
-    // HOWMUCH_YNAB_SYNC_CRON is only relevant if you configure YNAB sync, which
-    // a fresh instance does not have. Leave it out.
+    "HOWMUCH_TIME_ZONE": "Europe/London"
     // Deliberately absent:
-    //  - No YNAB variables: a fresh instance has no YNAB sync.
+    //  - No YNAB variables: the one-off YNAB import takes its token per request.
     //  - No HOWMUCH_REDIRECT_TARGET: it would redirect every request elsewhere.
     //  - No HOWMUCH_APPLE_APP_IDS: that claims the iOS app's associated domain
     //    for the owner's signing team, which your domain must not do. Without

@@ -1,15 +1,12 @@
 import { Database } from "bun:sqlite";
-import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { applyMigrations } from "../src/db";
 import { importYnabFromApi, ynabSimilarity } from "../src/importers/ynab";
 import { LedgerRepository } from "../src/repository";
-import { startYnabSync } from "../src/sync";
 
 let db: Database;
 let repo: LedgerRepository;
 const originalFetch = globalThis.fetch;
-
-const silentLogger = { log() {}, warn() {}, error() {} };
 
 beforeEach(() => {
   db = new Database(":memory:");
@@ -19,7 +16,6 @@ beforeEach(() => {
 
 afterEach(() => {
   globalThis.fetch = originalFetch;
-  setSystemTime();
   db.close();
 });
 
@@ -570,182 +566,3 @@ describe("imported metadata moves server_knowledge", () => {
     expect(db.query("SELECT deleted FROM payees WHERE id='payee-1'").get()).toEqual({ deleted: 1 });
   });
 });
-
-describe("YNAB hourly sync", () => {
-  test("does not start when no token is configured", async () => {
-    let fetchCalls = 0;
-    stubYnabApi([], { onFetch: () => (fetchCalls += 1) });
-
-    for (const ynabToken of [undefined, "", "   "]) {
-      const handle = startYnabSync(repo, baseConfig({ ynabToken }), silentLogger);
-      expect(handle).toBeNull();
-    }
-
-    await Bun.sleep(50);
-    expect(fetchCalls).toBe(0);
-  });
-
-  test("syncs immediately and again on each interval", async () => {
-    let transactionFetches = 0;
-    stubYnabApi([ynabTransaction("txn-1")], {
-      onFetch: (url) => {
-        if (url.includes("/transactions")) {
-          transactionFetches += 1;
-        }
-      },
-    });
-
-    const handle = startYnabSync(
-      repo,
-      baseConfig({ ynabToken: "ynab-token", ynabPlanId: "plan-test", ynabSyncIntervalMs: 25 }),
-      silentLogger,
-    );
-    expect(handle).not.toBeNull();
-
-    try {
-      await Bun.sleep(120);
-      expect(transactionFetches).toBeGreaterThanOrEqual(2);
-
-      const stored = db
-        .query("SELECT COUNT(*) AS count FROM transactions WHERE plan_id = 'plan-test'")
-        .get() as { count: number };
-      expect(stored.count).toBe(1);
-    } finally {
-      handle?.stop();
-    }
-
-    const fetchesAfterStop = transactionFetches;
-    await Bun.sleep(80);
-    expect(transactionFetches).toBe(fetchesAfterStop);
-  });
-
-  test("discovers the plan when the token can only see one", async () => {
-    stubYnabApi([ynabTransaction("txn-1")]);
-
-    const handle = startYnabSync(repo, baseConfig({ ynabToken: "ynab-token" }), silentLogger);
-    try {
-      const result = await handle!.runNow();
-      expect(result?.imported_transactions).toBe(1);
-    } finally {
-      handle?.stop();
-    }
-  });
-
-  test("refuses to guess when multiple plans are visible", async () => {
-    let errors = 0;
-    stubYnabApi([ynabTransaction("txn-1")], {
-      plans: [
-        { id: "plan-a", name: "Plan A" },
-        { id: "plan-b", name: "Plan B" },
-      ],
-    });
-
-    const handle = startYnabSync(
-      repo,
-      baseConfig({ ynabToken: "ynab-token" }),
-      { ...silentLogger, error: () => (errors += 1) },
-    );
-    try {
-      const result = await handle!.runNow();
-      expect(result).toBeNull();
-      expect(errors).toBeGreaterThanOrEqual(1);
-
-      const stored = db.query("SELECT COUNT(*) AS count FROM transactions").get() as { count: number };
-      expect(stored.count).toBe(0);
-    } finally {
-      handle?.stop();
-    }
-  });
-
-  test("applies the 95% guard on scheduled passes", async () => {
-    const seeded = Array.from({ length: 20 }, (_, i) => ynabTransaction(`txn-${i}`));
-    await seedLedgerFromYnab(seeded);
-
-    stubYnabApi([ynabTransaction("foreign-1"), ynabTransaction("foreign-2")]);
-
-    const handle = startYnabSync(
-      repo,
-      baseConfig({ ynabToken: "ynab-token", ynabPlanId: "plan-test" }),
-      silentLogger,
-    );
-    try {
-      const result = await handle!.runNow();
-      expect(result === null || result.skipped === true).toBe(true);
-      await Bun.sleep(20);
-
-      const stored = db
-        .query("SELECT COUNT(*) AS count FROM transactions WHERE plan_id = 'plan-test'")
-        .get() as { count: number };
-      expect(stored.count).toBe(20);
-    } finally {
-      handle?.stop();
-    }
-  });
-});
-
-describe("YNAB rate limit safety", () => {
-
-  test("pauses for an hour after YNAB returns 429, then resumes", async () => {
-    let fetchCalls = 0;
-    let warned = 0;
-    globalThis.fetch = (async () => {
-      fetchCalls += 1;
-      return new Response("too many requests", { status: 429 });
-    }) as typeof fetch;
-
-    const handle = startYnabSync(
-      repo,
-      baseConfig({ ynabToken: "ynab-token", ynabPlanId: "plan-test" }),
-      { ...silentLogger, warn: () => (warned += 1) },
-    );
-    try {
-      await handle!.runNow();
-      expect(fetchCalls).toBeGreaterThan(0);
-      expect(warned).toBeGreaterThanOrEqual(1);
-
-      // While paused, sync passes make no requests at all.
-      const callsAfterLimit = fetchCalls;
-      expect(await handle!.runNow()).toBeNull();
-      expect(fetchCalls).toBe(callsAfterLimit);
-
-      // Once the rolling hour has passed, syncing resumes.
-      setSystemTime(new Date(Date.now() + 61 * 60 * 1000));
-      stubYnabApi([ynabTransaction("txn-1")]);
-      const result = await handle!.runNow();
-      expect(result?.imported_transactions).toBe(1);
-    } finally {
-      handle?.stop();
-    }
-  });
-
-  test("warns when the token is close to its hourly quota", async () => {
-    const warnings: string[] = [];
-    stubYnabApi([ynabTransaction("txn-1")], { rateLimitHeader: "190/200" });
-
-    const handle = startYnabSync(
-      repo,
-      baseConfig({ ynabToken: "ynab-token", ynabPlanId: "plan-test" }),
-      { ...silentLogger, warn: (message: string) => warnings.push(message) },
-    );
-    try {
-      const result = await handle!.runNow();
-      expect(result?.imported_transactions).toBe(1);
-      expect(warnings.some((message) => message.includes("190/200"))).toBe(true);
-      // Six parallel requests share the quota header but warn only once.
-      expect(warnings.filter((message) => message.includes("190/200"))).toHaveLength(1);
-    } finally {
-      handle?.stop();
-    }
-  });
-
-});
-
-function baseConfig(overrides: Record<string, unknown>) {
-  return {
-    dbPath: ":memory:",
-    port: 0,
-    defaultPlanId: "plan-test",
-    transitionReadOnly: false,
-    ...overrides,
-  } as any;
-}
