@@ -70,7 +70,7 @@ a.page-eyebrow:hover {
 /* An account register with one reward card: the card's sunrise strip (pages/rewards-board.css) behind
    the whole header, reaching the content area's top and side edges (the report body's padding). The
    title and balance sit in the sky, kept left of the sun's column at 85%, and the card's words on the
-   ground, which fades into the page over the last 24px, below them. */
+   ground below them. */
 .report-header.register-header.register-masthead {
   --masthead-inset: 36px;
   display: block;
@@ -82,7 +82,15 @@ a.page-eyebrow:hover {
   padding: 30px var(--masthead-inset);
   border-radius: 0;
   box-shadow: none;
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+}
+
+/* The ground ends in a solid line above the filters: the horizon's gold in dark mode, a deeper green in light,
+   where the gold is lost against the page. */
+.register-masthead::after {
+  content: "";
+  display: block;
+  height: 2px;
+  background: var(--masthead-edge);
 }
 
 /* The title and balance sit in the sky the climbing sun pours into: keep the pour and dark mode's bloom
@@ -140,10 +148,10 @@ a.page-eyebrow:hover {
   }
 }
 
-/* Dark mode's foot scrim runs the full width of the scene and on into the ground's fade, softening in
+/* Dark mode's foot scrim runs the full width of the scene and down to the ground's edge, softening in
    above the words, so it never shows as a slab with edges. */
 .register-masthead .rw-strip-foot::before {
-  inset: -14px calc(-1 * var(--masthead-inset)) -30px;
+  inset: -14px calc(-1 * var(--masthead-inset)) -40px;
   background: linear-gradient(to bottom, transparent, var(--face-scrim) 14px);
 }
 
@@ -1840,3 +1848,4 @@ button.estimate-mark:disabled {
   flex-basis: 100%;
   margin: 0;
 }
+

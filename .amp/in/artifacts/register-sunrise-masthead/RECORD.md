@@ -101,3 +101,10 @@ HowMuchTests: 825 tests, 1 skipped, 0 failures on a fresh build of the fixed tre
 | Save a spend in the register | Words update without a reload | Added `Test Bakery` −$50.00 through + Add transaction: within 2s the ground read `$350.00 to minimum` and `$450.00 / $800.00` |
 
 Checks: `bun run check` (bun test and the web and worker typechecks). No iOS files changed.
+
+### Web ground edge (10 Nov 2026)
+
+- **Request (YJ):** "I'm not sure I like the fade between the grass and the body. Can we have a solid line or some alternative?"
+- **Options captured** at 1280 and 390, light and dark: the fade as landed (`web/edge-fade-before.jpg`); a hard edge with a 2px line (`web/edge-line.jpg`); a hard edge with the app's glowing `--crest` header rule (`web/edge-option-crest.jpg`); a plain hard edge (`web/edge-option-plain.jpg`).
+- **Chosen:** the solid line, as asked. The horizon's gold, used as the line in light mode, was nearly invisible on the cream page, so light mode uses a deeper green (`#689172`) and dark mode keeps the gold.
+- **Observed:** `.register-masthead::after` computes to 2px of `rgb(255, 217, 140)` in dark mode. No horizontal scroll at 390 or 1280. Desktop and phone captures (`web/desktop-*.jpg`, `web/phone-light-dark.jpg`, `web/edge-line-phone.jpg`) were redone with the line.
