@@ -79,3 +79,25 @@ HowMuchTests ran 825 tests, 1 skipped, 0 failures, on a fresh build that matched
 `final/scroll-back-before-after.jpg` shows rest, back before the fix, and back after the fix.
 
 HowMuchTests: 825 tests, 1 skipped, 0 failures on a fresh build of the fixed tree (Xcode 27.3, iPhone 17). A first run on the cold simulator failed four Add Transaction sheet snapshot tests with empty accessibility trees; they passed on rerun and the full rerun was clean. `bun test` 823 pass; web and worker typechecks pass.
+
+## Web (10 Nov 2026)
+
+- **Request (YJ):** "Let's see if we can do this on the web too."
+- **Before:** the web register showed the title and working balance on the plain page, with no reward words (`web/before-desktop.jpg`).
+- **Change:** `components/RegisterMasthead.tsx` draws the card's strip (`ExposureFace`, variant `strip`) behind the register header of a card account with exactly one reward card. The details are in the spec's "Register masthead", under Web.
+- **Setup:** the same control-howmuch stack (web on Vite, API on Bun/SQLite), owner `verifier`. Travel Card (`acct-credit`) has seven invented November spends and 120 invented October rows. The rewards export is `fixtures/rewards-tracker-export.json` with flag categories off and an $800 minimum, varied by `web/states.sh`.
+- **Driven:** agent-browser (Chromium) at 1280 × 860 and 390 × 844, light and dark (`html[data-mode]`), plus 320, 820, 1024 and 1440 wide.
+
+| Check | Expected | Observed |
+| --- | --- | --- |
+| Gate, light and dark, desktop and phone | Sky from under the app bar to above Filters, full content width. Title and balance left in the sky; `$X to minimum`, deadline and basis on the ground; no second card name | As expected (`web/desktop-light.jpg`, `web/desktop-dark.jpg`, `web/phone-light-dark.jpg`) |
+| Met, capped, card named differently, two cards | Sun lifted; capped gold sky; `Halo Miles` shown on the ground; two cards keep the plain header | As expected (`web/states-phone.jpg`). `states.sh` reports `rest`, `capped`, `gate` and `plain` |
+| No reward card (Everyday Account) | Plain header | As expected |
+| Contrast, capped dark (the worst sky) | Soft ink at least 4.5:1 | Failed at 3.46:1 before the pour and bloom were held to 35%; now 5.37:1 for the breakdown line and 7.3:1 for the balance, from sampled pixels |
+| Dark scrim | No slab edge under the words | Failed first (a hard bottom edge); the scrim now runs into the fade and softens in above the words |
+| Widths 320, 390, 820, 1024, 1440 | No horizontal scroll; scene spans the report body | Overflow 0 at every width; masthead left and right equal the report body's |
+| Keyboard | Tab reaches the ground words with a visible ring; Enter opens Rewards for this card | Focus ring shown; Enter opened `/rewards?accounts=acct-credit`, which lists only Travel Card |
+| Accessible name | `Rewards, {card}. {spoken status}` | `Rewards, Travel Card. $800.00 to minimum. $0.00 of $800.00, 0 per cent. 21 days left, ends 30 Nov. ...` |
+| Save a spend in the register | Words update without a reload | Added `Test Bakery` −$50.00 through + Add transaction: within 2s the ground read `$350.00 to minimum` and `$450.00 / $800.00` |
+
+Checks: `bun run check` (bun test and the web and worker typechecks). No iOS files changed.

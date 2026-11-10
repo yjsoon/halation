@@ -441,6 +441,15 @@ An account register with exactly one reward card draws that card's scene behind 
 - The ground runs 28pt under the transactions card's top and fades into the page. Scrolling, the words fade before they pass under the bar and the scene fades over 56pt once the horizon reaches it.
 - Two cards on one account, accessibility text sizes and selection mode keep the paper rows below.
 
+**Web (10 Nov 2026).** `components/RegisterMasthead.tsx` gives a single-account register on a card account with exactly one reward card the same header. The web register had no reward words before, so these are new there. It is the board's own strip (`ExposureFace` variant `strip`), with these differences:
+- **Bleed.** It reaches the content area's top and side edges, as the Rewards masthead does.
+- **Sky.** The title, working balance, cleared and uncleared line and any `as of today` or `Last reconciled` note sit in the sky in the face ink, left-aligned and within 72% of the width, so the sun's column stays clear. The band to the ground is 44px.
+- **Ground.** The words are a link to `/rewards?accounts={id}`. They use the board's type, Plex figures and basis line, since Plex is the web's own voice. The card's name shows only when it differs from the account's.
+- **Fade and scrim.** The ground fades into the page over its last 24px, above Filters, and dark mode's foot scrim runs into that fade.
+- **Pour and bloom** are held to 35%, so the sky's soft ink keeps 4.5:1 on a capped card in dark mode (5.4:1 measured).
+- **Fallbacks.** Two cards, no reward card and a multi-account view keep the plain header.
+- **Refresh.** The report refetches when the ledger moves, keeping the last one on screen meanwhile.
+
 ### Paper row with print (register)
 
 - `Theme.card`, radius 16, 14pt vertical and 16pt horizontal padding.

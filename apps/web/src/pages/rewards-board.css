@@ -1,5 +1,6 @@
 /*
- * Rewards board ("Exposure"). Imported by pages/Rewards.tsx.
+ * Rewards board ("Exposure"). Imported by pages/Rewards.tsx, and by components/RegisterMasthead.tsx for the
+ * account register's sunrise header.
  *
  * Each card is a small photograph, the Sun Arc (docs/frontend/rewards-exposure-card.md).
  * The way to the minimum is across: the light spreads left to right to a faint

@@ -67,6 +67,91 @@ a.page-eyebrow:hover {
   font-weight: 400;
 }
 
+/* An account register with one reward card: the card's sunrise strip (pages/rewards-board.css) behind
+   the whole header, reaching the content area's top and side edges (the report body's padding). The
+   title and balance sit in the sky, kept left of the sun's column at 85%, and the card's words on the
+   ground, which fades into the page over the last 24px, below them. */
+.report-header.register-header.register-masthead {
+  --masthead-inset: 36px;
+  display: block;
+  margin: -14px -32px 0;
+  padding: 0;
+}
+
+.register-masthead > .rw-face[data-variant] {
+  padding: 30px var(--masthead-inset);
+  border-radius: 0;
+  box-shadow: none;
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+}
+
+/* The title and balance sit in the sky the climbing sun pours into: keep the pour and dark mode's bloom
+   low enough that their ink holds 4.5:1 on a capped card. */
+.register-masthead.rw-card .rw-pour {
+  opacity: calc(var(--pour-k, 0) * var(--face-pour-cashback) * 0.35);
+}
+
+.register-masthead.rw-card[data-type="miles"] .rw-pour {
+  opacity: calc(var(--pour-k, 0) * var(--face-pour-miles) * 0.35);
+}
+
+.register-masthead .rw-bloom {
+  fill-opacity: 0.35;
+}
+
+.register-masthead-sky {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-self: flex-start;
+  max-width: 72%;
+  margin-bottom: 44px;
+  color: var(--rw-ink);
+}
+
+.register-masthead .register-balances .headline-figure {
+  align-items: flex-start;
+}
+
+.register-masthead :is(.figure-value, .figure-value.figure-negative, .figure-value.figure-positive, .figure-negative, .figure-positive) {
+  color: inherit;
+}
+
+.register-masthead :is(.figure-label, .register-balance-breakdown, .register-balance-note) {
+  text-align: left;
+  color: color-mix(in srgb, var(--rw-ink) 80%, transparent);
+}
+
+.register-masthead-ground {
+  display: block;
+  text-decoration: none;
+  border-radius: 6px;
+}
+
+.register-masthead-ground:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+}
+
+@media (hover: hover) {
+  .register-masthead-ground:hover .rw-action {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+}
+
+/* Dark mode's foot scrim runs the full width of the scene and on into the ground's fade, softening in
+   above the words, so it never shows as a slab with edges. */
+.register-masthead .rw-strip-foot::before {
+  inset: -14px calc(-1 * var(--masthead-inset)) -30px;
+  background: linear-gradient(to bottom, transparent, var(--face-scrim) 14px);
+}
+
+.register-masthead-card {
+  margin: 0 0 2px;
+  font: 600 12px / 1.4 var(--font-ui);
+}
+
 .register-header .register-balances .figure-label {
   font-size: 12px;
   text-transform: none;
@@ -174,6 +259,16 @@ a.page-eyebrow:hover {
 @media (max-width: 720px) {
   .report-header.register-header {
     padding: 12px 0;
+  }
+
+  .report-header.register-header.register-masthead {
+    --masthead-inset: 16px;
+    margin: 0 -12px;
+    padding: 0;
+  }
+
+  .register-masthead > .rw-face[data-variant] {
+    padding-top: 18px;
   }
 
   .register-header .register-balances .figure-value {

@@ -7,6 +7,7 @@ import type {
   CreditCard,
   Payee,
   ReconciliationMismatchDetail,
+  RewardsReport,
   ScheduledTransaction,
   Transaction,
 } from "../api/types";
@@ -18,6 +19,7 @@ import { CardTermsDialog } from "../components/CardTermsDialog";
 import { CardSettings } from "../components/CardSettings";
 import { CategorySuggestionReview } from "../components/CategorySuggestionReview";
 import { RegisterComposeRow } from "../components/RegisterComposeRow";
+import { mastheadScene, RegisterMasthead } from "../components/RegisterMasthead";
 import { RegisterEditableRow, type RowEditSurface } from "../components/RegisterEditableRow";
 import { isCardAccount } from "../lib/card-payments";
 import { splitCategoryGroups, UNCATEGORISED_CATEGORY_ID } from "../lib/categories";
@@ -203,6 +205,19 @@ export function TransactionsPage() {
     flow,
   });
   const [refreshGeneration, setRefreshGeneration] = useState(0);
+  // The card's progress for the sunrise masthead. Refetched when the ledger moves, keeping the last
+  // report on screen meanwhile so the header does not drop back to the plain one between fetches.
+  const mastheadAccountId = selectedRewardCard ? selectedAccount?.id : undefined;
+  const mastheadReport = useApi(
+    mastheadAccountId ? JSON.stringify([planId, mastheadAccountId, refreshGeneration, validatedKnowledge, cacheEpoch]) : "register-masthead-idle",
+    () => mastheadAccountId ? api.rewards({ plan_id: planId, account_ids: mastheadAccountId }) : Promise.resolve(null),
+  );
+  const lastMastheadReport = useRef<{ accountId: string; report: RewardsReport } | null>(null);
+  if (mastheadAccountId && mastheadReport.data) lastMastheadReport.current = { accountId: mastheadAccountId, report: mastheadReport.data };
+  const masthead = mastheadScene(
+    mastheadReport.error || lastMastheadReport.current?.accountId !== mastheadAccountId ? null : lastMastheadReport.current?.report,
+    mastheadAccountId,
+  );
   const requestVersionRef = useRef(0);
   const today = todayIso();
   const fetchUntilDate = registerFetchUntilDate(filters.to, today);
@@ -1671,28 +1686,36 @@ export function TransactionsPage() {
 
   return (
     <>
-      <div className="report-header register-header">
-        <div>
-          <h1>{registerLabel}</h1>
-        </div>
-        <div className="headline-row register-balances">
-          <div className="headline-figure register-balance-hero">
-            <span className="figure-label">Working balance</span>
-            <span key={balances.working} className={`figure-value figure-settle ${balanceTone(balances.working)}`}>
-              {formatMoney(balances.working)}
-            </span>
-            <span className="register-balance-breakdown">
-              {formatMoney(balances.cleared)} cleared · <span className={balanceTone(balances.uncleared)}>{formatMoney(balances.uncleared)}</span> uncleared
-            </span>
-            {todayBalance !== null && todayBalance !== balances.working && (
-              <span className="register-balance-note">{formatMoney(todayBalance)} as of today</span>
-            )}
-            {selectedAccount?.last_reconciled_date && (
-              <span className="register-balance-note">Last reconciled {formatDate(selectedAccount.last_reconciled_date)}</span>
-            )}
+      {(() => {
+        const title = <h1>{registerLabel}</h1>;
+        const balanceRow = (
+          <div className="headline-row register-balances">
+            <div className="headline-figure register-balance-hero">
+              <span className="figure-label">Working balance</span>
+              <span key={balances.working} className={`figure-value figure-settle ${balanceTone(balances.working)}`}>
+                {formatMoney(balances.working)}
+              </span>
+              <span className="register-balance-breakdown">
+                {formatMoney(balances.cleared)} cleared · <span className={balanceTone(balances.uncleared)}>{formatMoney(balances.uncleared)}</span> uncleared
+              </span>
+              {todayBalance !== null && todayBalance !== balances.working && (
+                <span className="register-balance-note">{formatMoney(todayBalance)} as of today</span>
+              )}
+              {selectedAccount?.last_reconciled_date && (
+                <span className="register-balance-note">Last reconciled {formatDate(selectedAccount.last_reconciled_date)}</span>
+              )}
+            </div>
           </div>
-        </div>
-      </div>
+        );
+        return masthead && selectedAccount
+          ? <RegisterMasthead scene={masthead} planId={planId} accountName={selectedAccount.name}>{title}{balanceRow}</RegisterMasthead>
+          : (
+            <div className="report-header register-header">
+              <div>{title}</div>
+              {balanceRow}
+            </div>
+          );
+      })()}
       <FilterRail filters={filters} setFilters={setFilters} busy={page.loading || page.filling || page.loadingMore} collapsible />
       <div className="register-toolbar">
         <div className="register-toolbar-actions">
