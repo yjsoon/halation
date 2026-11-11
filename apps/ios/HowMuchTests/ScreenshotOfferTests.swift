@@ -349,15 +349,15 @@ final class ScreenshotOfferTests: XCTestCase {
     if let scroll = settingsSurface.firstDescendant(UIScrollView.self) {
       scroll.setContentOffset(CGPoint(x: 0, y: max(0, scroll.contentSize.height - scroll.bounds.height + scroll.adjustedContentInset.bottom)), animated: false)
     }
-    let rendered = await settingsSurface.captureUntilOCR(contains: ["Offer clipboard images", "paste permission"])
+    let rendered = await settingsSurface.captureUntilOCR(contains: ["Offer clipboard images", "photos library"])
     XCTAssertTrue(rendered.text.contains("offer clipboard images"), rendered.text)
-    XCTAssertTrue(rendered.text.contains("paste permission"), rendered.text)
+    XCTAssertTrue(rendered.text.contains("photos library"), rendered.text)
     attach(rendered.image, name: "clipboard-settings-off")
     let toggle = try XCTUnwrap(settingsSurface.firstControl(label: "Offer clipboard images"))
     XCTAssertTrue(settingsSurface.activate(toggle))
     let enabled = await settingsSurface.waitUntil { self.controller.isEnabled }
     XCTAssertTrue(enabled)
-    let enabledRender = await settingsSurface.captureUntilOCR(contains: ["On", "paste permission"])
+    let enabledRender = await settingsSurface.captureUntilOCR(contains: ["On", "photos library"])
     attach(enabledRender.image, name: "clipboard-settings-on")
     settingsSurface.detach()
 

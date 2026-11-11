@@ -413,7 +413,7 @@ struct RewardsBackupImportView: View {
           Text("Selected \(fileName)").foregroundStyle(.secondary)
         }
       } footer: {
-        Text("Import a Rewards Tracker for YNAB settings export. Cards, rules and tag mappings are stored on this plan. Cached YNAB-shaped accounts and transactions in older dumps are upserted by their original IDs, so re-importing updates rather than duplicates them. This does not connect to live YNAB.")
+        Text("Import a Rewards Tracker settings export. Importing the same file again updates it instead of duplicating.")
       }
 
       if let errorMessage {

@@ -30,7 +30,7 @@ struct CaptureAISettingsView: View {
         .pickerStyle(.navigationLink)
         .accessibilityIdentifier("ai-provider-picker")
       } footer: {
-        Text("Used for Add and Assistant conversations, and to read documents you share to Halation. Changes apply to the next request. Your Halation server connection is unchanged.")
+        Text("Used for Add, Assistant and documents you share to Halation.")
       }
 
       if draft.isOnDevice {

@@ -72,18 +72,15 @@ export function RewardsImportPage() {
       <section className="report-section" aria-label="Export rewards">
         <h2>Whole-app rewards settings</h2>
         <button type="button" className="save-button" disabled={!snapshot.data || snapshot.loading || busy} onClick={exportFile}>Export rewards JSON</button>
-        <p className="field-note">Portable current cards, rules, tag mappings, and reward settings. No API credentials, connection settings, or cached transactions. Account IDs are retained for re-import.</p>
+        <p className="field-note">Excludes connection credentials and cached transactions.</p>
       </section>
 
       <p className="diagnostic-note">
-        Import a Rewards Tracker for YNAB settings export. Cards, rules, and tag mappings are stored on this plan.
-        Cached YNAB-shaped accounts and transactions in older dumps are upserted by their original IDs, so running the
-        import twice updates the same rows instead of duplicating them. This does not connect to live YNAB.
+        Import a Rewards Tracker settings export. Importing the same file again updates it instead of duplicating.
       </p>
 
       <StatusPanel title="Import replaces the stored card set.">
-        Cards omitted from the export are soft-deleted. An empty <code>cards</code> array removes every Halation card.
-          Miles valuation in the export replaces a native value when the export sets a finite number.
+        Cards missing from the export are removed. Miles valuation is replaced when the export sets one.
       </StatusPanel>
 
       {error && (

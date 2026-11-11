@@ -100,7 +100,7 @@ struct SkillAndMemoryView: View {
       } header: {
         Text(learnedHeader(rules))
       } footer: {
-        Text("Rules and instructions are text only. Rules shape future proposals; they never change saved transactions.")
+        Text("Rules never change saved transactions.")
       }
 
       Section {
@@ -136,7 +136,7 @@ struct SkillAndMemoryView: View {
       isPresented: $confirmingClear,
       confirm: .destructive("Clear"),
       message: {
-        Text("Deletes every learned rule and dismissed suggestion. Your instructions stay. Saved transactions are not changed.")
+        Text("Deletes every learned rule and dismissed suggestion. Your instructions and transactions stay.")
       }
     ) {
       if store.clearMemory() {

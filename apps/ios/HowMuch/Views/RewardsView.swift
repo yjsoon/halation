@@ -798,7 +798,7 @@ struct RewardsView: View {
     return NavigationStack {
       List {
         Section {
-          Text("Device-local for this plan. Drag to reorder, and show or hide cards, including cards excluded by Featured. These choices do not change rewards, totals or configuration exports.")
+          Text("Order and visibility are saved on this device only. Totals don’t change.")
             .font(.footnote)
             .foregroundStyle(.secondary)
           Button("Show All Cards") { updatePreferences { $0.hiddenCardIDs = [] } }

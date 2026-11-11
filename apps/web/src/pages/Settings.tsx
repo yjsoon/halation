@@ -41,7 +41,7 @@ const TOOLS = [
   {
     to: "/import/rewards",
     name: "Rewards import",
-    detail: "One-off import of a Rewards Tracker for YNAB settings export.",
+    detail: "Import a Rewards Tracker settings export.",
   },
 ];
 
@@ -69,10 +69,6 @@ export function SettingsPage() {
           <h1>Settings</h1>
         </div>
       </header>
-
-      <p className="diagnostic-note">
-        Your password, plan formats, appearance, tokens and imports live here so the daily ledger stays uncluttered.
-      </p>
 
       <nav className="settings-index" aria-label="Settings sections">
         <a href="#settings-password-heading">Password</a>
@@ -211,8 +207,7 @@ function ChangePasswordSection() {
         <div>
           <h2 className="section-title" id="settings-password-heading" tabIndex={-1}>Change password</h2>
           <span className="section-meta">
-            Use at least {MIN_PASSWORD_LENGTH} characters. Every other browser and device signed in as you is signed out; this one stays signed in. Personal API tokens keep working;
-            revoke them on the <NavLink to="/api-tokens">API tokens</NavLink> page if you need to.
+            Use at least {MIN_PASSWORD_LENGTH} characters. Other sessions are signed out; API tokens keep working.
           </span>
         </div>
       </div>
@@ -234,7 +229,7 @@ function ChangePasswordSection() {
         </button>
       </form>
       {error && <StatusPanel error role="alert">{error}</StatusPanel>}
-      {done && <StatusPanel className="status-panel-success" role="status">Password changed. This device stays signed in; every other session has been signed out.</StatusPanel>}
+      {done && <StatusPanel className="status-panel-success" role="status">Password changed. Other sessions are signed out.</StatusPanel>}
     </section>
   );
 }
@@ -284,8 +279,7 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
         <div>
           <h2 className="section-title" id="settings-formats-heading" tabIndex={-1}>Currency and date format</h2>
           <span className="section-meta">
-            Changing the currency only changes the symbol and decimal places shown. Nothing is converted: $100 becomes £100.
-            For a currency such as JPY the cents are hidden, not lost.
+            Nothing is converted: $100 becomes £100.
           </span>
         </div>
       </div>
@@ -307,7 +301,7 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
         </button>
       </form>
       {error && <StatusPanel error role="alert">{error}</StatusPanel>}
-      {done && <StatusPanel className="status-panel-success" role="status">Formats saved. Amounts and dates here now use the new settings. The iOS app shows the new currency after its next refresh and always shows dates as 24 May 2026.</StatusPanel>}
+      {done && <StatusPanel className="status-panel-success" role="status">Formats saved. The iOS app updates its currency on its next refresh and always shows dates as 24 May 2026.</StatusPanel>}
     </section>
   );
 }
@@ -365,13 +359,10 @@ function ExportSection() {
         <div>
           <h2 className="section-title" id="settings-export-heading" tabIndex={-1}>Export everything</h2>
           <span className="section-meta">
-            The archive holds every account, transaction, split, schedule, category and payee, the plan formats, your account
-            organisation and the Rewards cards. Its ledger can be imported into an empty plan. The CSV lists every transaction for a
-            spreadsheet, one row per split line. Passwords and API tokens are never included.
+            Exports never include passwords or tokens.
           </span>
           <span className="section-meta">
-            Your ledger lives only in this server's own database, and Halation keeps no other copy. To delete everything,
-            delete that database: on Cloudflare, the D1 database and the Worker in your account.
+            Halation keeps no other copy of your ledger. To delete everything, delete this server’s database.
           </span>
         </div>
       </div>

@@ -1,6 +1,6 @@
 # Rewards import
 
-Rewards import takes a Rewards Tracker for YNAB settings export and stores that plan's cards, rules, and tag mappings. Cached YNAB-shaped rows in older dumps are upserted by their original IDs. Running the same file again updates those rows instead of duplicating them.
+Rewards import takes a Rewards Tracker settings export and stores that plan's cards, rules, and tag mappings. Cached YNAB-shaped rows in older dumps are upserted by their original IDs. Running the same file again updates those rows instead of duplicating them.
 
 ## Sub-features
 

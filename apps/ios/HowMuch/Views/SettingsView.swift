@@ -44,7 +44,7 @@ private struct DataSection: View {
       Text("Data")
     } footer: {
       if isSelectionSaved {
-        Text("Rewards import and export moves Rewards Tracker settings as a file and does not connect to YNAB. The JSON export holds every account, transaction, schedule, category and payee, the plan formats, your account organisation and the Rewards cards. The CSV has one row per split line. Passwords and tokens are never included.")
+        Text("Exports never include passwords or tokens.")
       } else {
         Text("Export uses the saved plan. Try again in a moment.")
       }
@@ -358,7 +358,7 @@ struct SettingsView: View {
     }
   }
 
-  private static let clipboardImagesFooter = "Offers only the image currently on your clipboard. iOS may ask for paste permission. Images are checked on this device, and your Photos library is never read."
+  private static let clipboardImagesFooter = "Checks your clipboard only, never your Photos library."
 
   @ViewBuilder
   private var categoriserSection: some View {
