@@ -87,7 +87,9 @@ struct AccountsView: View {
       if usesSplit {
         NavigationSplitView(columnVisibility: $columnVisibility) {
           overview()
-            .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 420)
+            // The max must exceed half the iPhone Duo inner display (about
+            // 476pt landscape) so a partial fold can split at the hinge.
+            .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 520)
         } detail: {
           NavigationStack {
             if let pane {
