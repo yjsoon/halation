@@ -450,6 +450,7 @@ An account register with exactly one reward card draws that card's scene behind 
 - **Pour and bloom** are held to 35%, so the sky's soft ink keeps 4.5:1 on a capped card in dark mode (5.4:1 measured).
 - **Fallbacks.** Two cards, no reward card and a multi-account view keep the plain header.
 - **Refresh.** The report refetches when the ledger moves, keeping the last one on screen meanwhile.
+- **Loading (11 Nov 2026).** The plain header never shows first. While the report loads, a card account expected to get the masthead holds its shape: the sky's text in place on the page, with the ground's two lines reserved and no sky. The report is asked for at once rather than after the reward cards. Before the cards load, "expected" means it had one reward card last time (`howmuch:register-mastheads:{plan}`), or any card account on a first visit. When the report lands, a page-coloured cover between the scene and the text fades over `--dur-standard` and the words fade in, so the title never moves, and then the sun sweeps. Fading the scene itself would cut its blends off the sky. Under Reduce Motion the scene appears at once.
 
 ### Paper row with print (register)
 

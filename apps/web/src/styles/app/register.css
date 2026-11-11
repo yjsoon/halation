@@ -84,6 +84,56 @@ a.page-eyebrow:hover {
   box-shadow: none;
 }
 
+/* While the card's report loads, the header already has the masthead's shape and ink, on the page with
+   no sky, so the plain header never shows first and nothing moves when the scene arrives. */
+.register-masthead[data-pending] {
+  --rw-ink: var(--face-cashback-ink);
+}
+
+.register-masthead[data-pending] > .rw-face {
+  background: none;
+}
+
+.register-masthead[data-pending] .register-masthead-ground {
+  visibility: hidden;
+}
+
+/* The scene arrives under the title and balance, which hold still: a cover of the page between the scene
+   and the text fades away, then the sun sweeps. Fading the scene itself would cut its blends off the sky. */
+.register-masthead.rw-card {
+  animation: none;
+}
+
+.register-masthead.rw-card .register-masthead-sky {
+  z-index: 1;
+}
+
+.register-masthead.rw-card > .rw-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: var(--paper);
+  animation: register-masthead-reveal var(--dur-standard) var(--ease-out) forwards;
+}
+
+.register-masthead.rw-card .register-masthead-ground {
+  animation: register-masthead-words var(--dur-standard) var(--ease-out) backwards;
+}
+
+@keyframes register-masthead-reveal {
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+@keyframes register-masthead-words {
+  from {
+    opacity: 0;
+  }
+}
+
 /* The ground ends in the glowing rule the app's other page headers end on (--crest), above the filters. */
 .register-masthead::after {
   content: "";

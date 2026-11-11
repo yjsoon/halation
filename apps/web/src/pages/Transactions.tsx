@@ -19,7 +19,7 @@ import { CardTermsDialog } from "../components/CardTermsDialog";
 import { CardSettings } from "../components/CardSettings";
 import { CategorySuggestionReview } from "../components/CategorySuggestionReview";
 import { RegisterComposeRow } from "../components/RegisterComposeRow";
-import { mastheadScene, RegisterMasthead } from "../components/RegisterMasthead";
+import { expectedMastheads, mastheadScene, RegisterMasthead, rememberMastheads } from "../components/RegisterMasthead";
 import { RegisterEditableRow, type RowEditSurface } from "../components/RegisterEditableRow";
 import { isCardAccount } from "../lib/card-payments";
 import { splitCategoryGroups, UNCATEGORISED_CATEGORY_ID } from "../lib/categories";
@@ -207,7 +207,11 @@ export function TransactionsPage() {
   const [refreshGeneration, setRefreshGeneration] = useState(0);
   // The card's progress for the sunrise masthead. Refetched when the ledger moves, keeping the last
   // report on screen meanwhile so the header does not drop back to the plain one between fetches.
-  const mastheadAccountId = selectedRewardCard ? selectedAccount?.id : undefined;
+  // Asked for before the reward cards arrive, as the report alone decides the masthead.
+  const selectedCardAccount = selectedAccount && isCardAccount(selectedAccount) ? selectedAccount : undefined;
+  const mastheadAccountId = selectedCardAccount && (selectedRewardCard || (!rewardsSnapshot.data && !rewardsSnapshot.error))
+    ? selectedCardAccount.id
+    : undefined;
   const mastheadReport = useApi(
     mastheadAccountId ? JSON.stringify([planId, mastheadAccountId, refreshGeneration, validatedKnowledge, cacheEpoch]) : "register-masthead-idle",
     () => mastheadAccountId ? api.rewards({ plan_id: planId, account_ids: mastheadAccountId }) : Promise.resolve(null),
@@ -218,6 +222,16 @@ export function TransactionsPage() {
     mastheadReport.error || lastMastheadReport.current?.accountId !== mastheadAccountId ? null : lastMastheadReport.current?.report,
     mastheadAccountId,
   );
+  // Until the report answers, a card account expected to get the masthead holds its shape rather than
+  // showing the plain header first. Before the cards load, what they said last time decides.
+  const mastheadPending = !masthead && mastheadAccountId !== undefined && !mastheadReport.error
+    && lastMastheadReport.current?.accountId !== mastheadAccountId
+    && (rewardCards
+      ? rewardCards.filter((card) => card.ynabAccountId === mastheadAccountId).length === 1
+      : expectedMastheads(planId)?.includes(mastheadAccountId) ?? true);
+  useEffect(() => {
+    if (rewardCards) rememberMastheads(planId, rewardCards);
+  }, [planId, rewardCards]);
   const requestVersionRef = useRef(0);
   const today = todayIso();
   const fetchUntilDate = registerFetchUntilDate(filters.to, today);
@@ -1707,7 +1721,7 @@ export function TransactionsPage() {
             </div>
           </div>
         );
-        return masthead && selectedAccount
+        return (masthead || mastheadPending) && selectedAccount
           ? <RegisterMasthead key={`${planId}|${selectedAccount.id}`} scene={masthead} accountName={selectedAccount.name}>{title}{balanceRow}</RegisterMasthead>
           : (
             <div className="report-header register-header">
