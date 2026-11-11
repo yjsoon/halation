@@ -835,6 +835,23 @@ a.page-eyebrow:hover {
   font-weight: 500;
 }
 
+.register-bulk-total {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.register-bulk-total strong {
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
+.register-bulk-total-split {
+  opacity: 0.72;
+}
+
 .register-bulk-sep {
   width: 1px;
   height: 18px;
@@ -887,9 +904,16 @@ a.page-eyebrow:hover {
     background: var(--paper);
   }
 
+  .register-bulk-bar .register-bulk-total {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    flex-wrap: wrap;
+    padding: 2px 8px 4px;
+  }
+
   .register-bulk-bar .register-bulk-approve {
     grid-column: 1 / -1;
-    grid-row: 4;
+    grid-row: 5;
   }
 
   .register-bulk-bar ~ .register-toast {

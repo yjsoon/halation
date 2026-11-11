@@ -1575,22 +1575,8 @@ export function TransactionsPage() {
     });
   };
 
-  const totals = useMemo(
-    () =>
-      rows.reduce(
-        (summary, txn) => {
-          if (txn.amount < 0) {
-            summary.outflow += Math.abs(txn.amount);
-          } else {
-            summary.inflow += txn.amount;
-          }
-          summary.net += txn.amount;
-          return summary;
-        },
-        { inflow: 0, outflow: 0, net: 0 },
-      ),
-    [rows],
-  );
+  const totals = useMemo(() => flowTotals(rows), [rows]);
+  const selectedTotals = useMemo(() => flowTotals(selectedRows), [selectedRows]);
 
   const hasMoreToLoad = ((registerQuery && !queueMode) ? searchPage.hasMore : page.hasMore)
     && !page.filling
@@ -1868,6 +1854,12 @@ export function TransactionsPage() {
           }} disabled={mutationBusy} aria-label="Clear selection">
             × {selectedRowIds.length} selected
           </button>
+          <span className="register-bulk-total" role="status">
+            Total <strong>{formatMoney(selectedTotals.net, { sign: true })}</strong>
+            {selectedTotals.inflow > 0 && selectedTotals.outflow > 0 && (
+              <span className="register-bulk-total-split">{formatMoney(selectedTotals.inflow)} in · {formatMoney(selectedTotals.outflow)} out</span>
+            )}
+          </span>
           <span className="register-bulk-sep" aria-hidden="true" />
           {selectedUnapprovedIds.length > 0 && (
             <button
@@ -2376,6 +2368,23 @@ export function TransactionsPage() {
         </section>
       )}
     </>
+  );
+}
+
+// Every amount is in the plan's one currency (see `configureMoney`), so a
+// plain sum is safe.
+function flowTotals(rows: readonly Transaction[]): { inflow: number; outflow: number; net: number } {
+  return rows.reduce(
+    (summary, txn) => {
+      if (txn.amount < 0) {
+        summary.outflow += Math.abs(txn.amount);
+      } else {
+        summary.inflow += txn.amount;
+      }
+      summary.net += txn.amount;
+      return summary;
+    },
+    { inflow: 0, outflow: 0, net: 0 },
   );
 }
 
