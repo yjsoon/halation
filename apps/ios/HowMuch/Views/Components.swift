@@ -746,6 +746,9 @@ final class RootChromeState {
     }
   }
   private var lastCompactTab: AppTab = .accounts
+  /// Set while a register is picking transactions: its total bar takes the
+  /// tab row's place, so the tab bar, Add and Assistant step aside.
+  var isSelectingTransactions = false
   private var overflowByTab: [AppTab: MoreDestination] = [:]
 
   func overflow(on tab: AppTab) -> MoreDestination? {
@@ -912,7 +915,7 @@ struct RootTabView: View {
       .modifier(CompactTabBarVisibility(
         hidden: RootChrome.hidesCompactTabBar(
           usesSidebar: false,
-          hidesTabRowOverlay: router.hidesTabRowOverlay,
+          hidesTabRowOverlay: router.hidesTabRowOverlay || chrome.isSelectingTransactions,
           // A stale pending session on another tab must not leave the bar hidden.
           assistantConversationPushed: chrome.captureSurface == .assistant
             && workspace.pendingAssistantSessionID != nil
@@ -922,7 +925,8 @@ struct RootTabView: View {
         RootTabBarFloatingAssistant(
           // The button lives on the window, above every SwiftUI overlay, so
           // onboarding (Welcome, and sign-in opened from it) hides it.
-          isSuppressed: model.isShowingWelcome || (model.isShowingSettings && model.canReturnToWelcome),
+          isSuppressed: model.isShowingWelcome || (model.isShowingSettings && model.canReturnToWelcome)
+            || chrome.isSelectingTransactions,
           openAssistant: { chrome.openMore(.assistant) }
         )
         .allowsHitTesting(false)
@@ -1284,7 +1288,7 @@ struct RootTabHost<Content: View>: View {
     let overflow = usesSidebar ? nil : chrome.overflow(on: hostedTab)
     let hidesTabBar = RootChrome.hidesCompactTabBar(
       usesSidebar: usesSidebar,
-      hidesTabRowOverlay: router.hidesTabRowOverlay,
+      hidesTabRowOverlay: router.hidesTabRowOverlay || chrome.isSelectingTransactions,
       assistantConversationPushed: chrome.captureSurface == .assistant
         && workspace.pendingAssistantSessionID != nil
     )
@@ -1304,6 +1308,7 @@ struct RootTabHost<Content: View>: View {
       .safeAreaInset(edge: .bottom, spacing: 0) {
         if !usesSidebar,
            !router.hidesTabRowOverlay,
+           !chrome.isSelectingTransactions,
            workspace.pendingAssistantSessionID == nil
         {
           Color.clear

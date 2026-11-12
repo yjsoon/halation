@@ -168,7 +168,7 @@ private struct RootView: View {
       model.activeCaptureSurface = surface
     }
     .overlay(alignment: .bottomTrailing) {
-      if usesSidebar {
+      if usesSidebar, !chrome.isSelectingTransactions {
         RootAddControl()
           .environment(chrome)
           .padding(RootChrome.addControlInsets(usesSidebar: usesSidebar))

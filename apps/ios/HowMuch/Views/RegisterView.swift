@@ -310,6 +310,8 @@ struct RegisterView: View {
   @State private var selection: [String: Transaction]?
   @State private var mastheadMetrics = RegisterMastheadMetrics()
   @Environment(\.dynamicTypeSize) private var mastheadTypeSize
+  @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+  @Environment(RootChromeState.self) private var chrome: RootChromeState?
 
   init(
     scope: RegisterScope,
@@ -458,6 +460,12 @@ struct RegisterView: View {
         }
       }
       ToolbarItemGroup(placement: .topBarTrailing) {
+        // A wide bar has room to show Select; on iPhone it sits first in the
+        // menu, and a long press on any row starts it too.
+        if selection == nil, horizontalSizeClass == .regular {
+          Button("Select") { startSelecting() }
+            .accessibilityHint("Pick transactions to add up.")
+        }
         if selection != nil {
           Button("Done") {
             withAnimation(Theme.Motion.standard) { selection = nil }
@@ -470,14 +478,23 @@ struct RegisterView: View {
     }
     // Select All takes the back button's place; Done is the way out.
     .navigationBarBackButtonHidden(selection != nil)
-    // At the top, under the navigation bar and any search field: the bottom
-    // edge belongs to the floating tab bar, Add and Assistant, whose safe area
-    // shifts with search and scroll and covered the bar.
-    .safeAreaInset(edge: .top, spacing: 0) {
+    // The total takes the tab row's place while selecting: the tab bar, Add
+    // and Assistant step aside (see `RootChromeState`), so the bar has the
+    // full width at the bottom, where a thumb picks rows.
+    .safeAreaInset(edge: .bottom, spacing: 0) {
       if let selection {
         selectionBar(selection, ledger: showingUnapprovedQueue ? approvalScoped : ledger, visible: transactions)
-          .transition(.move(edge: .top).combined(with: .opacity))
+          .transition(.move(edge: .bottom).combined(with: .opacity))
       }
+    }
+    .onChange(of: selection != nil) { _, selecting in
+      chrome?.isSelectingTransactions = selecting
+    }
+    .onAppear {
+      if selection != nil { chrome?.isSelectingTransactions = true }
+    }
+    .onDisappear {
+      chrome?.isSelectingTransactions = false
     }
     .modifier(RegisterSearchDrawer(text: $searchText, isPresented: $isSearchPresented, isShown: showsSearch, keepsToolbar: selection != nil))
     .onChange(of: isSearchPresented) { _, presented in
@@ -605,6 +622,8 @@ struct RegisterView: View {
   private func registerOverflowMenu(_ counts: RegisterFilterCounts) -> some View {
     if let account = scopedAccount {
       Menu {
+        selectMenuButton
+        Divider()
         Button {
           editingAccount = account
         } label: {
@@ -630,7 +649,6 @@ struct RegisterView: View {
           registerFilterMenuItems(counts)
         }
         Divider()
-        selectMenuButton
         reconcileMenuButton
       } label: {
         Image(systemName: "ellipsis.circle")
@@ -639,11 +657,12 @@ struct RegisterView: View {
       .accessibilityHint(accountOverflowHint(account, counts: counts))
     } else if scope != .unapproved, !model.accounts.isEmpty {
       Menu {
-        if showsRegisterFilterMenu(counts) {
-          registerFilterMenuItems(counts)
-          Divider()
-        }
         selectMenuButton
+        if showsRegisterFilterMenu(counts) {
+          Divider()
+          registerFilterMenuItems(counts)
+        }
+        Divider()
         Button {
           isShowingReconciliation = true
         } label: {
@@ -657,11 +676,11 @@ struct RegisterView: View {
       .accessibilityHint(showsRegisterFilterMenu(counts) ? "Filters, select, and reconcile." : "Select and reconcile.")
     } else {
       Menu {
-        if showsRegisterFilterMenu(counts) {
-          registerFilterMenuItems(counts)
-          Divider()
-        }
         selectMenuButton
+        if showsRegisterFilterMenu(counts) {
+          Divider()
+          registerFilterMenuItems(counts)
+        }
       } label: {
         Image(systemName: "ellipsis.circle")
       }
@@ -672,7 +691,7 @@ struct RegisterView: View {
 
   private var selectMenuButton: some View {
     Button {
-      withAnimation(Theme.Motion.standard) { selection = [:] }
+      startSelecting()
     } label: {
       Label("Select Transactions", systemImage: "checklist")
     }
@@ -702,6 +721,14 @@ struct RegisterView: View {
       }
     }
     .disabled(listed.isEmpty)
+  }
+
+  /// Enters selection mode, with `first` already picked when a row's long
+  /// press started it.
+  private func startSelecting(with first: Transaction? = nil) {
+    withAnimation(Theme.Motion.standard) {
+      selection = first.map { [$0.id: $0] } ?? [:]
+    }
   }
 
   private func toggleSelection(_ transaction: Transaction) {
@@ -767,20 +794,23 @@ struct RegisterView: View {
         }
       }
       // Its own line: beside the total there is no room for both amounts.
+      // Worded as the web register's selected total.
       if inflow > 0, outflow > 0 {
-        Text("In \(MoneyCodec.displayString(for: inflow, currencyFormat: model.currencyFormat)) · Out \(MoneyCodec.displayString(for: outflow, currencyFormat: model.currencyFormat))")
+        Text("\(MoneyCodec.displayString(for: inflow, currencyFormat: model.currencyFormat)) in · \(MoneyCodec.displayString(for: outflow, currencyFormat: model.currencyFormat)) out")
           .font(.caption)
           .monospacedDigit()
           .foregroundStyle(.secondary)
       }
     }
     .padding(.vertical, 8)
-    .padding(.leading, 16)
-    .padding(.trailing, count > 0 ? 4 : 16)
-    .ynabCard()
-    .padding(.horizontal, 12)
-    .padding(.vertical, 8)
-    .background(Theme.canvas)
+    .padding(.leading, 20)
+    .padding(.trailing, count > 0 ? 8 : 20)
+    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+    // A phone-wide bar reads as the tab row it replaces; on iPad it stays a
+    // comfortable reading width under the register.
+    .frame(maxWidth: 560)
+    .padding(.horizontal, RegisterCard.inset)
+    .padding(.bottom, 4)
     .accessibilityElement(children: .contain)
   }
 
@@ -1190,6 +1220,12 @@ struct RegisterView: View {
     }
     .contextMenu {
       if selection == nil {
+        Button {
+          startSelecting(with: transaction)
+        } label: {
+          Label("Select", systemImage: "checkmark.circle")
+        }
+        Divider()
         if !transaction.approved {
           Button {
             approve(transaction)
@@ -2836,10 +2872,13 @@ struct TransactionRow: View {
       .accessibilityAddTraits(isSelected == true ? .isSelected : [])
       .accessibilityHint(isSelected == nil ? "Opens this transaction." : "Adds or removes this transaction from the total.")
 
-      statusControl
+      // While selecting it does nothing, so the checkbox has its room.
+      if isSelected == nil {
+        statusControl
+      }
     }
     .padding(.leading, 16)
-    .padding(.trailing, 8)
+    .padding(.trailing, isSelected == nil ? 8 : 16)
     .padding(.vertical, 10)
     .background(transaction.isToConfirm ? Theme.toConfirmWash.opacity(0.45) : Color.clear)
     .flagRail(Theme.flagColour(named: transaction.flagColor))
@@ -2891,12 +2930,10 @@ struct TransactionRow: View {
   @ViewBuilder
   private var statusControl: some View {
     let status = transaction.registerStatus
-    switch isSelected == nil ? status.tap : nil {
+    switch status.tap {
     case nil:
       statusIcon(status)
         .accessibilityLabel(statusAccessibilityLabel(status))
-        // While selecting it is not a control, and its label names an action.
-        .accessibilityHidden(isSelected != nil)
     case .approve, .toggleCleared:
       statusIcon(status)
         .contentShape(Rectangle())
