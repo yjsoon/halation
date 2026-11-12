@@ -22,3 +22,22 @@ apps/worker/wrangler.self-host.*
 /todo.md
 /decisions.tsv
 /.audit/
+
+# Verification screenshots and recordings stay out of git (#371); commit only
+# the text record. scripts/check.sh also refuses them when force-added.
+.amp/in/artifacts/**/*.png
+.amp/in/artifacts/**/*.jpg
+.amp/in/artifacts/**/*.jpeg
+.amp/in/artifacts/**/*.gif
+.amp/in/artifacts/**/*.webp
+.amp/in/artifacts/**/*.mp4
+.amp/in/artifacts/**/*.webm
+.amp/in/artifacts/**/*.mov
+.cursor/skills/verify-howmuch/artifacts/**/*.png
+.cursor/skills/verify-howmuch/artifacts/**/*.jpg
+.cursor/skills/verify-howmuch/artifacts/**/*.jpeg
+.cursor/skills/verify-howmuch/artifacts/**/*.gif
+.cursor/skills/verify-howmuch/artifacts/**/*.webp
+.cursor/skills/verify-howmuch/artifacts/**/*.mp4
+.cursor/skills/verify-howmuch/artifacts/**/*.webm
+.cursor/skills/verify-howmuch/artifacts/**/*.mov

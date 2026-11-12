@@ -21,6 +21,14 @@ echo "check: base $BASE_REF ($BASE)"; sed 's/^/  /' <<<"$CHANGED"
 has() { grep -Eq "$1" <<<"$CHANGED"; }
 step() { echo; echo "==> $*"; "$@"; }
 
+# Verification media stays out of git (AGENTS.md, #371). Artefacts are often
+# force-added past the ignore rule, so check the index too.
+MEDIA="$(git ls-files -- .amp/in/artifacts .cursor/skills/verify-howmuch/artifacts | grep -Ei '\.(png|jpe?g|gif|webp|mp4|webm|mov)$' || true)"
+if [[ -n "$MEDIA" ]]; then
+  echo "check: screenshots and recordings must not be committed; keep the text record only:" >&2
+  sed 's/^/  /' <<<"$MEDIA" >&2; exit 1
+fi
+
 if ! grep -Evq '(\.md$|^\.amp/in/)' <<<"$CHANGED"; then
   echo "check: docs and artefacts only, nothing to run"; exit 0
 fi

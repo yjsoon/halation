@@ -55,7 +55,7 @@ Preconditions:
 
 ## Gotchas
 
-- Store review artifacts under `.amp/in/artifacts/` (AGENTS.md), not the older recipe path.
+- Store review artifacts under `.amp/in/artifacts/` (AGENTS.md), not the older recipe path. Commit the API output and notes; the screenshots stay out of git.
 
 - OCR or model reading inside the extension is a fail. The extension only copies, hashes and thumbnails.
 - Backgrounded HowMuch must not lose the file; inbox is the source of truth.

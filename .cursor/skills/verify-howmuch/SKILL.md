@@ -189,7 +189,7 @@ Do not POST `/api/auth/setup` or `/api/mobile/quick-entry` to "prove" a UI featu
 
 ## Evidence
 
-Write proof under `.cursor/skills/verify-howmuch/artifacts/<feature-id>/`. Cleanup must not delete this tree.
+Write proof under `.amp/in/artifacts/<feature-id>/` (AGENTS.md). Cleanup must not delete this tree. Commit only the text record (steps, expected and observed results, `control-howmuch http` JSON). Screenshots and recordings stay out of git: show them in the thread and attach them to the report. `scripts/check.sh` fails if one is committed.
 
 A proof is incomplete if it is only the last screen. Capture:
 
@@ -197,7 +197,7 @@ A proof is incomplete if it is only the last screen. Capture:
 2. The resulting UI (`Saved.`, `Spending breakdown` with Groceries, register row visible, Add Transaction prefilled, review list).
 3. A side effect: `control-howmuch http` JSON, or a second UI view of the same row.
 
-Name files with the feature id and entry point, e.g. `spending-breakdown/all-range.png` and `spending-breakdown/report.json`.
+Name files with the feature id and entry point, e.g. `spending-breakdown/all-range.png` (not committed) and `spending-breakdown/report.json`.
 
 Mocks are not used. The local API is the real ledger for this stack. Do not verify against production D1.
 
@@ -220,7 +220,7 @@ Hard fails for intake / Shortcuts (do not call the recipe passing if any of thes
 control-howmuch cleanup
 ```
 
-Kills the recorded `howmuch-verify-*` tmux session and deletes `/tmp/howmuch-verify/<run-id>`. Leaves `.cursor/skills/verify-howmuch/artifacts/` alone. After cleanup, `ls` that artifacts directory and confirm the proof is still there.
+Kills the recorded `howmuch-verify-*` tmux session and deletes `/tmp/howmuch-verify/<run-id>`. Leaves `.amp/in/artifacts/` alone. After cleanup, `ls` that artifacts directory and confirm the proof is still there.
 
 Never `pkill bun`, `pkill vite`, or `tmux kill-session -t howmuch-dev`. Simulator can stay booted; do not point it at production after cleanup (Server would 404). Sign out of HowMuch in Simulator if you leave it running.
 
