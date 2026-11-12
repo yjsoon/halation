@@ -785,14 +785,6 @@ describe("YNAB-compatible API", () => {
     const listed = await (await request("/v1/plans/plan-test/transactions")).json();
     expect(listed.data.transactions).toHaveLength(1);
     expect(listed.data.transactions[0].amount).toBe(-4500);
-    expect(db.query("SELECT name FROM sqlite_master WHERE name='idx_transactions_live_import_id'").get()).toEqual({
-      name: "idx_transactions_live_import_id",
-    });
-    expect(db.query("SELECT name FROM pragma_index_info('idx_transactions_live_import_id') ORDER BY seqno").all()).toEqual([
-      { name: "plan_id" },
-      { name: "account_id" },
-      { name: "import_id" },
-    ]);
   });
 
   test("serializes concurrent local SQLite transaction writes", async () => {

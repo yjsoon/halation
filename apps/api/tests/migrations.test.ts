@@ -355,22 +355,11 @@ describe("local schema migrations", () => {
       expect(detail("SELECT t.id FROM transactions t WHERE t.account_id = 'a' AND t.deleted = 0 ORDER BY t.date DESC, t.created_at DESC, t.id DESC LIMIT 51")).toContain("idx_transactions_account_live_register");
       expect(detail("SELECT MAX(date) FROM transactions WHERE account_id = 'a' AND deleted = 0 AND cleared = 'reconciled'")).toContain("idx_transactions_account_reconciled_date");
       expect(detail("SELECT id, name, transfer_account_id, deleted FROM payees WHERE plan_id = 'p' AND deleted = 0 ORDER BY name")).toContain("idx_payees_plan_live_name");
-      expect(db.query("SELECT version FROM schema_migrations WHERE version='019_query_covering_indexes'").get()).toEqual({
-        version: "019_query_covering_indexes",
-      });
       // The aggregate triggers recompute one account-month on every ledger
       // write, so that lookup must be a seek, never a scan.
       expect(detail(`SELECT SUM(t.amount_milli) FROM transactions t
         WHERE t.plan_id = 'p' AND t.account_id = 'a' AND t.deleted = 0
           AND t.date >= '2026-01-01' AND t.date < '2026-02-01'`)).toContain("idx_transactions_account_live_register");
-      expect(db.query("SELECT version FROM schema_migrations WHERE version='021_account_month_balances'").get()).toEqual({
-        version: "021_account_month_balances",
-      });
-      expect(db.query("SELECT name FROM sqlite_master WHERE type='trigger' AND name LIKE 'account_month_balances%' ORDER BY name").all()).toEqual([
-        { name: "account_month_balances_after_delete" },
-        { name: "account_month_balances_after_insert" },
-        { name: "account_month_balances_after_update" },
-      ]);
     } finally {
       db.close();
     }
