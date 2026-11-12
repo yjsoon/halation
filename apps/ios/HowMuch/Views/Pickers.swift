@@ -1,9 +1,34 @@
 import SwiftUI
 
-struct PayeePickerView: View {
+/// What a payee picker hands back. Callers apply it to their own draft; the
+/// picker dismisses itself afterwards.
+enum PayeePick {
+  case noPayee
+  case newPayee(String)
+  case payee(Payee)
+  case transfer(Account)
+}
+
+/// The payee picker for every transaction, split line and schedule editor.
+/// Surfaces differ only in which rows they offer: "No Payee" where the field
+/// may be cleared, "Create payee" where the draft carries a free-text name,
+/// Recent where it speeds up everyday entry, Transfers wherever the draft may
+/// be a transfer.
+struct PayeePicker: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
-  @Binding var draft: TransactionDraft
+  let selectedPayeeID: String?
+  let selectedTransferAccountID: String?
+  /// The draft's own account, which cannot be its transfer target.
+  let accountID: String
+  /// Whether "No Payee" is offered, and whether it is the current choice.
+  var noPayeeSelected: Bool?
+  var allowsCreate = true
+  var showsRecents = false
+  var showsTransfers = true
+  /// How a transfer row names its account; each surface keeps its own wording.
+  var transferTitle: (Account) -> String = { $0.name }
+  let onPick: (PayeePick) -> Void
   @State private var searchText = ""
   /// Typing is the primary gesture here, so the field takes focus on arrival.
   /// It is an ordinary inline field, not system search: `.searchable` with
@@ -14,16 +39,21 @@ struct PayeePickerView: View {
 
   var body: some View {
     let query = trimmedSearch
-    let recents = recentPayees(query: query)
+    let recents = showsRecents ? recentPayees(query: query) : []
     let payees = filteredPayees(query: query)
-    let transferPayees = filteredTransferPayees(query: query)
+    let transferAccounts = showsTransfers ? filteredTransferAccounts(query: query) : []
     List {
-      if !query.isEmpty, !hasExactMatch(query) {
+      if query.isEmpty, let noPayeeSelected {
         Button {
-          draft.payeeID = nil
-          draft.payeeName = query
-          draft.transferAccountID = nil
-          dismiss()
+          pick(.noPayee)
+        } label: {
+          PickerCheckRow(title: "No Payee", isSelected: noPayeeSelected, isSecondary: true)
+        }
+      }
+
+      if allowsCreate, !query.isEmpty, !hasExactMatch(query) {
+        Button {
+          pick(.newPayee(query))
         } label: {
           Label("Create payee “\(query)”", systemImage: "plus.circle.fill")
             .foregroundStyle(Theme.accent)
@@ -46,10 +76,14 @@ struct PayeePickerView: View {
         }
       }
 
-      if !transferPayees.isEmpty {
+      if !transferAccounts.isEmpty {
         Section("Transfers") {
-          ForEach(transferPayees) { payee in
-            payeeRow(payee)
+          ForEach(transferAccounts) { account in
+            Button {
+              pick(.transfer(account))
+            } label: {
+              PickerCheckRow(title: transferTitle(account), isSelected: account.id == selectedTransferAccountID)
+            }
           }
         }
       }
@@ -58,7 +92,11 @@ struct PayeePickerView: View {
     .scrollContentBackground(.hidden)
     .background(Theme.canvas)
     .safeAreaInset(edge: .top, spacing: 0) {
-      PickerSearchField(prompt: "Search or add a payee", text: $searchText, isFocused: $isSearchFocused)
+      PickerSearchField(
+        prompt: allowsCreate ? "Search or add a payee" : "Search payees",
+        text: $searchText,
+        isFocused: $isSearchFocused
+      )
     }
     .navigationTitle("Payee")
     .navigationBarTitleDisplayMode(.inline)
@@ -95,17 +133,12 @@ struct PayeePickerView: View {
 
   private func payeeRow(_ payee: Payee) -> some View {
     Button {
-      select(payee)
+      pick(.payee(payee))
     } label: {
-      HStack {
-        Text(payee.name)
-          .foregroundStyle(Theme.textPrimary)
-        Spacer()
-        if payee.id == draft.payeeID {
-          Image(systemName: "checkmark")
-            .foregroundStyle(Theme.accent)
-        }
-      }
+      PickerCheckRow(
+        title: payee.name,
+        isSelected: selectedTransferAccountID == nil && payee.id == selectedPayeeID
+      )
     }
   }
 
@@ -119,50 +152,31 @@ struct PayeePickerView: View {
     }
   }
 
-  /// Other accounts' transfer payees; picking one records a transfer and the
-  /// API creates the mirrored side (YNAB behaviour). A split parent cannot
-  /// itself be a transfer, so splits get no Transfers section.
-  private func filteredTransferPayees(query: String) -> [Payee] {
-    guard !draft.isSplit else {
-      return []
-    }
-    return model.payeesSortedByName
-      .filter { payee in
-        guard let targetAccountID = payee.transferAccountId, targetAccountID != draft.accountID else {
-          return false
-        }
-        guard let account = model.account(withID: targetAccountID) else {
-          return false
-        }
-        return !account.closed
-      }
-      .filter { query.isEmpty || $0.name.localizedStandardContains(query) }
+  /// Other open accounts; picking one records a transfer and the API creates
+  /// the mirrored side (YNAB behaviour).
+  private func filteredTransferAccounts(query: String) -> [Account] {
+    model.openAccounts
+      .filter { $0.id != accountID && (query.isEmpty || transferTitle($0).localizedStandardContains(query)) }
+      .sorted { transferTitle($0).localizedCaseInsensitiveCompare(transferTitle($1)) == .orderedAscending }
   }
 
   private func hasExactMatch(_ query: String) -> Bool {
     model.payees.contains { $0.name.localizedCaseInsensitiveCompare(query) == .orderedSame }
   }
 
-  private func select(_ payee: Payee) {
-    draft.payeeID = payee.id
-    draft.payeeName = payee.name
-    draft.transferAccountID = payee.transferAccountId
-    if payee.isTransferPayee {
-      // Transfers between two budget accounts carry no category.
-      if model.accountsBothOnBudget(draft.accountID, payee.transferAccountId) {
-        draft.categoryID = nil
-      }
-    } else if draft.categoryID == nil, let suggestion = model.suggestedCategoryID(forPayeeID: payee.id) {
-      draft.categoryID = suggestion
-    }
+  private func pick(_ choice: PayeePick) {
+    onPick(choice)
     dismiss()
   }
 }
 
-struct CategoryPickerView: View {
+/// The category picker for every transaction, split line and schedule editor.
+/// `onPick` receives nil for "No Category".
+struct CategoryPicker: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
-  @Binding var draft: TransactionDraft
+  let selectedCategoryID: String?
+  let onPick: (Category?) -> Void
   @State private var searchText = ""
 
   var body: some View {
@@ -171,21 +185,21 @@ struct CategoryPickerView: View {
       groupTitle: { $0.name },
       items: { $0.categories.filter(categoryMatches) },
       itemTitle: { $0.name },
-      isSelected: { $0.id == draft.categoryID },
+      isSelected: { $0.id == selectedCategoryID },
       searchText: $searchText,
       searchPrompt: "Search categories",
       title: "Category",
       presentsSearchOnAppear: true
     ) { category in
-      draft.categoryID = category.id
+      onPick(category)
       dismiss()
     } header: {
       if trimmedSearch.isEmpty {
         Button {
-          draft.categoryID = nil
+          onPick(nil)
           dismiss()
         } label: {
-          PickerCheckRow(title: "No Category", isSelected: draft.categoryID == nil, isSecondary: true)
+          PickerCheckRow(title: "No Category", isSelected: selectedCategoryID == nil, isSecondary: true)
         }
       }
     }
@@ -423,7 +437,7 @@ struct CategorisedPickerList<Group: Identifiable, Item: Identifiable, Header: Vi
     .navigationTitle(title)
     .navigationBarTitleDisplayMode(.inline)
     .onAppear {
-      // Inline focus, not a presented search controller; see PayeePickerView.
+      // Inline focus, not a presented search controller; see PayeePicker.
       if presentsSearchOnAppear {
         isSearchFocused = true
       }

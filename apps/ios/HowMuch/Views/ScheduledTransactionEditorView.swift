@@ -342,7 +342,27 @@ struct ScheduledTransactionEditorView: View {
           }
           if !draft.isSplit {
             NavigationLink {
-              ScheduledPayeePicker(draft: $draft)
+              PayeePicker(
+                selectedPayeeID: draft.payeeID,
+                selectedTransferAccountID: draft.transferAccountID,
+                accountID: draft.accountID,
+                noPayeeSelected: draft.payeeID == nil && draft.transferAccountID == nil,
+                allowsCreate: false,
+                transferTitle: { "Transfer to \($0.name)" }
+              ) { pick in
+                switch pick {
+                case .noPayee, .newPayee:
+                  draft.payeeID = nil
+                  draft.transferAccountID = nil
+                case .payee(let payee):
+                  draft.payeeID = payee.id
+                  draft.transferAccountID = nil
+                case .transfer(let account):
+                  draft.payeeID = nil
+                  draft.transferAccountID = account.id
+                  draft.categoryID = nil
+                }
+              }
             } label: {
               DisclosureValueRow(
                 icon: draft.transferAccountID == nil ? "person" : "arrow.left.arrow.right",
@@ -361,7 +381,7 @@ struct ScheduledTransactionEditorView: View {
           }
           if !draft.isSplit, draft.transferAccountID == nil {
             NavigationLink {
-              ScheduledCategoryPicker(draft: $draft)
+              CategoryPicker(selectedCategoryID: draft.categoryID) { draft.categoryID = $0?.id }
             } label: {
               DisclosureValueRow(
                 icon: "tag",
@@ -657,7 +677,27 @@ private struct ScheduledSplitLineEditor: View {
 
       Section("Details") {
         NavigationLink {
-          ScheduledSplitPayeePicker(line: $line, parentAccountID: parentAccountID)
+          PayeePicker(
+            selectedPayeeID: line.payeeID,
+            selectedTransferAccountID: line.transferAccountID,
+            accountID: parentAccountID,
+            noPayeeSelected: line.payeeID == nil && line.transferAccountID == nil,
+            allowsCreate: false,
+            transferTitle: { "Transfer to \($0.name)" }
+          ) { pick in
+            switch pick {
+            case .noPayee, .newPayee:
+              line.payeeID = nil
+              line.transferAccountID = nil
+            case .payee(let payee):
+              line.payeeID = payee.id
+              line.transferAccountID = nil
+            case .transfer(let account):
+              line.payeeID = nil
+              line.categoryID = nil
+              line.transferAccountID = account.id
+            }
+          }
         } label: {
           DisclosureValueRow(
             icon: line.transferAccountID == nil ? "person" : "arrow.left.arrow.right",
@@ -671,7 +711,12 @@ private struct ScheduledSplitLineEditor: View {
 
         if line.transferAccountID == nil {
           NavigationLink {
-            ScheduledSplitCategoryPicker(line: $line)
+            CategoryPicker(selectedCategoryID: line.categoryID) { category in
+              line.categoryID = category?.id
+              if category != nil {
+                line.transferAccountID = nil
+              }
+            }
           } label: {
             DisclosureValueRow(
               icon: "tag",
@@ -718,169 +763,5 @@ private struct ScheduledSplitLineEditor: View {
     }
     guard let payeeID = line.payeeID else { return nil }
     return model.payee(withID: payeeID)?.name
-  }
-}
-
-private struct ScheduledSplitPayeePicker: View {
-  @Environment(AppModel.self) private var model
-  @Environment(\.dismiss) private var dismiss
-  @Binding var line: ScheduledSubtransactionDraft
-  let parentAccountID: String
-
-  var body: some View {
-    List {
-      Section {
-        Button("No Payee") {
-          line.payeeID = nil
-          line.transferAccountID = nil
-          dismiss()
-        }
-      }
-      Section("Payees") {
-        ForEach(model.payeesSortedByName.filter { !$0.isTransferPayee }) { payee in
-          Button {
-            line.payeeID = payee.id
-            line.transferAccountID = nil
-            dismiss()
-          } label: {
-            selectionRow(payee.name, selected: line.payeeID == payee.id && line.transferAccountID == nil)
-          }
-        }
-      }
-      Section("Transfers") {
-        ForEach(model.openAccounts.filter { $0.id != parentAccountID }) { account in
-          Button {
-            line.payeeID = nil
-            line.categoryID = nil
-            line.transferAccountID = account.id
-            dismiss()
-          } label: {
-            selectionRow("Transfer to \(account.name)", selected: line.transferAccountID == account.id)
-          }
-        }
-      }
-    }
-    .scheduledPickerChrome("Payee")
-  }
-}
-
-private struct ScheduledSplitCategoryPicker: View {
-  @Environment(AppModel.self) private var model
-  @Environment(\.dismiss) private var dismiss
-  @Binding var line: ScheduledSubtransactionDraft
-
-  var body: some View {
-    List {
-      Section {
-        Button("No Category") {
-          line.categoryID = nil
-          dismiss()
-        }
-      }
-      ForEach(model.categoryGroups.filter { !$0.deleted }) { group in
-        Section(group.name) {
-          ForEach(group.categories.filter { !$0.deleted }) { category in
-            Button {
-              line.categoryID = category.id
-              line.transferAccountID = nil
-              dismiss()
-            } label: {
-              selectionRow(category.name, selected: line.categoryID == category.id)
-            }
-          }
-        }
-      }
-    }
-    .scheduledPickerChrome("Category")
-  }
-}
-
-private struct ScheduledPayeePicker: View {
-  @Environment(AppModel.self) private var model
-  @Environment(\.dismiss) private var dismiss
-  @Binding var draft: ScheduledTransactionDraft
-
-  var body: some View {
-    List {
-      Section {
-        Button("No Payee") {
-          draft.payeeID = nil
-          draft.transferAccountID = nil
-          dismiss()
-        }
-      }
-      Section("Payees") {
-        ForEach(model.payeesSortedByName.filter { !$0.isTransferPayee }) { payee in
-          Button {
-            draft.payeeID = payee.id
-            draft.transferAccountID = nil
-            dismiss()
-          } label: {
-            selectionRow(payee.name, selected: draft.payeeID == payee.id && draft.transferAccountID == nil)
-          }
-        }
-      }
-      Section("Transfers") {
-        ForEach(model.openAccounts.filter { $0.id != draft.accountID }) { account in
-          Button {
-            draft.payeeID = nil
-            draft.transferAccountID = account.id
-            draft.categoryID = nil
-            dismiss()
-          } label: {
-            selectionRow("Transfer to \(account.name)", selected: draft.transferAccountID == account.id)
-          }
-        }
-      }
-    }
-    .scheduledPickerChrome("Payee")
-  }
-}
-
-private struct ScheduledCategoryPicker: View {
-  @Environment(AppModel.self) private var model
-  @Environment(\.dismiss) private var dismiss
-  @Binding var draft: ScheduledTransactionDraft
-
-  var body: some View {
-    List {
-      Section {
-        Button("No Category") {
-          draft.categoryID = nil
-          dismiss()
-        }
-      }
-      ForEach(model.categoryGroups.filter { !$0.deleted }) { group in
-        Section(group.name) {
-          ForEach(group.categories.filter { !$0.deleted }) { category in
-            Button {
-              draft.categoryID = category.id
-              dismiss()
-            } label: {
-              selectionRow(category.name, selected: draft.categoryID == category.id)
-            }
-          }
-        }
-      }
-    }
-    .scheduledPickerChrome("Category")
-  }
-}
-
-private func selectionRow(_ title: String, selected: Bool) -> some View {
-  HStack {
-    Text(title).foregroundStyle(Theme.textPrimary)
-    Spacer()
-    if selected { Image(systemName: "checkmark").foregroundStyle(Theme.accent) }
-  }
-}
-
-private extension View {
-  func scheduledPickerChrome(_ title: String) -> some View {
-    listStyle(.insetGrouped)
-      .scrollContentBackground(.hidden)
-      .background(Theme.canvas)
-      .navigationTitle(title)
-      .navigationBarTitleDisplayMode(.inline)
   }
 }

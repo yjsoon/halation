@@ -324,7 +324,7 @@ struct TransactionFormView: View {
       }
       .background(Theme.canvas)
       .navigationDestination(isPresented: $isAutoAdvancingToPayee) {
-        PayeePickerView(draft: $draft)
+        payeePicker
       }
       .navigationDestination(isPresented: $isShowingDate) {
         DateFieldView(date: $draft.date)
@@ -464,6 +464,47 @@ struct TransactionFormView: View {
 
   private var showsStandaloneChrome: Bool {
     chrome == .standalone
+  }
+
+  /// A split parent cannot itself be a transfer, so splits get no Transfers section.
+  private var payeePicker: some View {
+    PayeePicker(
+      selectedPayeeID: draft.payeeID,
+      selectedTransferAccountID: draft.transferAccountID,
+      accountID: draft.accountID,
+      showsRecents: true,
+      showsTransfers: !draft.isSplit,
+      transferTitle: { account in transferPayee(for: account)?.name ?? "Transfer : \(account.name)" }
+    ) { pick in
+      switch pick {
+      case .noPayee:
+        break
+      case .newPayee(let name):
+        draft.payeeID = nil
+        draft.payeeName = name
+        draft.transferAccountID = nil
+      case .payee(let payee):
+        draft.payeeID = payee.id
+        draft.payeeName = payee.name
+        draft.transferAccountID = nil
+        if draft.categoryID == nil, let suggestion = model.suggestedCategoryID(forPayeeID: payee.id) {
+          draft.categoryID = suggestion
+        }
+      case .transfer(let account):
+        let transferPayee = transferPayee(for: account)
+        draft.payeeID = transferPayee?.id
+        draft.payeeName = transferPayee?.name ?? "Transfer : \(account.name)"
+        draft.transferAccountID = account.id
+        // Transfers between two budget accounts carry no category.
+        if model.accountsBothOnBudget(draft.accountID, account.id) {
+          draft.categoryID = nil
+        }
+      }
+    }
+  }
+
+  private func transferPayee(for account: Account) -> Payee? {
+    model.payees.first { $0.transferAccountId == account.id && $0.deleted != true }
   }
 
   private var formTitle: String {
@@ -618,7 +659,7 @@ struct TransactionFormView: View {
         )
       } else {
         NavigationLink {
-          PayeePickerView(draft: $draft)
+          payeePicker
         } label: {
           DisclosureValueRow(
             icon: "person.crop.circle",
@@ -713,7 +754,7 @@ struct TransactionFormView: View {
       )
     } else {
       NavigationLink {
-        CategoryPickerView(draft: $draft)
+        CategoryPicker(selectedCategoryID: draft.categoryID) { draft.categoryID = $0?.id }
       } label: {
         DisclosureValueRow(
           icon: "tray.full",
@@ -1253,7 +1294,32 @@ private struct TransactionSplitLineEditor: View {
 
       Section("Details") {
         NavigationLink {
-          TransactionSplitPayeePicker(line: $line, parentAccountID: parentAccountID)
+          PayeePicker(
+            selectedPayeeID: line.payeeID,
+            selectedTransferAccountID: line.transferAccountID,
+            accountID: parentAccountID,
+            noPayeeSelected: line.payeeID == nil && line.payeeName.trimmedNil == nil && line.transferAccountID == nil
+          ) { pick in
+            switch pick {
+            case .noPayee:
+              line.payeeID = nil
+              line.payeeName = ""
+              line.transferAccountID = nil
+            case .newPayee(let name):
+              line.payeeID = nil
+              line.payeeName = name
+              line.transferAccountID = nil
+            case .payee(let payee):
+              line.payeeID = payee.id
+              line.payeeName = payee.name
+              line.transferAccountID = nil
+            case .transfer(let account):
+              line.payeeID = nil
+              line.payeeName = ""
+              line.categoryID = nil
+              line.transferAccountID = account.id
+            }
+          }
         } label: {
           splitDisclosureRow(
             icon: "person.crop.circle",
@@ -1272,7 +1338,12 @@ private struct TransactionSplitLineEditor: View {
           )
         } else {
           NavigationLink {
-            TransactionSplitCategoryPicker(line: $line)
+            CategoryPicker(selectedCategoryID: line.categoryID) { category in
+              line.categoryID = category?.id
+              if category != nil {
+                line.transferAccountID = nil
+              }
+            }
           } label: {
             splitDisclosureRow(
               icon: "tray.full",
@@ -1318,163 +1389,6 @@ private struct TransactionSplitLineEditor: View {
           .foregroundStyle(value == nil ? .secondary : Theme.textPrimary)
       }
     }
-  }
-}
-
-private struct TransactionSplitPayeePicker: View {
-  @Environment(AppModel.self) private var model
-  @Environment(\.dismiss) private var dismiss
-  @Binding var line: TransactionSubtransactionDraft
-  let parentAccountID: String
-  @State private var searchText = ""
-
-  var body: some View {
-    List {
-      if trimmedSearch.isEmpty {
-        Button {
-          line.payeeID = nil
-          line.payeeName = ""
-          line.transferAccountID = nil
-          dismiss()
-        } label: {
-          selectionRow("No Payee", selected: line.payeeID == nil && line.payeeName.trimmedNil == nil && line.transferAccountID == nil, secondary: true)
-        }
-      }
-
-      if !trimmedSearch.isEmpty, !hasExactMatch {
-        Button {
-          line.payeeID = nil
-          line.payeeName = trimmedSearch
-          line.transferAccountID = nil
-          dismiss()
-        } label: {
-          Label("Create payee “\(trimmedSearch)”", systemImage: "plus.circle.fill")
-            .foregroundStyle(Theme.accent)
-        }
-      }
-
-      let payees = matchingPayees
-      if !payees.isEmpty {
-        Section("Payees") {
-          ForEach(payees) { payee in
-            Button {
-              line.payeeID = payee.id
-              line.payeeName = payee.name
-              line.transferAccountID = nil
-              dismiss()
-            } label: {
-              selectionRow(payee.name, selected: line.payeeID == payee.id)
-            }
-          }
-        }
-      }
-
-      if !matchingTransferAccounts.isEmpty {
-        Section("Transfers") {
-          ForEach(matchingTransferAccounts) { account in
-            Button {
-              line.payeeID = nil
-              line.payeeName = ""
-              line.categoryID = nil
-              line.transferAccountID = account.id
-              dismiss()
-            } label: {
-              selectionRow(account.name, selected: line.transferAccountID == account.id)
-            }
-          }
-        }
-      }
-    }
-    .listStyle(.insetGrouped)
-    .scrollContentBackground(.hidden)
-    .background(Theme.canvas)
-    .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search or add a payee")
-    .navigationTitle("Payee")
-    .navigationBarTitleDisplayMode(.inline)
-  }
-
-  private var trimmedSearch: String {
-    searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
-  private var matchingPayees: [Payee] {
-    let query = trimmedSearch
-    return model.payeesSortedByName.filter { payee in
-      !payee.isTransferPayee && (query.isEmpty || payee.name.localizedStandardContains(query))
-    }
-  }
-
-  private var matchingTransferAccounts: [Account] {
-    model.openAccounts
-      .filter { $0.id != parentAccountID }
-      .filter { trimmedSearch.isEmpty || $0.name.localizedStandardContains(trimmedSearch) }
-      .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-  }
-
-  private var hasExactMatch: Bool {
-    let query = trimmedSearch
-    return model.payees.contains { !$0.isTransferPayee && $0.name.localizedCaseInsensitiveCompare(query) == .orderedSame }
-  }
-
-  private func selectionRow(_ title: String, selected: Bool, secondary: Bool = false) -> some View {
-    HStack {
-      Text(title)
-        .foregroundStyle(secondary ? Color.secondary : Theme.textPrimary)
-      Spacer()
-      if selected {
-        Image(systemName: "checkmark")
-          .foregroundStyle(Theme.accent)
-      }
-    }
-  }
-}
-
-private struct TransactionSplitCategoryPicker: View {
-  @Environment(AppModel.self) private var model
-  @Environment(\.dismiss) private var dismiss
-  @Binding var line: TransactionSubtransactionDraft
-  @State private var searchText = ""
-
-  var body: some View {
-    CategorisedPickerList(
-      groups: visibleGroups,
-      groupTitle: { $0.name },
-      items: { $0.categories.filter(categoryMatches) },
-      itemTitle: { $0.name },
-      isSelected: { $0.id == line.categoryID },
-      searchText: $searchText,
-      searchPrompt: "Search categories",
-      title: "Category",
-      presentsSearchOnAppear: true
-    ) { category in
-      line.categoryID = category.id
-      line.transferAccountID = nil
-      dismiss()
-    } header: {
-      if trimmedSearch.isEmpty {
-        Button {
-          line.categoryID = nil
-          dismiss()
-        } label: {
-          PickerCheckRow(title: "No Category", isSelected: line.categoryID == nil, isSecondary: true)
-        }
-      }
-    }
-  }
-
-  private var trimmedSearch: String {
-    searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
-  private var visibleGroups: [CategoryGroup] {
-    let live = model.categoryGroups.filter { group in
-      !group.deleted && group.categories.contains(where: categoryMatches)
-    }
-    return live.filter { !$0.isQuiet } + live.filter(\.isQuiet)
-  }
-
-  private func categoryMatches(_ category: Category) -> Bool {
-    !category.deleted && (trimmedSearch.isEmpty || category.name.localizedStandardContains(trimmedSearch))
   }
 }
 
