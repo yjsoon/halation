@@ -1,4 +1,4 @@
-import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ApiError, api, BulkApprovalError, useApi } from "../api/client";
 import type {
@@ -96,6 +96,10 @@ import { StatusPanel } from "../components/StatusPanel";
 import { ClearedStatus } from "../components/ClearedStatus";
 import { confirmedMessage } from "../lib/follow-up";
 import { RegisterScheduledDisclosure } from "../components/RegisterScheduledDisclosure";
+
+// Older loads in a row that may list nothing in this view before the
+// register stops loading on its own and offers to search further back.
+const OLDER_LOADS_PER_WALK = 10;
 
 function hasUncategorisedLine(txn: Transaction): boolean {
   if (txn.subtransactions?.length) {
@@ -266,10 +270,28 @@ export function TransactionsPage() {
     [currencyFormat, deferredSearch],
   );
   const searchVersionRef = useRef(0);
-  // The last finished "Load older transactions" click. Multi-account and
-  // category views filter plan-wide pages locally, so a page can add nothing
-  // they list; this lets the footer say so instead of looking unresponsive.
-  const [olderTap, setOlderTap] = useState<{ viewKey: string; rowCount: number } | null>(null);
+  // The current walk back through older pages: the view and row count it
+  // started from, and how many loads it has made without listing a row.
+  // Multi-account and category views filter plan-wide pages locally, so a
+  // page can add nothing they list; after OLDER_LOADS_PER_WALK such loads the
+  // footer stops loading on its own and offers to search further back.
+  const [olderTap, setOlderTap] = useState<{ viewKey: string; rowCount: number; loads: number } | null>(null);
+  const [footerInView, setFooterInView] = useState(false);
+  const footerObserverRef = useRef<IntersectionObserver | null>(null);
+  const footerRef = useCallback((footer: HTMLDivElement | null) => {
+    footerObserverRef.current?.disconnect();
+    footerObserverRef.current = null;
+    if (!footer || typeof IntersectionObserver === "undefined") {
+      setFooterInView(false);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => setFooterInView(Boolean(entry?.isIntersecting)),
+      { rootMargin: "0px 0px 400px 0px" },
+    );
+    observer.observe(footer);
+    footerObserverRef.current = observer;
+  }, []);
   const [pendingDeletion, setPendingDeletion] = useState<Transaction | null>(null);
   const [pendingBulkDeletion, setPendingBulkDeletion] = useState<readonly Transaction[] | null>(null);
   // The confirmation renders above the register, behind the row that asked
@@ -729,7 +751,7 @@ export function TransactionsPage() {
     };
   }, [fetchUntilDate, filters.from, planId, registerQuery?.raw, selectedAccountId, queueMode, refreshGeneration]);
 
-  const loadOlder = async () => {
+  const loadOlder = async ({ freshWalk = false }: { freshWalk?: boolean } = {}) => {
     if (registerQuery && !queueMode) {
       if (searchPage.loadingMore || !searchPage.hasMore || searchPage.nextOffset === null) {
         return;
@@ -765,7 +787,11 @@ export function TransactionsPage() {
     if (page.loadingMore || !page.hasMore || page.nextOffset === null) return;
     const requestedOffset = page.nextOffset;
     const requestVersion = requestVersionRef.current;
-    const tap = { viewKey: olderTapViewKey, rowCount: rows.length };
+    const tap = {
+      viewKey: olderTapViewKey,
+      rowCount: rows.length,
+      loads: !freshWalk && olderTap?.viewKey === olderTapViewKey && olderTap.rowCount === rows.length ? olderTap.loads + 1 : 1,
+    };
     setPage((current) => ({ ...current, loadingMore: true, error: null }));
     try {
       const older = await fetchTransactionPage(requestedOffset);
@@ -1590,21 +1616,36 @@ export function TransactionsPage() {
         error: searchPage.error,
       })
     : `${rows.length} ${rows.length === 1 ? "transaction" : "transactions"} · ${formatMoney(totals.inflow)} in · ${formatMoney(totals.outflow)} out · ${formatMoney(totals.net, { sign: true })} net`;
-  const lastOlderTap = !registerQuery && !queueMode && page.loaded && !page.filling && !page.loadingMore && !page.error
+  const settledRegister = !registerQuery && !queueMode && page.loaded && !page.filling && !page.loadingMore && !page.error;
+  const olderWalkStalled = settledRegister && hasMoreToLoad
     && olderTap?.viewKey === olderTapViewKey
-    ? olderTap
-    : null;
+    && olderTap.rowCount === rows.length
+    && olderTap.loads >= OLDER_LOADS_PER_WALK;
   const searchedBackTo = page.transactions.at(-1)?.date;
-  const olderTapNote = !lastOlderTap
+  const earliestListed = rows.at(-1)?.date;
+  const olderTapNote = !settledRegister
     ? null
     : !page.hasMore
-      ? "No older transactions."
-      : lastOlderTap.rowCount === rows.length && searchedBackTo
-        ? `Nothing older here yet. Searched back to ${formatDate(searchedBackTo)}.`
+      ? (rows.length > 0 && earliestListed ? `No older transactions. Earliest here: ${formatDate(earliestListed)}.` : null)
+      : olderWalkStalled && searchedBackTo
+        ? `Nothing older in this view back to ${formatDate(searchedBackTo)}.`
         : null;
   const footerMetaWithMore = filters.accountIds.length > 1 && hasMoreToLoad && !olderTapNote
     ? `${footerMeta} · Load older entries to extend this multi-account result.`
     : footerMeta;
+
+  // The footer loads older rows as it nears the viewport, and again while it
+  // stays there, so the reader never taps through pages this view lists
+  // nothing from. Search keeps its button: its pages are already matches.
+  const autoLoadOlder = footerInView && settledRegister && hasMoreToLoad && !olderWalkStalled;
+  useEffect(() => {
+    if (autoLoadOlder) {
+      void loadOlder();
+    }
+  }, [autoLoadOlder, rows.length, page.nextOffset]);
+  const searchFurtherBack = () => {
+    void loadOlder({ freshWalk: true });
+  };
 
   const mutationBusy = writeLocked || Boolean(mutatingId);
   const deepLinkError = planSelectionError
@@ -2345,7 +2386,7 @@ export function TransactionsPage() {
           ) : page.filling ? null : (
             <StatusPanel title={emptyMessage}>{emptyDetail}</StatusPanel>
           )}
-          <div className="register-footer">
+          <div className="register-footer" ref={footerRef}>
             <span className="register-footer-meta">
               {footerMetaWithMore}
               {olderTapNote && " · "}
@@ -2356,12 +2397,14 @@ export function TransactionsPage() {
               <button
                 type="button"
                 className="register-load-more-button"
-                onClick={loadOlder}
+                onClick={olderWalkStalled ? searchFurtherBack : () => void loadOlder()}
                 disabled={registerQuery ? searchPage.loadingMore : page.loadingMore}
               >
                 {registerQuery
                   ? (searchPage.loadingMore ? "Loading older matches…" : "Load older matches")
-                  : (page.loadingMore ? "Loading older transactions…" : "Load older transactions")}
+                  : page.loadingMore
+                    ? "Loading older transactions…"
+                    : olderWalkStalled ? "Search further back" : "Load older transactions"}
               </button>
             )}
           </div>

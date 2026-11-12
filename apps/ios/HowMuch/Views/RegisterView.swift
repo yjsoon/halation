@@ -83,8 +83,9 @@ struct RegisterSnapshot {
   }
 }
 
-/// A finished Load older tap: how many rows this register listed before it,
-/// in which ledger load and under which filters.
+/// A walk back through older pages that found nothing this register lists:
+/// how many rows it listed throughout, in which ledger load and under which
+/// filters.
 private struct OlderPageTap: Equatable {
   let listedCount: Int
   let generation: Int
@@ -287,10 +288,12 @@ struct RegisterView: View {
   @State private var unapprovedOnly = false
   /// The row that last started an older page ahead of the reader.
   @State private var olderPagePrefetchedRowID: String?
-  /// The last Load older tap that finished. Older pages come from the
-  /// plan-wide ledger, so in a quiet account a page can add nothing here;
-  /// without this the tap looks like it did nothing.
+  /// The last older-page walk that listed nothing here. A view that filters
+  /// plan-wide pages can go a long way without a row; this stops the footer
+  /// walking further until the reader asks.
   @State private var olderPageTap: OlderPageTap?
+  /// The next walk was asked for by a tap, so VoiceOver hears how it ended.
+  @State private var olderWalkAnnounces = false
 
   @State private var editingTransaction: Transaction?
   @State private var isShowingReconciliation = false
@@ -1290,8 +1293,8 @@ struct RegisterView: View {
               "Nothing matches",
               systemImage: "line.3.horizontal.decrease",
               description: Text(
-                model.hasMoreTransactions && !showingUnapprovedQueue
-                  ? "Clear the filter, or load older transactions."
+                hasOlderForThisRegister && !showingUnapprovedQueue
+                  ? "Clear the filter, or search further back."
                   : "Clear the filter to see transactions again."
               )
             )
@@ -1311,11 +1314,15 @@ struct RegisterView: View {
             )
           } else if scope == .unapproved {
             ContentUnavailableView("No new transactions", systemImage: "tray")
-          } else if model.hasMoreTransactions {
+          } else if hasOlderForThisRegister {
             ContentUnavailableView(
               "No recent transactions",
               systemImage: "tray",
-              description: Text("Load older transactions to see earlier activity.")
+              description: Text(
+                stalledOlderWalk(snapshot) == nil
+                  ? "Looking for older transactions…"
+                  : "Search further back to see earlier activity."
+              )
             )
           } else {
             ContentUnavailableView(
@@ -1342,7 +1349,7 @@ struct RegisterView: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
           Button("Try Again") {
-            Task { await model.retryIncompleteRegisterFill() }
+            Task { await model.retryIncompleteRegisterFill(scope: olderScope) }
           }
           .buttonStyle(.bordered)
         }
@@ -1361,19 +1368,35 @@ struct RegisterView: View {
   /// loading, so it has usually landed before the reader reaches the bottom.
   private static let olderPagePrefetchDistance = 40
 
-  /// The row whose appearance fetches the next older page, while the Load
-  /// older button would be offered. A list too short to fill a couple of
-  /// screens gets none: its bottom row is on screen as it opens, and loading
-  /// there would page through the plan on every visit. Nor does a row that
-  /// already fetched one: it only stays the trigger when that page added
-  /// nothing this register lists (another account's rows, or rows outside
-  /// its filters), and fetching again whenever it scrolls back into view
-  /// would walk the plan for nothing. Load older still offers the next page.
+  /// Older loads one footer appearance runs before it stops and offers to
+  /// search further. An account register pages its own history, so every
+  /// load lists rows unless a filter hides them; a register that filters the
+  /// plan-wide pages (several accounts, a category, Uncleared) can go many
+  /// pages without one, and this bounds that walk.
+  private static let olderLoadsPerWalk = 10
+
+  /// What the server narrows this register's older pages to: the one account
+  /// it lists, and a report drill-down's dates. Categories stay local: the
+  /// server matches a row's own category, not its split lines.
+  private var olderScope: OlderTransactionsScope {
+    OlderTransactionsScope(accountID: countableAccountID, dateRange: dateRange)
+  }
+
+  /// Whether older loads can still list rows here.
+  private var hasOlderForThisRegister: Bool {
+    model.hasOlderTransactions(in: olderScope)
+  }
+
+  /// The row whose appearance fetches the next older page ahead of the
+  /// reader. A list too short to fill a couple of screens gets none: its
+  /// footer loads as it comes into view instead. Nor does a row that already
+  /// fetched one: it only stays the trigger when that page added nothing this
+  /// register lists, and the footer's walk owns that case.
   private func olderPagePrefetchRowID(_ snapshot: RegisterSnapshot) -> String? {
     guard
       searchQuery == nil,
       !showingUnapprovedQueue,
-      model.hasMoreTransactions,
+      hasOlderForThisRegister,
       !model.isFillingHorizon,
       model.ledgerPhase == .loaded
     else {
@@ -1397,7 +1420,7 @@ struct RegisterView: View {
 
   private func loadOlderAhead(from rowID: String) {
     olderPagePrefetchedRowID = rowID
-    Task { await model.loadOlderTransactions() }
+    Task { await model.loadOlderTransactions(in: olderScope) }
   }
 
   @ViewBuilder
@@ -1432,77 +1455,143 @@ struct RegisterView: View {
           .listRowSeparator(.hidden)
         }
       }
-    } else if !showingUnapprovedQueue, !model.isFillingHorizon, model.ledgerPhase == .loaded {
-      let lastTap = olderPageTap.flatMap {
-        $0.generation == model.ledgerPageGeneration && $0.filterKey == olderPageFilterKey ? $0 : nil
-      }
-      if model.hasMoreTransactions {
+    } else if !showingUnapprovedQueue, !model.isFillingHorizon, model.ledgerPhase == .loaded,
+              model.olderTransactionsError == nil {
+      let stalledWalk = stalledOlderWalk(snapshot)
+      if hasOlderForThisRegister {
         Section {
-          VStack(spacing: 8) {
-            Button {
-              loadOlderPage(listedCount: snapshot.transactionCount)
-            } label: {
-              HStack(spacing: 8) {
-                if model.isLoadingOlderTransactions {
-                  ProgressView()
+          Group {
+            if let stalledWalk, !model.isLoadingOlderTransactions {
+              // Only a filtered view of plan-wide pages gets here: a walk
+              // found nothing it lists, so the next one waits for a tap.
+              VStack(spacing: 8) {
+                if let searchedBack = model.olderTransactionsSearchedBackDate(in: olderScope) {
+                  Text("Nothing older in this view back to \(LedgerDate.shortDateString(fromISO: searchedBack)).")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
                 }
-                Text(model.isLoadingOlderTransactions ? "Loading older transactions…" : "Load older transactions")
+                Button {
+                  // The loading row that replaces this button runs the walk.
+                  olderWalkAnnounces = true
+                  olderPageTap = nil
+                } label: {
+                  Text("Search further back")
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .accessibilityHint("Searches older transactions for rows in this view.")
+              }
+            } else {
+              HStack(spacing: 8) {
+                ProgressView()
+                Text("Loading older transactions…")
+                  .font(.footnote)
+                  .foregroundStyle(.secondary)
               }
               .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.borderedProminent)
-            .disabled(model.isLoadingOlderTransactions)
-            .accessibilityHint("Loads the next page of older transactions into this register.")
-            if let lastTap, !model.isLoadingOlderTransactions, model.olderTransactionsError == nil,
-               lastTap.listedCount == snapshot.transactionCount,
-               let searchedBack = model.ledgerCursorOldestDate {
-              Text("Nothing older here yet. Searched back to \(LedgerDate.shortDateString(fromISO: searchedBack)).")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity)
+              .padding(.vertical, 8)
+              .accessibilityElement(children: .combine)
+              // Runs whenever the footer is on screen with a new row count, so
+              // a load that leaves it in view starts the next one.
+              .task(id: "\(model.ledgerPageGeneration)|\(olderPageFilterKey)|\(snapshot.transactionCount)") {
+                await walkOlder(from: snapshot.transactionCount)
+              }
             }
           }
           .listRowBackground(Color.clear)
           .listRowSeparator(.hidden)
         }
-      } else if lastTap != nil, !snapshot.isEmpty {
+      } else if !snapshot.isEmpty {
         Section {
-          Text("No older transactions")
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity)
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
+          VStack(spacing: 2) {
+            Text("No older transactions")
+              .font(.footnote.weight(.semibold))
+            if let earliest = snapshot.currentDateSections.last?.date ?? snapshot.disclosureDateSections.last?.date {
+              Text("Earliest transaction here: \(LedgerDate.shortDateString(fromISO: earliest)).")
+                .font(.footnote)
+            }
+          }
+          .foregroundStyle(.secondary)
+          .multilineTextAlignment(.center)
+          .frame(maxWidth: .infinity)
+          .padding(.vertical, 8)
+          .accessibilityElement(children: .combine)
+          .listRowBackground(Color.clear)
+          .listRowSeparator(.hidden)
         }
       }
     }
   }
 
-  /// Loads the next plan-wide page and remembers what this register listed
-  /// before it, so a page that adds nothing here can say so.
-  private func loadOlderPage(listedCount: Int) {
+  /// The rows this register lists from the loaded ledger right now, counted
+  /// as the snapshot counts them.
+  private func listedTransactionCount() -> Int {
+    visibleTransactions(scopedLedger: scoped(model.transactions), approvalScoped: []).count
+  }
+
+  /// The last walk that ended without listing a row, while it still holds:
+  /// same ledger load, filters and row count.
+  private func stalledOlderWalk(_ snapshot: RegisterSnapshot) -> OlderPageTap? {
+    olderPageTap.flatMap {
+      $0.generation == model.ledgerPageGeneration
+        && $0.filterKey == olderPageFilterKey
+        && $0.listedCount == snapshot.transactionCount ? $0 : nil
+    }
+  }
+
+  /// Loads older pages until this register lists more than `listedCount`
+  /// rows, its history runs out, or `olderLoadsPerWalk` loads found nothing it
+  /// lists. That last case is remembered so the footer offers a further
+  /// search rather than walking the plan again on its own.
+  private func walkOlder(from listedCount: Int) async {
     let generation = model.ledgerPageGeneration
     let filterKey = olderPageFilterKey
-    Task {
-      await model.loadOlderTransactions()
-      // A refresh or filter change while the page loaded makes the count
-      // meaningless; say nothing rather than something wrong.
-      guard generation == model.ledgerPageGeneration, filterKey == olderPageFilterKey else {
+    let announces = olderWalkAnnounces
+    olderWalkAnnounces = false
+    for _ in 0..<Self.olderLoadsPerWalk {
+      // A load the prefetch row started is still running; let it land first.
+      while model.isLoadingOlderTransactions {
+        try? await Task.sleep(for: .milliseconds(100))
+        guard !Task.isCancelled else {
+          return
+        }
+      }
+      guard listedTransactionCount() == listedCount, hasOlderForThisRegister else {
         return
       }
-      olderPageTap = OlderPageTap(listedCount: listedCount, generation: generation, filterKey: filterKey)
-      // True whether or not the page added rows here, so it cannot
-      // contradict the note on screen.
-      if model.olderTransactionsError == nil {
-        AccessibilityNotification.Announcement(
-          !model.hasMoreTransactions
-            ? "No older transactions"
-            : model.ledgerCursorOldestDate.map {
-              "Searched back to \(LedgerDate.shortDateString(fromISO: $0))"
-            } ?? "Older transactions loaded"
-        ).post()
+      // Unstructured, so the footer scrolling away cancels the walk but not
+      // the request in flight, which would land as an error.
+      let scope = olderScope
+      await Task { await model.loadOlderTransactions(in: scope) }.value
+      // A refresh or filter change while the page loaded makes the count
+      // meaningless; the footer starts a fresh walk for the new state.
+      guard
+        !Task.isCancelled,
+        generation == model.ledgerPageGeneration,
+        filterKey == olderPageFilterKey,
+        model.olderTransactionsError == nil
+      else {
+        return
       }
+      if !hasOlderForThisRegister {
+        if announces {
+          AccessibilityNotification.Announcement("No older transactions").post()
+        }
+        return
+      }
+      if listedTransactionCount() != listedCount {
+        return
+      }
+    }
+    olderPageTap = OlderPageTap(listedCount: listedCount, generation: generation, filterKey: filterKey)
+    if announces {
+      AccessibilityNotification.Announcement(
+        model.olderTransactionsSearchedBackDate(in: olderScope).map {
+          "Nothing older in this view back to \(LedgerDate.shortDateString(fromISO: $0))"
+        } ?? "Nothing older in this view yet"
+      ).post()
     }
   }
 

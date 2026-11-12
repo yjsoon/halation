@@ -52,6 +52,28 @@ private struct AcknowledgedDelta {
   let deltas: [String: DeleteBalanceDelta.Delta]
 }
 
+/// What the server can narrow a register's older pages to: one account, a
+/// report's date range, or both. Neither is the plan-wide ledger cursor.
+/// Other filters (category, cleared, several accounts) stay local, because
+/// the server cannot match them as the register does.
+struct OlderTransactionsScope: Hashable {
+  var accountID: String?
+  var dateRange: ClosedRange<String>?
+
+  var isPlanWide: Bool { accountID == nil && dateRange == nil }
+}
+
+/// A narrowed register's own walk back through its history: offset pages of
+/// its rows dated `sinceDate` through `untilDate`.
+private struct HistoryCursor {
+  let generation: Int
+  let sinceDate: String?
+  let untilDate: String?
+  var offset = 0
+  var hasMore = true
+  var oldestDate: String?
+}
+
 @MainActor
 @Observable
 final class AppModel {
@@ -260,6 +282,9 @@ final class AppModel {
   /// Account ID → the `generation|planID|startDate` its horizon fill last
   /// completed against. See `fillFocusedAccountHorizon(generation:planID:)`.
   @ObservationIgnored private var completedAccountHorizonFills: [String: String] = [:]
+  /// Each narrowed register's own older-page cursor, valid for one ledger
+  /// generation. A refresh restarts it at the new plan-wide frontier.
+  private var historyCursors: [OlderTransactionsScope: HistoryCursor] = [:]
   /// A refreshed account list or replaced ledger invalidates coverage, even
   /// when offsetting external transactions leave balances unchanged. A fill
   /// already in flight must not restore its completion after that refresh.
@@ -3008,7 +3033,7 @@ final class AppModel {
     accountHorizonCompletionEpoch &+= 1
   }
 
-  func retryIncompleteRegisterFill() async {
+  func retryIncompleteRegisterFill(scope: OlderTransactionsScope) async {
     olderTransactionsError = nil
     if focusedRegisterAccountIDs.last != nil {
       await fillFocusedAccountHorizon()
@@ -3016,7 +3041,7 @@ final class AppModel {
         return
       }
     }
-    await loadOlderTransactions()
+    await loadOlderTransactions(in: scope)
   }
 
   private func fillFocusedAccountHorizon(generation: Int, planID: String) async {
@@ -3101,14 +3126,47 @@ final class AppModel {
     isFillingHorizon = horizonFillCount > 0
   }
 
-  /// Appends one older page to the current, unfiltered ledger cursor. Register
-  /// scopes and drill-downs filter this common ordered page locally, so their
-  /// navigation cannot leave a separate filter-specific offset behind.
-  func loadOlderTransactions() async {
+  /// Whether a register narrowed to `scope` has older rows still to load. The
+  /// plan-wide cursor reaching the end means every scope has.
+  func hasOlderTransactions(in scope: OlderTransactionsScope) -> Bool {
+    guard hasMoreTransactions else {
+      return false
+    }
+    if scope.isPlanWide {
+      return true
+    }
+    if let cursor = currentHistoryCursor(scope) {
+      return cursor.hasMore
+    }
+    // A range that ends after the plan-wide frontier begins is already loaded.
+    if let start = scope.dateRange?.lowerBound, let frontier = ledgerCursorOldestDate, start > frontier {
+      return false
+    }
+    return true
+  }
+
+  /// How far back older pages for this register have searched: its own
+  /// cursor once it has paged, otherwise the plan-wide cursor.
+  func olderTransactionsSearchedBackDate(in scope: OlderTransactionsScope) -> String? {
+    currentHistoryCursor(scope)?.oldestDate ?? ledgerCursorOldestDate
+  }
+
+  private func currentHistoryCursor(_ scope: OlderTransactionsScope) -> HistoryCursor? {
+    historyCursors[scope].flatMap { $0.generation == ledgerPageGeneration ? $0 : nil }
+  }
+
+  /// Loads older rows for a register. A register the server can narrow (one
+  /// account, a report's dates) pages only its own rows, so it never waits on
+  /// plan-wide pages that hold none of them; every other register appends to
+  /// the shared, unfiltered ledger cursor and filters it locally, so its
+  /// navigation cannot leave a separate filter-specific offset behind. Either
+  /// way a page that only repeats rows already loaded (a quiet refresh
+  /// restarts the plan-wide cursor but keeps the rows) moves straight on to
+  /// the next, so one call adds rows or reaches the end.
+  func loadOlderTransactions(in scope: OlderTransactionsScope = OlderTransactionsScope()) async {
     guard
       ledgerPhase == .loaded,
-      hasMoreTransactions,
-      let offset = nextTransactionOffset,
+      hasOlderTransactions(in: scope),
       !isLoadingOlderTransactions,
       !isFillingHorizon
     else {
@@ -3126,21 +3184,71 @@ final class AppModel {
     }
 
     do {
-      let page = try await fetchLedgerPage(planID: planID, offset: offset, limit: APIClient.largestTransactionPageSize)
-      guard
-        generation == ledgerPageGeneration,
-        planID == settings.planID,
-        nextTransactionOffset == offset
-      else {
-        return
+      for _ in 0..<Self.olderPagesPerLoad {
+        let added: Bool
+        if !scope.isPlanWide {
+          // Starts at the plan-wide frontier: every row in scope newer than it
+          // is already loaded, so nothing between is skipped.
+          let cursor = currentHistoryCursor(scope) ?? HistoryCursor(
+            generation: generation,
+            sinceDate: scope.dateRange?.lowerBound,
+            untilDate: [ledgerCursorOldestDate, scope.dateRange?.upperBound].compactMap { $0 }.min()
+          )
+          let page = try await fetchLedgerPage(
+            planID: planID,
+            accountID: scope.accountID,
+            offset: cursor.offset,
+            sinceDate: cursor.sinceDate,
+            untilDate: cursor.untilDate,
+            limit: APIClient.largestTransactionPageSize
+          )
+          guard
+            generation == ledgerPageGeneration,
+            planID == settings.planID,
+            (currentHistoryCursor(scope)?.offset ?? 0) == cursor.offset
+          else {
+            return
+          }
+          added = addsRows(page)
+          serverTransactions = sortedUniqueTransactions(page.transactions + serverTransactions)
+          var next = cursor
+          next.hasMore = page.hasMore && page.nextOffset != nil
+          next.offset = page.nextOffset ?? cursor.offset
+          next.oldestDate = page.cursorDate ?? cursor.oldestDate
+          historyCursors[scope] = next
+        } else {
+          guard let offset = nextTransactionOffset else {
+            return
+          }
+          let page = try await fetchLedgerPage(planID: planID, offset: offset, limit: APIClient.largestTransactionPageSize)
+          guard
+            generation == ledgerPageGeneration,
+            planID == settings.planID,
+            nextTransactionOffset == offset
+          else {
+            return
+          }
+          added = addsRows(page)
+          applyOlderTransactionPage(page)
+        }
+        if added || !hasOlderTransactions(in: scope) {
+          return
+        }
       }
-      applyOlderTransactionPage(page)
     } catch {
       guard generation == ledgerPageGeneration, planID == settings.planID else {
         return
       }
       olderTransactionsError = error.localizedDescription
     }
+  }
+
+  /// Safety stop for pages that only repeat loaded rows within one load.
+  private static let olderPagesPerLoad = 20
+
+  private func addsRows(_ page: TransactionPage) -> Bool {
+    let loaded = Set(serverTransactions.lazy.map(\.id))
+    return page.transactions.contains { !loaded.contains($0.id) }
   }
 
   private func applyTransactionPageCursor(_ page: TransactionPage) {
