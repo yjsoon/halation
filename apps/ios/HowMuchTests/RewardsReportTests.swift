@@ -646,9 +646,13 @@ final class RewardsSnapshotTests: XCTestCase {
           try await Task.sleep(nanoseconds: 150_000_000)
         }
         XCTAssertEqual(scroll.contentSize.height, lastHeight, "\(name) content still growing")
+        attach(surface.captureVisible(), "reward-adaptive-\(name)-scrolled")
+        // Read the last row on its own pixels: in the full overflow capture Vision reads "$21.00" as "52'".
         // OCR sometimes reads the dollar sign as a 5, so match the figure without it.
-        let bottom = await surface.captureUntilOCR(contains: ["Excluded", "21.00"], timeoutNanoseconds: 3_000_000_000)
-        attach(bottom.image, "reward-adaptive-\(name)-scrolled")
+        let lastRow = try XCTUnwrap(surface.firstControl(labelContains: "Excluded,")?.frame, "\(name) has no Excluded row")
+        XCTAssertTrue(surface.windowBounds.contains(lastRow), "\(name) last row \(lastRow) is off screen")
+        let bottom = await surface.captureUntilOCR(contains: ["Excluded", "21.00"], region: lastRow, timeoutNanoseconds: 3_000_000_000)
+        attach(bottom.image, "reward-adaptive-\(name)-last-row")
         XCTAssertTrue(bottom.text.contains("excluded"), bottom.text)
         XCTAssertTrue(bottom.text.contains("21.00"), bottom.text)
       } else {

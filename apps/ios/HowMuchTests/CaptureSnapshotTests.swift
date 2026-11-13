@@ -3094,15 +3094,22 @@ final class SnapshotSurface {
     await settleVisible()
   }
 
+  /// `region` (window points) reads only those pixels: Vision can misread a large line in a full
+  /// capture that it reads correctly on its own, such as the overflow sheet's "$21.00" read as "52'".
   func captureUntilOCR(
     contains needles: [String],
+    region: CGRect? = nil,
     timeoutNanoseconds: UInt64 = 800_000_000
   ) async -> (image: UIImage, text: String, isBlank: Bool) {
     let deadline = DispatchTime.now() + .nanoseconds(Int(timeoutNanoseconds))
     let normalisedNeedles = needles.map(CaptureSnapshotTests.normalisedOCR)
     while true {
       layout()
-      let image = captureImage()
+      var image = captureImage()
+      if let region, let cgImage = image.cgImage,
+        let cropped = cgImage.cropping(to: region.applying(CGAffineTransform(scaleX: image.scale, y: image.scale))) {
+        image = UIImage(cgImage: cropped, scale: image.scale, orientation: .up)
+      }
       let lines = await CaptureSnapshotTests.visionLines(from: image)
       let text = CaptureSnapshotTests.normalisedOCR(lines.joined(separator: "\n"))
       let isBlank = image.cgImage == nil || image.size.width < 2 || image.size.height < 2 || text.isEmpty
