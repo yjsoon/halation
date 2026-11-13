@@ -34,6 +34,6 @@ Rewards settings belong to an existing account. **Edit Account** remains separat
 
 Capture and inspect native screenshots of the ordinary form, advanced summaries, a rule editor and an error/discard state. A web screenshot is not native proof; an editor screenshot is not persistence proof.
 
-Do not use `apps/ios/scripts/rewards-save-to-tile-clock.sh` for this editor until its OCR classifier is updated: its old editor-heading exclusion can mistake Set Up Rewards for the board. Any replacement timing check needs an editor-negative control and three samples, not the approximately 1.6-second `axe describe-ui` call as a clock. The historical recipe budget is 800 ms median; report separately from functional correctness. Use a recording when timing is under review.
+There is no save-to-tile timing tool (the OCR clock was deleted in #373). When timing is under review, use a recording and report it separately from functional correctness; the historical budget is 800 ms median. Do not use the approximately 1.6-second `axe describe-ui` call as a clock.
 
 When native tools are unavailable, report the native checks as blocked, not passed via API or unit tests.

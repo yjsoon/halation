@@ -34,6 +34,8 @@ All Time throughout. Demo Travel Card spends remain 2026-03-01 through 2026-05-2
 
 ## Save-to-tile (product clock)
 
+Historical: `apps/ios/scripts/rewards-save-to-tile-clock.sh` and its OCR helper were deleted in #373. The commands below record how these samples were taken.
+
 Darwin HowMuch Verification, only that Simulator booted (`simctl io booted` is this UDID). `control-howmuch` run `20260908T084259-43409` as `verifier`. Fill Add card first (`Verify cashback` / UOB / Cashback / Travel Card `acct-credit`). Then:
 
 ```sh
