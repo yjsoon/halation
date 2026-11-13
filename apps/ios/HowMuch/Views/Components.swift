@@ -834,8 +834,9 @@ struct RootChromeScope<Content: View>: View {
   }
 }
 
-/// Writes tab-bar visibility only on the compact path. The sidebar tree
-/// must not get an explicit `.toolbar(..., for: .tabBar)`.
+/// Writes tab-bar visibility on the compact path and on a phone's sidebar
+/// tree. The iPad sidebar tree must not get an explicit
+/// `.toolbar(..., for: .tabBar)`.
 private struct CompactTabBarVisibility: ViewModifier {
   var hidden: Bool
   var enabled: Bool = true
@@ -1267,6 +1268,7 @@ struct RootTabHost<Content: View>: View {
   let hostedTab: AppTab
   var workspace: CaptureWorkspace = .shared
   var content: Content
+  private static var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
 
   init(
     for hostedTab: AppTab,
@@ -1304,7 +1306,12 @@ struct RootTabHost<Content: View>: View {
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .animation(Theme.Motion.standard, value: overflow)
-      .modifier(CompactTabBarVisibility(hidden: hidesTabBar, enabled: !usesSidebar))
+      // The sidebar layout on a phone (the iPhone Duo inner display) still
+      // draws its tab bar along the bottom, where the selected total goes.
+      .modifier(CompactTabBarVisibility(
+        hidden: hidesTabBar || (Self.isPhone && chrome.isSelectingTransactions),
+        enabled: !usesSidebar || Self.isPhone
+      ))
       .safeAreaInset(edge: .bottom, spacing: 0) {
         if !usesSidebar,
            !router.hidesTabRowOverlay,

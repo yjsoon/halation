@@ -3435,6 +3435,94 @@ final class AppModel {
     showSaveMessage(cleared == .cleared ? "Marked transaction cleared" : "Marked transaction uncleared")
   }
 
+  // MARK: Bulk edits from a register selection
+
+  /// Gives the picked rows one category, as the editor would row by row.
+  /// Transfers, splits and the linked side of a split line carry their
+  /// category elsewhere, so they keep it. Reconciled rows change too: a
+  /// category does not move a balance, and only their status is locked.
+  func setCategory(_ category: Category?, on picked: [Transaction]) throws {
+    let rows = picked.map { displayedRow($0.id) ?? $0 }
+    let eligible = rows.filter { $0.transferAccountID == nil && $0.parentTransactionID == nil && !$0.isSplit }
+    let targets = eligible.filter { $0.categoryID != category?.id }
+    try enqueueBulkEdits(targets) { $0.categoryID = category?.id }
+    let done = category.map { "Set \(Self.count(targets.count)) to \($0.name)." }
+      ?? "Removed the category from \(Self.count(targets.count))."
+    let already = category.map { "Already in \($0.name)." } ?? "Already uncategorised."
+    let kept = rows.count - eligible.count
+    showBulkMessage(
+      changed: targets.count, done: done, already: eligible.isEmpty ? nil : already,
+      skipped: kept > 0 ? "\(Self.count(kept, "transfer or split", "transfers or splits")) kept \(kept == 1 ? "its" : "their") own." : nil
+    )
+  }
+
+  /// Flags the picked rows, or takes the flag off with `.none`. Every row
+  /// takes a flag, reconciled ones included.
+  func setFlag(_ flag: FlagColour, on picked: [Transaction]) throws {
+    // The server lets the linked side of a split line change only its own
+    // follow-ups, so it is not sent the editor's full body.
+    let rows = picked.map { displayedRow($0.id) ?? $0 }
+    let eligible = rows.filter { $0.parentTransactionID == nil }
+    let targets = eligible.filter { (FlagColour(rawValue: $0.flagColor ?? "") ?? .none) != flag }
+    try enqueueBulkEdits(targets) { $0.flag = flag }
+    let kept = rows.count - eligible.count
+    showBulkMessage(
+      changed: targets.count,
+      done: flag == .none
+        ? "Removed the flag from \(Self.count(targets.count))."
+        : "Flagged \(Self.count(targets.count)) \(flag.title.lowercased()).",
+      already: eligible.isEmpty ? nil : flag == .none ? "No flags to remove." : "Already flagged \(flag.title.lowercased()).",
+      skipped: kept > 0 ? "\(Self.count(kept, "split transfer", "split transfers")) can only be flagged from \(kept == 1 ? "its" : "their") split." : nil
+    )
+  }
+
+  /// Marks the picked rows cleared or uncleared with the same guarded change
+  /// as the row's own status control. Reconciled rows stay locked; only
+  /// Reconcile, which checks the statement balance, locks rows.
+  func setCleared(_ isCleared: Bool, on picked: [Transaction]) throws {
+    let cleared: ClearedState = isCleared ? .cleared : .uncleared
+    let rows = picked.map { displayedRow($0.id) ?? $0 }
+    let targets = rows.filter { $0.cleared != .reconciled && $0.cleared != cleared }
+    try enqueueOutbox(targets.map { row in
+      makeCommand(
+        transactionID: row.id,
+        kind: .cleared(expected: row.cleared, cleared: cleared, approve: false),
+        base: serverRow(row.id) ?? row
+      )
+    })
+    let word = isCleared ? "cleared" : "uncleared"
+    let locked = rows.filter { $0.cleared == .reconciled }.count
+    showBulkMessage(
+      changed: targets.count,
+      done: "Marked \(Self.count(targets.count)) \(word).",
+      already: locked == rows.count ? nil : "Already \(word).",
+      skipped: locked > 0 ? "\(Self.count(locked, "reconciled transaction", "reconciled transactions")) stayed locked." : nil
+    )
+  }
+
+  /// Queues one editor-style edit per row, keeping each row's approval as it
+  /// is (the editor's Save would approve it).
+  private func enqueueBulkEdits(_ rows: [Transaction], change: (inout TransactionDraft) -> Void) throws {
+    let commands = try rows.map { row in
+      var draft = TransactionDraft(transaction: row)
+      draft.approved = row.approved
+      change(&draft)
+      try CommitRejection.check(draft, decimalDigits: currencyFormat?.decimalDigits)
+      return editCommand(draft, transactionID: row.id, base: serverRow(row.id) ?? row)
+    }
+    try enqueueOutbox(commands)
+  }
+
+  /// What a bulk edit did, then what it left alone and why.
+  private func showBulkMessage(changed: Int, done: String, already: String?, skipped: String?) {
+    let first = changed > 0 ? done : already
+    showSaveMessage([first, skipped].compactMap { $0 }.joined(separator: " "))
+  }
+
+  private static func count(_ n: Int, _ one: String = "transaction", _ many: String = "transactions") -> String {
+    "\(n) \(n == 1 ? one : many)"
+  }
+
   /// Clears the "To confirm" marker and keeps the amount as it stands. Only
   /// the marker is sent, so a stale copy cannot overwrite newer fields.
   func confirmTransactionAmount(_ transaction: Transaction) throws {

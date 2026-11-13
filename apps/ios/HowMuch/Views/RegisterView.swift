@@ -308,6 +308,7 @@ struct RegisterView: View {
   /// Rows picked to add up, by id; nil outside selection mode. Rows are kept
   /// so a pick survives a search or filter that hides it.
   @State private var selection: [String: Transaction]?
+  @State private var isPickingBulkCategory = false
   @State private var mastheadMetrics = RegisterMastheadMetrics()
   @Environment(\.dynamicTypeSize) private var mastheadTypeSize
   @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -507,6 +508,9 @@ struct RegisterView: View {
     }
     .refreshable {
       await model.refresh(slices: TabRefresh.register, quiet: false)
+    }
+    .sheet(isPresented: $isPickingBulkCategory) {
+      bulkCategorySheet
     }
     .sheet(isPresented: $isShowingReconciliation) {
       AccountReconciliationSheet(preferredAccountID: scope.accountID)
@@ -781,6 +785,7 @@ struct RegisterView: View {
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .accessibilityElement(children: .combine)
         if count > 0 {
+          bulkEditMenu(Array(selection.values))
           Button {
             withAnimation(Theme.Motion.standard) { self.selection = [:] }
           } label: {
@@ -812,6 +817,101 @@ struct RegisterView: View {
     .padding(.horizontal, RegisterCard.inset)
     .padding(.bottom, 4)
     .accessibilityElement(children: .contain)
+  }
+
+  /// What the picks can change in one go. Each change keeps the picks, so a
+  /// category and then a flag can go on the same rows.
+  private func bulkEditMenu(_ picked: [Transaction]) -> some View {
+    Menu {
+      Button {
+        isPickingBulkCategory = true
+      } label: {
+        Label("Category…", systemImage: "tray.full")
+      }
+      // Transfers and splits carry their category elsewhere.
+      .disabled(!picked.contains { $0.transferAccountID == nil && $0.parentTransactionID == nil && !$0.isSplit })
+      Menu {
+        ForEach(FlagColour.allCases.filter { $0 != .none }) { colour in
+          Button {
+            bulkEdit { try model.setFlag(colour, on: picked) }
+          } label: {
+            Label {
+              Text(colour.title)
+            } icon: {
+              // A menu tints SwiftUI symbols with the accent; an original-mode
+              // image keeps each flag's own colour.
+              Image(uiImage: UIImage(systemName: "flag.fill")!.withTintColor(
+                UIColor(Theme.flagColour(named: colour.rawValue) ?? .secondary),
+                renderingMode: .alwaysOriginal
+              ))
+            }
+          }
+        }
+        Divider()
+        Button {
+          bulkEdit { try model.setFlag(.none, on: picked) }
+        } label: {
+          Label("Remove Flag", systemImage: "flag.slash")
+        }
+      } label: {
+        Label("Flag", systemImage: "flag")
+      }
+      // Reconciled rows keep their status: only Reconcile, which checks the
+      // statement balance, locks or unlocks a row.
+      Section {
+        Button {
+          bulkEdit { try model.setCleared(true, on: picked) }
+        } label: {
+          Label("Mark Cleared", systemImage: "c.circle.fill")
+        }
+        Button {
+          bulkEdit { try model.setCleared(false, on: picked) }
+        } label: {
+          Label("Mark Uncleared", systemImage: "c.circle")
+        }
+      } header: {
+        if picked.contains(where: { $0.cleared == .reconciled }) {
+          Text("Reconciled transactions stay locked")
+        }
+      }
+      .disabled(picked.allSatisfy { $0.cleared == .reconciled })
+    } label: {
+      Text("Edit")
+        .font(.subheadline.weight(.semibold))
+        .padding(.horizontal, 16)
+        .frame(minHeight: 36)
+    }
+    .buttonStyle(.glassProminent)
+    .tint(Theme.accent)
+    .accessibilityHint("Change the category, flag or cleared status of the selected transactions.")
+  }
+
+  /// The category sheet for the picks: ticks their category when they share
+  /// one, and none when they differ.
+  private var bulkCategorySheet: some View {
+    let picked = Array((selection ?? [:]).values)
+    let categories = Set(picked.filter { $0.transferAccountID == nil && $0.parentTransactionID == nil && !$0.isSplit }.map(\.categoryID))
+    // No category has an empty id, so a mixed selection ticks nothing.
+    let shared = categories.count == 1 ? categories.first! : ""
+    return NavigationStack {
+      CategoryPicker(selectedCategoryID: shared) { category in
+        bulkEdit { try model.setCategory(category, on: picked) }
+      }
+      .toolbar {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { isPickingBulkCategory = false }
+        }
+      }
+    }
+    .blocksCapturePresentation()
+  }
+
+  private func bulkEdit(_ change: () throws -> Void) {
+    do {
+      try change()
+    } catch {
+      model.showSaveMessage("Couldn’t change these transactions. \(error.localizedDescription)", kind: .failure)
+    }
   }
 
   private var reconcileMenuButton: some View {
