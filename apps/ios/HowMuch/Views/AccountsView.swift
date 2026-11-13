@@ -85,24 +85,31 @@ struct AccountsView: View {
     @Bindable var screenshots = ScreenshotOfferController.shared
     Group {
       if usesSplit {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-          overview()
-            // The max must exceed half the iPhone Duo inner display (about
-            // 476pt landscape) so a partial fold can split at the hinge.
-            .navigationSplitViewColumnWidth(min: 280, ideal: 340, max: 520)
-        } detail: {
-          NavigationStack {
-            if let pane {
-              detail(pane)
-                .id(pane)
-            } else {
-              PhasePlaceholder(phase: model.referencePhase) {
-                await model.refreshReferenceData()
+        GeometryReader { proxy in
+          // Folded like a book, the accounts column ends where the fold
+          // begins and the register starts where it ends, wherever the
+          // system reports the fold. Unfolded, the usual widths apply.
+          let fold = Self.bookFold(in: proxy)
+          NavigationSplitView(columnVisibility: $columnVisibility) {
+            overview()
+              .navigationSplitViewColumnWidth(
+                min: fold?.minX ?? 280, ideal: fold?.minX ?? 340, max: fold?.minX ?? 420)
+          } detail: {
+            NavigationStack {
+              if let pane {
+                detail(pane)
+                  .id(pane)
+              } else {
+                PhasePlaceholder(phase: model.referencePhase) {
+                  await model.refreshReferenceData()
+                }
               }
             }
+            .safeAreaPadding(
+              .leading, columnVisibility == .detailOnly ? 0 : fold?.width ?? 0)
           }
+          .navigationSplitViewStyle(.balanced)
         }
-        .navigationSplitViewStyle(.balanced)
       } else {
         NavigationStack {
           overview()
@@ -275,6 +282,20 @@ struct AccountsView: View {
     case .account(let id):
       RegisterView(scope: .account(id))
     }
+  }
+
+  /// The fold of an iPhone Duo folded like a book, margins included, in
+  /// `proxy`'s coordinates. Nil when no vertical fold is active.
+  private static func bookFold(in proxy: GeometryProxy) -> CGRect? {
+    #if canImport(SwiftUICore, _version: 8.0.85)
+    if #available(iOS 27.1, *),
+      let fold = proxy.reservedRegions(kind: .division).first?.frame,
+      fold.height > fold.width
+    {
+      return fold
+    }
+    #endif
+    return nil
   }
 
   private func overview() -> some View {
