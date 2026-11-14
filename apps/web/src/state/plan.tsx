@@ -28,7 +28,7 @@ import {
 } from "../lib/locale-plan-seed";
 import { configureDateFormat } from "../lib/dates";
 import { configureMoney } from "../lib/money";
-import type { NewAccountBody } from "../lib/new-account";
+import type { AccountUpdate, NewAccountBody } from "../lib/new-account";
 import { seedStarterCategories, starterCategoriesPending } from "../lib/starter-categories";
 import { parseTransactionDeepLink } from "../lib/transaction-deep-link";
 import { HalationMark } from "../components/Brand";
@@ -96,8 +96,10 @@ interface PlanContextValue {
   accountPreferencesSync: AccountPreferencesState;
   updateAccountPreferences: (updater: (preferences: AccountPreferences) => AccountPreferences) => void;
   updateAccountIcon: (accountId: string, icon: string) => Promise<void>;
-  /** Renames an account and updates the sidebar once the server confirms. */
-  renameAccount: (accountId: string, name: string) => Promise<void>;
+  /** Renames, retypes, closes or reopens an account and updates the sidebar once the server confirms. */
+  updateAccount: (accountId: string, account: AccountUpdate) => Promise<void>;
+  /** Deletes an account with no history; the server refuses any other. */
+  deleteAccount: (accountId: string) => Promise<void>;
   /** Creates an account and adds it to the sidebar before resolving. */
   createAccount: (account: NewAccountBody) => Promise<Account>;
   retryAccountPreferences: () => void;
@@ -190,7 +192,8 @@ function provisionalPlanValue(
     },
     updateAccountPreferences: () => {},
     updateAccountIcon: async () => {},
-    renameAccount: async () => {},
+    updateAccount: async () => {},
+    deleteAccount: async () => {},
     createAccount: () => Promise.reject(new Error("Still loading. Try again in a moment.")),
     createCategory: () => Promise.reject(new Error("Still loading. Try again in a moment.")),
     retryAccountPreferences: () => {},
@@ -517,10 +520,16 @@ export function PlanProvider({ children }: { children: ReactNode }) {
               throw cause;
             }
           },
-          renameAccount: async (accountId, name) => {
-            const updated = await api.renameAccount(planId, accountId, name);
+          updateAccount: async (accountId, patch) => {
+            const updated = await api.updateAccount(planId, accountId, patch);
             setValue((current) => current?.planId === planId
               ? { ...current, accounts: current.accounts.map((account) => account.id === updated.id ? updated : account) }
+              : current);
+          },
+          deleteAccount: async (accountId) => {
+            await api.deleteAccount(planId, accountId);
+            setValue((current) => current?.planId === planId
+              ? { ...current, accounts: current.accounts.filter((account) => account.id !== accountId) }
               : current);
           },
           createAccount: async (account) => {

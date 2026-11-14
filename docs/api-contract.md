@@ -103,6 +103,8 @@ Plan owners change the formats with `PATCH /api/plans/{plan_id}/settings`; see [
 
 `PATCH /v1/plans/{plan_id}/accounts/{account_id}`
 
+`DELETE /v1/plans/{plan_id}/accounts/{account_id}`
+
 `POST /v1/plans/{plan_id}/accounts/{account_id}/reconcile`
 
 Create body: `{ "account": { "name": "Savings", "type": "savings", "balance": 0, "icon": "💰" } }`.
@@ -122,6 +124,16 @@ default when the stored icon is missing or still the old type default. Name
 and icon writes stay presentation-only and are not locked by transition
 read-only mode. A write that includes `type` is locked in transition
 read-only mode.
+
+`closed` (true or false) closes or reopens an account and may be sent alone or
+with the other fields. A closed account keeps its transactions and stays in
+reports; clients list it under Closed and do not offer it for new entries.
+
+`DELETE` removes an account only when nothing refers to it: no live
+transaction in it or transferring to it, no split line transferring to it and
+no scheduled transaction using it. Otherwise it answers `409 conflict` and
+the account stays; close it instead. A delete also removes the account's
+`Transfer : …` payee and its card payment terms.
 
 The server generates an id when none is supplied and treats `balance` as the opening
 balance. Every account also owns a `Transfer : <name>` payee (created on demand

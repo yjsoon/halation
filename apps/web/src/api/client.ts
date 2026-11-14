@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { CATEGORY_SUGGESTION_BATCH, type CategorySuggestion, type CategorySuggestionRequestItem } from "../lib/category-suggestions";
 import type { LocalePlanSeed } from "../lib/locale-plan-seed";
-import type { NewAccountBody } from "../lib/new-account";
+import type { AccountUpdate, NewAccountBody } from "../lib/new-account";
 import type { TransactionBulkOutcome, TransactionBulkResult, TransactionBulkStatus, TransactionPage, UnapprovedCount } from "@howmuch/contract";
 import type {
   Account,
@@ -439,11 +439,14 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ account }),
     }).then((data) => data.account),
-  renameAccount: (planId: string, accountId: string, name: string) =>
+  updateAccount: (planId: string, accountId: string, account: AccountUpdate) =>
     request<{ account: Account; server_knowledge: number }>(planUrl(planId, "accounts", accountId), {
       method: "PATCH",
-      body: JSON.stringify({ account: { name } }),
+      body: JSON.stringify({ account }),
     }).then((data) => data.account),
+  deleteAccount: (planId: string, accountId: string) =>
+    request<{ account: Account; server_knowledge: number }>(planUrl(planId, "accounts", accountId), { method: "DELETE" })
+      .then((data) => data.account),
   updateAccountIcon: (planId: string, accountId: string, icon: string) =>
     request<{ account: Account; server_knowledge: number }>(planUrl(planId, "accounts", accountId), {
       method: "PATCH",

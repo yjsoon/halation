@@ -467,7 +467,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
             <fieldset className="transaction-editor-splits rewards-editor-block">
               <legend>Colour names</legend>
               <p className="field-note">
-                Edit colour names in <Link to={`/transactions?accounts=${encodeURIComponent(card.ynabAccountId)}&range=all`}>Card settings on this card’s register</Link>.
+                Edit colour names in <Link to={`/transactions?accounts=${encodeURIComponent(card.ynabAccountId)}&range=all`}>Account settings on this card’s register</Link>.
               </p>
             </fieldset>
           ) : (

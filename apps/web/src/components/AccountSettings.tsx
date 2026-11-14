@@ -1,4 +1,4 @@
-import { useState, type RefObject } from "react";
+import { useRef, useState, type RefObject } from "react";
 import { Link } from "react-router-dom";
 import { cycleDatesFor } from "../../../api/src/card-payments";
 import { rewardsToday } from "../../../api/src/rewards/engine/date-utils";
@@ -6,6 +6,9 @@ import { ruleChangeDates } from "../../../api/src/rewards/versions";
 import { api, useApi } from "../api/client";
 import type { Account, CardRuleVersion, CreditCard } from "../api/types";
 import type { RewardFlagColour } from "../lib/flags";
+import { isCardAccount } from "../lib/card-payments";
+import { ACCOUNT_KIND_GROUPS, accountKindGroup, type NewAccountKind } from "../lib/new-account";
+import { setFavouriteAccount } from "../state/account-preferences";
 import { formatDate, formatDayMonth, formatWeekdayDayMonth, todayIso } from "../lib/dates";
 import { colourNamesByAccount, parseRewardFlagNames, REWARD_NAME_COLOURS } from "../lib/reward-flag-names";
 import { usePlan } from "../state/plan";
@@ -15,29 +18,33 @@ type Scope = "current" | "next" | "everywhere";
 type RuleDraft = { rewardValue: string; maximumSpend: string };
 
 /**
- * One card's settings, in three parts that save separately: the ledger
- * account, its payment reminders, and its rewards rules. Only rewards rules
- * keep a history, so only they ask when a change applies.
+ * One account's settings, reached from its register. Every account has the
+ * Account band: name, type (which decides budget or tracking), favourite,
+ * close and delete. Cards add payment reminders and rewards rules, which save
+ * separately; only rewards rules keep a history, so only they ask when a
+ * change applies.
  */
-export function CardSettings({ planId, account, card, termsGeneration, onEditTerms, onSaved, onClose, onSavingChange, firstFieldRef }: {
+export function AccountSettings({ planId, account, card, termsGeneration, onEditTerms, onSaved, onDeleted, onClose, onSavingChange, firstFieldRef }: {
   planId: string;
   account: Account;
   card: CreditCard | undefined;
   termsGeneration: number;
   onEditTerms: () => void;
   onSaved: (message: string, card?: CreditCard) => void;
+  onDeleted: (message: string) => void;
   onClose: () => void;
   onSavingChange: (saving: boolean) => void;
   firstFieldRef: RefObject<HTMLInputElement | null>;
 }) {
+  const isCard = isCardAccount(account);
   return (
-    <section id="card-settings" className="card-settings" aria-label={`Card settings for ${account.name}`}
+    <section id="account-settings" className="card-settings" aria-label={`Settings for ${account.name}`}
       onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); onClose(); } }}>
-      <AccountBand account={account} firstFieldRef={firstFieldRef} onSaved={onSaved} onSavingChange={onSavingChange} />
-      <TermsBand planId={planId} account={account} generation={termsGeneration} onEdit={onEditTerms} />
+      <AccountBand account={account} firstFieldRef={firstFieldRef} onSaved={onSaved} onDeleted={onDeleted} onSavingChange={onSavingChange} />
+      {isCard && <TermsBand planId={planId} account={account} generation={termsGeneration} onEdit={onEditTerms} />}
       {card
         ? <RewardsBand planId={planId} card={card} onSaved={onSaved} onClose={onClose} onSavingChange={onSavingChange} />
-        : (
+        : isCard && (
           <div className="card-settings-band">
             <Heading title="Rewards" note="Not set up." />
             <div className="card-settings-body">
@@ -59,49 +66,133 @@ function Heading({ title, note }: { title: string; note: string }) {
   );
 }
 
-function AccountBand({ account, firstFieldRef, onSaved, onSavingChange }: {
+function AccountBand({ account, firstFieldRef, onSaved, onDeleted, onSavingChange }: {
   account: Account;
   firstFieldRef: RefObject<HTMLInputElement | null>;
   onSaved: (message: string) => void;
+  onDeleted: (message: string) => void;
   onSavingChange: (saving: boolean) => void;
 }) {
-  const { renameAccount } = usePlan();
+  const { updateAccount, deleteAccount, accountPreferencesSync, updateAccountPreferences } = usePlan();
   const [name, setName] = useState(account.name);
+  const [kind, setKind] = useState(account.type ?? "checking");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
   const trimmed = name.trim();
-  const save = async () => {
-    if (!trimmed) { setError("Enter a name for this account."); return; }
+  const kindChanged = kind !== (account.type ?? "checking");
+  const dirty = trimmed !== account.name || kindChanged;
+  const fromGroup = accountKindGroup(account.type ?? "");
+  const toGroup = accountKindGroup(kind);
+  const favouritesAvailable = accountPreferencesSync.phase !== "unsupported";
+  const favourite = accountPreferencesSync.preferences.favourite_account_ids.includes(account.id);
+
+  const run = async (work: () => Promise<void>, failure: string) => {
     setSaving(true);
     onSavingChange(true);
     setError(null);
     try {
-      await renameAccount(account.id, trimmed);
-      onSaved("Account name saved.");
+      await work();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Could not save the account name.");
+      setError(cause instanceof Error ? cause.message : failure);
     } finally {
       setSaving(false);
       onSavingChange(false);
     }
   };
+  const save = () => {
+    if (!trimmed) { setError("Enter a name for this account."); return; }
+    void run(async () => {
+      await updateAccount(account.id, {
+        ...(trimmed !== account.name ? { name: trimmed } : {}),
+        ...(kindChanged ? { type: kind as NewAccountKind } : {}),
+      });
+      onSaved("Account saved.");
+    }, "Could not save the account.");
+  };
+  const setClosed = (closed: boolean) => void run(async () => {
+    await updateAccount(account.id, { closed });
+    // A closed account leaves Favourites, as on iOS.
+    if (closed && favourite) updateAccountPreferences((current) => setFavouriteAccount(current, account.id, false));
+    onSaved(closed ? `${account.name} is closed. Its transactions stay in reports and the ledger.` : `${account.name} is open again.`);
+  }, closed ? "Could not close the account." : "Could not reopen the account.");
+  const remove = () => void run(async () => {
+    await deleteAccount(account.id);
+    if (favourite) updateAccountPreferences((current) => setFavouriteAccount(current, account.id, false));
+    onDeleted(`${account.name} was deleted.`);
+  }, "Could not delete the account.");
+
   return (
-    <form className="card-settings-band" onSubmit={(event) => { event.preventDefault(); if (!saving && trimmed !== account.name) void save(); }}>
+    <form className="card-settings-band" onSubmit={(event) => { event.preventDefault(); if (!saving && dirty) save(); }}>
       <Heading title="Account" note="Saves now. No history." />
       <div className="card-settings-body">
         <div className="card-settings-row">
           <label className="card-settings-field card-settings-name">
             <span>Name</span>
-            <input ref={firstFieldRef} value={name} disabled={saving}
-              aria-describedby={error ? "card-settings-name-error" : undefined}
-              aria-invalid={Boolean(error)}
+            <input ref={firstFieldRef} value={name} disabled={saving} maxLength={100}
+              aria-describedby={error ? "account-settings-error" : undefined}
+              aria-invalid={Boolean(error) && !trimmed}
               onChange={(event) => { setName(event.target.value); setError(null); }} />
           </label>
-          <button type="submit" className="register-add-link register-secondary-action" disabled={saving || trimmed === account.name}>
-            {saving ? "Saving…" : "Save name"}
+          <label className="card-settings-field card-settings-type">
+            <span>Type</span>
+            <select value={kind} disabled={saving} onChange={(event) => { setKind(event.target.value); setError(null); }}>
+              {!fromGroup && <option value={account.type ?? ""}>Imported: {account.type}</option>}
+              {ACCOUNT_KIND_GROUPS.map((group) => (
+                <optgroup key={group.label} label={group.label}>
+                  {group.kinds.map((option) => <option key={option.kind} value={option.kind}>{option.title}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="register-add-link register-secondary-action" disabled={saving || !dirty}>
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
-        {error && <p id="card-settings-name-error" className="error" role="alert">{error}</p>}
+        <p className="card-settings-note">
+          {kindChanged && toGroup && fromGroup?.label !== toGroup.label
+            ? `Moves this account from ${fromGroup?.label ?? "its imported type"} to ${toGroup.label}. Balances do not change.`
+            : toGroup?.note ?? "Imported type. Choose a type to list it under Budget or Tracking."}
+        </p>
+        {!account.closed && (
+          <label className="account-settings-check">
+            <input type="checkbox" checked={favourite} disabled={saving || !favouritesAvailable}
+              onChange={(event) => updateAccountPreferences((current) => setFavouriteAccount(current, account.id, event.target.checked))} />
+            Favourite
+            <span className="card-settings-note">
+              {favouritesAvailable ? "Listed first in the sidebar, here and on iOS." : "This server cannot save favourites yet."}
+            </span>
+          </label>
+        )}
+        {error && <p id="account-settings-error" className="error" role="alert">{error}</p>}
+        <div className="account-settings-lifecycle">
+          <button type="button" className="register-add-link register-secondary-action" disabled={saving} onClick={() => setClosed(!account.closed)}>
+            {account.closed ? "Reopen account" : "Close account"}
+          </button>
+          <button type="button" ref={deleteButtonRef} className="organiser-danger-link" disabled={saving} onClick={() => setConfirmingDelete(true)}>
+            Delete account
+          </button>
+        </div>
+        <p className="card-settings-note">
+          {account.closed
+            ? "Closed: kept under Closed with all its transactions. Reopen it to record new ones."
+            : "Close an account you no longer use. Its history stays and it moves under Closed."}
+        </p>
+        {confirmingDelete && (
+          <div className="custom-group-delete-confirm" role="alert">
+            <span>Delete {account.name}? Only an account with no transactions, transfers or scheduled transactions can be deleted. Otherwise, close it.</span>
+            <div>
+              <button type="button" className="text-button" disabled={saving} onClick={() => {
+                setConfirmingDelete(false);
+                requestAnimationFrame(() => deleteButtonRef.current?.focus());
+              }}>Cancel</button>
+              <button type="button" className="organiser-danger-button" disabled={saving} onClick={remove}>
+                {saving ? "Deleting…" : "Delete account"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </form>
   );

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { StatusPanel } from "../components/StatusPanel";
 import { amountFormatHint, parseMilliunits } from "../lib/money";
-import { ACCOUNT_KIND_GROUPS, newAccountRequest, storesLiability, type NewAccountKind } from "../lib/new-account";
+import { ACCOUNT_KIND_GROUPS, accountKindGroup, newAccountRequest, storesLiability, type NewAccountKind } from "../lib/new-account";
 import { usePlan } from "../state/plan";
 
 export function NewAccountPage() {
@@ -75,7 +75,7 @@ export function NewAccountPage() {
         </label>
         <label className="field">
           <span className="field-label">Type</span>
-          <select value={kind} onChange={(event) => setKind(event.target.value as NewAccountKind)} disabled={saving}>
+          <select value={kind} onChange={(event) => setKind(event.target.value as NewAccountKind)} aria-describedby="new-account-type-note" disabled={saving}>
             {ACCOUNT_KIND_GROUPS.map((group) => (
               <optgroup key={group.label} label={group.label}>
                 {group.kinds.map((option) => (
@@ -84,6 +84,7 @@ export function NewAccountPage() {
               </optgroup>
             ))}
           </select>
+          <span id="new-account-type-note" className="field-note">{accountKindGroup(kind)?.note}</span>
         </label>
         <label className="field">
           <span className="field-label">{liability ? "Amount owed" : "Current balance"}</span>

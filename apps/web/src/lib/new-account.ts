@@ -3,11 +3,13 @@ import { parseMilliunits } from "./money";
 /**
  * The account types the API accepts on create, in the order the form lists
  * them. Mirrors `ACCOUNT_KINDS` in `apps/api/src/account-kind.ts` and
- * `AccountKind` on iOS; the server derives on-budget from the type.
+ * `AccountKind` on iOS; the server derives on-budget from the type, so the
+ * group a type sits in is whether the account is a budget or tracking one.
  */
 export const ACCOUNT_KIND_GROUPS = [
   {
-    label: "Everyday",
+    label: "Budget",
+    note: "Budget account: cash, savings and cards you spend from.",
     kinds: [
       { kind: "checking", title: "Current account" },
       { kind: "savings", title: "Savings" },
@@ -17,7 +19,8 @@ export const ACCOUNT_KIND_GROUPS = [
     ],
   },
   {
-    label: "Loans and assets",
+    label: "Tracking",
+    note: "Tracking account: loans and assets you keep an eye on but don’t spend from. Listed under Tracking.",
     kinds: [
       { kind: "mortgage", title: "Mortgage" },
       { kind: "autoLoan", title: "Car loan" },
@@ -32,6 +35,10 @@ export const ACCOUNT_KIND_GROUPS = [
 
 export type NewAccountKind = (typeof ACCOUNT_KIND_GROUPS)[number]["kinds"][number]["kind"];
 
+export function accountKindGroup(kind: string): (typeof ACCOUNT_KIND_GROUPS)[number] | undefined {
+  return ACCOUNT_KIND_GROUPS.find((group) => group.kinds.some((option) => option.kind === kind));
+}
+
 const LIABILITY_KINDS: ReadonlySet<NewAccountKind> = new Set([
   "creditCard", "lineOfCredit", "mortgage", "autoLoan", "studentLoan", "medicalDebt", "otherLoan", "otherLiability",
 ]);
@@ -44,6 +51,9 @@ export function storesLiability(kind: NewAccountKind): boolean {
 type NewAccountDraft = { name: string; kind: NewAccountKind; balance: string };
 
 export type NewAccountBody = { name: string; type: NewAccountKind; balance: number };
+
+/** An account PATCH; on-budget follows `type` on the server. */
+export type AccountUpdate = { name?: string; type?: NewAccountKind; closed?: boolean };
 
 export function newAccountRequest(
   draft: NewAccountDraft,

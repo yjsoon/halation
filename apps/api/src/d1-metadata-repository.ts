@@ -5,7 +5,7 @@ import type { D1WriteContext } from "./d1-transaction-repository";
 import { D1GuardedCommandExecutor, statement } from "./d1-guarded-command";
 import type { EffectiveScheduledTransaction } from "./scheduled-transactions";
 import { resolveAccountPresentation } from "./account-icon";
-import { onBudgetForKind, type AccountUpdatePatch } from "./account-kind";
+import { accountDeletionSql, onBudgetForKind, type AccountUpdatePatch } from "./account-kind";
 import { ynabMirrorGuard, type PlannedSql } from "./category-management";
 import { ownedRecordStatements } from "./ynab-owned-records";
 
@@ -149,7 +149,11 @@ export class D1MetadataRepository {
       assignments.push("on_budget=?");
       values.push(onBudgetForKind(patch.kind) ? 1 : 0);
     }
-    if (assignments.length === 0) throw new Error("account.icon, account.name, or account.type is required");
+    if (patch.closed !== undefined) {
+      assignments.push("closed=?");
+      values.push(patch.closed ? 1 : 0);
+    }
+    if (assignments.length === 0) throw new Error("account.icon, account.name, account.type, or account.closed is required");
     await this.run("metadata.account.update", planId, accountId, patch, context, [
       assertion(commandId, "metadata_plan_exists", planId, planId),
       assertion(commandId, "metadata_account", accountId, planId),
@@ -163,6 +167,15 @@ export class D1MetadataRepository {
           [`Transfer : ${patch.name}`, accountId],
         )]
         : []),
+      statement("UPDATE plans SET server_knowledge=server_knowledge+1,updated_at=CURRENT_TIMESTAMP WHERE id=?", [planId]),
+    ]);
+  }
+
+  async deleteAccount(planId: string, accountId: string, context?: D1WriteContext): Promise<void> {
+    const commandId = this.id(context);
+    await this.run("metadata.account.delete", planId, accountId, { accountId }, context, [
+      assertion(commandId, "metadata_plan_exists", planId, planId),
+      ...accountDeletionSql(planId, accountId).map(({ sql, values }) => statement(sql, values)),
       statement("UPDATE plans SET server_knowledge=server_knowledge+1,updated_at=CURRENT_TIMESTAMP WHERE id=?", [planId]),
     ]);
   }

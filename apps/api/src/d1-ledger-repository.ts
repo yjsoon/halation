@@ -65,7 +65,7 @@ export class D1LedgerRepository extends LedgerRepository {
     if (parsedIcon === null) throw new ValidationError("icon must be a single emoji");
     const parsedName = patch.name === undefined ? undefined : String(patch.name).trim();
     if (patch.name !== undefined && !parsedName) throw new ValidationError("account.name is required");
-    if (parsedIcon === undefined && parsedName === undefined && patch.kind === undefined) throw new ValidationError("account.icon, account.name, or account.type is required");
+    if (parsedIcon === undefined && parsedName === undefined && patch.kind === undefined && patch.closed === undefined) throw new ValidationError("account.icon, account.name, account.type, or account.closed is required");
     const existing = await this.d1.get("SELECT name, icon, type FROM accounts WHERE id=? AND plan_id=? AND deleted=0", [accountId, planId]);
     if (!existing) throw new NotFoundError("Account not found");
     const fields = applyAccountUpdate(
@@ -74,14 +74,18 @@ export class D1LedgerRepository extends LedgerRepository {
         icon: typeof existing.icon === "string" ? existing.icon : null,
         type: typeof existing.type === "string" ? existing.type : null,
       },
-      { ...(parsedIcon !== undefined ? { icon: parsedIcon } : {}), ...(parsedName !== undefined ? { name: parsedName } : {}), ...(patch.kind ? { kind: patch.kind } : {}) },
+      { ...(parsedIcon !== undefined ? { icon: parsedIcon } : {}), ...(parsedName !== undefined ? { name: parsedName } : {}), ...(patch.kind ? { kind: patch.kind } : {}), ...(patch.closed !== undefined ? { closed: patch.closed } : {}) },
     );
     await this.metadata.updateAccount(planId, accountId, {
       ...(fields.name !== undefined ? { name: fields.name } : {}),
       ...(fields.icon !== undefined ? { icon: fields.icon } : {}),
       ...(fields.type !== undefined ? { kind: fields.type } : {}),
+      ...(fields.closed !== undefined ? { closed: fields.closed } : {}),
     }, this.context("account.update", planId, accountId));
     return this.getAccount(planId, accountId);
+  }
+  protected override async writeAccountDeletion(planId: string, accountId: string): Promise<void> {
+    await this.metadata.deleteAccount(planId, accountId, this.context("account.delete", planId, accountId));
   }
   override async createAccount(planId:string,account:any):Promise<any>{
     const id=account.id??createId("acct"); const opening=account.opening_balance??account.balance??0;

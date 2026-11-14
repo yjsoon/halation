@@ -16,7 +16,7 @@ import { FilterRail } from "../components/FilterRail";
 import { FlagTag } from "../components/FlagTag";
 import { CategorySelect } from "../components/CategorySelect";
 import { CardTermsDialog } from "../components/CardTermsDialog";
-import { CardSettings } from "../components/CardSettings";
+import { AccountSettings } from "../components/AccountSettings";
 import { CategorySuggestionReview } from "../components/CategorySuggestionReview";
 import { RegisterComposeRow } from "../components/RegisterComposeRow";
 import { expectedMastheads, mastheadScene, RegisterMasthead, rememberMastheads } from "../components/RegisterMasthead";
@@ -1789,17 +1789,17 @@ export function TransactionsPage() {
               Reconcile
             </button>
           )}
-          {selectedAccount && isCardAccount(selectedAccount) && (
+          {selectedAccount && (
             <button
               type="button"
               ref={cardSettingsButtonRef}
               className="register-add-link register-secondary-action register-card-settings"
               aria-expanded={cardSettingsOpen}
-              aria-controls="card-settings"
+              aria-controls="account-settings"
               disabled={cardSettingsSaving}
               onClick={() => setCardSettingsAccountId(cardSettingsOpen ? null : selectedAccount.id)}
             >
-              Card settings <span aria-hidden="true">{cardSettingsOpen ? "▴" : "▾"}</span>
+              Account settings <span aria-hidden="true">{cardSettingsOpen ? "▴" : "▾"}</span>
             </button>
           )}
           {cardTermsOpen && selectedAccount && (
@@ -2202,7 +2202,7 @@ export function TransactionsPage() {
 
       {registerLoaded && (
         <section className="report-section">
-          {selectedAccount && cardSettingsOpen && <CardSettings
+          {selectedAccount && cardSettingsOpen && <AccountSettings
             key={`${planId}:${selectedAccount.id}:${selectedRewardCard?.id ?? "none"}`}
             planId={planId}
             account={selectedAccount}
@@ -2212,6 +2212,12 @@ export function TransactionsPage() {
             firstFieldRef={cardSettingsFirstFieldRef}
             onSavingChange={setCardSettingsSaving}
             onClose={() => setCardSettingsAccountId(null)}
+            onDeleted={(message) => {
+              setCardSettingsAccountId(null);
+              setMutationError(null);
+              setMutationSuccess(message);
+              navigate("/transactions?range=all&accounts=all", { replace: true });
+            }}
             onSaved={(message, card) => {
               if (card) setSavedRewardCards((previous) => ({ planId, cards: { ...(previous.planId === planId ? previous.cards : {}), [card.id]: card } }));
               setMutationError(null);

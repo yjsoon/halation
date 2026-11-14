@@ -1521,6 +1521,34 @@ describe("D1 foundation", () => {
     });
   });
 
+  // Failure modes the SQLite-backed browser run cannot reach: the D1 write
+  // deleting an account that is only a split's transfer target, or that a
+  // live schedule pays from, and leaving its transfer payee pickable.
+  test("D1 account close and delete keep any account with history", async () => {
+    const db = sqlite();
+    const directory = new URL("../d1-migrations/", import.meta.url).pathname;
+    for (const file of [...new Bun.Glob("*.sql").scanSync(directory)].sort()) db.exec(await Bun.file(`${directory}${file}`).text());
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    await repo.ensurePlan("p");
+    for (const id of ["spend", "split-target", "scheduled", "empty"]) await repo.createAccount("p", { id, name: `Account ${id}`, type: "checking" });
+    db.run("INSERT INTO transactions (id, plan_id, account_id, date, amount_milli) VALUES ('t', 'p', 'spend', '2026-01-01', -10)");
+    db.run("INSERT INTO subtransactions (id, transaction_id, amount_milli, transfer_account_id) VALUES ('s', 't', -10, 'split-target')");
+    await repo.createScheduledTransaction("p", { account_id: "scheduled", date_first: "2030-01-01", frequency: "monthly", amount: -5 });
+
+    expect(await repo.updateAccount("p", "spend", { closed: true })).toMatchObject({ closed: true });
+    expect(db.query("SELECT closed FROM accounts WHERE id='spend'").get()).toEqual({ closed: 1 });
+    expect(await repo.updateAccount("p", "spend", { closed: false })).toMatchObject({ closed: false });
+
+    for (const id of ["spend", "split-target", "scheduled"]) {
+      await expect(repo.deleteAccount("p", id)).rejects.toThrow("Close it instead");
+      expect(db.query("SELECT deleted FROM accounts WHERE id=?").get(id)).toEqual({ deleted: 0 });
+    }
+    const payee = db.query("SELECT transfer_payee_id FROM accounts WHERE id='empty'").get() as { transfer_payee_id: string };
+    await repo.deleteAccount("p", "empty");
+    expect((await repo.listAccounts("p")).map((account) => account.id).sort()).toEqual(["scheduled", "spend", "split-target"]);
+    expect(db.query("SELECT deleted FROM payees WHERE id=?").get(payee.transfer_payee_id)).toEqual({ deleted: 1 });
+  });
+
   test("D1 split IDs cannot be stolen by another parent in the same plan", async () => {
     const db=await ledgerSqlite(); const writer=new D1TransactionRepository(new D1Database(fakeD1(db)));
     await writer.create("p",{id:"first",account_id:"a",date:"2026-01-01",amount:2,subtransactions:[{id:"shared",amount:1},{id:"first-other",amount:1}]},{operationId:"first"});

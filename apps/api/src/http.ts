@@ -346,7 +346,7 @@ async function handleV1(
       const body = await readJson(request);
       const payload = body.account ?? body;
       if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-        throw new ValidationError("account.icon, account.name, or account.type is required");
+        throw new ValidationError("account.icon, account.name, account.type, or account.closed is required");
       }
       if (Object.prototype.hasOwnProperty.call(payload, "on_budget")) {
         throw new ValidationError("account.on_budget is derived from account.type and cannot be set");
@@ -355,15 +355,23 @@ async function handleV1(
       if (payload.type !== undefined && kind === null) {
         throw new ValidationError(`account.type must be one of ${Object.keys(ACCOUNT_KINDS).join(", ")}`);
       }
+      if (payload.closed !== undefined && typeof payload.closed !== "boolean") {
+        throw new ValidationError("account.closed must be true or false");
+      }
       const patch: AccountUpdatePatch = {
         ...(typeof payload.icon === "string" ? { icon: payload.icon } : {}),
         ...(typeof payload.name === "string" ? { name: payload.name } : {}),
         ...(kind ? { kind } : {}),
+        ...(typeof payload.closed === "boolean" ? { closed: payload.closed } : {}),
       };
-      if (patch.icon === undefined && patch.name === undefined && patch.kind === undefined) {
-        throw new ValidationError("account.icon, account.name, or account.type is required");
+      if (patch.icon === undefined && patch.name === undefined && patch.kind === undefined && patch.closed === undefined) {
+        throw new ValidationError("account.icon, account.name, account.type, or account.closed is required");
       }
       const account = await repo.updateAccount(planId, accountId, patch);
+      return json({ data: { account, server_knowledge: await repo.getServerKnowledge(planId) } });
+    }
+    if (segments.length === 5 && method === "DELETE") {
+      const account = await repo.deleteAccount(planId, accountId);
       return json({ data: { account, server_knowledge: await repo.getServerKnowledge(planId) } });
     }
     if (segments.length === 6 && segments[5] === "transactions" && method === "GET") {

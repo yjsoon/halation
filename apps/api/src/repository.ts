@@ -39,7 +39,7 @@ import {
   type EffectiveScheduledTransaction,
 } from "./scheduled-transactions";
 import { parseAccountIcon, resolveAccountPresentation, splitLegacyAccountName } from "./account-icon";
-import { applyAccountUpdate, type AccountUpdatePatch } from "./account-kind";
+import { ACCOUNT_IN_USE_MESSAGE, accountDeletionSql, applyAccountUpdate, type AccountUpdatePatch } from "./account-kind";
 import { parseRegisterQuery, transactionSearchSql } from "@howmuch/register-query";
 import {
   CATEGORY_IN_USE_CONDITION,
@@ -490,8 +490,8 @@ export class LedgerRepository {
     if (nextIcon === null) throw new ValidationError("icon must be a single emoji");
     const nextName = patch.name === undefined ? undefined : String(patch.name).trim();
     if (patch.name !== undefined && !nextName) throw new ValidationError("account.name is required");
-    if (nextIcon === undefined && nextName === undefined && patch.kind === undefined) {
-      throw new ValidationError("account.icon, account.name, or account.type is required");
+    if (nextIcon === undefined && nextName === undefined && patch.kind === undefined && patch.closed === undefined) {
+      throw new ValidationError("account.icon, account.name, account.type, or account.closed is required");
     }
     const row = await this.db
       .query("SELECT name, icon, type FROM accounts WHERE id = ? AND plan_id = ? AND deleted = 0")
@@ -499,7 +499,7 @@ export class LedgerRepository {
     if (!row) throw new NotFoundError("Account not found");
     const fields = applyAccountUpdate(
       { name: String(row.name ?? ""), icon: row.icon, type: row.type },
-      { ...(nextIcon !== undefined ? { icon: nextIcon } : {}), ...(nextName !== undefined ? { name: nextName } : {}), ...(patch.kind ? { kind: patch.kind } : {}) },
+      { ...(nextIcon !== undefined ? { icon: nextIcon } : {}), ...(nextName !== undefined ? { name: nextName } : {}), ...(patch.kind ? { kind: patch.kind } : {}), ...(patch.closed !== undefined ? { closed: patch.closed } : {}) },
     );
     const assignments: string[] = [];
     const values: unknown[] = [];
@@ -517,6 +517,10 @@ export class LedgerRepository {
       assignments.push("on_budget = ?");
       values.push(bool(fields.on_budget));
     }
+    if (fields.closed !== undefined) {
+      assignments.push("closed = ?");
+      values.push(bool(fields.closed));
+    }
     await this.db.transaction(async () => {
       await this.db
         .query(`UPDATE accounts SET ${assignments.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?`)
@@ -527,6 +531,34 @@ export class LedgerRepository {
       await this.touchPlan(planId);
     })();
     return this.getAccount(planId, accountId);
+  }
+
+  /**
+   * Deletes an account that never held anything. One with transactions,
+   * transfers or schedules is refused rather than cascaded: deleting it would
+   * drop the other half of its transfers from other accounts' history, so it
+   * is closed instead.
+   */
+  async deleteAccount(planId: string, accountId: string): Promise<any> {
+    const account = await this.findAccount(planId, accountId);
+    if (!account) throw new NotFoundError("Account not found");
+    const schedules = await this.listScheduledTransactions(planId);
+    if (schedules.some((schedule) => !schedule.deleted && (
+      schedule.account_id === accountId || schedule.transfer_account_id === accountId
+      || (schedule.subtransactions ?? []).some((sub: any) => !sub.deleted && sub.transfer_account_id === accountId)
+    ))) {
+      throw new EntityConflictError(ACCOUNT_IN_USE_MESSAGE);
+    }
+    await this.writeAccountDeletion(planId, accountId);
+    if (await this.findAccount(planId, accountId)) throw new EntityConflictError(ACCOUNT_IN_USE_MESSAGE);
+    return { ...account, deleted: true };
+  }
+
+  protected async writeAccountDeletion(planId: string, accountId: string): Promise<void> {
+    await this.db.transaction(async () => {
+      for (const { sql, values } of accountDeletionSql(planId, accountId)) await this.db.query(sql).run(...values);
+      await this.touchPlan(planId);
+    })();
   }
 
   async listAccounts(planId: string): Promise<any[]> {

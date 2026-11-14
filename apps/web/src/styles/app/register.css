@@ -554,6 +554,44 @@ a.page-eyebrow:hover {
   padding: 6px 10px;
 }
 
+.card-settings-type select {
+  height: 36px;
+  padding: 6px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+
+.account-settings-check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.account-settings-check input {
+  accent-color: var(--plan-accent);
+}
+
+.account-settings-check .card-settings-note {
+  margin: 0;
+}
+
+.account-settings-lifecycle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+
+.card-settings-body > .custom-group-delete-confirm {
+  justify-self: stretch;
+  margin-top: 0;
+}
+
 .card-settings-rules {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 140px 140px;
