@@ -4,6 +4,7 @@
 # origin/main, committed or not:
 #   docs/artefacts only  -> nothing to run
 #   anything else        -> bun test, web and worker typecheck
+#   web or iOS sources   -> scripts/verify-ios-* source lints
 #   api/engine/packages  -> iOS engine freshness (pinned Bun 1.4.0)
 #   iOS app or project   -> scripts/ios-xcodebuild.sh test (Mac only)
 # HOWMUCH_CHECK_BASE overrides the base ref. Exits non-zero on any failure,
@@ -36,6 +37,16 @@ fi
 step bun test
 step bun run --cwd apps/web typecheck
 step bun run --cwd apps/worker typecheck
+
+# Source lints for iOS behaviour that simulator runs miss. Plain Bun, so they
+# run on Linux too. Focus zoom measures the web CSS that iOS Safari renders.
+if has '^(apps/web/|scripts/verify-ios-focus-zoom)'; then
+  step bun scripts/verify-ios-focus-zoom.ts
+fi
+if has '^(apps/ios/|scripts/verify-ios-|scripts/lib/ios-disclosure-chevron)'; then
+  step bun scripts/verify-ios-confirm-presentation.ts
+  step bun scripts/verify-ios-disclosure-chevron.ts
+fi
 
 if has '^(apps/api/|apps/ios/engine/|apps/ios/HowMuch/Engine/|packages/|scripts/build-ios-engine\.ts|bun\.lock)'; then
   # The engine bundle is only reproducible with this exact Bun.

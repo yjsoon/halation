@@ -1,12 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixture = join(root, "apps/web/scripts/ios-focus-zoom-fixture.html");
-const chrome = process.env.CHROME_PATH ?? "google-chrome";
+const chrome = findChrome();
 const userData = mkdtempSync(join(tmpdir(), "howmuch-ios-zoom-"));
 const dumpPath = join(userData, "dump.html");
 
@@ -46,4 +46,26 @@ if (!report.ok) {
 console.log("All measured text-entry controls are at least 16px.");
 for (const row of report.rows) {
   if (!row.skip) console.log(`  ${row.name}: ${row.fontSize}`);
+}
+
+// CHROME_PATH wins; otherwise the first Chrome or Chromium on PATH, the macOS
+// app bundles, then agent-browser's download (orbs have only that one).
+function findChrome(): string {
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  for (const name of ["google-chrome", "google-chrome-stable", "chromium", "chromium-browser"]) {
+    const path = Bun.which(name);
+    if (path) return path;
+  }
+  const candidates = [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  ];
+  const downloads = join(homedir(), ".agent-browser/browsers");
+  if (existsSync(downloads)) {
+    for (const dir of readdirSync(downloads).sort().reverse()) candidates.push(join(downloads, dir, "chrome"));
+  }
+  const found = candidates.find((path) => existsSync(path));
+  if (found) return found;
+  console.error("No Chrome or Chromium found. Install one or set CHROME_PATH.");
+  process.exit(1);
 }
