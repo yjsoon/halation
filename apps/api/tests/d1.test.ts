@@ -1928,7 +1928,8 @@ function provisionTransferPayee(db: Database, accountId: string): void {
 
 async function ledgerSqlite(): Promise<Database> {
   const db = sqlite();
-  for (const path of ["../d1-migrations/0001_initial.sql", "../d1-migrations/0002_password_auth.sql", "../d1-migrations/0003_allow_duplicate_payee_names.sql", "../d1-migrations/0004_ynab_raw_objects.sql", "../d1-migrations/0005_plan_month_assignments.sql", "../d1-migrations/0006_plan_month_category_targets.sql", "../d1-migrations/0007_scheduled_transaction_edits.sql", "../d1-migrations/0008_scheduled_transaction_snapshot_assertions.sql", "../d1-migrations/0009_account_reconciliation_assertions.sql", "../d1-migrations/0010_unique_live_import_id.sql", "../d1-migrations/0011_personal_api_tokens.sql", "../d1-migrations/0012_account_preferences.sql", "../d1-migrations/0013_account_icons.sql", "../d1-migrations/0014_account_icon_emoji_backfill.sql", "../d1-migrations/0015_rewards_tracker.sql", "../d1-migrations/0016_query_covering_indexes.sql", "../d1-migrations/0017_ynab_source_month_activity.sql", "../d1-migrations/0018_account_month_balances.sql", "../d1-migrations/0019_own_imported_ynab_schedules.sql", "../d1-migrations/0022_transaction_needs_confirmation.sql", "../d1-migrations/0023_transaction_claim_status.sql"]) db.exec(await Bun.file(new URL(path, import.meta.url)).text());
+  const directory = new URL("../d1-migrations/", import.meta.url).pathname;
+  for (const file of [...new Bun.Glob("*.sql").scanSync(directory)].sort()) db.exec(await Bun.file(`${directory}${file}`).text());
   db.run("INSERT INTO plans (id, name) VALUES ('p', 'Plan')");
   db.run("INSERT INTO accounts (id, plan_id, name) VALUES ('a', 'p', 'Cash')");
   return db;
