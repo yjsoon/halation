@@ -699,7 +699,8 @@ final class RegisterMastheadMetrics {
   /// The list's top inset (status bar, navigation bar and anything inset above the rows) and scroll offset.
   var topInset: CGFloat = 0
   var offset: CGFloat = 0
-  /// In the header row's own coordinates.
+  /// In the header row's own coordinates. `groundWordsTop` is the top of the ground's row including its
+  /// `band` of sky above the words, so it sits level with `skyWordsBottom`.
   var skyWordsBottom: CGFloat?
   var groundWordsTop: CGFloat?
   var rowHeight: CGFloat = 0
@@ -760,9 +761,10 @@ struct RegisterMastheadSky: View {
   }
 
   /// Opaque from just above the horizon down to the ground under it, clear above the reach and 6pt above
-  /// the ground's words.
+  /// the ground's words, which sit the band's height under `ground`.
   private func edgeBand(sky: CGFloat, ground: CGFloat, height: CGFloat) -> some View {
-    let stops = [sky - Self.edgeReach, sky, ground - 16, ground - 6].map { min(1, max(0, $0 / height)) }
+    let words = ground + RegisterMasthead.band
+    let stops = [sky - Self.edgeReach, sky, words - 16, words - 6].map { min(1, max(0, $0 / height)) }
     return LinearGradient(
       stops: [
         .init(color: .black.opacity(0), location: stops[0]),
