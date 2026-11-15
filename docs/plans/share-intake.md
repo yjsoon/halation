@@ -8,7 +8,7 @@ This plan changes two statements in [`docs/frontend/intake-ui.md`](../frontend/i
 
 The owner's real habit is to send screenshots and PDFs to external agents and ask them to change Halation. That is a share-and-review loop, not a conversation. Halation's chat is synchronous (a frozen turn, a typed reply, group-local Save) and its interpreter refuses the owner's second most common job: `CaptureInterpreterPrompt.instructions` in `apps/ios/HowMuch/Capture/CaptureInterpreter.swift` classifies editing saved rows as `unsupported`.
 
-Decision: Share becomes the main way in. Chat becomes follow-up on a batch ("Ask about this batch"). The Assistant keeps its read-only questions (`LedgerQuery.swift`). The floating Assistant button stays; Share and the clipboard offer (`ScreenshotOffer.swift`) become the advertised entry points.
+Decision: Share becomes the main way in. Chat becomes follow-up on a batch ("Ask about this batch"). The Assistant keeps its read-only questions (`LedgerQuery.swift`). The Assistant stays in More (and the sidebar's Assistant tab); Share and the clipboard offer (`ScreenshotOffer.swift`) become the advertised entry points.
 
 ## 2. Jobs to support
 

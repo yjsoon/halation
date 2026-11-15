@@ -715,16 +715,6 @@ final class AppModel {
     CaptureRouter.shared.enqueue(request)
   }
 
-  func presentAddTransactions(origin: CaptureOrigin) {
-    presentCapture(
-      CaptureRequest(
-        kind: .blank,
-        connectionFingerprint: settings.connectionFingerprint,
-        origin: origin
-      )
-    )
-  }
-
   func presentManualTransaction(origin: CaptureOrigin) {
     presentCapture(
       CaptureRequest(

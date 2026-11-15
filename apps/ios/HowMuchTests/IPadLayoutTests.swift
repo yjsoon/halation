@@ -456,10 +456,7 @@ final class IPadLayoutTests: XCTestCase {
     defer { surface.detach() }
 
     let appeared = await surface.waitUntil {
-      guard let add = surface.firstControl(label: CompactRootBar.action.title),
-            let assistant = surface.tabRowOverlayButton(label: "Assistant") else { return false }
-      // Allow the display-link overlay to follow the tab bar's settled frame.
-      return abs(add.frame.midX - assistant.frame.midX) <= 18
+      surface.firstControl(label: CompactRootBar.action.title) != nil
         && surface.firstControl(label: "Accounts") != nil
         && surface.firstControl(label: "Rewards") != nil
         && surface.firstControl(label: "Insights") != nil
@@ -467,20 +464,16 @@ final class IPadLayoutTests: XCTestCase {
     attachImage(surface.captureVisible(), name: "compact-root-accounts")
     XCTAssertTrue(
       appeared,
-      "compact root must show three tabs plus Add and a floating Assistant: \(surface.accessibilityLabels())"
+      "compact root must show three tabs plus Add: \(surface.accessibilityLabels())"
     )
     XCTAssertNotNil(surface.firstControl(label: "More"), "Accounts must still host DestinationsMenu")
     XCTAssertEqual(chrome.compactBarTab, .accounts)
     XCTAssertNil(chrome.overflow(on: .accounts))
     XCTAssertNil(
-      surface.tabRowControl(label: "Assistant"),
-      "Assistant must float above Add, not sit in the tab row"
+      surface.firstControl(label: "Assistant"),
+      "Assistant lives in More, not in the tab row or floating above Add"
     )
 
-    guard let assistant = surface.tabRowOverlayButton(label: "Assistant") else {
-      XCTFail("compact root must host a floating Assistant")
-      return
-    }
     guard let add = surface.tabRowControl(label: CompactRootBar.action.title)
             ?? surface.firstControl(label: CompactRootBar.action.title) else {
       XCTFail("compact root must host the Add button")
@@ -501,17 +494,6 @@ final class IPadLayoutTests: XCTestCase {
     } else {
       XCTFail("compact root missing Insights")
     }
-    XCTAssertLessThan(
-      assistant.frame.maxY,
-      add.frame.minY - 4,
-      "Assistant must sit above Add, not beside it"
-    )
-    XCTAssertEqual(
-      assistant.frame.midX,
-      add.frame.midX,
-      accuracy: 18,
-      "Assistant must pin above Add"
-    )
     for label in ["Accounts", "Rewards", "Insights"] {
       guard let destination = surface.tabRowControl(label: label) ?? surface.firstControl(label: label) else {
         XCTFail("compact root missing \(label)")
@@ -525,10 +507,6 @@ final class IPadLayoutTests: XCTestCase {
         "Add must share the tab row with \(label)"
       )
     }
-    XCTAssertTrue(surface.activate(assistant))
-    XCTAssertEqual(chrome.overflow(on: .accounts), .assistant)
-    XCTAssertEqual(chrome.compactBarTab, .accounts)
-    XCTAssertEqual(chrome.tab, .accounts)
   }
 
   func testCompactSaveToastSitsJustAboveTheTabRow() async {
@@ -586,11 +564,17 @@ final class IPadLayoutTests: XCTestCase {
     )
   }
 
-  func testSidebarRootTabViewDoesNotInstallTabRowAssistant() async {
+  func testSidebarRootTabViewHostsAddTab() async {
     let harness = SnapshotHarness.make()
     let chrome = RootChromeState()
+    var manualAdds = 0
     guard let surface = SnapshotSurface(
-      root: RootTabView(chrome: chrome, usesSidebar: true, workspace: harness.workspace)
+      root: RootTabView(
+        chrome: chrome,
+        usesSidebar: true,
+        workspace: harness.workspace,
+        presentingManually: { manualAdds += 1 }
+      )
         .environment(harness.model)
         .environment(chrome)
         .environment(\.horizontalSizeClass, .regular),
@@ -605,11 +589,15 @@ final class IPadLayoutTests: XCTestCase {
       surface.firstControl(label: "Assistant") != nil
     }
     XCTAssertTrue(appeared, "sidebar root must keep Assistant as a destination: \(surface.accessibilityLabels())")
-    XCTAssertNil(surface.firstControl(label: CompactRootBar.action.title), "sidebar must not host a search-role Add")
-    XCTAssertNil(
-      surface.tabRowOverlayButton(label: "Assistant"),
-      "sidebar must not install a compact tab-row Assistant overlay"
-    )
+    let hasAdd = await surface.waitUntil {
+      surface.firstControl(label: CompactRootBar.action.title) != nil
+    }
+    XCTAssertTrue(hasAdd, "sidebar must host the Add tab: \(surface.accessibilityLabels())")
+    guard let add = surface.firstControl(label: CompactRootBar.action.title) else { return }
+    XCTAssertTrue(surface.activate(add))
+    let opened = await surface.waitUntil { manualAdds == 1 }
+    XCTAssertTrue(opened, "Add must open the standard transaction form")
+    XCTAssertEqual(chrome.tab, .accounts, "Add must not change the selected destination")
   }
 
   func testCompactRootTabViewAcceptsOverflowSelectionWithoutCrashing() async {

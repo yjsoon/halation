@@ -11,7 +11,7 @@ HowMuch has two user surfaces in this repo. Drive the one the change actually to
 
 **Web** (`apps/web`) is the React ledger: first-owner setup, Ledger (the register), Scheduled, Rewards and four Reports (Spending, Income v spending, Net worth, Money age), `/add` quick entry, schedules, tokens, sidebar accounts. There is no monthly Plan edit on the web.
 
-**iOS** (`apps/ios`) is the SwiftUI companion: Accounts / Rewards / Insights on iPhone, Assistant in trailing **More**, a trailing **Add Transaction** button on the iPhone tab bar, a floating **Assistant** (speech bubble with a plus) above that Add button, Assistant in the iPad sidebar (with the floating plus on regular width), the **Add Transaction** capture sheet, Duplicate for Today, and (when built) typed intake, the `N > 1` review list, Shortcuts App Intents, share, and the screenshot offer. Specs: `docs/frontend/intake-ui.md`, `docs/frontend/app-intents.md`. Issues: [#87](https://github.com/yjsoon/halation/issues/87), [#96](https://github.com/yjsoon/halation/issues/96) and their children.
+**iOS** (`apps/ios`) is the SwiftUI companion: Accounts / Rewards / Insights on iPhone, Assistant in trailing **More**, a trailing **Add Transaction** button on every tab bar, an Assistant tab in the sidebar layout (iPad regular width, iPhone Duo open), the **Add Transaction** capture sheet, Duplicate for Today, and (when built) typed intake, the `N > 1` review list, Shortcuts App Intents, share, and the screenshot offer. Specs: `docs/frontend/intake-ui.md`, `docs/frontend/app-intents.md`. Issues: [#87](https://github.com/yjsoon/halation/issues/87), [#96](https://github.com/yjsoon/halation/issues/96) and their children.
 
 Not covered here:
 
@@ -133,7 +133,7 @@ Web browser:
 iOS Simulator:
 
 - Prefer tab titles, navigation titles, and accessibility labels over coordinates.
-- Tab bar (iPhone): **Accounts**, **Rewards**, **Insights**, plus one trailing **Add Transaction** button. Add opens the manual form and does not change the selected tab. A floating **Assistant** (speech bubble with a plus) sits above Add and opens the More overlay. There is no in-row chat bubble and no tap-and-hold on Add. Assistant is also a **More** menu item. iPad regular-width sidebar lists Accounts, Rewards, Insights and Assistant, and keeps the floating plus.
+- Tab bar (iPhone): **Accounts**, **Rewards**, **Insights**, plus one trailing **Add Transaction** button. Add opens the manual form and does not change the selected tab. Nothing floats above the tab bar. There is no in-row chat bubble and no tap-and-hold on Add. Assistant is a **More** menu item. The sidebar layout (iPad regular width, iPhone Duo open) has Accounts, Rewards, Insights and Assistant tabs and the same trailing Add.
 - Capture title is **Add Transaction**. Leading **Cancel**. Trailing glass **Save** when the keypad is down. `canSave` is amount + account; payee is optional.
 - Web `/add` is a different product. It does not prove iOS capture.
 
@@ -160,14 +160,14 @@ Stable iOS handles:
 
 | Thing | Handle |
 | --- | --- |
-| Tabs | iPhone `Accounts`, `Rewards`, `Insights`, plus tab-row `Add Transaction` and a floating `Assistant` above Add. iPad sidebar also `Assistant`, with the floating plus |
+| Tabs | iPhone `Accounts`, `Rewards`, `Insights`, plus tab-row `Add Transaction`. Sidebar layout (iPad, iPhone Duo open) also `Assistant`, then `Add Transaction` |
 | New account | Accounts trailing `New Account` (plus). Sheet title `New Account` |
 | More | `More` (ellipsis). iPhone items `Assistant`, `Settings`. iPad regular: `Settings` only |
 | Connection | `Settings` (inside More). Sheet title `Settings` (signed in) or `Connection` (signed out) |
 | Server field | placeholder `halation.example.com`. A bare host is saved and used as `https://`; `http://` must be typed |
 | Access | `Username`, `Password`, button `Sign in`. Once signed in: `connection-signed-in-account` and `Sign in as someone else` (then `Keep signed in as {user}`) |
 | Sign out | `Sign out`, then confirm `Sign out` |
-| Capture | tab-row `Add Transaction` (manual form), floating `Assistant` (chat), or home-screen Quick Action `Add Expense` |
+| Capture | tab-row `Add Transaction` (manual form), `Assistant` from More or the sidebar tab (chat), or home-screen Quick Action `Add Expense` |
 | Capture title | `Add Transaction` (edit is `Transaction`) |
 | Capture cancel | `Cancel` |
 | Capture save | `Save` (hidden while keypad or compose is focused) |

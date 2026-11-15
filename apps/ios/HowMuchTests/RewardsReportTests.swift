@@ -884,7 +884,6 @@ final class RewardsSnapshotTests: XCTestCase {
     let appeared = await surface.waitUntil {
       surface.tabRowControl(label: "Accounts") != nil
         && surface.tabRowControl(label: CompactRootBar.action.title) != nil
-        && surface.tabRowOverlayButton(label: "Assistant") != nil
     }
     XCTAssertTrue(appeared, "compact tab row must appear before the sheet: \(surface.accessibilityLabels())")
     XCTAssertFalse(CaptureRouter.shared.hidesTabRowOverlay)
@@ -916,7 +915,6 @@ final class RewardsSnapshotTests: XCTestCase {
     let hidden = await surface.waitUntil {
       surface.tabRowControl(label: "Accounts") == nil
         && surface.tabRowControl(label: CompactRootBar.action.title) == nil
-        && surface.tabRowOverlayButton(label: "Assistant") == nil
     }
     XCTAssertTrue(hidden, "compact tab row must hide over Edit Rewards: \(surface.accessibilityLabels())")
     if let tabBar = surface.tabBarOwningRow(), !tabBar.isHidden, tabBar.alpha > 0.01 {
@@ -929,7 +927,6 @@ final class RewardsSnapshotTests: XCTestCase {
     let restored = await surface.waitUntil {
       surface.tabRowControl(label: "Accounts") != nil
         && surface.tabRowControl(label: CompactRootBar.action.title) != nil
-        && surface.tabRowOverlayButton(label: "Assistant") != nil
     }
     XCTAssertTrue(restored, "compact tab row must return after Edit Rewards dismisses: \(surface.accessibilityLabels())")
     XCTAssertFalse(CaptureRouter.shared.hidesTabRowOverlay)

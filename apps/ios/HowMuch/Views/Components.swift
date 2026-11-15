@@ -537,20 +537,23 @@ enum AppTab: Hashable, CaseIterable {
     }
   }
 
-  var compactBarSelection: CompactBarSelection? {
+  var barSelection: RootBarSelection {
     switch self {
     case .accounts: return .accounts
     case .rewards: return .rewards
     case .reflect: return .reflect
-    case .assistant: return nil
+    case .assistant: return .assistant
     }
   }
 }
 
-enum CompactBarSelection: Hashable, CaseIterable {
+/// A tab bar value: a destination, or the Add action that opens the
+/// transaction form without changing the selected destination.
+enum RootBarSelection: Hashable, CaseIterable {
   case accounts
   case rewards
   case reflect
+  case assistant
   case addTransaction
 
   var tab: AppTab? {
@@ -558,6 +561,7 @@ enum CompactBarSelection: Hashable, CaseIterable {
     case .accounts: return .accounts
     case .rewards: return .rewards
     case .reflect: return .reflect
+    case .assistant: return .assistant
     case .addTransaction: return nil
     }
   }
@@ -566,7 +570,7 @@ enum CompactBarSelection: Hashable, CaseIterable {
 enum CompactRootBar {
   static let destinations: (AppTab, AppTab, AppTab) = (.accounts, .rewards, .reflect)
   static let action = RootTrailingAction.addTransaction
-  static let actionSelection = CompactBarSelection.addTransaction
+  static let actionSelection = RootBarSelection.addTransaction
 
   static var destinationTabs: [AppTab] {
     let (first, second, third) = destinations
@@ -576,19 +580,16 @@ enum CompactRootBar {
 
 enum RootTrailingAction: Equatable {
   case addTransaction
-  case assistant
 
   var title: String {
     switch self {
     case .addTransaction: return "Add Transaction"
-    case .assistant: return "Assistant"
     }
   }
 
   var systemImage: String {
     switch self {
     case .addTransaction: return "plus"
-    case .assistant: return "plus.bubble"
     }
   }
 }
@@ -638,9 +639,6 @@ enum MoreDestination: Hashable, CaseIterable, Identifiable {
 }
 
 enum RootChrome {
-  static let compactTabRowClearance: CGFloat = 90
-  /// Space above the compact tab bar reserved for the floating Assistant.
-  static let compactFloatingAssistantClearance = RootAddControl.diameter + 10
   static let compactToastGap: CGFloat = 12
 
   /// The sidebar layout needs room in both directions: an iPad window, or the
@@ -665,16 +663,11 @@ enum RootChrome {
     !usesSidebar && (hidesTabRowOverlay || assistantConversationPushed)
   }
 
-  static func addControlInsets(usesSidebar: Bool) -> EdgeInsets {
-    if usesSidebar {
-      return EdgeInsets(top: 0, leading: 0, bottom: 28, trailing: 20)
-    }
-    return EdgeInsets(top: 0, leading: 0, bottom: compactTabRowClearance, trailing: 16)
-  }
-
+  /// The sidebar tree's toast sits on the root view, outside the tab bar's
+  /// safe area, so on a phone (iPhone Duo open) it must clear the bottom tab bar.
   static func toastBottomPadding(usesSidebar: Bool) -> CGFloat {
     if usesSidebar {
-      return 28 + RootAddControl.diameter + 8
+      return 92
     }
     return compactToastGap
   }
@@ -863,8 +856,8 @@ struct RootTabView: View {
     @Bindable var router = CaptureRouter.shared
     @Bindable var workspace = workspace
     if usesSidebar {
-      TabView(selection: $chrome.tab) {
-        Tab(AppTab.accounts.title, systemImage: AppTab.accounts.systemImage, value: AppTab.accounts) {
+      TabView(selection: barSelection) {
+        Tab(AppTab.accounts.title, systemImage: AppTab.accounts.systemImage, value: RootBarSelection.accounts) {
           RootChromeScope(chrome: chrome) {
             RootTabHost(for: .accounts, workspace: workspace) {
               AccountsView(usesSplit: usesSidebar)
@@ -872,7 +865,7 @@ struct RootTabView: View {
           }
         }
         .badge(IntakeCoordinator.shared.attentionCount)
-        Tab(AppTab.rewards.title, systemImage: AppTab.rewards.systemImage, value: AppTab.rewards) {
+        Tab(AppTab.rewards.title, systemImage: AppTab.rewards.systemImage, value: RootBarSelection.rewards) {
           RootChromeScope(chrome: chrome) {
             RootTabHost(for: .rewards, workspace: workspace) {
               NavigationStack {
@@ -881,7 +874,7 @@ struct RootTabView: View {
             }
           }
         }
-        Tab(AppTab.reflect.title, systemImage: AppTab.reflect.systemImage, value: AppTab.reflect) {
+        Tab(AppTab.reflect.title, systemImage: AppTab.reflect.systemImage, value: RootBarSelection.reflect) {
           RootChromeScope(chrome: chrome) {
             RootTabHost(for: .reflect, workspace: workspace) {
               NavigationStack {
@@ -890,18 +883,19 @@ struct RootTabView: View {
             }
           }
         }
-        Tab(AppTab.assistant.title, systemImage: AppTab.assistant.systemImage, value: AppTab.assistant) {
+        Tab(AppTab.assistant.title, systemImage: AppTab.assistant.systemImage, value: RootBarSelection.assistant) {
           RootChromeScope(chrome: chrome) {
             NavigationStack {
               AssistantView(workspace: workspace)
             }
           }
         }
+        RootCaptureTab()
       }
       .tabViewStyle(.sidebarAdaptable)
       .defaultAdaptableTabBarPlacement(.sidebar)
     } else {
-      TabView(selection: compactBarSelection) {
+      TabView(selection: barSelection) {
         compactDestinationTab(CompactRootBar.destinations.0)
         compactDestinationTab(CompactRootBar.destinations.1)
         compactDestinationTab(CompactRootBar.destinations.2)
@@ -922,23 +916,12 @@ struct RootTabView: View {
             && workspace.pendingAssistantSessionID != nil
         )
       ))
-      .overlay {
-        RootTabBarFloatingAssistant(
-          // The button lives on the window, above every SwiftUI overlay, so
-          // onboarding (Welcome, and sign-in opened from it) hides it.
-          isSuppressed: model.isShowingWelcome || (model.isShowingSettings && model.canReturnToWelcome)
-            || chrome.isSelectingTransactions,
-          openAssistant: { chrome.openMore(.assistant) }
-        )
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-      }
     }
   }
 
-  @TabContentBuilder<CompactBarSelection>
-  private func compactDestinationTab(_ tab: AppTab) -> some TabContent<CompactBarSelection> {
-    Tab(tab.title, systemImage: tab.systemImage, value: tab.compactBarSelection ?? .accounts) {
+  @TabContentBuilder<RootBarSelection>
+  private func compactDestinationTab(_ tab: AppTab) -> some TabContent<RootBarSelection> {
+    Tab(tab.title, systemImage: tab.systemImage, value: tab.barSelection) {
       RootChromeScope(chrome: chrome) {
         RootTabHost(for: tab, workspace: workspace) {
           compactDestinationRoot(tab)
@@ -967,9 +950,11 @@ struct RootTabView: View {
     }
   }
 
-  private var compactBarSelection: Binding<CompactBarSelection> {
+  /// Picking Add opens the standard transaction form and leaves the
+  /// selected destination as it was.
+  private var barSelection: Binding<RootBarSelection> {
     Binding(
-      get: { chrome.compactBarTab.compactBarSelection ?? .accounts },
+      get: { (usesSidebar ? chrome.tab : chrome.compactBarTab).barSelection },
       set: { selection in
         if selection == CompactRootBar.actionSelection {
           presentManual()
@@ -991,12 +976,14 @@ struct RootTabView: View {
   }
 }
 
-/// The compact action stays separate from the destination pill.
+/// Add stays separate from the destinations, at the tab bar's trailing end.
 struct RootCaptureTab: TabContent {
   private var role: TabRole {
     // `TabRole.prominent` ships in the iOS 27 SDK; Xcode 26 must still build.
+    // On iPad it draws Add as a labelled tab that the top bar pushes into
+    // overflow; search keeps it an icon at the trailing end there.
     #if compiler(>=6.4)
-    if #available(iOS 27.0, *) {
+    if #available(iOS 27.0, *), UIDevice.current.userInterfaceIdiom != .pad {
       // Search no longer guarantees the separate prominent treatment.
       return .prominent
     }
@@ -1004,7 +991,7 @@ struct RootCaptureTab: TabContent {
     return .search
   }
 
-  var body: some TabContent<CompactBarSelection> {
+  var body: some TabContent<RootBarSelection> {
     Tab(
       CompactRootBar.action.title,
       systemImage: CompactRootBar.action.systemImage,
@@ -1012,251 +999,6 @@ struct RootCaptureTab: TabContent {
       role: role
     ) {
       Color.clear
-    }
-  }
-}
-
-struct RootTabBarFloatingAssistant: UIViewControllerRepresentable {
-  var isSuppressed = false
-  var openAssistant: () -> Void
-
-  func makeUIViewController(context: Context) -> Controller {
-    let controller = Controller()
-    controller.openAssistant = openAssistant
-    controller.isSuppressed = isSuppressed
-    return controller
-  }
-
-  func updateUIViewController(_ controller: Controller, context: Context) {
-    controller.openAssistant = openAssistant
-    controller.isSuppressed = isSuppressed
-    controller.startTracking()
-    controller.install()
-  }
-
-  static func dismantleUIViewController(_ controller: Controller, coordinator: ()) {
-    controller.stopTracking()
-    controller.uninstall()
-  }
-
-  final class Controller: UIViewController {
-    var openAssistant: () -> Void = {}
-    var isSuppressed = false
-    private var assistantButton: UIButton?
-    private var displayLink: CADisplayLink?
-    /// The tab bar the last search found. Display ticks read its frames
-    /// instead of searching the window again.
-    private weak var trackedTabBar: UITabBar?
-    /// Starts due, so the first install searches straight away.
-    private var ticksSinceSearch = Controller.ticksPerSearch
-    /// Ticks between searches while no shown tab bar is tracked, so a bar
-    /// that replaces a hidden one is picked up within about half a second.
-    private static let ticksPerSearch = 5
-
-    override func loadView() {
-      view = UIView()
-      view.isUserInteractionEnabled = false
-      view.backgroundColor = .clear
-      view.isAccessibilityElement = false
-      view.accessibilityElementsHidden = true
-    }
-
-    override func viewDidAppear(_ animated: Bool) {
-      super.viewDidAppear(animated)
-      startTracking()
-      install()
-    }
-
-    override func viewDidDisappear(_ animated: Bool) {
-      stopTracking()
-      super.viewDidDisappear(animated)
-    }
-
-    override func viewDidLayoutSubviews() {
-      super.viewDidLayoutSubviews()
-      install()
-    }
-
-    func install() {
-      if isSuppressed || CaptureRouter.shared.hidesTabRowOverlay {
-        hideAssistant()
-        return
-      }
-      guard let window = view.window else {
-        return
-      }
-      // Hide when the tab row's Add is gone, not when a leftover system
-      // UITabBarController.tabBar happens to be hidden.
-      guard let addFrame = addFrame(in: window) else {
-        hideAssistant()
-        return
-      }
-      startTracking()
-      layoutAssistant(relativeTo: addFrame, in: window)
-    }
-
-    func uninstall() {
-      hideAssistant()
-      assistantButton = nil
-    }
-
-    private func hideAssistant() {
-      assistantButton?.isHidden = true
-      assistantButton?.removeFromSuperview()
-    }
-
-    private func layoutAssistant(relativeTo pin: CGRect, in window: UIWindow) {
-      let button = assistantButton ?? makeAssistantButton()
-      assistantButton = button
-      if isSuppressed || CaptureRouter.shared.hidesTabRowOverlay {
-        hideAssistant()
-        return
-      }
-      if button.superview !== window {
-        button.removeFromSuperview()
-        window.addSubview(button)
-      }
-      button.tintColor = window.tintColor
-
-      let gap: CGFloat = 10
-      let side = max(44, min(max(pin.width, pin.height), 56))
-      let size = CGSize(width: side, height: side)
-      button.isHidden = false
-      button.layer.cornerRadius = size.height / 2
-      button.clipsToBounds = false
-      button.frame = CGRect(
-        x: pin.midX - size.width / 2,
-        y: pin.minY - gap - size.height,
-        width: size.width,
-        height: size.height
-      )
-      window.bringSubviewToFront(button)
-    }
-
-    private func makeAssistantButton() -> UIButton {
-      let button = UIButton(type: .system)
-      var configuration = UIButton.Configuration.glass()
-      configuration.image = UIImage(systemName: RootTrailingAction.assistant.systemImage)
-      configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
-      configuration.baseForegroundColor = .label
-      configuration.cornerStyle = .capsule
-      button.configuration = configuration
-      button.accessibilityLabel = RootTrailingAction.assistant.title
-      button.accessibilityTraits = .button
-      button.isAccessibilityElement = true
-      button.addAction(UIAction { [weak self] _ in
-        self?.openAssistant()
-      }, for: .touchUpInside)
-      button.addAction(UIAction { [weak self] _ in
-        self?.openAssistant()
-      }, for: .primaryActionTriggered)
-      return button
-    }
-
-    func startTracking() {
-      guard displayLink == nil else { return }
-      let link = CADisplayLink(target: self, selector: #selector(onDisplayTick))
-      link.preferredFrameRateRange = CAFrameRateRange(minimum: 8, maximum: 15, preferred: 10)
-      link.add(to: .main, forMode: .common)
-      displayLink = link
-    }
-
-    func stopTracking() {
-      displayLink?.invalidate()
-      displayLink = nil
-    }
-
-    @objc private func onDisplayTick() {
-      install()
-    }
-
-    /// The tab row's Add: the tab bar's trailing accessory, a glass circle
-    /// beside the destinations' pill. Found by geometry, not by label: iOS 26
-    /// tab buttons carry accessibility labels only while an accessibility
-    /// client (VoiceOver, UI tests) is running, so a label search found
-    /// nothing on most phones.
-    private func addFrame(in window: UIWindow) -> CGRect? {
-      guard let bar = tabBar(in: window), isShownInHierarchy(bar) else {
-        return nil
-      }
-      let barFrame = bar.convert(bar.bounds, to: window)
-      let maxSide = barFrame.width / 2
-      let trailing = bar.effectiveUserInterfaceLayoutDirection == .leftToRight
-      let accessories = bar.subviews.filter { isShownCircle($0, narrowerThan: maxSide) }
-      guard
-        let accessory = trailing
-          ? accessories.max(by: { $0.frame.midX < $1.frame.midX })
-          : accessories.min(by: { $0.frame.midX < $1.frame.midX })
-      else {
-        return nil
-      }
-      // Minimised, the bar keeps the accessory's frame and shows a smaller
-      // circle inside it.
-      let shown = accessory.subviews
-        .filter { isShownCircle($0, narrowerThan: maxSide) }
-        .max { $0.bounds.width < $1.bounds.width } ?? accessory
-      let frame = shown.convert(shown.bounds, to: window)
-      guard
-        frame.midY > window.bounds.midY,
-        trailing ? frame.midX > barFrame.midX : frame.midX < barFrame.midX,
-        window.bounds.intersects(frame)
-      else {
-        return nil
-      }
-      return frame
-    }
-
-    /// The tracked tab bar while it is in this window and shown. Otherwise the
-    /// window is searched again, at most every few ticks, preferring a shown
-    /// bar over a leftover hidden one.
-    private func tabBar(in window: UIWindow) -> UITabBar? {
-      ticksSinceSearch += 1
-      let tracked = trackedTabBar.flatMap { $0.window === window ? $0 : nil }
-      if let tracked, isShownInHierarchy(tracked) {
-        return tracked
-      }
-      if ticksSinceSearch < Self.ticksPerSearch {
-        return tracked
-      }
-      ticksSinceSearch = 0
-      let bars = tabBars(in: window).filter { $0.bounds.width > 1 && $0.bounds.height > 1 }
-      trackedTabBar = bars.first { isShownInHierarchy($0) } ?? bars.first
-      return trackedTabBar
-    }
-
-    private func isShownCircle(_ view: UIView, narrowerThan maxSide: CGFloat) -> Bool {
-      let size = view.bounds.size
-      return !view.isHidden
-        && view.alpha > 0.01
-        && size.width >= 30
-        && size.height >= 30
-        && size.width < maxSide
-        && abs(size.width - size.height) <= size.height / 4
-    }
-
-    private func tabBars(in view: UIView) -> [UITabBar] {
-      var found: [UITabBar] = []
-      func walk(_ node: UIView) {
-        if let bar = node as? UITabBar {
-          found.append(bar)
-        }
-        for subview in node.subviews {
-          walk(subview)
-        }
-      }
-      walk(view)
-      return found
-    }
-
-    private func isShownInHierarchy(_ view: UIView) -> Bool {
-      var current: UIView? = view
-      while let node = current {
-        if node.isHidden || node.alpha <= 0.01 {
-          return false
-        }
-        current = node.superview
-      }
-      return true
     }
   }
 }
@@ -1312,17 +1054,6 @@ struct RootTabHost<Content: View>: View {
         hidden: hidesTabBar || (Self.isPhone && chrome.isSelectingTransactions),
         enabled: !usesSidebar || Self.isPhone
       ))
-      .safeAreaInset(edge: .bottom, spacing: 0) {
-        if !usesSidebar,
-           !router.hidesTabRowOverlay,
-           !chrome.isSelectingTransactions,
-           workspace.pendingAssistantSessionID == nil
-        {
-          Color.clear
-            .frame(height: RootChrome.compactFloatingAssistantClearance)
-            .accessibilityHidden(true)
-        }
-      }
 
       if !usesSidebar, hostedTab == chrome.compactBarTab {
         RootSaveToastOverlay(bottomPadding: RootChrome.compactToastGap)
@@ -1359,62 +1090,6 @@ struct RootMoreHost: View {
     case .assistant:
       AssistantView(workspace: workspace)
     }
-  }
-}
-
-struct RootAddControl: View {
-  @Environment(AppModel.self) private var model
-  @Environment(RootChromeState.self) private var chrome
-  var workspace: CaptureWorkspace = .shared
-  var presenting: (() -> Void)?
-  var presentingManually: (() -> Void)?
-
-  static let diameter: CGFloat = 56
-
-  var body: some View {
-    if isVisible {
-      button
-    }
-  }
-
-  private var isVisible: Bool {
-    !(chrome.captureSurface == .assistant && workspace.pendingAssistantSessionID != nil)
-  }
-
-  private var button: some View {
-    Button(action: addConversationally) {
-      Image(systemName: "plus")
-        .font(.title2.weight(.semibold))
-        .foregroundStyle(.white)
-        .frame(width: Self.diameter, height: Self.diameter)
-        .background(Theme.accent, in: Circle())
-        .shadow(color: .black.opacity(0.18), radius: 8, y: 4)
-        .accessibilityHidden(true)
-    }
-    .buttonStyle(.plain)
-    .accessibilityLabel("Add Transactions")
-    .accessibilityAddTraits(.isButton)
-    .accessibilityAction(named: "Add manually", addManually)
-    .contextMenu {
-      Button("Add manually", systemImage: "square.and.pencil", action: addManually)
-    }
-    .frame(minWidth: 44, minHeight: 44)
-  }
-
-  private func addConversationally() {
-    if let presenting {
-      presenting()
-      return
-    }
-    model.presentAddTransactions(origin: model.addTransactionsOrigin())
-  }
-
-  private func addManually() {
-    if let presentingManually {
-      presentingManually()
-      return
-    }
-    model.presentManualTransaction(origin: model.addTransactionsOrigin())
   }
 }
 

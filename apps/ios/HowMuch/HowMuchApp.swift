@@ -167,13 +167,6 @@ private struct RootView: View {
     .onChange(of: chrome.captureSurface, initial: true) { _, surface in
       model.activeCaptureSurface = surface
     }
-    .overlay(alignment: .bottomTrailing) {
-      if usesSidebar, !chrome.isSelectingTransactions {
-        RootAddControl()
-          .environment(chrome)
-          .padding(RootChrome.addControlInsets(usesSidebar: usesSidebar))
-      }
-    }
     .overlay(alignment: .bottom) {
       if usesSidebar {
         RootSaveToastOverlay(
