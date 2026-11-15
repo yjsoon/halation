@@ -11,6 +11,7 @@ struct EditAccountSheet: View {
   @State private var isSaving = false
   @State private var isEditingReminders = false
   @State private var isEditingRewards = false
+  @State private var isConfirmingDelete = false
   /// The account's rewards card once loaded: `.some(nil)` when it has none.
   @State private var rewardsCard: CreditCard??
   @FocusState private var nameFocused: Bool
@@ -63,6 +64,7 @@ struct EditAccountSheet: View {
                 .foregroundStyle(.secondary)
             }
           }
+          lifecycleSection
         }
         .padding(16)
       }
@@ -73,6 +75,16 @@ struct EditAccountSheet: View {
         AccountSheetToolbar(isSaving: isSaving, canSave: canSave, cancel: { dismiss() }, save: save)
       }
       .interactiveDismissDisabled(isSaving)
+      .binaryConfirm(
+        "Delete \(account.name)?",
+        isPresented: $isConfirmingDelete,
+        confirm: .destructive("Delete Account"),
+        message: {
+          Text("Only an account with no transactions, transfers or scheduled transactions can be deleted. Otherwise, close it.")
+        }
+      ) {
+        Task { await run { try await model.deleteAccount(account.id) } }
+      }
       .sheet(isPresented: $isEditingReminders) {
         CardPaymentTermsSheet(account: account, existing: model.cardPayments.terms(for: account.id))
       }
@@ -80,6 +92,66 @@ struct EditAccountSheet: View {
         RewardCardEditorView(cardID: rewardsCard??.id, accountID: account.id)
       }
       .task { await loadRewardsCard() }
+    }
+  }
+
+  /// Close or reopen, and delete. Each saves at once and dismisses the sheet,
+  /// so unsaved name or type edits are not mixed into them.
+  private var lifecycleSection: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      VStack(spacing: 0) {
+        Button {
+          Task { await run { try await model.setAccountClosed(!account.closed, for: account.id) } }
+        } label: {
+          lifecycleLabel(
+            account.closed ? "Reopen Account" : "Close Account",
+            systemImage: account.closed ? "arrow.uturn.backward.circle" : "archivebox",
+            tint: Theme.accent
+          )
+        }
+        .accessibilityIdentifier("edit-account-close")
+        Divider().padding(.leading, Theme.FormRow.horizontalPadding)
+        Button(role: .destructive) {
+          isConfirmingDelete = true
+        } label: {
+          lifecycleLabel("Delete Account", systemImage: "trash", tint: Theme.outflow)
+        }
+        .accessibilityIdentifier("edit-account-delete")
+      }
+      .buttonStyle(.plain)
+      .ynabCard()
+      .disabled(isSaving)
+      Text(account.closed
+        ? "Closed: kept under Closed with all its transactions. Reopen it to record new ones."
+        : "Close an account you no longer use. Its history stays and it moves under Closed.")
+        .font(.footnote)
+        .foregroundStyle(.secondary)
+    }
+  }
+
+  private func lifecycleLabel(_ title: String, systemImage: String, tint: Color) -> some View {
+    HStack(spacing: 12) {
+      Image(systemName: systemImage)
+        .foregroundStyle(tint)
+        .accessibilityHidden(true)
+      Text(title)
+        .foregroundStyle(tint)
+      Spacer()
+    }
+    .padding(.horizontal, Theme.FormRow.horizontalPadding)
+    .padding(.vertical, Theme.FormRow.verticalPadding)
+    .contentShape(Rectangle())
+  }
+
+  private func run(_ work: () async throws -> Void) async {
+    isSaving = true
+    error = nil
+    do {
+      try await work()
+      dismiss()
+    } catch {
+      self.error = error.localizedDescription
+      isSaving = false
     }
   }
 

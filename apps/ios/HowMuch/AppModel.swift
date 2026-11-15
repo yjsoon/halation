@@ -877,6 +877,38 @@ final class AppModel {
     }
   }
 
+  /// Closes or reopens an account. A closed account keeps its transactions,
+  /// moves under Closed and leaves Favourites, as on the web.
+  func setAccountClosed(_ closed: Bool, for accountID: String) async throws {
+    let updated = try await apiClient.setAccountClosed(planID: settings.planID, accountID: accountID, closed: closed)
+    if let index = serverAccounts.firstIndex(where: { $0.id == accountID }) {
+      serverAccounts[index] = updated
+      rebuildLookups()
+    }
+    if closed, isAccountFavourite(accountID) {
+      toggleAccountFavourite(accountID)
+    }
+    publishIntentCatalog()
+    scheduleRefresh(after: .accountClosedOrReopened)
+    showSaveMessage(closed ? "Closed \(updated.name)" : "Reopened \(updated.name)")
+  }
+
+  /// Deletes an account nothing refers to. The server refuses any other with
+  /// a message to close it instead, which reaches the caller unchanged.
+  func deleteAccount(_ accountID: String) async throws {
+    let name = serverAccounts.first(where: { $0.id == accountID })?.name ?? "the account"
+    try await apiClient.deleteAccount(planID: settings.planID, accountID: accountID)
+    if isAccountFavourite(accountID) {
+      toggleAccountFavourite(accountID)
+    }
+    serverAccounts.removeAll { $0.id == accountID }
+    payees.removeAll { $0.transferAccountId == accountID }
+    rebuildLookups()
+    publishIntentCatalog()
+    scheduleRefresh(after: .accountDeleted)
+    showSaveMessage("Deleted \(name)")
+  }
+
   /// Keep the local "Transfer : …" payee in step with a renamed account so
   /// the payee picker does not keep showing the previous name.
   private func renameTransferPayee(forAccountID accountID: String, to accountName: String) {

@@ -15,6 +15,8 @@ final class RefreshPlanTests: XCTestCase {
       .transactionsApproved,
       .accountCreated,
       .accountUpdated,
+      .accountClosedOrReopened,
+      .accountDeleted,
       .accountReconciled,
       .scheduleSaved,
       .scheduleDeleted,

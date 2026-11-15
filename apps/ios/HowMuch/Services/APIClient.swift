@@ -182,6 +182,24 @@ struct APIClient {
     return response.data.account
   }
 
+  func setAccountClosed(planID: String, accountID: String, closed: Bool) async throws -> Account {
+    let response: APIEnvelope<AccountPayload> = try await request(
+      path: "/v1/plans/\(planID)/accounts/\(accountID)",
+      method: "PATCH",
+      body: AccountUpdateRequest(name: nil, icon: nil, type: nil, closed: closed)
+    )
+    return response.data.account
+  }
+
+  /// The server refuses (409) an account with transactions, transfers or
+  /// schedules; only an unused account is deleted.
+  func deleteAccount(planID: String, accountID: String) async throws {
+    let _: APIEnvelope<AccountPayload> = try await request(
+      path: "/v1/plans/\(planID)/accounts/\(accountID)",
+      method: "DELETE"
+    )
+  }
+
   func createAccount(
     planID: String,
     name: String,

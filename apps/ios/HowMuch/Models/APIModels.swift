@@ -128,17 +128,18 @@ struct AccountIdentity: Hashable {
 struct AccountUpdateRequest: Encodable {
   let account: AccountWriteBody
 
-  init(name: String?, icon: String?, type: String?) {
-    account = AccountWriteBody(name: name, icon: icon, type: type)
+  init(name: String?, icon: String?, type: String?, closed: Bool? = nil) {
+    account = AccountWriteBody(name: name, icon: icon, type: type, closed: closed)
   }
 
   struct AccountWriteBody: Encodable {
     let name: String?
     let icon: String?
     let type: String?
+    let closed: Bool?
 
     enum CodingKeys: String, CodingKey {
-      case name, icon, type
+      case name, icon, type, closed
     }
 
     func encode(to encoder: Encoder) throws {
@@ -146,6 +147,7 @@ struct AccountUpdateRequest: Encodable {
       try container.encodeIfPresent(name, forKey: .name)
       try container.encodeIfPresent(icon, forKey: .icon)
       try container.encodeIfPresent(type, forKey: .type)
+      try container.encodeIfPresent(closed, forKey: .closed)
     }
   }
 }

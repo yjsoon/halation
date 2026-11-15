@@ -71,6 +71,8 @@ enum MutationKind: Equatable, Sendable {
   case transactionsApproved
   case accountCreated
   case accountUpdated
+  case accountClosedOrReopened
+  case accountDeleted
   case accountReconciled
   case scheduleSaved
   case scheduleDeleted
@@ -112,8 +114,11 @@ enum RefreshPlanner {
     case .accountCreated:
       return [.payees]
 
-    case .accountUpdated:
+    case .accountUpdated, .accountClosedOrReopened:
       return []
+
+    case .accountDeleted:
+      return [.payees]
 
     case .accountReconciled:
       return [.ledger]
@@ -135,7 +140,8 @@ enum RefreshPlanner {
          .scheduleSaved, .scheduleDeleted:
       return false
     case .transactionEdited, .transactionsCreated, .transactionDeleted,
-         .accountCreated, .accountReconciled, .scheduledOccurrenceEntered:
+         .accountCreated, .accountClosedOrReopened, .accountDeleted,
+         .accountReconciled, .scheduledOccurrenceEntered:
       return true
     }
   }
