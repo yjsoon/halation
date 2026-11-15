@@ -444,7 +444,7 @@ An account register with exactly one reward card draws that card's scene behind 
 
 **Web (10 Nov 2026).** `components/RegisterMasthead.tsx` gives a single-account register on a card account with exactly one reward card the same header. The web register had no reward words before, so these are new there. It is the board's own strip (`ExposureFace` variant `strip`), with these differences:
 - **Bleed.** It reaches the content area's top and side edges, as the Rewards masthead does.
-- **Sky.** The title, working balance, cleared and uncleared line and any `as of today` or `Last reconciled` note sit in the sky in the face ink, left-aligned and within 72% of the width, so the sun's column stays clear. The band to the ground is 44px.
+- **Sky.** The title, balance as of today, any `Working … including posted scheduled` note, the cleared and uncleared line and any `Last reconciled` note sit in the sky in the face ink, left-aligned and within 72% of the width, so the sun's column stays clear. The band to the ground is 44px.
 - **Ground.** The words are a link to `/rewards?accounts={id}`. They use the board's type, Plex figures and basis line, since Plex is the web's own voice. The card's name shows only when it differs from the account's.
 - **Edge and scrim.** The ground ends at a hard edge above Filters with the glowing 2px rule the app's other page headers end on (`--crest`), the owner's choice on 10 Nov 2026 over the fade, a solid line and a plain edge. Dark mode's foot scrim runs down to that edge.
 - **Pour and bloom** are held to 35%, so the sky's soft ink keeps 4.5:1 on a capped card in dark mode (5.4:1 measured).

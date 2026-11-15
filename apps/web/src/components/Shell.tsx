@@ -1,9 +1,10 @@
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { api } from "../api/client";
-import type { AccountPreferences } from "../api/types";
+import type { Account, AccountPreferences } from "../api/types";
 import { formatMoney } from "../lib/money";
 import { addEntryHref } from "../lib/register-compose";
+import { useAsOfTodayBalances, type ShellOutletContext } from "../lib/use-as-of-today-balances";
 import { ACCOUNT_USAGE_DAYS, accountUsageCounts, localIsoDate } from "../lib/account-usage";
 import {
   accountGroups as buildAccountGroups,
@@ -92,6 +93,8 @@ export function Shell() {
     });
   };
   const openAccounts = useMemo(() => accounts.filter((account) => !account.closed), [accounts]);
+  const todayBalances = useAsOfTodayBalances(planId, accounts);
+  const balanceOf = (account: Account) => todayBalances.get(account.id) ?? account.balance;
   const accountGroups = useMemo(
     () => buildAccountGroups(accounts, accountPreferences, accountUsage.counts),
     [accounts, accountPreferences, accountUsage.counts],
@@ -252,7 +255,7 @@ export function Shell() {
             }
           >
             <span aria-hidden="true">▤</span> Ledger
-            <span className="sidebar-balance" title="Open-account working balance">{formatMoney(openAccounts.reduce((sum, account) => sum + account.balance, 0))}</span>
+            <span className="sidebar-balance" title="Open-account balance as of today">{formatMoney(openAccounts.reduce((sum, account) => sum + balanceOf(account), 0))}</span>
           </NavLink>
           <NavLink
             to={{ pathname: "/scheduled", search: location.search }}
@@ -307,13 +310,13 @@ export function Shell() {
           )}
           {collections.length > 0 && (
             <div className="account-list-band">
-              <AccountGroupSections groups={collections} selectedAccountId={selectedAccount?.id} onChangeIcon={updateAccountIcon} collapsed={collapsedGroups} onToggle={toggleGroup} />
+              <AccountGroupSections groups={collections} selectedAccountId={selectedAccount?.id} balanceOf={balanceOf} onChangeIcon={updateAccountIcon} collapsed={collapsedGroups} onToggle={toggleGroup} />
             </div>
           )}
           {typeIndex.length > 0 && (
             <div className="account-list-band account-list-band-index">
               {collections.length > 0 && <p className="account-list-band-label">By type</p>}
-              <AccountGroupSections groups={typeIndex} selectedAccountId={selectedAccount?.id} tone="index" onChangeIcon={updateAccountIcon} collapsed={collapsedGroups} onToggle={toggleGroup} />
+              <AccountGroupSections groups={typeIndex} selectedAccountId={selectedAccount?.id} tone="index" balanceOf={balanceOf} onChangeIcon={updateAccountIcon} collapsed={collapsedGroups} onToggle={toggleGroup} />
             </div>
           )}
         </div>
@@ -339,7 +342,7 @@ export function Shell() {
       <div className="workspace">
         <main className="report-body">
           <Suspense fallback={<div className="boot-message">Loading…</div>}>
-            <Outlet />
+            <Outlet context={{ todayBalances } satisfies ShellOutletContext} />
           </Suspense>
         </main>
       </div>
@@ -387,6 +390,7 @@ function AccountGroupSections({
   groups,
   selectedAccountId,
   tone,
+  balanceOf,
   onChangeIcon,
   collapsed,
   onToggle,
@@ -394,6 +398,7 @@ function AccountGroupSections({
   groups: AccountGroup[];
   selectedAccountId: string | undefined;
   tone?: "index";
+  balanceOf: (account: Account) => number;
   onChangeIcon: (accountId: string, icon: string) => Promise<void>;
   collapsed: ReadonlySet<string>;
   onToggle: (groupId: string) => void;
@@ -411,7 +416,7 @@ function AccountGroupSections({
         >
           <span className="account-group-chevron" aria-hidden="true">{open ? "▾" : "▸"}</span>
           <span className="account-group-label">{group.label}</span>
-          <span>{formatMoney(group.accounts.reduce((sum, account) => sum + account.balance, 0))}</span>
+          <span>{formatMoney(group.accounts.reduce((sum, account) => sum + balanceOf(account), 0))}</span>
         </button>
         <div id={`account-group-${group.id}`} hidden={!open}>
           {group.accounts.map((account) => (
@@ -426,8 +431,8 @@ function AccountGroupSections({
                 className={selectedAccountId === account.id ? "account-link sidebar-link-active" : "account-link"}
               >
                 <span className="account-name" title={account.name}>{account.name}</span>
-                <span className={account.balance < 0 ? "sidebar-balance sidebar-balance-negative" : "sidebar-balance"}>
-                  {formatMoney(account.balance)}
+                <span className={balanceOf(account) < 0 ? "sidebar-balance sidebar-balance-negative" : "sidebar-balance"}>
+                  {formatMoney(balanceOf(account))}
                 </span>
               </NavLink>
             </div>

@@ -1,5 +1,5 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { ApiError, api, BulkApprovalError, useApi } from "../api/client";
 import type {
   AccountReconciliationPreview,
@@ -62,7 +62,8 @@ import {
   type RegisterRowEditAction,
   type RegisterRowEditSession,
 } from "../lib/register-row-edit";
-import { asOfTodayBalance, dateInRegisterWindow, isUpcomingRegisterDate, registerFetchUntilDate } from "../lib/register-current";
+import type { ShellOutletContext } from "../lib/use-as-of-today-balances";
+import { dateInRegisterWindow, isUpcomingRegisterDate, registerFetchUntilDate } from "../lib/register-current";
 import { bloomRows, postedRowDomId } from "../lib/halation-bloom";
 import { fillRegisterHorizon, REGISTER_PAGE_SIZE } from "../lib/register-horizon";
 import {
@@ -191,13 +192,16 @@ export function TransactionsPage() {
     ? "Ledger"
     : selectedAccount?.name
       ?? (filters.accountIds.length === 1 ? "Account unavailable" : "Selected Accounts");
+  // The shell's as-of-today figures, so the header leads with what the sidebar shows.
+  const todayBalances = useOutletContext<ShellOutletContext | undefined>()?.todayBalances;
   const balances = balanceAccounts.reduce(
     (summary, account) => ({
       cleared: summary.cleared + account.cleared_balance,
       uncleared: summary.uncleared + account.uncleared_balance,
       working: summary.working + account.balance,
+      today: summary.today + (todayBalances?.get(account.id) ?? account.balance),
     }),
-    { cleared: 0, uncleared: 0, working: 0 },
+    { cleared: 0, uncleared: 0, working: 0, today: 0 },
   );
 
   const listKey = JSON.stringify({
@@ -1673,12 +1677,6 @@ export function TransactionsPage() {
     cancel: () => dispatchRowEdit({ type: "cancel" }),
   };
   const lockedComposeAccount = selectedAccount && !selectedAccount.closed ? selectedAccount : null;
-  const todayBalance = useMemo(
-    () => selectedAccount
-      ? asOfTodayBalance(selectedAccount.balance, patchedPage, { accountId: selectedAccount.id, today })
-      : null,
-    [patchedPage, selectedAccount, today],
-  );
   const composeAccounts = useMemo(
     () => visibleAccounts.filter((account) => !account.closed),
     [visibleAccounts],
@@ -1732,16 +1730,16 @@ export function TransactionsPage() {
         const balanceRow = (
           <div className="headline-row register-balances">
             <div className="headline-figure register-balance-hero">
-              <span className="figure-label">Working balance</span>
-              <span key={balances.working} className={`figure-value figure-settle ${balanceTone(balances.working)}`}>
-                {formatMoney(balances.working)}
+              <span className="figure-label">Balance</span>
+              <span key={balances.today} className={`figure-value figure-settle ${balanceTone(balances.today)}`}>
+                {formatMoney(balances.today)}
               </span>
+              {balances.today !== balances.working && (
+                <span className="register-balance-note">Working {formatMoney(balances.working)} including posted scheduled</span>
+              )}
               <span className="register-balance-breakdown">
                 {formatMoney(balances.cleared)} cleared · <span className={balanceTone(balances.uncleared)}>{formatMoney(balances.uncleared)}</span> uncleared
               </span>
-              {todayBalance !== null && todayBalance !== balances.working && (
-                <span className="register-balance-note">{formatMoney(todayBalance)} as of today</span>
-              )}
               {selectedAccount?.last_reconciled_date && (
                 <span className="register-balance-note">Last reconciled {formatDate(selectedAccount.last_reconciled_date)}</span>
               )}

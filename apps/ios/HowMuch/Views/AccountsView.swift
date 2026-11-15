@@ -302,6 +302,7 @@ struct AccountsView: View {
     // Group construction includes each group's selected sort. Share one
     // snapshot between the emptiness checks and both bands for this render.
     let groups = model.accountListGroups()
+    let balances = model.asOfTodayBalances()
     let collectionGroups = groups.filter { $0.kind == .collection }
     let indexGroups = groups.filter { $0.kind == .index }
     let outboxCardRevealDate = model.outboxCardRevealDate
@@ -344,13 +345,13 @@ struct AccountsView: View {
           if !collectionGroups.isEmpty {
             accountListBandLabel("Your groups")
             ForEach(collectionGroups) { group in
-              accountGroupSection(group)
+              accountGroupSection(group, balances: balances)
             }
           }
           if !indexGroups.isEmpty {
             accountListBandLabel("By type")
             ForEach(indexGroups) { group in
-              accountGroupSection(group)
+              accountGroupSection(group, balances: balances)
             }
           }
         }
@@ -490,7 +491,7 @@ struct AccountsView: View {
     dynamicTypeSize < .xxLarge
   }
 
-  private func accountGroupSection(_ group: AccountListGroup) -> some View {
+  private func accountGroupSection(_ group: AccountListGroup, balances: [String: Int]) -> some View {
     let isCollapsed = collapsedGroups.contains(group.id)
     return VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 8) {
@@ -512,11 +513,12 @@ struct AccountsView: View {
               .font(group.kind == .index ? .caption.weight(.semibold) : .subheadline.weight(.semibold))
               .foregroundStyle(group.kind == .index ? Color.secondary : Theme.textPrimary)
             Spacer()
-            Text(MoneyCodec.displayString(for: group.total, currencyFormat: model.currencyFormat))
+            let total = group.total(balances: balances)
+            Text(MoneyCodec.displayString(for: total, currencyFormat: model.currencyFormat))
               .font(.subheadline.weight(.semibold))
               .monospacedDigit()
               .foregroundStyle(.secondary)
-              .rollingNumber(group.total)
+              .rollingNumber(total)
           }
           .padding(.horizontal, 4)
           .contentShape(Rectangle())
@@ -612,7 +614,7 @@ struct AccountsView: View {
         } else {
           VStack(spacing: 0) {
             ForEach(group.accounts.enumerated(), id: \.element.id) { index, account in
-              accountRow(account)
+              accountRow(account, balance: balances[account.id] ?? account.balance)
 
               if index < group.accounts.count - 1 {
                 Divider().padding(.leading, 16)
@@ -630,7 +632,7 @@ struct AccountsView: View {
   private static let groupCardTransition = AnyTransition.opacity
     .combined(with: .scale(scale: 0.96, anchor: .top))
 
-  private func accountRow(_ account: Account) -> some View {
+  private func accountRow(_ account: Account, balance: Int) -> some View {
     let selected = isShowing(.account(account.id))
     return Button {
       pane = .account(account.id)
@@ -647,7 +649,7 @@ struct AccountsView: View {
               Text(account.name)
                 .font(selected ? .body.weight(.semibold) : .body)
                 .foregroundStyle(Theme.textPrimary)
-              accountBalance(account)
+              accountBalance(balance)
             }
           } else {
             HStack {
@@ -655,7 +657,7 @@ struct AccountsView: View {
                 .font(selected ? .body.weight(.semibold) : .body)
                 .foregroundStyle(Theme.textPrimary)
               Spacer()
-              accountBalance(account)
+              accountBalance(balance)
             }
           }
         }
@@ -670,7 +672,7 @@ struct AccountsView: View {
     .buttonStyle(.cardRow)
     .accessibilityLabel("\(account.displayIcon) \(account.name)")
     .accessibilityAddTraits(selected ? .isSelected : [])
-    .accessibilityValue(MoneyCodec.displayString(for: account.balance, currencyFormat: model.currencyFormat))
+    .accessibilityValue(MoneyCodec.displayString(for: balance, currencyFormat: model.currencyFormat))
     .accessibilityActions {
       if !account.closed {
         Button(model.isAccountFavourite(account.id) ? "Remove from Favourites" : "Add to Favourites") {
@@ -703,11 +705,11 @@ struct AccountsView: View {
     }
   }
 
-  private func accountBalance(_ account: Account) -> some View {
-    Text(MoneyCodec.displayString(for: account.balance, currencyFormat: model.currencyFormat))
+  private func accountBalance(_ balance: Int) -> some View {
+    Text(MoneyCodec.displayString(for: balance, currencyFormat: model.currencyFormat))
       .monospacedDigit()
-      .foregroundStyle(account.balance == 0 ? .secondary : Theme.amountColour(account.balance))
-      .rollingNumber(account.balance)
+      .foregroundStyle(balance == 0 ? .secondary : Theme.amountColour(balance))
+      .rollingNumber(balance)
       .fixedSize(horizontal: true, vertical: false)
   }
 

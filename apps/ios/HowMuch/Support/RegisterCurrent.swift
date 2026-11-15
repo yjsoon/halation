@@ -21,4 +21,28 @@ enum RegisterCurrent {
     }
     return upcoming < 0 ? Int.max : Int.min
   }
+
+  /// Each account's as-of-today balance, keyed by account ID: the figure its
+  /// register leads with, so the account list and group totals agree with it.
+  static func asOfTodayBalances(
+    accounts: [Account],
+    transactions: [Transaction],
+    today: String
+  ) -> [String: Int] {
+    let upcoming = Dictionary(
+      grouping: transactions.filter { !$0.deleted && isUpcomingDate($0.date, today: today) },
+      by: \.accountID
+    )
+    return Dictionary(
+      accounts.map { account in
+        (account.id, asOfTodayBalance(
+          working: account.balance,
+          transactions: upcoming[account.id] ?? [],
+          accountID: account.id,
+          today: today
+        ))
+      },
+      uniquingKeysWith: { first, _ in first }
+    )
+  }
 }

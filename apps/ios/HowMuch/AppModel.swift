@@ -1019,6 +1019,17 @@ final class AppModel {
     )
   }
 
+  /// Every account's as-of-today balance, which the account list shows: the
+  /// working balance less posted rows dated after today. The plan-wide ledger
+  /// loads newest first, so future rows arrive with its first page.
+  func asOfTodayBalances() -> [String: Int] {
+    RegisterCurrent.asOfTodayBalances(
+      accounts: accounts,
+      transactions: transactions,
+      today: Date.now.isoDateString
+    )
+  }
+
   func accounts(inGroupID groupID: String) -> [Account] {
     if let system = AccountSystemGroup(rawValue: groupID) {
       return orderedAccounts(

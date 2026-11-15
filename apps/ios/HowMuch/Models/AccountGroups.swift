@@ -235,8 +235,10 @@ struct AccountListGroup: Identifiable, Equatable {
     id == AccountSystemGroup.favourites.rawValue || customGroup != nil ? .collection : .index
   }
 
-  var total: Int {
-    accounts.map(\.balance).saturatingSum()
+  /// The group's total from `balances` (as-of-today, by account ID), falling
+  /// back to an account's working balance when it has no entry.
+  func total(balances: [String: Int]) -> Int {
+    accounts.map { balances[$0.id] ?? $0.balance }.saturatingSum()
   }
 
   func matching(_ search: String) -> AccountListGroup? {
