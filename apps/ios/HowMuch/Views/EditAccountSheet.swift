@@ -80,7 +80,8 @@ struct EditAccountSheet: View {
         isPresented: $isConfirmingDelete,
         confirm: .destructive("Delete Account"),
         message: {
-          Text("Only an account with no transactions, transfers or scheduled transactions can be deleted. Otherwise, close it.")
+          Text("Only an account with no transactions, transfers or scheduled transactions can be deleted. Otherwise, close it."
+            + ((rewardsCard ?? nil) == nil ? "" : " Its rewards setup is removed too."))
         }
       ) {
         Task { await run { try await model.deleteAccount(account.id) } }

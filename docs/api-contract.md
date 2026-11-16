@@ -133,7 +133,7 @@ reports; clients list it under Closed and do not offer it for new entries.
 transaction in it or transferring to it, no split line transferring to it and
 no scheduled transaction using it. Otherwise it answers `409 conflict` and
 the account stays; close it instead. A delete also removes the account's
-`Transfer : …` payee and its card payment terms.
+`Transfer : …` payee, its card payment terms and its rewards card.
 
 The server generates an id when none is supplied and treats `balance` as the opening
 balance. Every account also owns a `Transfer : <name>` payee (created on demand

@@ -17,3 +17,16 @@ Stack: `control-howmuch launch` (disposable SQLite seeded from `fixtures/demo-le
 | Verify Car Loan (dark, no transactions): Delete account, confirm | Deleted, back to Ledger | URL `/transactions?range=all&accounts=all`; sidebar no longer lists it; DB account `deleted=1` and `Transfer : Verify Car Loan` payee `deleted=1` |
 
 Checks: `bun test` 810 pass, 0 fail (includes new D1 test "D1 account close and delete keep any account with history", which fails with the split-transfer guard removed); web and worker typecheck clean; iOS engine bundle rebuilt with bun@1.4.0.
+
+## Round 3: deleting an empty card account removes its rewards card (2026-11-16)
+
+Revision: uncommitted on top of bf059773. Fresh `control-howmuch launch` stack, light theme, 1440x900 at 2x.
+
+| Step | Expected | Observed |
+| --- | --- | --- |
+| New account `Verify Spare Card`, type Credit card, no balance | Created | Register opens for it |
+| `POST /api/rewards/cards` with card `card-verify-spare` linked to it | Card exists | 201; rewards list `["card-verify-spare"]` |
+| Account settings > Delete account | Confirmation mentions rewards | "… Otherwise, close it. Its rewards setup is removed too." |
+| Confirm | Account and card gone | Back on Ledger; rewards cards `[]`, snapshot cards `[]`; DB `rewards_tracker_cards.deleted=1`, account `deleted=1`; Rewards page shows "Add your first reward card" |
+
+`D1 account close and delete keep any account with history` now also asserts that only the deleted account's card goes; it fails without the change (one extra card received).

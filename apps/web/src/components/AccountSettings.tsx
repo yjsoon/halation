@@ -40,7 +40,7 @@ export function AccountSettings({ planId, account, card, termsGeneration, onEdit
   return (
     <section id="account-settings" className="card-settings" aria-label={`Settings for ${account.name}`}
       onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); onClose(); } }}>
-      <AccountBand account={account} firstFieldRef={firstFieldRef} onSaved={onSaved} onDeleted={onDeleted} onSavingChange={onSavingChange} />
+      <AccountBand account={account} hasRewards={Boolean(card)} firstFieldRef={firstFieldRef} onSaved={onSaved} onDeleted={onDeleted} onSavingChange={onSavingChange} />
       {isCard && <TermsBand planId={planId} account={account} generation={termsGeneration} onEdit={onEditTerms} />}
       {card
         ? <RewardsBand planId={planId} card={card} onSaved={onSaved} onClose={onClose} onSavingChange={onSavingChange} />
@@ -66,8 +66,9 @@ function Heading({ title, note }: { title: string; note: string }) {
   );
 }
 
-function AccountBand({ account, firstFieldRef, onSaved, onDeleted, onSavingChange }: {
+function AccountBand({ account, hasRewards, firstFieldRef, onSaved, onDeleted, onSavingChange }: {
   account: Account;
+  hasRewards: boolean;
   firstFieldRef: RefObject<HTMLInputElement | null>;
   onSaved: (message: string) => void;
   onDeleted: (message: string) => void;
@@ -181,7 +182,7 @@ function AccountBand({ account, firstFieldRef, onSaved, onDeleted, onSavingChang
         </p>
         {confirmingDelete && (
           <div className="custom-group-delete-confirm" role="alert">
-            <span>Delete {account.name}? Only an account with no transactions, transfers or scheduled transactions can be deleted. Otherwise, close it.</span>
+            <span>Delete {account.name}? Only an account with no transactions, transfers or scheduled transactions can be deleted. Otherwise, close it.{hasRewards && " Its rewards setup is removed too."}</span>
             <div>
               <button type="button" className="text-button" disabled={saving} onClick={() => {
                 setConfirmingDelete(false);

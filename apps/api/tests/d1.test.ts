@@ -1523,7 +1523,7 @@ describe("D1 foundation", () => {
 
   // Failure modes the SQLite-backed browser run cannot reach: the D1 write
   // deleting an account that is only a split's transfer target, or that a
-  // live schedule pays from, and leaving its transfer payee pickable.
+  // live schedule pays from, and leaving its transfer payee or rewards card behind.
   test("D1 account close and delete keep any account with history", async () => {
     const db = sqlite();
     const directory = new URL("../d1-migrations/", import.meta.url).pathname;
@@ -1544,7 +1544,11 @@ describe("D1 foundation", () => {
       expect(db.query("SELECT deleted FROM accounts WHERE id=?").get(id)).toEqual({ deleted: 0 });
     }
     const payee = db.query("SELECT transfer_payee_id FROM accounts WHERE id='empty'").get() as { transfer_payee_id: string };
+    await repo.upsertRewardsTrackerCard("p", { id: "card-empty", name: "Empty Card", issuer: "Synthetic", type: "cashback", ynabAccountId: "empty" });
+    await repo.upsertRewardsTrackerCard("p", { id: "card-spend", name: "Spend Card", issuer: "Synthetic", type: "cashback", ynabAccountId: "spend" });
     await repo.deleteAccount("p", "empty");
+    // The empty account's rewards card goes with it; the kept account's stays.
+    expect((await repo.getRewardsTrackerSnapshot("p")).cards.map((card: any) => card.id)).toEqual(["card-spend"]);
     expect((await repo.listAccounts("p")).map((account) => account.id).sort()).toEqual(["scheduled", "spend", "split-target"]);
     expect(db.query("SELECT deleted FROM payees WHERE id=?").get(payee.transfer_payee_id)).toEqual({ deleted: 1 });
   });

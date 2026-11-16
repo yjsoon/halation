@@ -537,7 +537,8 @@ export class LedgerRepository {
    * Deletes an account that never held anything. One with transactions,
    * transfers or schedules is refused rather than cascaded: deleting it would
    * drop the other half of its transfers from other accounts' history, so it
-   * is closed instead.
+   * is closed instead. An unused card account takes its rewards card setup
+   * with it.
    */
   async deleteAccount(planId: string, accountId: string): Promise<any> {
     const account = await this.findAccount(planId, accountId);
@@ -551,6 +552,11 @@ export class LedgerRepository {
     }
     await this.writeAccountDeletion(planId, accountId);
     if (await this.findAccount(planId, accountId)) throw new EntityConflictError(ACCOUNT_IN_USE_MESSAGE);
+    // Its rewards card setup has nothing left to track, so it goes too.
+    const cards = await this.db
+      .query("SELECT id FROM rewards_tracker_cards WHERE plan_id = ? AND account_id = ? AND deleted = 0")
+      .all(planId, accountId) as Row[];
+    for (const card of cards) await this.deleteRewardsTrackerCard(planId, String(card.id));
     return { ...account, deleted: true };
   }
 
