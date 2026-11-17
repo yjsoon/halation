@@ -263,7 +263,7 @@ function RewardsBand({ planId, card, onSaved, onClose, onSavingChange }: {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const dates = ruleChangeDates(card, rewardsToday());
-  const unit = card.type === "cashback" ? "%" : "miles/$";
+  const unit = card.type === "cashback" ? "%" : "mi/$";
   const changedNames = REWARD_NAME_COLOURS.filter((colour) => (names[colour] ?? "").trim() !== (originalNames[colour] ?? ""));
   const changedRules = rules.earningRate !== originalRules.earningRate
     || rules.maximumSpend !== originalRules.maximumSpend

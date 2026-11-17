@@ -550,7 +550,7 @@ function tierLabel(tiers: Row["card"]["spendingTiers"], id: string, type: "cashb
   const index = sorted.findIndex((tier) => tier.id === id);
   const tier = sorted[index];
   if (!tier) return id;
-  const rate = tier.earningRate != null ? ` · ${tier.earningRate}${type === "cashback" ? "%" : " miles/unit"}` : "";
+  const rate = tier.earningRate != null ? ` · ${tier.earningRate}${type === "cashback" ? "%" : " mi/$"}` : "";
   return `Tier ${index + 1} · from ${dollars(tier.spendThreshold)}${rate}`;
 }
 
@@ -768,7 +768,7 @@ function FlagList({ calc }: { calc: Row["calculation"] }) {
             {isFlagColour(flag.flagColor)
               ? <FlagTag colour={flag.flagColor} name={flag.name} />
               : <span>{flag.name}</span>}
-            <span>{flag.rewardRate != null ? `${flag.rewardRate}${calc.reward_type === "cashback" ? "%" : " miles/unit"}` : ""}</span>
+            <span>{flag.rewardRate != null ? `${flag.rewardRate}${calc.reward_type === "cashback" ? "%" : " mi/$"}` : ""}</span>
             <span className="num">{formatReward(flag.rewardEarned, calc.reward_type)}</span>
             {cap > 0 && <span className="rw-flag-cap">{dollars(counted)} / {dollars(cap)} cap</span>}
           </li>
