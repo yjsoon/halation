@@ -1640,7 +1640,18 @@ export function TransactionsPage() {
     });
   };
 
-  const totals = useMemo(() => flowTotals(rows), [rows]);
+  // A category view totals only the split lines in that category, as the
+  // Spending and Income reports that link to it do.
+  const totals = useMemo(() => {
+    if (!filters.categoryIds.length) return flowTotals(rows);
+    const outflowOnly = flow === "outflow" || wantsUncategorised;
+    return flowTotals(rows.flatMap((txn) => txn.subtransactions?.length
+      ? txn.subtransactions.filter((line) =>
+          (!outflowOnly || line.amount < 0)
+          && ((line.category_id !== null && categoryIds.has(line.category_id))
+            || (wantsUncategorised && line.category_id === null && !line.transfer_account_id)))
+      : [txn]));
+  }, [categoryIds, filters.categoryIds.length, flow, rows, wantsUncategorised]);
   const selectedTotals = useMemo(() => flowTotals(selectedRows), [selectedRows]);
   // Cards name their colours, and each row takes its own card's name. The
   // menu shows names only when every selected row is on the same card.
@@ -2476,7 +2487,7 @@ export function TransactionsPage() {
 
 // Every amount is in the plan's one currency (see `configureMoney`), so a
 // plain sum is safe.
-function flowTotals(rows: readonly Transaction[]): { inflow: number; outflow: number; net: number } {
+function flowTotals(rows: ReadonlyArray<{ amount: number }>): { inflow: number; outflow: number; net: number } {
   return rows.reduce(
     (summary, txn) => {
       if (txn.amount < 0) {
