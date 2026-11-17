@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useBlocker, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import type {
   CardSubcategory,
@@ -131,6 +131,16 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
     const chosen = rewardCardAccountChoices(accounts, takenAccountIds).find((account) => account.id === searchParams.get("account"));
     return chosen ? { ...emptyDraft(), ynabAccountId: chosen.id, name: chosen.name } : emptyDraft();
   });
+  // Leaving with unsaved changes asks first, as the iOS editor does. A change
+  // of query on this page (the ledger's own filters) is not leaving.
+  const [savedDraft] = useState(() => JSON.stringify(draft));
+  const dirty = JSON.stringify(draft) !== savedDraft;
+  const leaving = useRef(false);
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    dirty && !leaving.current && currentLocation.pathname !== nextLocation.pathname);
+  const pendingDiscard = blocker.state === "blocked";
+  const discardCancelRef = useRef<HTMLButtonElement>(null);
+  useConfirmationFocus(pendingDiscard, discardCancelRef);
   const [scope, setScope] = useState<"current" | "next" | "everywhere">("current");
   const changeDates = card ? ruleChangeDates(card, rewardsToday()) : null;
   const [busy, setBusy] = useState<"save" | "delete" | null>(null);
@@ -189,6 +199,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
       } else {
         await api.createRewardCard(planId, written.card);
       }
+      leaving.current = true;
       navigate(rewardsHref);
     } catch (cause) {
       setErrorAt({ at: "save", message: cause instanceof Error ? cause.message : String(cause) });
@@ -203,6 +214,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
     setErrorAt(null);
     try {
       await api.deleteRewardCard(planId, card.id);
+      leaving.current = true;
       navigate(rewardsHref);
     } catch (cause) {
       setErrorAt({ at: "delete", message: cause instanceof Error ? cause.message : String(cause) });
@@ -250,6 +262,21 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
           {card && <Link to={`/tools/reward-terms?card=${encodeURIComponent(card.id)}`}>Generate rules from card terms</Link>}
         </div>
       </header>
+
+      {pendingDiscard && (
+        <section className="transaction-editor schedule-delete-confirm" aria-labelledby="discard-card-heading">
+          <div className="section-heading">
+            <div>
+              <span className="section-title" id="discard-card-heading">Discard reward changes?</span>
+              <span className="section-meta">Discard the unsaved changes in this draft?</span>
+            </div>
+          </div>
+          <div className="transaction-editor-actions">
+            <button type="button" ref={discardCancelRef} className="text-button" onClick={() => blocker.reset?.()}>Cancel</button>
+            <button type="button" className="save-button schedule-delete-button" onClick={() => blocker.proceed?.()}>Discard changes</button>
+          </div>
+        </section>
+      )}
 
       {pendingDelete && card && (
         <section className="transaction-editor schedule-delete-confirm" aria-labelledby="delete-card-heading">
