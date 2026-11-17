@@ -73,3 +73,36 @@ says “Could not load older transactions.” followed by its error; Account
 settings says “Could not load payment reminders.” None says that saved rows
 may be out of date. Changing cache revalidation would also cross this page's
 ownership boundary. No new warning sentence or shared-cache change was made.
+
+## N-14: offer the first-account path instead of an empty editor
+
+Separate disposable stack: `HOWMUCH_VERIFY_STATE_ROOT=/tmp/howmuch-verify-empty
+control-howmuch launch`, run `20261117T134926-41604`, web port 33639, API port
+53865. Before first-owner setup, mark only this disposable fixture's seeded
+accounts deleted with `UPDATE accounts SET deleted=1`. Finish first-owner
+setup in the browser with the documented disposable credentials.
+
+Read-back with the same state-root override:
+`control-howmuch http GET /v1/plans/local-plan/accounts` returned
+`{"data":{"accounts":[],"server_knowledge":37}}`.
+
+Before: at 390 pixels, Add schedule opens an editor whose Account select has
+only “Choose account”. Cancel with Escape.
+
+After: at 390 and 1440 pixels, `.schedule-header a` reads “+ Add your first
+account”, links to `/accounts/new`, and there is no Add schedule button or
+editor. Click the link at each width: New account opens and Name is focused.
+The 390 interaction was recorded with a real moving pointer and inspected
+through a five-frames-per-second contact sheet. Both empty-state screenshots
+were inspected: no overlap. A loaded empty schedule list correctly reads `0`.
+
+At 1440, type “N14 First account” into Name and submit with Enter. API read-back
+returns one account: `{"name":"N14 First account","type":"checking","balance":0}`.
+Return to Scheduled. At both 1440 and 390, Add schedule is restored; opening it
+offers “Choose account” and “N14 First account”. Cancel with Escape.
+
+The condition, route, class and wording are the register's existing first-account
+path. No edits to New account or shared components were needed.
+
+Untracked media: `n14-empty-390.png`, `n14-empty-1440.png`,
+`n14-first-account.mp4` and its looping WebP in this directory.

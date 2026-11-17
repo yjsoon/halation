@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { api, ApiError, useApi } from "../api/client";
 import type { Account, CardPaymentCycle, CardPaymentTerms, CardPaymentsView, CategoryGroup, Payee, ScheduledSubtransaction, ScheduledTransaction, ScheduledTransactionInput } from "../api/types";
 import { CardPaymentsPanel } from "../components/CardPaymentsPanel";
@@ -263,7 +264,9 @@ export function ScheduledTransactionsPage() {
         <div className="headline-row headline-row-paired schedule-figures" aria-label="Schedule summary">
           <Figure label="Active schedules" value={schedules.data ? String(active.length) : "-"} />
           <Figure label="Next due" value={nextDate ? formatDate(nextDate) : "-"} />
-          <button
+          {accounts.length === 0 ? (
+            <Link to="/accounts/new" className="register-add-link">+ Add your first account</Link>
+          ) : <button
             type="button"
             ref={addScheduleRef}
             className="register-add-link"
@@ -271,7 +274,7 @@ export function ScheduledTransactionsPage() {
             disabled={Boolean(mutatingId)}
           >
             Add schedule
-          </button>
+          </button>}
         </div>
       </header>
 
