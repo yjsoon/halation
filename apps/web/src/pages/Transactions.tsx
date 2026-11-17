@@ -141,15 +141,6 @@ function reportLines(txn: Transaction): readonly ReportLine[] {
   return txn.subtransactions?.length ? txn.subtransactions : [txn];
 }
 
-/** The rows a Spending drill-down (`flow=outflow`) keeps: outflows the report counts. */
-function isSpendingOutflow(txn: Transaction): boolean {
-  return txn.amount < 0 && countsInReports(txn);
-}
-
-/** The rows an Income v spending drill-down (`flow=activity`) keeps: both signs. */
-function isReportActivity(txn: Transaction): boolean {
-  return reportLines(txn).some(countsInReports);
-}
 
 export function TransactionsPage() {
   const { filters, setFilters } = useFilters({ defaultRange: () => trailingMonthsRange(2) });
@@ -1325,15 +1316,21 @@ export function TransactionsPage() {
   }, [unapprovedCountQuery.data]);
 
   // The flow and category filters a drill-down narrows the register with.
-  const inRegisterView = (txn: Transaction): boolean => {
-    if ((flow === "outflow" || wantsUncategorised) && !isSpendingOutflow(txn)) return false;
-    if (flow === "activity" && !isReportActivity(txn)) return false;
+  // Report lines (a transaction, or each of its split lines) are judged one
+  // at a time, as the reports do: a Spending drill-down (`flow=outflow`) and
+  // the Uncategorised list take outflows, and either leaves out uncategorised
+  // transfer legs.
+  const narrowsLines = Boolean(flow) || filters.categoryIds.length > 0;
+  const lineInView = (line: ReportLine): boolean => {
+    const outflowOnly = flow === "outflow" || wantsUncategorised;
+    if (outflowOnly && line.amount >= 0) return false;
+    if ((flow || wantsUncategorised) && !countsInReports(line)) return false;
     if (!filters.categoryIds.length) return true;
-    const matchesCategory =
-      (txn.category_id !== null && categoryIds.has(txn.category_id)) ||
-      txn.subtransactions?.some((sub) => sub.category_id !== null && categoryIds.has(sub.category_id));
-    return Boolean(matchesCategory) || (wantsUncategorised && hasUncategorisedLine(txn));
+    return (line.category_id !== null && categoryIds.has(line.category_id))
+      || (wantsUncategorised && line.category_id === null && !line.transfer_account_id);
   };
+  // A row shows when any of its lines counts, whatever its own total's sign.
+  const inRegisterView = (txn: Transaction): boolean => !narrowsLines || reportLines(txn).some(lineInView);
   // Row-exact only once the approval flow has actually loaded the queue.
   const queueRowCount = useMemo(
     () =>
@@ -1692,17 +1689,10 @@ export function TransactionsPage() {
 
   // A category or report view totals only the split lines the report that
   // links to it counts, so the two agree.
-  const totals = useMemo(() => {
-    const activity = flow === "activity";
-    if (!filters.categoryIds.length && !activity) return flowTotals(rows);
-    const outflowOnly = flow === "outflow" || wantsUncategorised;
-    return flowTotals(rows.flatMap((txn) => reportLines(txn).filter((line) =>
-      (!outflowOnly || line.amount < 0)
-      && (!activity || countsInReports(line))
-      && (!filters.categoryIds.length
-        || (line.category_id !== null && categoryIds.has(line.category_id))
-        || (wantsUncategorised && line.category_id === null && !line.transfer_account_id)))));
-  }, [categoryIds, filters.categoryIds.length, flow, rows, wantsUncategorised]);
+  const totals = useMemo(
+    () => flowTotals(narrowsLines ? rows.flatMap((txn) => reportLines(txn).filter(lineInView)) : rows),
+    [categoryIds, filters.categoryIds.length, flow, narrowsLines, rows, wantsUncategorised],
+  );
   const selectedTotals = useMemo(() => flowTotals(selectedRows), [selectedRows]);
   // Cards name their colours, and each row takes its own card's name. The
   // menu shows names only when every selected row is on the same card.
