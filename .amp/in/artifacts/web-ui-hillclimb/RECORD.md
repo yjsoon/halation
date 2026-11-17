@@ -91,3 +91,14 @@ Text record of the checks the lead thread ran in a browser while integrating the
 
 - Chromium only: no Safari, no phone hardware, no software keyboard (see LEAD-03 in the audit).
 - The lead re-ran a sample of each worker's flows, not every one; the workers' records hold the rest.
+
+## T-04: Scheduled names a split schedule as the register does
+
+- Base revision: 767ea37a. Disposable stack, user `verifier`, plan `local-plan`, Chromium at DPR 2.
+- Before (third audit, f9ecdecf): Scheduled's Category cell read "Uncategorised" for a split schedule, while the register's Scheduled group read "Split · 2 lines".
+- Steps: Scheduled, Add schedule, tick "Split this schedule", line 1 amount -12.00 with payee Cold Storage, line 2 amount -8.00 with payee MUJI, Memo "T04 split", Add schedule.
+- API read-back (`GET /v1/plans/local-plan/scheduled_transactions`): the new schedule has `amount: -20000`, `category_name: null` and two subtransactions of -8000 and -12000.
+- Observed at 1440: "17 Nov 2026 No payee T04 split Everyday Account Split · 2 lines Monthly −$20.00", with the two split lines beneath. At 390: "Everyday Account · Split · 2 lines · Monthly".
+- Control: the unsplit schedule with no category still reads "Uncategorised" at both widths.
+- The Ledger's Scheduled group reads "Split · 2 lines" for the same schedule.
+- `bun run --cwd apps/web typecheck`: `$ tsc --noEmit`, exit 0.
