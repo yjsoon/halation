@@ -27,12 +27,14 @@ const FLAG_ORDER: readonly string[] = ["", ...FLAG_COLOURS];
 
 export function FlagPicker({
   labelledBy,
+  describedBy,
   value,
   onChange,
   disabled,
   names,
 }: {
   labelledBy?: string;
+  describedBy?: string;
   value: string;
   onChange: (value: string) => void;
   disabled?: boolean;
@@ -58,6 +60,7 @@ export function FlagPicker({
       className="flag-picker"
       role="radiogroup"
       aria-labelledby={labelledBy}
+      aria-describedby={describedBy}
       onKeyDown={(event) => {
         if (disabled) {
           return;

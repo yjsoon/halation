@@ -154,8 +154,10 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   const changeDates = card ? ruleChangeDates(card, rewardsToday()) : null;
   const [busy, setBusy] = useState<"save" | "delete" | null>(null);
   // The form is several screens tall, so an error shows beside the control that raised it.
-  const [error, setErrorAt] = useState<{ at: "save" | "flag" | "delete"; message: string } | null>(null);
-  const errorPanel = (at: "save" | "flag" | "delete", title: string) => error?.at === at && (
+  // An error about one flag shows in that flag's row instead.
+  const [error, setErrorAt] = useState<{ at: "save" | "flag" | "delete"; message: string; flagId?: string; field?: FlagErrorField } | null>(null);
+  const saveErrorTitle = card ? "Could not update this card." : "Could not add this card.";
+  const errorPanel = (at: "save" | "flag" | "delete", title: string) => error?.at === at && !error.flagId && (
     <StatusPanel error role="alert" title={title}>
       {error.message}
     </StatusPanel>
@@ -204,7 +206,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   const save = async () => {
     const written = creditCardWrite(draft, { clearMissing: Boolean(card) });
     if ("error" in written) {
-      setErrorAt({ at: "save", message: written.error });
+      setErrorAt({ at: "save", message: written.error, flagId: written.flagId, field: written.field });
       return;
     }
     setBusy("save");
@@ -594,6 +596,8 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
                 index={index}
                 colourName={draft.flagNames[flag.flagColor] ?? flag.name}
                 pickerNames={pickerNames}
+                error={error?.flagId === flag.id ? error : null}
+                errorTitle={saveErrorTitle}
                 onChange={(next) => setDraft((current) => ({
                   ...current,
                   flags: current.flags.map((entry) => entry.id === flag.id ? next : entry),
@@ -678,7 +682,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
             </fieldset>
           )}
 
-          {errorPanel("save", card ? "Could not update this card." : "Could not add this card.")}
+          {errorPanel("save", saveErrorTitle)}
           <div className="transaction-editor-actions">
             <Link to={rewardsHref} className="text-button">Cancel</Link>
             {card && (
@@ -703,6 +707,8 @@ function FlagRow({
   index,
   colourName,
   pickerNames,
+  error,
+  errorTitle,
   onChange,
   onColourName,
   onRemove,
@@ -711,24 +717,51 @@ function FlagRow({
   index: number;
   colourName: string;
   pickerNames: Record<string, string>;
+  error: { message: string; field?: FlagErrorField } | null;
+  errorTitle: string;
   onChange: (flag: FlagDraft) => void;
   onColourName: (value: string) => void;
   onRemove: () => void;
 }) {
   const patch = (next: Partial<FlagDraft>) => onChange({ ...flag, ...next, updatedAt: new Date().toISOString() });
   const ledgerColour = ledgerFlagFromReward(flag.flagColor);
+  const errorId = `flag-${index + 1}-error`;
+  // Save may be screens below the row it complains about: go to the field, or at least show the row.
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!error) return;
+    const row = rowRef.current;
+    const field = row?.querySelector<HTMLElement>(`[aria-describedby="${errorId}"]`);
+    const target = field?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]') ?? field;
+    if (target) target.focus({ preventScroll: true });
+    document.getElementById(errorId)?.scrollIntoView({ block: "start" });
+  }, [error, errorId]);
   return (
-    <div className="rewards-editor-row">
+    <div className="rewards-editor-row" ref={rowRef}>
+      {error && (
+        <div className="rewards-editor-row-error" id={errorId}>
+          <StatusPanel error role="alert" title={errorTitle}>
+            {error.message}
+          </StatusPanel>
+        </div>
+      )}
       {/* The name belongs to the colour on this card, so it renames every flag of that colour. */}
       <label className="field">
         <span className="field-label">Colour name</span>
-        <input value={colourName} onChange={(event) => onColourName(event.target.value)} aria-label={`Flag ${index + 1} colour name`} />
+        <input
+          value={colourName}
+          onChange={(event) => onColourName(event.target.value)}
+          aria-label={`Flag ${index + 1} colour name`}
+          aria-invalid={error?.field === "name" || undefined}
+          aria-describedby={error?.field === "name" ? errorId : undefined}
+        />
       </label>
       <div className="field">
         <span className="field-label" id={`flag-${index + 1}-colour-label`}>Flag colour</span>
         <span className="rewards-flag-colour-row">
           <FlagPicker
             labelledBy={`flag-${index + 1}-colour-label`}
+            describedBy={error?.field === "colour" ? errorId : undefined}
             value={ledgerColour}
             onChange={(value) => patch({ flagColor: rewardFlagFromLedger(value), name: pickerNames[value] || flag.name })}
             names={pickerNames}
@@ -1123,7 +1156,13 @@ export function draftFromCard(card: CreditCard): CardDraft {
   };
 }
 
-export function creditCardWrite(draft: CardDraft, options: { clearMissing?: boolean } = {}): { card: CreditCard } | { error: string } {
+type FlagErrorField = "colour" | "name";
+
+// `flagId` names the flag an error is about, and `field` the control that corrects it.
+export function creditCardWrite(
+  draft: CardDraft,
+  options: { clearMissing?: boolean } = {},
+): { card: CreditCard } | { error: string; flagId?: string; field?: FlagErrorField } {
   if (!draft.ynabAccountId) return { error: "Choose a Halation account." };
   if (!draft.name.trim()) return { error: "Enter a card name." };
 
@@ -1191,26 +1230,25 @@ export function creditCardWrite(draft: CardDraft, options: { clearMissing?: bool
 
   const flags: CardSubcategory[] = [];
   // The calculator scores a colour by one active rule, so a second one would silently earn nothing.
-  const activeColours = new Map<string, number>();
+  const activeColours = new Set<string>();
   for (const [index, flag] of draft.flags.entries()) {
     if (flag.active) {
-      const earlier = activeColours.get(flag.flagColor);
-      if (earlier !== undefined) return { error: `Flag ${index + 1} uses the same colour as flag ${earlier + 1}. Change one colour or remove a flag.` };
-      activeColours.set(flag.flagColor, index);
+      if (activeColours.has(flag.flagColor)) return { error: "Active flag colours must be unique.", flagId: flag.id, field: "colour" };
+      activeColours.add(flag.flagColor);
     }
     const colourName = draft.flagNames[flag.flagColor]?.trim() || flag.name.trim();
-    if (!colourName) return { error: `Name the ${flag.flagColor === "unflagged" ? "None" : flag.flagColor} colour on this card.` };
-    if (!isRewardFlagColour(flag.flagColor)) return { error: `Flag ${index + 1} needs a recognised colour.` };
+    if (!colourName) return { error: `Name the ${flag.flagColor === "unflagged" ? "None" : flag.flagColor} colour on this card.`, flagId: flag.id, field: "name" };
+    if (!isRewardFlagColour(flag.flagColor)) return { error: `Flag ${index + 1} needs a recognised colour.`, flagId: flag.id, field: "colour" };
     const rewardValue = requiredFinite(flag.rewardValue, `Flag ${index + 1} reward value`);
-    if (!rewardValue.ok) return { error: rewardValue.error };
+    if (!rewardValue.ok) return { error: rewardValue.error, flagId: flag.id };
     const priority = requiredFinite(flag.priority, `Flag ${index + 1} priority`, false);
-    if (!priority.ok) return { error: priority.error };
+    if (!priority.ok) return { error: priority.error, flagId: flag.id };
     const milesBlockSize = optionalFinite(flag.milesBlockSize, `Flag ${index + 1} miles block`);
-    if (!milesBlockSize.ok) return { error: milesBlockSize.error };
+    if (!milesBlockSize.ok) return { error: milesBlockSize.error, flagId: flag.id };
     const flagMinimum = optionalFinite(flag.minimumSpend, `Flag ${index + 1} minimum spend`);
-    if (!flagMinimum.ok) return { error: flagMinimum.error };
+    if (!flagMinimum.ok) return { error: flagMinimum.error, flagId: flag.id };
     const flagMaximum = optionalFinite(flag.maximumSpend, `Flag ${index + 1} maximum spend`);
-    if (!flagMaximum.ok) return { error: flagMaximum.error };
+    if (!flagMaximum.ok) return { error: flagMaximum.error, flagId: flag.id };
     const written: CardSubcategory = {
       id: flag.id,
       name: colourName,

@@ -143,3 +143,14 @@
 .rewards-editor-block ~ .transaction-editor-actions .text-button {
   white-space: nowrap;
 }
+
+/* An error about one flag heads that flag's row, across all its columns.
+   Save scrolls to it, clear of the phone masthead. */
+.rewards-editor-row-error {
+  grid-column: 1 / -1;
+  scroll-margin-top: calc(var(--masthead-h) + 16px);
+}
+
+.rewards-editor-row-error .status-panel {
+  margin-top: 0;
+}
