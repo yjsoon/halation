@@ -985,6 +985,12 @@ export function TransactionsPage() {
     setMutationSuccess(null);
   };
 
+  // A row being moved offers the flag names of the account it is moving to.
+  const flagAccountId = (txn: Transaction) =>
+    rowEdit.status !== "idle" && rowEdit.row.kind === "posted" && rowEdit.row.transaction.id === txn.id && rowEdit.draft.accountId
+      ? rowEdit.draft.accountId
+      : txn.account_id;
+
   // The add row, or Quick entry on a phone; neither copy holds split lines yet.
   const duplicateFor = (txn: Transaction) => {
     if (!canCompose || txn.subtransactions?.length) return undefined;
@@ -2461,7 +2467,7 @@ export function TransactionsPage() {
                               />
                             )}
                             payeeExtra={<FlagTag colour={txn.flag_color} name={namedFlagLabel(colourNamesByAccountId.get(txn.account_id), txn.flag_color, txn.flag_name)} />}
-                            flagNames={ledgerFlagNames(colourNamesByAccountId.get(txn.account_id) ?? {})}
+                            flagNames={ledgerFlagNames(colourNamesByAccountId.get(flagAccountId(txn)) ?? {})}
                             onConfirm={() => void confirmAmount(txn)}
                             confirming={writeLocked || mutatingId === txn.id}
                           />,
@@ -2518,7 +2524,7 @@ export function TransactionsPage() {
                           />
                         )}
                         payeeExtra={<FlagTag colour={txn.flag_color} name={namedFlagLabel(colourNamesByAccountId.get(txn.account_id), txn.flag_color, txn.flag_name)} />}
-                        flagNames={ledgerFlagNames(colourNamesByAccountId.get(txn.account_id) ?? {})}
+                        flagNames={ledgerFlagNames(colourNamesByAccountId.get(flagAccountId(txn)) ?? {})}
                         onConfirm={() => void confirmAmount(txn)}
                         confirming={writeLocked || mutatingId === txn.id}
                         targeted={deepLink.kind === "valid" && deepLink.link.subtransactionId === null && txn.id === deepLinkedTransactionId}
