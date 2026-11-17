@@ -1569,6 +1569,11 @@ a.page-eyebrow:hover {
   white-space: nowrap;
 }
 
+/* Editor checkboxes (reward card, payment terms, Scheduled, Reconcile) take the plan accent instead of browser blue. */
+.transaction-editor-checkbox input[type="checkbox"] {
+  accent-color: var(--plan-accent);
+}
+
 .transaction-editor-splits {
   min-width: 0;
   margin: 0 0 14px;
