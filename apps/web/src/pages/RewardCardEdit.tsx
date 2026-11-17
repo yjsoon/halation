@@ -124,6 +124,10 @@ export function RewardCardEditPage() {
   return <CardEditor card={card} takenAccountIds={takenAccountIds} />;
 }
 
+function editableJson(draft: CardDraft): string {
+  return JSON.stringify(draft, (key, value) => (key === "updatedAt" ? undefined : value));
+}
+
 function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenAccountIds: string[] }) {
   const { planId, accounts, categoryGroups } = usePlan();
   const location = useLocation();
@@ -142,8 +146,10 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   });
   // Leaving with unsaved changes asks first, as the iOS editor does. A change
   // of query on this page (the ledger's own filters) is not leaving.
-  const [savedDraft] = useState(() => JSON.stringify(draft));
-  const dirty = JSON.stringify(draft) !== savedDraft;
+  // Every flag edit stamps `updatedAt`, so the comparison leaves it out:
+  // putting a value back to what was saved is not a change.
+  const [savedDraft] = useState(() => editableJson(draft));
+  const dirty = editableJson(draft) !== savedDraft;
   const leaving = useRef(false);
   const blocker = useBlocker(({ currentLocation, nextLocation }) =>
     dirty && !leaving.current && currentLocation.pathname !== nextLocation.pathname);
