@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, useApi } from "../api/client";
 import type { Account, CardPaymentCycle, CardPaymentTerms, CardPaymentsView, CategoryGroup, Payee, ScheduledSubtransaction, ScheduledTransaction, ScheduledTransactionInput } from "../api/types";
 import { CardPaymentsPanel } from "../components/CardPaymentsPanel";
@@ -76,6 +76,19 @@ export function ScheduledTransactionsPage() {
     [schedules.data],
   );
   const groups = useMemo(() => groupSchedules(active), [active]);
+  const focusAfterRefresh = useRef<string | null | undefined>(undefined);
+  const restoreAfterWrite = (scheduleId: string, removed: boolean) => {
+    const index = active.findIndex((schedule) => schedule.id === scheduleId);
+    focusAfterRefresh.current = removed ? (active[index + 1]?.id ?? active[index - 1]?.id ?? null) : scheduleId;
+  };
+  useEffect(() => {
+    if (schedules.loading || focusAfterRefresh.current === undefined) return;
+    const scheduleId = focusAfterRefresh.current;
+    focusAfterRefresh.current = undefined;
+    if (document.activeElement !== document.body) return;
+    const action = scheduleId ? document.getElementById(`schedule-${scheduleId}`)?.querySelector<HTMLButtonElement>("button:not(:disabled)") : null;
+    (action ?? addScheduleRef.current)?.focus({ preventScroll: true });
+  }, [schedules.loading, active]);
   const accountNames = useMemo(() => new Map(accounts.map((account) => [account.id, account.name])), [accounts]);
   const payeeNames = useMemo(() => new Map((payees.data ?? []).map((payee) => [payee.id, payee.name])), [payees.data]);
   const rewardsSnapshot = useApi(`${planId}:reward-flag-names`, () => api.rewardsTrackerSnapshot(planId));
@@ -189,6 +202,7 @@ export function ScheduledTransactionsPage() {
     setMutationSuccess(null);
     try {
       await api.deleteScheduledTransaction(planId, schedule.id, idempotencyKey);
+      restoreAfterWrite(schedule.id, true);
       setPendingDeletion(null);
       if (editor?.mode === "edit" && editor.schedule.id === schedule.id) setEditor(null);
       refresh();
@@ -211,6 +225,7 @@ export function ScheduledTransactionsPage() {
         entry.enteredDate,
         entry.idempotencyKey,
       );
+      restoreAfterWrite(entry.schedule.id, result.completed);
       setPendingEntry(null);
       setMutationSuccess(
         result.completed
@@ -347,7 +362,7 @@ function ScheduleRows({ schedule, flagName, accounts, categories, payees, busy, 
   const amount = amountFor(schedule);
   const detail = [account, category, scheduleRecurrence(schedule.frequency)].filter(Boolean).join(" · ");
   return <>
-    <tr className="schedule-row"><td className="schedule-date">{schedule.date_next ? formatDate(schedule.date_next) : "Date unavailable"}</td><td><div className="schedule-payee">{payee}<FlagTag colour={schedule.flag_color} name={flagName} /></div>{schedule.memo && <div className="schedule-memo">{schedule.memo}</div>}<div className="schedule-mobile-detail">{detail}</div></td><td>{account}</td><td>{category}</td><td>{scheduleRecurrence(schedule.frequency)}</td><td className={amount < 0 ? "num amount-negative" : amount > 0 ? "num amount-positive" : "num"}>{formatMoney(amount, { sign: amount > 0 })}</td><td className="schedule-actions"><button type="button" className="register-row-action" onClick={onEnter} disabled={busy || !schedule.date_next} aria-label={`Enter ${payee} now`}>Enter now</button><button type="button" className="register-row-action" onClick={onEdit} disabled={busy} aria-label={`Edit ${payee}`}>Edit</button><button type="button" className="register-row-action register-row-action-danger" onClick={onDelete} disabled={busy} aria-label={`Delete ${payee}`}>Delete</button></td></tr>
+    <tr id={`schedule-${schedule.id}`} className="schedule-row"><td className="schedule-date">{schedule.date_next ? formatDate(schedule.date_next) : "Date unavailable"}</td><td><div className="schedule-payee">{payee}<FlagTag colour={schedule.flag_color} name={flagName} /></div>{schedule.memo && <div className="schedule-memo">{schedule.memo}</div>}<div className="schedule-mobile-detail">{detail}</div></td><td>{account}</td><td>{category}</td><td>{scheduleRecurrence(schedule.frequency)}</td><td className={amount < 0 ? "num amount-negative" : amount > 0 ? "num amount-positive" : "num"}>{formatMoney(amount, { sign: amount > 0 })}</td><td className="schedule-actions"><button type="button" className="register-row-action" onClick={onEnter} disabled={busy || !schedule.date_next} aria-label={`Enter ${payee} now`}>Enter now</button><button type="button" className="register-row-action" onClick={onEdit} disabled={busy} aria-label={`Edit ${payee}`}>Edit</button><button type="button" className="register-row-action register-row-action-danger" onClick={onDelete} disabled={busy} aria-label={`Delete ${payee}`}>Delete</button></td></tr>
     {(schedule.subtransactions ?? []).map((line) => <SplitScheduleRow key={line.id} line={line} accounts={accounts} categories={categories} payees={payees} />)}
   </>;
 }

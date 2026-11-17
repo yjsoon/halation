@@ -64,3 +64,11 @@ Setup: existing disposable `control-howmuch launch` stack `20261117T113404-3430`
 - Before, Escape left both Enter now and Delete confirmations open. At both widths after the fix, Escape closes each and restores focus to `Enter No payee now` or `Delete No payee` respectively.
 - Escape clicks the existing Cancel button, so its disabled-during-write guard and focus path apply without a second cancellation implementation.
 - Schedule read-back retains both original IDs, `deleted:false` and next date 2026-11-17. No occurrence was entered or deleted by cancellation.
+
+## R-10: Focus after a schedule leaves the list
+
+- Reproduced by creating and deleting R10 before: after the list refreshed, focus was BODY despite two remaining rows.
+- At both widths created one-off −1.10 schedules `R10 Delete {width}` and `R10 Enter {width}`, then confirmed the corresponding action. After each refresh, focus is on an action in a remaining row, never BODY. The destination is the following row, or previous row at the end.
+- Transactions read-back confirms exactly R10 Enter 1440 and R10 Enter 390 at −1100. Schedule read-back retains only the two original active schedules, so both delete and one-off completion genuinely removed their rows.
+- Restoration waits for the refreshed list and does not steal focus if the user has moved it elsewhere. Recurring Enter restores its own row.
+- Extended checks: at both widths deleting the last schedule and entering the last one-off schedule produce `{rows:0, focus:"Add schedule"}`. Read-back returns `R10 last Enter 1440` and `R10 last Enter 390`, both −1100 on 2026-11-17, and no active schedules after clean-up. Entering the monthly Travel Card schedule at 390 advanced it to 17 December and restored its own Enter now action.
