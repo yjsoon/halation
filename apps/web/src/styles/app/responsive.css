@@ -512,6 +512,13 @@
     width: auto;
   }
 
+  .col-bar {
+    width: 16%;
+  }
+}
+
+/* Keep Scheduled's actions beside their rows before the tables stop fitting. */
+@media (max-width: 1000px) {
   .schedule-section .table-wrap {
     overflow: visible;
   }
@@ -573,6 +580,7 @@
     grid-column: 2 / -1;
     grid-row: 2;
     justify-content: flex-start;
+    flex-wrap: wrap;
     gap: 8px;
     width: auto;
     margin-top: 5px;
@@ -614,12 +622,6 @@
     display: none;
   }
 
-  .col-bar {
-    width: 16%;
-  }
-}
-
-@media (max-width: 720px) {
   .card-payments-table thead {
     display: none;
   }
@@ -681,7 +683,9 @@
     align-items: flex-start;
     flex-direction: column;
   }
+}
 
+@media (max-width: 720px) {
   .card-terms-dialog {
     max-height: 100dvh;
   }
