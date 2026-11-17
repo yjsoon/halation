@@ -357,11 +357,22 @@ export function RegisterEditableRow(props: {
       <tr
         className="register-compose-actions-row"
         onKeyDown={(event) => {
-          if (event.key !== "Escape" || busy) {
+          if (event.key === "Escape") {
+            if (busy) return;
+            event.preventDefault();
+            surface.cancel();
             return;
           }
-          event.preventDefault();
-          surface.cancel();
+          if (event.nativeEvent.isComposing || event.keyCode === 229) {
+            return;
+          }
+          // Enter in a field here (a split line, the account) saves, as on the row.
+          if (event.key === "Enter" && (event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)) {
+            event.preventDefault();
+            if (!busy) {
+              surface.commit({ approve: !approved });
+            }
+          }
         }}
       >
         <td colSpan={9}>
@@ -668,6 +679,18 @@ function SplitEditor({ id, lines, categoryId, total, amountText, remainder, paye
 }): ReactElement {
   const update = (key: string, patch: Partial<RowSplitLine>) =>
     onChange((lines ?? []).map((line) => (line.key === key ? { ...line, ...patch } : line)));
+  // Remove line takes its button with it, so focus moves to the line that
+  // took its place, or to + Add line when it was the last.
+  const linesRef = useRef<HTMLDivElement>(null);
+  const focusLineAfterRemove = useRef<number | null>(null);
+  useEffect(() => {
+    const index = focusLineAfterRemove.current;
+    if (index === null) return;
+    focusLineAfterRemove.current = null;
+    const container = linesRef.current;
+    const next = container?.querySelectorAll<HTMLElement>(".split-line")[index]?.querySelector<HTMLElement>("select");
+    (next ?? container?.querySelector<HTMLElement>(":scope > .split-toggle"))?.focus();
+  }, [lines]);
   return (
     <div className="register-split">
       <div className="split-controls">
@@ -683,7 +706,7 @@ function SplitEditor({ id, lines, categoryId, total, amountText, remainder, paye
         </button>
       </div>
       {lines && (
-        <div className="split-lines register-split-lines">
+        <div className="split-lines register-split-lines" ref={linesRef}>
           <datalist id={`${id}-split-payees`}>
             {payeeOptions.map((value) => <option key={value} value={value} />)}
           </datalist>
@@ -753,7 +776,10 @@ function SplitEditor({ id, lines, categoryId, total, amountText, remainder, paye
                   aria-label={`Remove split line ${index + 1}`}
                   title="Remove line"
                   disabled={disabled}
-                  onClick={() => onChange(lines.filter((candidate) => candidate.key !== line.key))}
+                  onClick={() => {
+                    focusLineAfterRemove.current = index;
+                    onChange(lines.filter((candidate) => candidate.key !== line.key));
+                  }}
                 >
                   Remove line
                 </button>
