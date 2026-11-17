@@ -3,6 +3,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { CreditCard } from "../api/types";
 import { SettingsCrumb } from "../components/SettingsCrumb";
+import { StatusPanel } from "../components/StatusPanel";
 import { providerName, ToolProvider, type ToolCredentials } from "../components/ToolProvider";
 import { compileTermsDraft, TERMS_HOSTS } from "../../../api/src/reward-tools-contract";
 import { patchRewardCard, toolRequest } from "../lib/reward-tools";
@@ -62,7 +63,11 @@ export function RewardTermsPage() {
     <header className="report-header"><SettingsCrumb current="Reward terms" /></header>
     <p>Turn bank terms into a draft. Review every rate, spend cap and exclusion before saving. No ledger data or account identifiers are sent to the provider.</p>
     <label>Existing reward card<select disabled={busy} value={cardId} onChange={(event) => setParams({ card: event.target.value })}><option value="">Select a card…</option>{cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
-    {loaded && cards.length === 0 && <p className="diagnostic-note">No reward cards yet. <Link to="/rewards/new">Add card</Link> on Rewards first, then come back to draft its rules.</p>}
+    {loaded && cards.length === 0 && (
+      <StatusPanel title="Add your first reward card">
+        <Link className="add-button" to="/rewards/new">Add card</Link>
+      </StatusPanel>
+    )}
     {cardId && cards.length > 0 && !card && <p role="alert">This card is unavailable.</p>}
     <form onSubmit={(event) => { event.preventDefault(); void generate(); }}>
       <fieldset disabled={busy}><ToolProvider value={credentials} onChange={(value) => { setCredentials(value); setConsent(false); }} />

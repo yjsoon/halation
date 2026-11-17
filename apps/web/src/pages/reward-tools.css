@@ -24,3 +24,5 @@
 .tool-error { color: var(--red); }
 .reward-tool pre { max-height: 220px; overflow: auto; white-space: pre-wrap; }
 @media (max-width: 650px) { .tool-provider { grid-template-columns: 1fr; } }
+/* The empty state's Add card link sits clear of its title. */
+.reward-tool .status-detail { margin-top: 12px; }

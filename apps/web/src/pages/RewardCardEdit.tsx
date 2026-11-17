@@ -541,7 +541,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
           ) : (
           <fieldset className="transaction-editor-splits rewards-editor-block">
             <legend>Colour names</legend>
-            <p className="field-note">These names show on this account’s flags. Accounts without a reward card keep the plain colour tags.</p>
+            <p className="field-note">Names apply only to this account.</p>
             <div className="rewards-colour-names">
               {REWARD_NAME_COLOURS.map((colour) => {
                 const label = colour === "unflagged" ? "None" : colour[0]!.toUpperCase() + colour.slice(1);
