@@ -1,6 +1,7 @@
-import type { Payee, QuickEntryInput } from "../api/types";
+import type { Payee, QuickEntryInput, Transaction } from "../api/types";
 import { todayIso } from "./dates";
-import { amountFormatHint, formatMilliunitsInput, parseMilliunits, withPlanDecimal } from "./money";
+import { legacyWords } from "./follow-up";
+import { amountFormatHint, formatMilliunitsField, formatMilliunitsInput, parseMilliunits, withPlanDecimal } from "./money";
 
 export type RegisterComposeDraft = {
   clientId: string;
@@ -22,6 +23,7 @@ export type RegisterComposeState =
 
 type RegisterComposeAction =
   | { type: "open"; accountId: string }
+  | { type: "open-draft"; draft: RegisterComposeDraft }
   | { type: "close" }
   | { type: "patch"; draft: Partial<Pick<RegisterComposeDraft, "date" | "accountId" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "toClaim">> }
   | { type: "set-outflow"; value: string }
@@ -50,6 +52,27 @@ export function emptyComposeDraft(accountId: string, date = todayIso()): Registe
   };
 }
 
+/**
+ * "Duplicate for today": a new draft dated today with what iOS copies from
+ * the row (amount and its direction, payee or transfer, account, category,
+ * flag, memo, and a To claim mark), and nothing about its state. The caller
+ * offers it on rows without split lines, which the add row cannot hold.
+ */
+export function duplicateComposeDraft(txn: Transaction): RegisterComposeDraft {
+  const legacy = legacyWords(txn.memo);
+  const amount = formatMilliunitsField(Math.abs(txn.amount));
+  return {
+    ...emptyComposeDraft(txn.account_id),
+    payeeName: txn.payee_name ?? "",
+    categoryId: txn.transfer_account_id ? "" : txn.category_id ?? "",
+    memo: legacy.text,
+    outflow: txn.amount < 0 ? amount : "",
+    inflow: txn.amount < 0 ? "" : amount,
+    flagColor: txn.flag_color ?? "",
+    toClaim: (txn.claim_status ?? legacy.claim) === "to_claim",
+  };
+}
+
 export function closedCompose(): RegisterComposeState {
   return { status: "closed" };
 }
@@ -61,6 +84,8 @@ export function reduceCompose(state: RegisterComposeState, action: RegisterCompo
         return state.saving ? state : { ...state, error: null };
       }
       return { status: "open", draft: emptyComposeDraft(action.accountId), saving: false, error: null };
+    case "open-draft":
+      return state.status === "open" && state.saving ? state : { status: "open", draft: action.draft, saving: false, error: null };
     case "close":
       return { status: "closed" };
     case "patch":

@@ -47,12 +47,14 @@ export function RegisterEditableRow(props: {
   payeeExtra?: ReactNode;
   flagNames?: Record<string, string>;
   onDelete?: () => void;
+  /** Opens a copy dated today in the add row; absent when the row cannot be copied there. */
+  onDuplicate?: () => void;
   /** Confirms an estimated amount as it stands; absent when the row cannot. */
   onConfirm?: () => void;
   confirming?: boolean;
   targeted?: boolean;
 }): ReactElement | null {
-  const { row, surface, leading, account, status, payeeExtra, flagNames, onDelete, onConfirm, confirming = false, targeted = false } = props;
+  const { row, surface, leading, account, status, payeeExtra, flagNames, onDelete, onDuplicate, onConfirm, confirming = false, targeted = false } = props;
   const line = row.kind === "split-line"
     ? row.parent.subtransactions?.find((sub) => sub.id === row.lineId)
     : undefined;
@@ -366,6 +368,11 @@ export function RegisterEditableRow(props: {
                 />
               </div>
             )}
+            {onDuplicate && !split ? (
+              <button type="button" className="register-compose-cancel" onClick={onDuplicate} disabled={busy}>
+                Duplicate for today
+              </button>
+            ) : null}
             {onDelete && !split ? (
               <button type="button" className="register-compose-delete" onClick={onDelete} disabled={busy}>
                 {approved ? "Delete" : "Reject"}

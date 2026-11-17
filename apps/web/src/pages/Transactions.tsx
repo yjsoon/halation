@@ -51,6 +51,7 @@ import {
   composePayload,
   reduceCompose,
   type RegisterComposeState,
+  duplicateComposeDraft,
 } from "../lib/register-compose";
 import { useIsPhone } from "../lib/use-is-phone";
 import {
@@ -990,6 +991,20 @@ export function TransactionsPage() {
     setComposeFocus((nonce) => nonce + 1);
     setMutationError(null);
     setMutationSuccess(null);
+  };
+
+  // Desktop only, like the add row it opens; a split cannot be copied there.
+  const duplicateFor = (txn: Transaction) => {
+    if (isPhone || !canCompose || txn.subtransactions?.length) return undefined;
+    if (lockedComposeAccount && lockedComposeAccount.id !== txn.account_id) return undefined;
+    if (!accounts.some((account) => account.id === txn.account_id && !account.closed)) return undefined;
+    return () => {
+      replaceRowEdit(idleRowEdit());
+      setCompose((current) => reduceCompose(current, { type: "open-draft", draft: duplicateComposeDraft(txn) }));
+      setComposeFocus((nonce) => nonce + 1);
+      setMutationError(null);
+      setMutationSuccess(null);
+    };
   };
 
   const dispatchRowEdit = (action: RegisterRowEditAction) => {
@@ -2437,6 +2452,7 @@ export function TransactionsPage() {
                               setPendingDeletion(txn);
                               setMutationError(null);
                             }}
+                            onDuplicate={duplicateFor(txn)}
                             status={(
                               <ClearedStatus
                                 transaction={txn}
@@ -2493,6 +2509,7 @@ export function TransactionsPage() {
                           setPendingDeletion(txn);
                           setMutationError(null);
                         }}
+                        onDuplicate={duplicateFor(txn)}
                         status={(
                           <ClearedStatus
                             transaction={txn}
