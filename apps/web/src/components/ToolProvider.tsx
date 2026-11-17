@@ -1,9 +1,11 @@
 export type ToolCredentials = { provider: string; model: string; apiKey: string };
+const PROVIDER_NAMES: Record<string, string> = { openai: "OpenAI", openrouter: "OpenRouter", gemini: "Google Gemini", opencode: "OpenCode" };
+/** The provider's name as the picker shows it, for the consent line. */
+export const providerName = (provider: string): string => PROVIDER_NAMES[provider] ?? provider;
 export function ToolProvider({ value, onChange, statement = false }: { value: ToolCredentials; onChange: (value: ToolCredentials) => void; statement?: boolean }) {
   return <div className="tool-provider">
     <label>Provider<select value={value.provider} onChange={(event) => onChange({ provider: event.target.value, model: "", apiKey: "" })}>
-      <option value="openai">OpenAI</option><option value="openrouter">OpenRouter</option>
-      {statement ? <option value="gemini">Google Gemini</option> : <option value="opencode">OpenCode</option>}
+      {["openai", "openrouter", statement ? "gemini" : "opencode"].map((id) => <option key={id} value={id}>{providerName(id)}</option>)}
     </select></label>
     <label>Exact model ID<input required value={value.model} maxLength={160} placeholder={value.provider === "gemini" ? "gemini-3-flash-preview" : value.provider === "openrouter" ? "openai/gpt-4o-mini" : value.provider === "opencode" ? "deepseek-v4-flash" : "gpt-4o-mini"} onChange={(event) => onChange({ ...value, model: event.target.value })} /></label>
     {value.provider === "openrouter" && <p className="diagnostic-note">Any compatible OpenRouter model ID is accepted, including Claude. Include the vendor prefix, for example <code>anthropic/claude-sonnet-4.5</code>. Check the <a href="https://openrouter.ai/models" target="_blank" rel="noreferrer">current model list</a>{statement ? " and choose a model that accepts images" : ""}.</p>}

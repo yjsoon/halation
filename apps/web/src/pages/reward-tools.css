@@ -3,7 +3,9 @@
 .reward-tool input, .reward-tool select, .reward-tool textarea { font: inherit; padding: 9px 10px; border: 1px solid var(--rule-control); border-radius: 5px; min-width: 0; width: 100%; color: inherit; background: var(--paper-raised); }
 .reward-tool textarea { resize: vertical; }
 .reward-tool fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
-.reward-tool button { padding: 8px 14px; cursor: pointer; }
+/* Secondary actions are the Rewards board's outlined pill; each step's one primary action is plum, as Save is elsewhere. */
+.reward-tool button { min-height: 34px; padding: 0 14px; border: 1px solid var(--rule-control); border-radius: 18px; background: var(--paper-raised); font-size: 13px; cursor: pointer; }
+.reward-tool .primary-button { min-height: 42px; padding: 0 22px; border-color: transparent; border-radius: var(--radius-action); background: var(--plan-accent); color: var(--on-accent); font-size: 15px; font-weight: 600; }
 .reward-tool button:disabled { cursor: default; opacity: .5; }
 .tool-provider { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 16px; }
 .tool-provider p { grid-column: 1 / -1; }

@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { CreditCard } from "../api/types";
-import { ToolProvider, type ToolCredentials } from "../components/ToolProvider";
+import { SettingsCrumb } from "../components/SettingsCrumb";
+import { providerName, ToolProvider, type ToolCredentials } from "../components/ToolProvider";
 import { compileTermsDraft, TERMS_HOSTS } from "../../../api/src/reward-tools-contract";
 import { patchRewardCard, toolRequest } from "../lib/reward-tools";
 import { usePlan } from "../state/plan";
@@ -57,7 +58,7 @@ export function RewardTermsPage() {
     finally { setBusy(false); }
   };
   return <div className="reward-tool">
-    <header className="report-header"><div><h1>Reward terms</h1></div><Link to="/settings">Settings</Link></header>
+    <header className="report-header"><SettingsCrumb current="Reward terms" /></header>
     <p>Turn bank terms into a draft. Review every rate, spend cap and exclusion before saving. No ledger data or account identifiers are sent to the provider.</p>
     <label>Existing reward card<select disabled={busy} value={cardId} onChange={(event) => setParams({ card: event.target.value })}><option value="">Select a card…</option>{cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
     {cardId && cards.length > 0 && !card && <p role="alert">This card is unavailable.</p>}
@@ -66,7 +67,7 @@ export function RewardTermsPage() {
         <label>Terms URL (optional)<input type="url" value={url} maxLength={2048} onChange={(event) => setUrl(event.target.value)} placeholder="https://www.dbs.com.sg/…" /></label>
         <details><summary>Supported URLs and privacy</summary><p>HTTPS only on {TERMS_HOSTS.join(", ")}. Redirects and PDFs are rejected. Paste their text below instead. Only the supplied terms and card type go to your provider; do not paste secrets or ledger data.</p></details>
         <label>Pasted terms and/or instructions<textarea value={terms} maxLength={80000} rows={8} onChange={(event) => setTerms(event.target.value)} placeholder="Paste reward rates, eligible spending, caps, exclusions, or your instructions…" /></label>
-        <label className="tool-consent"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />I consent to sending these terms/instructions and the card reward type to {credentials.provider} using my key. Provider charges and retention policies apply.</label>
+        <label className="tool-consent"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />I consent to sending these terms/instructions and the card reward type to {providerName(credentials.provider)} using my key. Provider charges and retention policies apply.</label>
         <button disabled={!card || !consent || (!terms.trim() && !url.trim())} className="primary-button">Generate review draft</button>
       </fieldset>
     </form>

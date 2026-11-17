@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
-import { ToolProvider, type ToolCredentials } from "../components/ToolProvider";
+import { SettingsCrumb } from "../components/SettingsCrumb";
+import { providerName, ToolProvider, type ToolCredentials } from "../components/ToolProvider";
 import { ROW_FIELDS, statementCsv, type StatementRow } from "../../../api/src/reward-tools-contract";
 import { mergeStatementImages, readStatementImage, toolRequest, type StatementImage } from "../lib/reward-tools";
 import { usePlan } from "../state/plan";
@@ -49,7 +49,7 @@ export function StatementFormatterPage() {
     } catch { setError("Correct each date (YYYY-MM-DD) and amount (digits and decimal cents, one flow per row) before exporting."); }
   };
   return <div className="reward-tool">
-    <header className="report-header"><div><h1>Statement formatter</h1></div><Link to="/settings">Settings</Link></header>
+    <header className="report-header"><SettingsCrumb current="Statement formatter" /></header>
     <p>Extract images into editable CSV rows. Nothing is imported into your ledger. Images, rows and provider keys are held only in this page’s memory.</p>
     <form onSubmit={(event) => { event.preventDefault(); void extract(); }}><fieldset disabled={busy || loading}>
       <ToolProvider value={credentials} statement onChange={(value) => { setCredentials(value); setConsent(false); }} />
@@ -57,8 +57,8 @@ export function StatementFormatterPage() {
       {images.length > 0 && <ul className="tool-images">{images.map((image) => <li key={image.id}><img src={image.data} alt={`Preview of ${image.name}`} /><span>{image.name}</span><button type="button" aria-label={`Remove ${image.name}`} onClick={() => { setImages((current) => current.filter((i) => i.id !== image.id)); setConsent(false); }}>Remove</button></li>)}</ul>}
       <label>Extraction instructions (optional)<textarea rows={2} maxLength={10000} value={instructions} onChange={(event) => setInstructions(event.target.value)} placeholder="For example: dates use DD/MM/YYYY" /></label>
       <label>Existing rows<select value={append ? "append" : "replace"} onChange={(event) => setAppend(event.target.value === "append")}><option value="append">Append extracted rows</option><option value="replace">Replace rows when the first image succeeds</option></select></label>
-      <label className="tool-consent"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />I consent to sending these statement images and instructions to {credentials.provider} using my key. They may contain sensitive financial data. Provider charges and retention policies apply.</label>
-      <button className="primary-button" disabled={!consent || images.length === 0}>Extract {images.length || ""} images</button>
+      <label className="tool-consent"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />I consent to sending these statement images and instructions to {providerName(credentials.provider)} using my key. They may contain sensitive financial data. Provider charges and retention policies apply.</label>
+      <button className="primary-button" disabled={!consent || images.length === 0}>{images.length === 0 ? "Extract images" : `Extract ${images.length} ${images.length === 1 ? "image" : "images"}`}</button>
     </fieldset></form>
     {busy && <button onClick={cancel}>Cancel extraction</button>}
     <p role="status">{loading ? "Reading images…" : status}</p>{error && <p className="tool-error" role="alert">{error}</p>}
