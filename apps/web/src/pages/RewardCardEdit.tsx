@@ -119,7 +119,11 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   const { planId, accounts, categoryGroups } = usePlan();
   const location = useLocation();
   const navigate = useNavigate();
-  const rewardsHref = { pathname: "/rewards", search: location.search };
+  // Back to the board with the filters it was opened under. `account` only
+  // preselects Add card from an account's settings; it is not a board filter.
+  const boardParams = new URLSearchParams(location.search);
+  boardParams.delete("account");
+  const rewardsHref = { pathname: "/rewards", search: boardParams.size > 0 ? `?${boardParams}` : "" };
   const [searchParams] = useSearchParams();
   const [draft, setDraft] = useState<CardDraft>(() => {
     if (card) return draftFromCard(card);
