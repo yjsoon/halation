@@ -463,6 +463,7 @@ export function TransactionsPage() {
   }, [deepLink, planId, refreshGeneration]);
 
   const composeScope = selectedAccountId ?? (filters.accountIds.join(",") || "all");
+  const toastFollowsScopeRef = useRef(false);
   // Opening another account closes what was open on the last one: a draft
   // or confirmation there must not act on rows that are no longer on screen.
   useEffect(() => {
@@ -473,6 +474,10 @@ export function TransactionsPage() {
     setSearch("");
     setUnapprovedOnlyState(false);
     setFollowUpOnlyState(null);
+    // A toast belongs to the account it was about, except the one that
+    // reports the deletion that brought the reader to the Ledger.
+    if (toastFollowsScopeRef.current) toastFollowsScopeRef.current = false;
+    else setMutationSuccess(null);
   }, [composeScope]);
   const schedules = useCachedApi<ScheduledTransaction[]>({
     slot: "scheduled",
@@ -2264,6 +2269,7 @@ export function TransactionsPage() {
               setCardSettingsAccountId(null);
               setMutationError(null);
               setMutationSuccess(message);
+              toastFollowsScopeRef.current = true;
               navigate("/transactions?range=all&accounts=all", { replace: true });
             }}
             onSaved={(message, card) => {
