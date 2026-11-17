@@ -30,3 +30,10 @@ Base: `53be3b42`. Disposable stack `20261117T113404-3430`, Chromium browser sess
 - Entered the all-open schedule once at each width. `control-howmuch http GET /v1/plans/local-plan/transactions` returned two reciprocal pairs for `VP01 open`: −15000 on acct-everyday and +15000 on acct-credit, with matching transfer account IDs. Filtering acct-saver and sorting by ID before and after gives byte-identical JSON (`cmp`: `Closed-account transactions unchanged`). Neither closed-target schedule was materialised.
 - Code checks the posting account, parent transfer account and every split transfer account. The label belongs to the actual closed account, not the open posting account. No API changes.
 - Inspected vp01-after-390.png and vp01-after-1440.png, with matching before captures. Both show the plain/split/open cases without clipping or overlap.
+
+## VP-09: Withhold the match tick for incomplete split lines
+
+- On integrated base `06322e8b`, entered Spend 12 with 7 Outflow, 2 Inflow, 7 Outflow, then added an empty fourth line. Before: `{summary:"✓ Lines match the total.", disabled:true}`. Only the split summary changes, leaving the draft and validation code untouched.
+- At 390 and 1440 after the fix, empty or zero fourth line yields `{summary:"", disabled:true}`. Removing it and changing the third line to 6 yields `{summary:"+$1.00 left to assign.", disabled:true}`. Restoring 7 yields `{summary:"✓ Lines match the total.", disabled:false}`. No new copy was added.
+- Saved the complete three-line entries with memos `VP09 complete 390` and `VP09 complete 1440`. `control-howmuch http GET /v1/plans/local-plan/transactions` confirms both parents at −12000 milliunits and children [−7000, +2000, −7000]. No incomplete entry was submitted.
+- Matching before/after captures exist at both widths; inspected the narrow incomplete and desktop complete states. The pointer recording vp09-summary.mp4 shows adding and removing an empty line. Media remains untracked.

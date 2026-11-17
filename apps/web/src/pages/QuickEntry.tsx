@@ -431,10 +431,10 @@ export function QuickEntryPage() {
               >
                 + Add line
               </button>
-              <p role="status" className={splitRemainderMilliunits === 0 ? "split-remainder split-remainder-ok" : "split-remainder"}>
-                {splitRemainderMilliunits === 0
+              <p role="status" className={validSplit ? "split-remainder split-remainder-ok" : "split-remainder"}>
+                {validSplit
                   ? "✓ Lines match the total."
-                  : `${formatMoney(splitRemainderMilliunits, { sign: true })} left to assign.`}
+                  : splitRemainderMilliunits !== 0 ? `${formatMoney(splitRemainderMilliunits, { sign: true })} left to assign.` : null}
               </p>
             </div>
           )}
