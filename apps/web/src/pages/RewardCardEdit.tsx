@@ -310,8 +310,8 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
       <section className="transaction-editor" aria-labelledby="card-editor-heading">
         <div className="section-heading">
           <div>
-            <span className="section-title" id="card-editor-heading">{card ? "Card details" : "Existing Halation card"}</span>
-            <span className="section-meta">Pick an existing open on-budget account, including checking or debit. This does not create a new ledger account.</span>
+            <span className="section-title" id="card-editor-heading">{card ? "Card details" : "Existing Halation account"}</span>
+            <span className="section-meta">Pick an existing open Budget account, including a current or savings account. This does not create a new ledger account.</span>
           </div>
         </div>
         <form
@@ -330,7 +330,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
           )}
           <div className="field-row">
             <label className="field">
-              <span className="field-label">Halation card</span>
+              <span className="field-label">Halation account</span>
               <select
                 value={draft.ynabAccountId}
                 onChange={(event) => {
@@ -347,7 +347,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
                 }}
                 required
               >
-                <option value="">Choose a Halation card</option>
+                <option value="">Choose a Halation account</option>
                 {accountChoices.map((account) => (
                   <option key={account.id} value={account.id}>
                     {account.name}{account.closed ? " (closed)" : ""}
@@ -515,7 +515,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
           ) : (
           <fieldset className="transaction-editor-splits rewards-editor-block">
             <legend>Colour names</legend>
-            <p className="field-note">These names show on this account’s flags. Everyday Account and other untracked accounts keep the plain colour tags.</p>
+            <p className="field-note">These names show on this account’s flags. Accounts without a reward card keep the plain colour tags.</p>
             <div className="rewards-colour-names">
               {REWARD_NAME_COLOURS.map((colour) => {
                 const label = colour === "unflagged" ? "None" : colour[0]!.toUpperCase() + colour.slice(1);
@@ -1101,7 +1101,7 @@ export function draftFromCard(card: CreditCard): CardDraft {
 }
 
 export function creditCardWrite(draft: CardDraft, options: { clearMissing?: boolean } = {}): { card: CreditCard } | { error: string } {
-  if (!draft.ynabAccountId) return { error: "Choose a Halation card." };
+  if (!draft.ynabAccountId) return { error: "Choose a Halation account." };
   if (!draft.name.trim()) return { error: "Enter a card name." };
 
   const card: CreditCard = {
