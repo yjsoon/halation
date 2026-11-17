@@ -469,6 +469,7 @@ export function TransactionsPage() {
     setCompose(closedCompose());
     setPendingDeletion(null);
     setPendingBulkDeletion(null);
+    setReconcileDraft(null);
   }, [composeScope]);
   const schedules = useCachedApi<ScheduledTransaction[]>({
     slot: "scheduled",
