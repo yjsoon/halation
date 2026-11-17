@@ -66,7 +66,7 @@ export function RewardsImportPage() {
         <SettingsCrumb current="Rewards import & export" />
       </header>
 
-      <AccountConfigExchange key={planId} busy={busy} setBusy={setBusy} configuredAccounts={cards.map((card) => card.ynabAccountId)} onImported={() => {
+      <AccountConfigExchange key={planId} busy={busy} setBusy={setBusy} configuredAccounts={snapshot.data ? cards.map((card) => card.ynabAccountId) : null} onImported={() => {
         setGeneration((value) => value + 1);
         reload();
       }} />
@@ -164,12 +164,14 @@ export function RewardsImportPage() {
   );
 }
 
-function AccountConfigExchange({ busy, setBusy, configuredAccounts, onImported }: {
+function AccountConfigExchange({ busy, setBusy, configuredAccounts: loadedAccounts, onImported }: {
   busy: boolean;
   setBusy: (busy: boolean) => void;
-  configuredAccounts: string[];
+  /** Accounts with a stored reward card; null until the stored cards have loaded. */
+  configuredAccounts: string[] | null;
   onImported: () => void;
 }) {
+  const configuredAccounts = loadedAccounts ?? [];
   const { planId, accounts } = usePlan();
   const [accountId, setAccountId] = useState("");
   const [file, setFile] = useState<RewardsAccountConfig | null>(null);
@@ -223,6 +225,9 @@ function AccountConfigExchange({ busy, setBusy, configuredAccounts, onImported }
     }
   };
 
+  // Export stays disabled for an account with no reward card; the note beside it says why.
+  const nothingToExport = Boolean(account) && loadedAccounts !== null && !loadedAccounts.includes(accountId);
+
   return (
     <section className="report-section" aria-labelledby="account-config-heading">
       <h2 id="account-config-heading">One account’s rewards configuration</h2>
@@ -235,8 +240,10 @@ function AccountConfigExchange({ busy, setBusy, configuredAccounts, onImported }
             {accounts.filter((entry) => !entry.closed || configuredAccounts.includes(entry.id)).map((entry) => <option key={entry.id} value={entry.id}>{entry.name}</option>)}
           </select>
         </label>
-        <button type="button" className="save-button" disabled={busy || !account || !configuredAccounts.includes(accountId)} onClick={() => void exchange("export")}>Export account config</button>
+        <button type="button" className="save-button" disabled={busy || !account || !configuredAccounts.includes(accountId)}
+          aria-describedby={nothingToExport ? "account-config-export-note" : undefined} onClick={() => void exchange("export")}>Export account config</button>
       </div>
+      {nothingToExport && <p className="field-note" id="account-config-export-note">No rewards rules on this account.</p>}
       <div className="rewards-import-form">
         <label className="field">
           <span className="field-label">Per-account rewards JSON</span>
