@@ -1489,6 +1489,14 @@ export function TransactionsPage() {
     () => matchedRows.filter(listsRow),
     [deepLinkedTransactionId, filters.to, matchedRows, today],
   );
+  // A linked row outside the filters is listed so it can be found, but the
+  // footer describes the filtered list, not the row the link added.
+  const linkedOutsideFilters = forcedTransaction !== null
+    && !normallyScopedRows.some((txn) => txn.id === forcedTransaction.id);
+  const footerRows = useMemo(
+    () => (linkedOutsideFilters ? rows.filter((txn) => txn.id !== forcedTransaction?.id) : rows),
+    [forcedTransaction, linkedOutsideFilters, rows],
+  );
   const postedFutureRows = useMemo(
     () => matchedRows.filter((txn) => !listsRow(txn)),
     [deepLinkedTransactionId, filters.to, matchedRows, today],
@@ -1748,8 +1756,8 @@ export function TransactionsPage() {
   // A category or report view totals only the split lines the report that
   // links to it counts, so the two agree.
   const totals = useMemo(
-    () => flowTotals(narrowsLines ? rows.flatMap((txn) => reportLines(txn).filter(lineInView)) : rows),
-    [categoryIds, filters.categoryIds.length, flow, narrowsLines, rows, wantsUncategorised],
+    () => flowTotals(narrowsLines ? footerRows.flatMap((txn) => reportLines(txn).filter(lineInView)) : footerRows),
+    [categoryIds, filters.categoryIds.length, flow, narrowsLines, footerRows, wantsUncategorised],
   );
   const selectedAnyReconciled = selectedRows.some((txn) => txn.cleared === "reconciled");
   const selectedAllReconciled = selectedRows.length > 0 && selectedRows.every((txn) => txn.cleared === "reconciled");
@@ -1767,24 +1775,24 @@ export function TransactionsPage() {
     && !queueMode;
   const footerMeta = registerQuery
     ? searchStatusCopy({
-        shown: rows.length,
+        shown: footerRows.length,
         scheduled: visibleSchedules.length,
         hasMore: searchPage.hasMore,
         loading: searchPage.loading,
         error: searchPage.error,
       })
-    : `${rows.length} ${rows.length === 1 ? "transaction" : "transactions"} · ${formatMoney(totals.inflow)} in · ${formatMoney(totals.outflow)} out · ${formatMoney(totals.net, { sign: true })} net`;
+    : `${footerRows.length} ${footerRows.length === 1 ? "transaction" : "transactions"} · ${formatMoney(totals.inflow)} in · ${formatMoney(totals.outflow)} out · ${formatMoney(totals.net, { sign: true })} net`;
   const settledRegister = !registerQuery && !queueMode && page.loaded && !page.filling && !page.loadingMore && !page.error;
   const olderWalkStalled = settledRegister && hasMoreToLoad
     && olderTap?.viewKey === olderTapViewKey
     && olderTap.rowCount === rows.length
     && olderTap.loads >= OLDER_LOADS_PER_WALK;
   const searchedBackTo = page.transactions.at(-1)?.date;
-  const earliestListed = rows.at(-1)?.date;
+  const earliestListed = footerRows.at(-1)?.date;
   const olderTapNote = !settledRegister
     ? null
     : !page.hasMore
-      ? (rows.length > 0 && earliestListed ? `No older transactions. Earliest here: ${formatDate(earliestListed)}.` : null)
+      ? (footerRows.length > 0 && earliestListed ? `No older transactions. Earliest here: ${formatDate(earliestListed)}.` : null)
       : olderWalkStalled && searchedBackTo
         ? `Nothing older in this view back to ${formatDate(searchedBackTo)}.`
         : null;
