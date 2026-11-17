@@ -4,7 +4,7 @@ import { formatPeriod } from "../lib/dates";
 
 const WIDTH = 960;
 const HEIGHT = 240;
-const PAD = { top: 12, right: 8, bottom: 24, left: 64 };
+const PAD = { top: 16, right: 8, bottom: 24, left: 64 };
 
 // Keep chart coordinates in CSS pixels so labels, dots and strokes do not shrink on narrow screens.
 function useChartWidth() {
@@ -18,6 +18,27 @@ function useChartWidth() {
     return () => observer.disconnect();
   }, []);
   return { ref, width };
+}
+
+function useChartDetail(labels: Map<string, string>) {
+  const [focused, setFocused] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  return {
+    detail: labels.get(hovered ?? focused ?? "") ?? "\u00a0",
+    pointProps: (period: string) => ({
+      tabIndex: 0,
+      role: "img",
+      "aria-label": labels.get(period),
+      className: "chart-point",
+      onFocus: () => {
+        setFocused(period);
+        setHovered(null);
+      },
+      onBlur: () => setFocused(null),
+      onMouseEnter: () => setHovered(period),
+      onMouseLeave: () => setHovered(null),
+    }),
+  };
 }
 
 function niceTicks(min: number, max: number): number[] {
@@ -112,6 +133,9 @@ export function PairedColumns({
   periods: Array<{ period: string; income: number; spending: number }>;
 }) {
   const { ref, width } = useChartWidth();
+  const { detail, pointProps } = useChartDetail(new Map(periods.map((period) => [
+    period.period, `${formatPeriod(period.period)} · Income ${formatAmount(period.income)} · Spending ${formatAmount(period.spending)}`,
+  ])));
   if (!periods.length) {
     return <EmptyChart />;
   }
@@ -121,13 +145,15 @@ export function PairedColumns({
   const bar = Math.min(18, Math.max(3, slot * 0.28));
 
   return (
-    <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="img" aria-label="Income versus spending by period">
+    <>
+    <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="group" aria-label="Income versus spending by period">
       <Gridlines frame={frame} />
       <g className="chart-plot" key={plotKey(periods)}>
         {periods.map((period, index) => {
           const centre = frame.x(index, periods.length);
           return (
-            <g key={period.period}>
+            <g key={period.period} {...pointProps(period.period)}>
+              <rect className="chart-hit" x={centre - slot / 2} y={PAD.top} width={slot} height={HEIGHT - PAD.top - PAD.bottom} />
               <rect
                 className="bar-income"
                 style={stagger(index)}
@@ -154,6 +180,8 @@ export function PairedColumns({
       </g>
       <XLabels labels={periods.map((p) => p.period)} frame={frame} />
     </svg>
+    <p className="chart-detail" aria-hidden="true">{detail}</p>
+    </>
   );
 }
 
@@ -163,6 +191,9 @@ export function SteppedLine({
   periods: Array<{ period: string; net_worth: number }>;
 }) {
   const { ref, width } = useChartWidth();
+  const { detail, pointProps } = useChartDetail(new Map(periods.map((period) => [
+    period.period, `${formatPeriod(period.period)} · Net worth ${formatMoney(period.net_worth)}`,
+  ])));
   if (!periods.length) {
     return <EmptyChart />;
   }
@@ -187,18 +218,20 @@ export function SteppedLine({
   return (
     <>
       <p className="chart-scale-note">{excludesZero ? "Zoomed value axis · zero not shown" : "Value axis includes zero"}</p>
-      <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="img" aria-label="Net worth over time">
+      <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="group" aria-label="Net worth over time">
         <Gridlines frame={frame} />
         <g className="chart-plot" key={plotKey(periods)}>
           <path className="area-line" d={path} pathLength={1} />
           {periods.map((period, index) => (
-            <circle key={period.period} className="dot" style={stagger(index)} cx={points[index].x} cy={points[index].y} r={2.5}>
-              <title>{`${formatPeriod(period.period)} ${formatMoney(period.net_worth)}`}</title>
-            </circle>
+            <g key={period.period} {...pointProps(period.period)}>
+              <circle className="chart-hit" cx={points[index].x} cy={points[index].y} r={10} />
+              <circle className="dot" style={stagger(index)} cx={points[index].x} cy={points[index].y} r={2.5} />
+            </g>
           ))}
         </g>
         <XLabels labels={periods.map((p) => p.period)} frame={frame} />
       </svg>
+      <p className="chart-detail" aria-hidden="true">{detail}</p>
     </>
   );
 }
@@ -209,6 +242,9 @@ export function DottedLine({
   periods: Array<{ period: string; value: number | null }>;
 }) {
   const { ref, width } = useChartWidth();
+  const { detail, pointProps } = useChartDetail(new Map(periods.filter((period) => period.value !== null).map((period) => [
+    period.period, `${formatPeriod(period.period)} · ${Math.round(period.value!)} days`,
+  ])));
   const present = periods.filter((p) => p.value !== null) as Array<{ period: string; value: number }>;
   if (!present.length) {
     return <EmptyChart />;
@@ -226,7 +262,8 @@ export function DottedLine({
   const path = points.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" ");
 
   return (
-    <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="img" aria-label="Age of money in days">
+    <>
+    <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="group" aria-label="Age of money in days">
       <g className="chart-grid">
         {ticks.map((tick) => (
           <g key={tick}>
@@ -240,13 +277,16 @@ export function DottedLine({
       <g className="chart-plot" key={plotKey(periods)}>
         <path className="dotted-line" d={path} />
         {points.map((point, index) => (
-          <circle key={point.period.period} className="dot dot-ink" style={stagger(index)} cx={point.x} cy={point.y} r={3}>
-            <title>{`${formatPeriod(point.period.period)} · ${Math.round(point.period.value ?? 0)} days`}</title>
-          </circle>
+          <g key={point.period.period} {...pointProps(point.period.period)}>
+            <circle className="chart-hit" cx={point.x} cy={point.y} r={10} />
+            <circle className="dot dot-ink" style={stagger(index)} cx={point.x} cy={point.y} r={3} />
+          </g>
         ))}
       </g>
       <XLabels labels={periods.map((p) => p.period)} frame={frame} />
     </svg>
+    <p className="chart-detail" aria-hidden="true">{detail}</p>
+    </>
   );
 }
 
