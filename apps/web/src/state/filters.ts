@@ -22,10 +22,10 @@ interface FilterOptions {
   throughToday?: boolean;
   /**
    * Intervals this report offers. A remembered or linked interval outside the
-   * list (Year chosen on Income, then Net worth opened) falls back to month, so
+   * list (Year chosen on Income, then Money age opened) falls back to month, so
    * the query, the highlighted segment and the summary always agree.
    */
-  intervals?: Interval[];
+  intervals?: Interval[] | ((range: { from?: string; to?: string }) => Interval[]);
 }
 
 const INTERVALS: Interval[] = ["day", "week", "month", "year"];
@@ -40,7 +40,7 @@ export function filtersFromSearch(
     defaultRange: () => { from?: string; to?: string };
     throughToday?: boolean;
     prefs?: ReturnType<typeof loadPrefs>;
-    intervals?: Interval[];
+    intervals?: FilterOptions["intervals"];
     /** Open accounts. A remembered account outside it (closed or deleted since) is dropped. */
     openAccountIds?: ReadonlySet<string>;
   },
@@ -63,7 +63,7 @@ export function filtersFromSearch(
     accountsParam === null ? remembered : accountsParam === "all" ? [] : parseList(accountsParam);
 
   const requested = (params.get("interval") ?? prefs.interval) as Interval | null;
-  const supported = options.intervals ?? INTERVALS;
+  const supported = typeof options.intervals === "function" ? options.intervals(range) : options.intervals ?? INTERVALS;
   const interval = requested && supported.includes(requested)
     ? requested
     : supported.includes("month") ? "month" : supported[0];

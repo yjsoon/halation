@@ -12,7 +12,7 @@ import { StatusPanel } from "../components/StatusPanel";
 import { HeadlineFigure, signTone } from "../components/HeadlineFigure";
 
 const TRAILING_YEAR = () => trailingMonthsRange(12);
-const INTERVALS: Interval[] = ["week", "month"];
+const INTERVALS: Interval[] = ["week", "month", "year"];
 
 export function NetWorthPage() {
   const { filters, setFilters, reportQuery } = useFilters({ defaultRange: TRAILING_YEAR, intervals: INTERVALS, throughToday: true });

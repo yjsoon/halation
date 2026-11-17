@@ -12,9 +12,15 @@ import { StatusPanel } from "../components/StatusPanel";
 import { HeadlineFigure, signTone } from "../components/HeadlineFigure";
 
 const INTERVALS: Interval[] = ["week", "month", "year"];
+const SHORT_INTERVALS: Interval[] = ["day", ...INTERVALS];
+
+function incomeIntervals({ from, to }: { from?: string; to?: string }): Interval[] {
+  const days = from && to ? (Date.parse(to) - Date.parse(from)) / 86400000 + 1 : Infinity;
+  return days > 0 && days <= 31 ? SHORT_INTERVALS : INTERVALS;
+}
 
 export function IncomePage() {
-  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ytdRange, intervals: INTERVALS, throughToday: true });
+  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ytdRange, intervals: incomeIntervals, throughToday: true });
   const report = useApi(JSON.stringify(reportQuery), () => api.incomeVsSpending(reportQuery));
   const isPhone = useIsPhone();
 
@@ -47,7 +53,7 @@ export function IncomePage() {
       <FilterRail
         filters={filters}
         setFilters={setFilters}
-        intervals={INTERVALS}
+        intervals={incomeIntervals(filters)}
         busy={report.loading}
         collapsible={isPhone}
         throughToday
