@@ -26,9 +26,11 @@ interface Props {
   /** An account register: its account is the page, not a filter, so Clear filters keeps it. */
   accountScopeFixed?: boolean;
   throughToday?: boolean;
+  /** Rows the page leaves out for a reason no control here shows (a report drill-down). */
+  scopeNote?: string;
 }
 
-export function FilterRail({ filters, setFilters, intervals, showCategories = true, groups, busy = false, collapsible = false, accountScopeFixed = false, throughToday = false }: Props) {
+export function FilterRail({ filters, setFilters, intervals, showCategories = true, groups, busy = false, collapsible = false, accountScopeFixed = false, throughToday = false, scopeNote }: Props) {
   const [open, setOpen] = useState(false);
   const stackRef = useRef<HTMLDivElement>(null);
   const { accounts, categoryGroups } = usePlan();
@@ -83,6 +85,7 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
       : null,
     selectedInterval ? `${selectedInterval} intervals` : null,
     groups ? `By ${filters.groupBy}` : null,
+    scopeNote,
   ]
     .filter(Boolean)
     .join(" · ");

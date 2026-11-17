@@ -1843,7 +1843,15 @@ export function TransactionsPage() {
             </div>
           );
       })()}
-      <FilterRail filters={filters} setFilters={setFilters} busy={page.loading || page.filling || page.loadingMore} collapsible accountScopeFixed={Boolean(selectedAccount)} />
+      <FilterRail
+        filters={filters}
+        setFilters={setFilters}
+        busy={page.loading || page.filling || page.loadingMore}
+        collapsible
+        accountScopeFixed={Boolean(selectedAccount)}
+        // A report drill-down hides rows no filter control accounts for.
+        scopeNote={flow === "activity" ? "Uncategorised transfers not shown" : flow === "outflow" || wantsUncategorised ? "Outflows only" : undefined}
+      />
       <div className="register-toolbar">
         <div className="register-toolbar-actions">
           {noAccounts ? (
