@@ -988,6 +988,9 @@ export function TransactionsPage() {
   // The add row, or Quick entry on a phone; neither copy holds split lines yet.
   const duplicateFor = (txn: Transaction) => {
     if (!canCompose || txn.subtransactions?.length) return undefined;
+    // A categorised transfer (to a tracking account) would lose its category:
+    // neither the add row nor Quick entry gives a transfer one.
+    if (txn.transfer_account_id && txn.category_id) return undefined;
     if (lockedComposeAccount && lockedComposeAccount.id !== txn.account_id) return undefined;
     const open = (id: string | null) => accounts.some((account) => account.id === id && !account.closed);
     if (!open(txn.account_id) || (txn.transfer_account_id && !open(txn.transfer_account_id))) return undefined;
