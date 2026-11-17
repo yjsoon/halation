@@ -58,12 +58,14 @@ export function IncomePage() {
           <HeadlineFigure label="Income" settleKey={totals.income} tone="positive" value={formatAmount(totals.income)} />
           <HeadlineFigure label="Spending" settleKey={totals.spending} tone="negative" value={formatAmount(totals.spending)} />
           <HeadlineFigure label="Net" settleKey={net} tone={signTone(net)} value={formatMoney(net, { sign: true })} />
-          <HeadlineFigure
-            label="Savings rate"
-            settleKey={savingsRate}
-            tone={savingsRate === "—" ? undefined : signTone(net)}
-            value={savingsRate}
-          />
+          {filters.categoryIds.length === 0 && (
+            <HeadlineFigure
+              label="Savings rate"
+              settleKey={savingsRate}
+              tone={savingsRate === "—" ? undefined : signTone(net)}
+              value={savingsRate}
+            />
+          )}
         </div>
       </div>
 
