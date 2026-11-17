@@ -268,7 +268,7 @@ a.page-eyebrow:hover {
   .register-table th:nth-child(9) { width: 48px; }
 
   .register-table td:not([colspan]) {
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
 
   .register-table td:nth-child(3) {
