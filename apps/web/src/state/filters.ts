@@ -89,14 +89,16 @@ export function applyFilterPatch(previous: URLSearchParams, patch: Partial<Filte
   if ("from" in patch || "to" in patch) {
     // Both cleared means an explicit "all time", not "use the default".
     writeParam(next, "range", next.get("from") || next.get("to") ? undefined : "all");
+    // Income's line scope belongs to the drilled period, not a new register range.
+    if (next.get("flow") === "activity") next.delete("flow");
   }
   if ("accountIds" in patch && patch.accountIds !== undefined) {
     writeParam(next, "accounts", patch.accountIds.join(",") || "all");
   }
   if ("categoryIds" in patch && patch.categoryIds !== undefined) {
     writeParam(next, "categories", patch.categoryIds.join(",") || undefined);
-    // `flow=outflow` comes only with a Spending category drill-down and has no
-    // control of its own, so it goes when the categories are cleared.
+    // Report flow modes have no filter control, so clearing categories also
+    // clears the implicit flow restriction (including Clear filters).
     if (patch.categoryIds.length === 0) next.delete("flow");
   }
   if (patch.interval) {

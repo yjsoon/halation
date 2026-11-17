@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
@@ -6,7 +7,7 @@ import { ReportTable } from "../components/ReportTable";
 import { formatDate, formatPeriod, trailingMonthsRange } from "../lib/dates";
 import { formatMoney } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
-import { useFilters } from "../state/filters";
+import { transactionsLink, useFilters } from "../state/filters";
 import { StatusPanel } from "../components/StatusPanel";
 import { HeadlineFigure, signTone } from "../components/HeadlineFigure";
 
@@ -109,7 +110,9 @@ export function NetWorthPage() {
                         {isPhone && <><th className="num">Net worth</th><th className="num">Delta</th></>}
                         {columnAccounts.map((account) => (
                             <th key={account.account_id} className="num">
-                              {account.account_name}
+                              <Link className="drill-link" to={transactionsLink({ ...filters, from: undefined, accountIds: [account.account_id], categoryIds: [] })}>
+                                {account.account_name}
+                              </Link>
                             </th>
                           ))}
                         {!isPhone && <><th className="num">Net worth</th><th className="num">Delta</th></>}

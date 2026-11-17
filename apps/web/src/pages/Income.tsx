@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
@@ -6,7 +7,7 @@ import { ReportTable } from "../components/ReportTable";
 import { formatPeriod, periodBounds, reportPeriods, todayIso, ytdRange } from "../lib/dates";
 import { formatAmount, formatMoney, formatSavingsRate } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
-import { useFilters } from "../state/filters";
+import { transactionsLink, useFilters } from "../state/filters";
 import { StatusPanel } from "../components/StatusPanel";
 import { HeadlineFigure, signTone } from "../components/HeadlineFigure";
 
@@ -112,7 +113,11 @@ export function IncomePage() {
                     <tbody>
                       {[...periods].reverse().map((period) => (
                         <tr key={period.period}>
-                          <td>{formatPeriod(period.period)}</td>
+                          <td>
+                            <Link className="drill-link" to={`${transactionsLink({ ...filters, from: period.from, to: period.to })}&flow=activity`}>
+                              {formatPeriod(period.period)}
+                            </Link>
+                          </td>
                           <td className="num amount-positive">{formatAmount(period.income)}</td>
                           <td className="num amount-negative">{formatAmount(period.spending)}</td>
                           <td className={period.net >= 0 ? "num amount-positive" : "num amount-negative"}>
