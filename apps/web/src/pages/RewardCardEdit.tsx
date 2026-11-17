@@ -1039,7 +1039,8 @@ function CardLedger({
           {ledger.error}
         </StatusPanel>
       )}
-      {!ledger.loading && (ledger.data?.transactions.length ?? 0) === 0 && (
+      {/* Without a range nothing has been asked for, so there is no count to report yet. */}
+      {ready && !ledger.loading && (ledger.data?.transactions.length ?? 0) === 0 && (
         <p className="field-note">No transactions on this account.</p>
       )}
       {(ledger.data?.transactions.length ?? 0) > 0 && (
@@ -1090,6 +1091,7 @@ function CardLedger({
         </table>
         </div>
       )}
+      {ready && (
       <div className="rewards-controls" aria-label="Ledger pagination">
         <button type="button" disabled={offset === 0 || ledger.loading} onClick={() => setOffset(Math.max(0, offset - 100))}>Previous page</button>
         <span>Page {Math.floor(offset / 100) + 1} · {ledger.data?.transactions.length ?? 0} transactions</span>
@@ -1097,6 +1099,7 @@ function CardLedger({
           if (ledger.data?.next_offset != null) setOffset(ledger.data.next_offset);
         }}>Next page</button>
       </div>
+      )}
     </section>
   );
 }
