@@ -9,6 +9,7 @@ import type {
   ReconciliationMismatchDetail,
   RewardsReport,
   ScheduledTransaction,
+  Subtransaction,
   Transaction,
 } from "../api/types";
 import { colourNamesByAccount, ledgerFlagNames, namedFlagLabel } from "../lib/reward-flag-names";
@@ -123,13 +124,29 @@ type ReconcileDraft = {
   mismatch: ReconciliationMismatchDetail | null;
 };
 
+type ReportLine = Pick<Subtransaction, "amount" | "category_id" | "transfer_account_id" | "transfer_transaction_id">;
+
 /**
- * The rows a Spending drill-down (`flow=outflow`) keeps, by the report's own
- * rule: an outflow counts unless it is an uncategorised transfer leg, so a
- * categorised transfer to a tracking account (a loan payment) stays in.
+ * The reports' own rule for a line (a whole transaction, or one split line):
+ * it counts unless it is an uncategorised transfer leg, so a categorised
+ * transfer to a tracking account (a loan payment) stays in.
  */
+function countsInReports(line: ReportLine): boolean {
+  return line.category_id !== null || (!line.transfer_account_id && !line.transfer_transaction_id);
+}
+
+function reportLines(txn: Transaction): readonly ReportLine[] {
+  return txn.subtransactions?.length ? txn.subtransactions : [txn];
+}
+
+/** The rows a Spending drill-down (`flow=outflow`) keeps: outflows the report counts. */
 function isSpendingOutflow(txn: Transaction): boolean {
-  return txn.amount < 0 && (!txn.transfer_account_id || txn.category_id !== null);
+  return txn.amount < 0 && countsInReports(txn);
+}
+
+/** The rows an Income v spending drill-down (`flow=activity`) keeps: both signs. */
+function isReportActivity(txn: Transaction): boolean {
+  return reportLines(txn).some(countsInReports);
 }
 
 export function TransactionsPage() {
@@ -1300,6 +1317,7 @@ export function TransactionsPage() {
       .filter((txn) => !unapprovedOnly || !txn.approved)
       .filter((txn) => matchesFollowUp(txn, followUpOnly))
       .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
+      .filter((txn) => flow !== "activity" || isReportActivity(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
           return true;
@@ -1350,6 +1368,7 @@ export function TransactionsPage() {
       .filter((txn) => !unapprovedOnly || !txn.approved)
       .filter((txn) => matchesFollowUp(txn, followUpOnly))
       .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
+      .filter((txn) => flow !== "activity" || isReportActivity(txn))
       .filter((txn) => {
         if (!filters.categoryIds.length) {
           return true;
@@ -1646,17 +1665,18 @@ export function TransactionsPage() {
     });
   };
 
-  // A category view totals only the split lines in that category, as the
-  // Spending and Income reports that link to it do.
+  // A category or report view totals only the split lines the report that
+  // links to it counts, so the two agree.
   const totals = useMemo(() => {
-    if (!filters.categoryIds.length) return flowTotals(rows);
+    const activity = flow === "activity";
+    if (!filters.categoryIds.length && !activity) return flowTotals(rows);
     const outflowOnly = flow === "outflow" || wantsUncategorised;
-    return flowTotals(rows.flatMap((txn) => txn.subtransactions?.length
-      ? txn.subtransactions.filter((line) =>
-          (!outflowOnly || line.amount < 0)
-          && ((line.category_id !== null && categoryIds.has(line.category_id))
-            || (wantsUncategorised && line.category_id === null && !line.transfer_account_id)))
-      : [txn]));
+    return flowTotals(rows.flatMap((txn) => reportLines(txn).filter((line) =>
+      (!outflowOnly || line.amount < 0)
+      && (!activity || countsInReports(line))
+      && (!filters.categoryIds.length
+        || (line.category_id !== null && categoryIds.has(line.category_id))
+        || (wantsUncategorised && line.category_id === null && !line.transfer_account_id)))));
   }, [categoryIds, filters.categoryIds.length, flow, rows, wantsUncategorised]);
   const selectedTotals = useMemo(() => flowTotals(selectedRows), [selectedRows]);
   // Cards name their colours, and each row takes its own card's name. The
