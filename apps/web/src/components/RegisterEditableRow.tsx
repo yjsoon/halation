@@ -5,6 +5,7 @@ import { formatDate } from "../lib/dates";
 import { formatAmount } from "../lib/money";
 import { canonicalPayeeName, findTransferPayee, formatComposeAmount } from "../lib/register-compose";
 import {
+  moveTargets,
   beginRowEdit,
   payeeListEntries,
   postingAccountId,
@@ -31,6 +32,8 @@ export type RowEditSurface = {
   readonly context: RowEditContext;
   readonly payees: readonly Payee[];
   readonly accounts: readonly Account[];
+  /** Whether rows show an Account cell (every register but one account's). */
+  readonly accountColumn: boolean;
   readonly groups: ReturnType<typeof splitCategoryGroups>;
   begin(action: Extract<RegisterRowEditAction, { type: "begin" }>): void;
   dispatch(action: RegisterRowEditAction): void;
@@ -71,6 +74,7 @@ export function RegisterEditableRow(props: {
   const approved = rowApproved(row);
   const split = row.kind === "split-line";
   const domId = registerRowDomId(row);
+  const accountTargets = active && row.kind === "posted" ? moveTargets(row.transaction, surface.accounts) : null;
 
   useEffect(() => {
     if (!active || !focus) {
@@ -203,6 +207,17 @@ export function RegisterEditableRow(props: {
   const busy = committing || surface.context.writeLocked || surface.context.mutatingId === rowId(row);
   const rowClass = [split ? "split-line-row" : null, "register-compose-row", targeted ? "register-row-targeted" : null].filter(Boolean).join(" ");
   const fieldId = domId;
+  const accountSelect = (id: string) => accountTargets && accountTargets.length > 1 ? (
+    <select
+      id={id}
+      aria-label={id === `${fieldId}-account` ? undefined : "Account"}
+      value={draft.accountId}
+      onChange={(event) => surface.dispatch({ type: "patch", draft: { accountId: event.target.value } })}
+      disabled={busy}
+    >
+      {accountTargets.map((target) => <option key={target.id} value={target.id}>{target.name}</option>)}
+    </select>
+  ) : null;
   const saved = row.kind === "posted" ? savedClaim(row.transaction) : { status: null, claimedOn: null };
 
   return (
@@ -251,7 +266,9 @@ export function RegisterEditableRow(props: {
             )}
           </td>
         )}
-        <td className="muted" title={typeof account === "string" ? account : undefined}>{split ? null : account}</td>
+        <td className="muted" title={typeof account === "string" ? account : undefined}>
+          {split ? null : accountSelect(`${fieldId}-account-cell`) ?? account}
+        </td>
         <td className={split ? "muted split-line-cell" : undefined}>
           {rowFieldWritable(row, "payee", draft, surface.payees) ? (
             <PayeeInput
@@ -356,6 +373,13 @@ export function RegisterEditableRow(props: {
                     names={flagNames}
                   />
                 </div>
+                {/* One account's register hides the Account cell on the desktop. */}
+                {!surface.accountColumn && accountTargets && accountTargets.length > 1 ? (
+                  <div className="register-compose-flags register-row-account">
+                    <label className="field-label" htmlFor={`${fieldId}-account`}>Account</label>
+                    {accountSelect(`${fieldId}-account`)}
+                  </div>
+                ) : null}
                 <FollowUpChips
                   id={fieldId}
                   needsConfirmation={draft.needsConfirmation}

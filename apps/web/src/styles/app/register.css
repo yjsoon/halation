@@ -1237,6 +1237,32 @@ a.page-eyebrow:hover {
   padding: 7px 10px 2px;
 }
 
+/* With Account, the row editor's fields take a line of their own and its
+   buttons stay together on the next. */
+.register-table .register-compose-meta:has(.register-row-account) {
+  flex-basis: 100%;
+}
+
+/* Up to 1000 pixels the editor stacks every cell, Account included. */
+@media (max-width: 1000px) {
+  .register-row-account {
+    display: none !important;
+  }
+}
+
+.register-row-account select {
+  height: 28px;
+  max-width: 260px;
+  padding: 0 24px 0 8px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  background: var(--paper-raised) var(--select-chevron) no-repeat right 8px center / 10px 6px;
+  appearance: none;
+  color: var(--ink);
+  font: inherit;
+  text-overflow: ellipsis;
+}
+
 .register-compose-locked-account,
 .register-compose-transfer {
   color: var(--ink);

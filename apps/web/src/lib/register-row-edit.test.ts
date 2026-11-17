@@ -88,6 +88,7 @@ const payees = [shop, coffee, transfer];
 
 const shopDraft: RegisterRowDraft = {
   date: "2026-08-01",
+  accountId: "acct",
   payeeName: "Shop",
   categoryId: "cat-dining",
   memo: "coffee",

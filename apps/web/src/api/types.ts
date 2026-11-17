@@ -143,6 +143,7 @@ export interface ReconciliationMismatchDetail {
  */
 export interface TransactionUpdateInput {
   date?: string;
+  account_id?: string;
   amount?: number;
   memo?: string | null;
   cleared?: "cleared" | "uncleared" | "reconciled";

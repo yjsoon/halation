@@ -7,6 +7,7 @@ import { legacyWords, type ClaimStatus } from "./follow-up";
 
 export type RegisterRowDraft = {
   readonly date: string;
+  readonly accountId: string;
   readonly payeeName: string;
   readonly categoryId: string;
   readonly memo: string;
@@ -57,7 +58,7 @@ export type RegisterRowEditSession =
 
 export type RegisterRowEditAction =
   | { readonly type: "begin"; readonly row: RegisterRowRef; readonly draft: RegisterRowDraft; readonly focus: RegisterRowFocus }
-  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "claimStatus">> }
+  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "accountId" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "claimStatus">> }
   | { readonly type: "set-outflow"; readonly value: string }
   | { readonly type: "set-inflow"; readonly value: string }
   | { readonly type: "invalid"; readonly message: string; readonly focus?: RegisterRowFocus }
@@ -372,6 +373,7 @@ function postedDraft(txn: Transaction): RegisterRowDraft {
   const legacy = legacyWords(txn.memo);
   return {
     date: txn.date,
+    accountId: txn.account_id,
     payeeName: txn.payee_name ?? "",
     categoryId: txn.category_id ?? "",
     memo: legacy.text,
@@ -385,6 +387,7 @@ function postedDraft(txn: Transaction): RegisterRowDraft {
 function splitDraft(parent: Transaction, line: Subtransaction): RegisterRowDraft {
   return {
     date: parent.date,
+    accountId: parent.account_id,
     payeeName: line.payee_name ?? "",
     categoryId: line.category_id ?? "",
     memo: line.memo ?? "",
@@ -526,6 +529,10 @@ function planPostedCommit(
     }
   }
 
+  if (draft.accountId && draft.accountId !== txn.account_id) {
+    input.account_id = draft.accountId;
+  }
+
   if (options?.approve && !txn.approved) {
     input.approved = true;
   }
@@ -533,6 +540,17 @@ function planPostedCommit(
   return Object.keys(input).length === 0
     ? { kind: "unchanged" }
     : { kind: "patch", transactionId: txn.id, input };
+}
+
+/**
+ * The accounts a posted row can move to, as on iOS: open accounts, never the
+ * account its transfer (or a split line's transfer) goes to. A reconciled row
+ * stays put, since moving it would change two reconciled balances.
+ */
+export function moveTargets<A extends RowEditAccount>(txn: Transaction, accounts: readonly A[]): A[] | null {
+  if (txn.cleared === "reconciled") return null;
+  const pinned = new Set([txn.transfer_account_id, ...(txn.subtransactions ?? []).map((line) => line.transfer_account_id)]);
+  return accounts.filter((account) => account.id === txn.account_id || (!account.closed && !pinned.has(account.id)));
 }
 
 function planSplitCommit(

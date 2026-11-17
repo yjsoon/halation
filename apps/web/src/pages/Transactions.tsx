@@ -1762,6 +1762,7 @@ export function TransactionsPage() {
     context: { writeLocked, mutatingId },
     payees: payees.data ?? [],
     accounts,
+    accountColumn: !selectedAccount,
     groups: orderedGroups,
     begin: (action) => {
       setCompose((current) => (
