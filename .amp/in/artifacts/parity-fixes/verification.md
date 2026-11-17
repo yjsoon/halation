@@ -18,3 +18,8 @@ Setup: existing disposable `control-howmuch launch` stack `20261117T113404-3430`
 - Existing Closed account audit still selects `Rainy Day Saver (closed)`. Saved its memo as `P09 closed retained 1440`, then `P09 closed retained 390`, through the editor.
 - `control-howmuch http GET /v1/plans/local-plan/scheduled_transactions` confirms account_id `acct-saver`, amount `-1230`, memo `P09 closed retained 390`. The existing schedule did not silently move to an open account.
 - Existing closed transfer targets are retained per original schedule/line, rather than exposing every closed account to every new line. New account choices otherwise follow Quick entry's open-account rule.
+
+## P-16: Named schedule flags
+
+- At both widths, `/scheduled` shows `Audit Dining` beside No payee. DOM text and title both equal `Audit Dining`; document horizontal overflow is false. Inspected `named-flag-1440.png` and `named-flag-390.png`.
+- Read-back: `control-howmuch http GET /api/import/rewards-tracker` returns Travel Card with `flagNames.red = "Audit Dining"`; `/v1/plans/local-plan/scheduled_transactions` retains `account_id: "acct-credit", flag_color: "red"` for Named flag audit. No write is needed to display the current account-specific name.
