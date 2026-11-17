@@ -872,7 +872,9 @@ function DisclosureBody({ row, projection: p, asOf, flags }: { row: Row; project
           ariaLabel="Bonus cap used"
         />
       )}
-      {calc.has_next_spending_tier && calc.next_spending_tier_threshold != null && <p className="rw-line">Next tier at {dollars(calc.next_spending_tier_threshold)}</p>}
+      {calc.has_next_spending_tier && calc.next_spending_tier_threshold != null
+        && !(calc.next_spending_tier_threshold === calc.minimum_spend && !calc.minimum_spend_met)
+        && <p className="rw-line">Next tier at {dollars(calc.next_spending_tier_threshold)}</p>}
       {calc.should_stop_using && <p className="rw-line rw-line-strong">Consider another card</p>}
       <dl className="rw-stats">
         <div>
@@ -1037,7 +1039,8 @@ function Targets({ calc, metOn, month }: { calc: Row["calculation"]; metOn: stri
       : { key: "month", state: "open", label: "This month", amount: dollars(month.minimumSpend), note: `${left} to go`, urgent: true });
   }
   const threshold = calc.next_spending_tier_threshold;
-  if (calc.has_next_spending_tier && threshold != null && threshold > spend) {
+  // While the minimum is unmet the server reports it as the next threshold; Minimum above already shows it.
+  if (calc.has_next_spending_tier && threshold != null && threshold > spend && !(threshold === min && !calc.minimum_spend_met)) {
     items.push({ key: "tier", state: "open", label: "Next tier", amount: dollars(threshold), note: `${dollars(roundedUpToCent(threshold - spend))} to go` });
   }
   if (cap > 0) {
