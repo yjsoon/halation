@@ -1,6 +1,6 @@
 import type { RewardsReport } from "../api/types";
 import type { Stage } from "./reward-exposure";
-import { formatDayMonth } from "./dates";
+import { formatDate, formatDayMonth } from "./dates";
 
 /*
  * The Skyline board's row rules (docs/frontend/rewards-exposure-card.md "Skyline"): how tall a
@@ -67,4 +67,10 @@ export function activeMonth(calc: Calculation, asOf: string | undefined): Monthl
 export function dayMonth(iso: string): string {
   const match = /^\d{4}-\d{2}-\d{2}/.exec(iso);
   return match ? formatDayMonth(match[0]) : iso;
+}
+
+/** "1 Nov to 30 Nov"; a span that crosses a year keeps the year on both ends. */
+export function dayMonthSpan(start: string, end: string): string {
+  if (start.slice(0, 4) === end.slice(0, 4)) return `${dayMonth(start)} to ${dayMonth(end)}`;
+  return `${formatDate(start.slice(0, 10))} to ${formatDate(end.slice(0, 10))}`;
 }

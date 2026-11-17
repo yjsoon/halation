@@ -12,7 +12,7 @@ import { formatAmount } from "../lib/money";
 import { rewardCardAccountChoices } from "../lib/reward-card-accounts";
 import { exposure, stillExposure } from "../lib/reward-exposure";
 import { beyondCap, boardSummary, projectRow, roundedUpToCent, rowText, type RewardRowProjection, type RowText, type Tone } from "../lib/reward-row-projection";
-import { activeMonth, dayMonth, periodDays, rowSize, type MonthlyQualification, type PeriodDays } from "../lib/reward-skyline";
+import { activeMonth, dayMonth, dayMonthSpan, periodDays, rowSize, type MonthlyQualification, type PeriodDays } from "../lib/reward-skyline";
 import { useDismiss } from "../lib/use-dismiss";
 import { useIsPhone } from "../lib/use-is-phone";
 import { withViewTransition } from "../lib/view-transition";
@@ -1212,11 +1212,11 @@ export function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, inde
           <section className="rw-open-period" aria-labelledby={`${id}-period`}>
             <h4 id={`${id}-period`}>Period</h4>
             {period ? <>
-              <p className="rw-open-dates"><span>{dayMonth(period.start)} to {dayMonth(period.end)}</span><span className="rw-open-day">day {period.day} of {period.total}</span></p>
+              <p className="rw-open-dates"><span>{dayMonthSpan(period.start, period.end)}</span><span className="rw-open-day">day {period.day} of {period.total}</span></p>
               <DayRail period={period} live={asOf === today} />
             </> : range ? <>
-              <p className="rw-open-dates"><span>{rangeFrom && rangeTo ? `${dayMonth(rangeFrom)} to ${dayMonth(rangeTo)}` : calc.period}</span><span className="rw-open-day">historical range</span></p>
-              {cutoff && <p className="rw-open-meta">Latest card period {dayMonth(cutoff.start)} to {dayMonth(cutoff.end)}</p>}
+              <p className="rw-open-dates"><span>{rangeFrom && rangeTo ? dayMonthSpan(rangeFrom, rangeTo) : calc.period}</span><span className="rw-open-day">historical range</span></p>
+              {cutoff && <p className="rw-open-meta">Latest card period {dayMonthSpan(cutoff.start, cutoff.end)}</p>}
             </> : <p className="rw-open-dates">{calc.periods?.map((entry) => `${formatDate(entry.start)} to ${formatDate(entry.end)}`).join("; ") || calc.period}</p>}
           </section>
           <Link className="rw-open-link" to={`/transactions?accounts=${encodeURIComponent(row.account_id)}&range=all`}>
@@ -1224,7 +1224,7 @@ export function SkylineRow({ row, search, asOf, hiddenUntil, projection: p, inde
           </Link>
           <section className="rw-open-targets" aria-labelledby={`${id}-targets`}>
             <h4 id={`${id}-targets`}>Targets</h4>
-            {range && cutoff && <p className="rw-open-meta">For the latest card period, {dayMonth(cutoff.start)} to {dayMonth(cutoff.end)}</p>}
+            {range && cutoff && <p className="rw-open-meta">For the latest card period, {dayMonthSpan(cutoff.start, cutoff.end)}</p>}
             {own ? <Targets calc={own} metOn={metOn} month={month} /> : <p className="rw-open-meta">No card period holds {asOf ? dayMonth(asOf) : "this day"}</p>}
           </section>
           <section className="rw-open-cats" aria-labelledby={`${id}-cats`}>
