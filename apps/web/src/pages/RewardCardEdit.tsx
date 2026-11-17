@@ -194,7 +194,10 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
     if (active instanceof HTMLElement && active !== document.body) active.scrollIntoView({ block: "nearest" });
   }, [confirming]);
   const [importCategoryId, setImportCategoryId] = useState("");
-  const [importFlagColor, setImportFlagColor] = useState<RewardFlagColour>("red");
+  // Add flag from category starts on the colour Add flag would choose, until one is picked.
+  const [pickedImportColour, setPickedImportColour] = useState<RewardFlagColour | null>(null);
+  const freeColour = freeFlagColour(draft.flags);
+  const importFlagColor = pickedImportColour ?? freeColour ?? "red";
   const [importRate, setImportRate] = useState("");
   const groups = useMemo(() => splitCategoryGroups(categoryGroups), [categoryGroups]);
   const accountChoices = useMemo(
@@ -271,6 +274,11 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
       setErrorAt({ at: "flag", message: rate.error });
       return;
     }
+    // Save card would refuse the pair, screens below; refuse it here, beside the colour.
+    if (draft.flags.some((flag) => flag.active && flag.flagColor === importFlagColor)) {
+      setErrorAt({ at: "flag", message: DUPLICATE_COLOUR, field: "colour" });
+      return;
+    }
     setErrorAt(null);
     setDraft((current) => {
       const named = current.flagNames[importFlagColor]?.trim() || categoryName;
@@ -289,6 +297,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
     });
     setImportCategoryId("");
     setImportRate("");
+    setPickedImportColour(null);
   };
 
   return (
@@ -594,8 +603,13 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
                 <span className="field-label" id="import-flag-colour-label">Flag colour</span>
                 <FlagPicker
                   labelledBy="import-flag-colour-label"
+                  describedBy={error?.at === "flag" && error.field === "colour" ? "import-flag-error" : undefined}
                   value={ledgerFlagFromReward(importFlagColor)}
-                  onChange={(value) => setImportFlagColor(rewardFlagFromLedger(value))}
+                  onChange={(value) => {
+                    setPickedImportColour(rewardFlagFromLedger(value));
+                    // The refusal was about the colour just replaced.
+                    if (error?.at === "flag" && error.field === "colour") setErrorAt(null);
+                  }}
                   names={pickerNames}
                 />
               </div>
@@ -604,8 +618,8 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
                 <input type="text" inputMode="decimal" value={importRate} onChange={(event) => setImportRate(event.target.value)} />
               </label>
             </div>
-            <button type="button" className="text-button" onClick={addImportedFlag}>Add flag from category</button>
-            {errorPanel("flag", "Could not add this flag.")}
+            <button type="button" className="text-button" disabled={!freeColour} onClick={addImportedFlag}>Add flag from category</button>
+            {error?.at === "flag" && <div id="import-flag-error">{errorPanel("flag", "Could not add this flag.")}</div>}
             {draft.flags.map((flag, index) => (
               <FlagRow
                 key={flag.id}
@@ -633,7 +647,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
             <button
               type="button"
               className="text-button"
-              disabled={!freeFlagColour(draft.flags)}
+              disabled={!freeColour}
               onClick={() => setDraft((current) => {
                 const flagColor = freeFlagColour(current.flags);
                 if (!flagColor) return current;
@@ -1175,6 +1189,8 @@ export function draftFromCard(card: CreditCard): CardDraft {
 
 type FlagErrorField = "colour" | "name";
 
+const DUPLICATE_COLOUR = "Active flag colours must be unique.";
+
 // `flagId` names the flag an error is about, and `field` the control that corrects it.
 export function creditCardWrite(
   draft: CardDraft,
@@ -1250,7 +1266,7 @@ export function creditCardWrite(
   const activeColours = new Set<string>();
   for (const [index, flag] of draft.flags.entries()) {
     if (flag.active) {
-      if (activeColours.has(flag.flagColor)) return { error: "Active flag colours must be unique.", flagId: flag.id, field: "colour" };
+      if (activeColours.has(flag.flagColor)) return { error: DUPLICATE_COLOUR, flagId: flag.id, field: "colour" };
       activeColours.add(flag.flagColor);
     }
     const colourName = draft.flagNames[flag.flagColor]?.trim() || flag.name.trim();
