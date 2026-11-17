@@ -560,7 +560,11 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
               className="text-button"
               onClick={() => setDraft((current) => ({
                 ...current,
-                flags: [...current.flags, newFlag({ priority: String(current.flags.length + 1) })],
+                // Start on a colour no other row uses: two rows on one colour leave one earning nothing.
+                flags: [...current.flags, newFlag({
+                  priority: String(current.flags.length + 1),
+                  flagColor: REWARD_NAME_COLOURS.find((colour) => current.flags.every((flag) => flag.flagColor !== colour)) ?? "red",
+                })],
               }))}
             >
               Add flag
@@ -1119,7 +1123,14 @@ export function creditCardWrite(draft: CardDraft, options: { clearMissing?: bool
   card.maximumSpend = maximumSpend.value ?? null;
 
   const flags: CardSubcategory[] = [];
+  // The calculator scores a colour by one active rule, so a second one would silently earn nothing.
+  const activeColours = new Map<string, number>();
   for (const [index, flag] of draft.flags.entries()) {
+    if (flag.active) {
+      const earlier = activeColours.get(flag.flagColor);
+      if (earlier !== undefined) return { error: `Flag ${index + 1} uses the same colour as flag ${earlier + 1}. Change one colour or remove a flag.` };
+      activeColours.set(flag.flagColor, index);
+    }
     const colourName = draft.flagNames[flag.flagColor]?.trim() || flag.name.trim();
     if (!colourName) return { error: `Name the ${flag.flagColor === "unflagged" ? "None" : flag.flagColor} colour on this card.` };
     if (!isRewardFlagColour(flag.flagColor)) return { error: `Flag ${index + 1} needs a recognised colour.` };
