@@ -106,6 +106,8 @@ function RewardsBoard({ planId }: { planId: string }) {
     selectToggleRef.current?.focus();
     setSelected([]);
     setSelecting(false);
+    // A batch error belongs to the bar that is closing.
+    setSettingsError(null);
   };
   // Hiding a card, or showing the hidden ones, removes the control that was
   // pressed. Focus moves to what took its place instead of falling to the page.
@@ -324,7 +326,7 @@ function RewardsBoard({ planId }: { planId: string }) {
         <div className="rw-toolbar-end">
           <ArrangeMenu preferences={preferences} hiddenCount={hiddenCount} onChange={arrange} />
           <button type="button" ref={selectToggleRef} className="rw-tool-button" aria-pressed={selecting}
-            onClick={() => { if (selecting) setSelected([]); setSelecting(!selecting); }}>{selecting ? "Done" : "Select"}</button>
+            onClick={() => { if (selecting) doneSelecting(); else setSelecting(true); }}>{selecting ? "Done" : "Select"}</button>
         </div>
       </section>
       )}
