@@ -94,10 +94,19 @@ export function RewardCardEditPage() {
     );
   }
   if (snapshot.error) {
+    // Keep the page's heading and the way back above the error.
     return (
-      <StatusPanel error role="alert" title={isNew ? "Could not load accounts." : "Could not load this card."}>
-        {snapshot.error}
-      </StatusPanel>
+      <>
+        <header className="report-header">
+          <div>
+            <Link to="/rewards" className="page-eyebrow">← Rewards</Link>
+            <h1>{isNew ? "Add card" : "Edit card"}</h1>
+          </div>
+        </header>
+        <StatusPanel error role="alert" title={isNew ? "Could not load accounts." : "Could not load this card."}>
+          {snapshot.error} Reload to try again.
+        </StatusPanel>
+      </>
     );
   }
   const card = isNew ? null : snapshot.data?.cards.find((entry) => entry.id === cardId) ?? null;

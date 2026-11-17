@@ -257,8 +257,9 @@ function RewardsBoard({ planId }: { planId: string }) {
         </div>
         {!emptyImported && (
           <div className="rw-hero-figures">
-            <Figure primary label="Value earned" value={dollars(shown?.totals.reward_dollars ?? 0)} />
-            <Figure label="Qualifying spend" value={dollars(shown?.totals.spend ?? 0)} />
+            {/* Not loaded is unknown, not zero: dashes, as Money age shows. */}
+            <Figure primary label="Value earned" value={shown ? dollars(shown.totals.reward_dollars) : "—"} />
+            <Figure label="Qualifying spend" value={shown ? dollars(shown.totals.spend) : "—"} />
             {(shown?.totals.miles ?? 0) > 0 && <Figure label="Miles" value={Math.round(shown!.totals.miles).toLocaleString("en-GB")} />}
             {(shown?.totals.cashback ?? 0) > 0 && <Figure label="Cashback" value={dollars(shown!.totals.cashback)} />}
           </div>
@@ -316,9 +317,9 @@ function RewardsBoard({ planId }: { planId: string }) {
         </>}
         <div className="segmented" role="group" aria-label="Cards">
           <button type="button" aria-pressed={!preferences.featured} className={!preferences.featured ? "segment segment-active" : "segment"}
-            onClick={() => arrange({ featured: false })}>All cards <span className="rw-count">{storedCards.length}</span></button>
+            onClick={() => arrange({ featured: false })}>All cards {shown && <span className="rw-count">{storedCards.length}</span>}</button>
           <button type="button" aria-pressed={preferences.featured} className={preferences.featured ? "segment segment-active" : "segment"}
-            onClick={() => arrange({ featured: true })}>Featured <span className="rw-count">{featuredCount}</span></button>
+            onClick={() => arrange({ featured: true })}>Featured {shown && <span className="rw-count">{featuredCount}</span>}</button>
         </div>
         <div className="rw-toolbar-end">
           <ArrangeMenu preferences={preferences} hiddenCount={hiddenCount} onChange={arrange} />
@@ -340,7 +341,7 @@ function RewardsBoard({ planId }: { planId: string }) {
 
       {report.error && (
         <StatusPanel error role="alert" title="Could not load rewards.">
-          {report.error}
+          {report.error} Reload to try again.
         </StatusPanel>
       )}
 
