@@ -102,3 +102,15 @@ Text record of the checks the lead thread ran in a browser while integrating the
 - Control: the unsplit schedule with no category still reads "Uncategorised" at both widths.
 - The Ledger's Scheduled group reads "Split · 2 lines" for the same schedule.
 - `bun run --cwd apps/web typecheck`: `$ tsc --noEmit`, exit 0.
+
+## Third audit round, integrated
+
+- Head before this record: 8b1ea712, 113 commits on `origin/main` b29e5d69. Disposable stack, user `verifier`, plan `local-plan`, Chromium at DPR 2.
+- `scripts/check.sh` at 8b1ea712: `check: pass`, exit 0 (`bun test`, the web and worker typechecks, the iOS focus zoom check).
+- T-01 (911823e1, with the lead's edit folded in). A posted split of two lines, line 1 with Payee / memo open: the open line is 168 px tall and the closed line 61 px at 1440, 1024 and 721, with Category 25 px from the top of each. At 390 the lines are 291 and 151 px. No horizontal overflow at any of the four widths. Lead's edit: the closed Payee / memo summary sat 18 px above the centre of the controls beside it and now sits within 5 px; the line's amount is right-aligned in the figures face, as the row's own Outflow and Inflow are.
+- T-02 (15d51d59). Typing "T02 enter" in line 1's Memo and pressing Enter closed the editor; the API read back line 1 `amount: 5000, memo: "T02 enter"` and line 2 `amount: -15000`. With a third line added, Remove line on the last line left focus on "+ Add line"; Remove line on the first left focus on "Split line 1 category"; Escape then cancelled the editor and the API read back the same two lines.
+- T-03 (8b1ea712). Signed out, opened `/transactions?accounts=acct-credit`, signed in with Enter: focus ended on the H1 "Travel Card" with the reward masthead shown.
+- T-06 (af385f3a). On Travel Card's editor with no flags, Add flag took red and the Add flag from category picker moved to Orange. With Red picked again, Groceries and rate 2, Add flag from category added no row and showed "Could not add this flag. Active flag colours must be unique." under the button, with the picker's `aria-describedby` set to it.
+- T-07 (6acd9872). Save card with flag 1's Reward value empty: "Could not update this card. Reward value is required." in that row, focus in "Flag 1 reward value" with `aria-invalid="true"` and `aria-describedby="flag-1-error"`, in view. Nothing was saved.
+- T-05 (d022fbda). A stored card shows no Colour names box and its flag note reads "These are the same colour tags as the ledger. None is Unflagged spend."
+- T-09 (24068028) rests on the worker's record; the lead read the diff only.
