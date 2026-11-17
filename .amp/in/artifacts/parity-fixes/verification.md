@@ -58,3 +58,9 @@ Setup: existing disposable `control-howmuch launch` stack `20261117T113404-3430`
 - Checked 390, 720, 721, 800, 801, 1024 and 1440. Date/input widths respectively: 342/230, 460/348, 460/348, 460/348, 460/340, 460/340, 460/340. At every width Memo is below Date and document horizontal overflow is false.
 - At 721 changed the native date using ArrowRight/ArrowUp and saved amount 1.06, memo R06 date control. Transactions read-back confirms date 2026-11-18 and amount −1060, not merely a visible date field.
 - Captured every width and before/after at 721; inspected the breakpoint layouts.
+
+## R-09: Escape on schedule confirmations
+
+- Before, Escape left both Enter now and Delete confirmations open. At both widths after the fix, Escape closes each and restores focus to `Enter No payee now` or `Delete No payee` respectively.
+- Escape clicks the existing Cancel button, so its disabled-during-write guard and focus path apply without a second cancellation implementation.
+- Schedule read-back retains both original IDs, `deleted:false` and next date 2026-11-17. No occurrence was entered or deleted by cancellation.

@@ -284,7 +284,8 @@ export function ScheduledTransactionsPage() {
         />
       )}
       {pendingDeletion && (
-        <section className="transaction-editor schedule-delete-confirm" aria-labelledby="delete-schedule-heading">
+        <section className="transaction-editor schedule-delete-confirm" aria-labelledby="delete-schedule-heading"
+          onKeyDown={(event) => { if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); deleteCancelRef.current?.click(); } }}>
           <div className="section-heading"><div><span className="section-title" id="delete-schedule-heading">Delete scheduled transaction?</span><span className="section-meta">This stops future repeats.</span></div></div>
           <p>{scheduleLabel(pendingDeletion.schedule, payeeNames, accountNames)} is due next on {pendingDeletion.schedule.date_next ? formatDate(pendingDeletion.schedule.date_next) : "its configured date"}.</p>
           <div className="transaction-editor-actions">
@@ -294,7 +295,8 @@ export function ScheduledTransactionsPage() {
         </section>
       )}
       {pendingEntry && (
-        <section className="transaction-editor schedule-enter-confirm" aria-labelledby="enter-schedule-heading">
+        <section className="transaction-editor schedule-enter-confirm" aria-labelledby="enter-schedule-heading"
+          onKeyDown={(event) => { if (event.key === "Escape" && !event.defaultPrevented) { event.preventDefault(); entryCancelRef.current?.click(); } }}>
           <div className="section-heading"><div><span className="section-title" id="enter-schedule-heading">Enter scheduled transaction now?</span><span className="section-meta">This adds the next payment to your register and moves the schedule forward.</span></div></div>
           <p><strong>{scheduleLabel(pendingEntry.schedule, payeeNames, accountNames)}</strong> is scheduled for {formatDate(pendingEntry.occurrenceDate)}.</p>
           <label className="field">
