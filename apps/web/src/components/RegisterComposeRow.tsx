@@ -12,6 +12,7 @@ import {
   type RegisterComposeState,
 } from "../lib/register-compose";
 import { payeeListEntries } from "../lib/register-row-edit";
+import { amountPlaceholder } from "../lib/money";
 import { PayeeCombobox } from "./PayeeCombobox";
 
 export function RegisterComposeRow({
@@ -182,7 +183,7 @@ export function RegisterComposeRow({
                 onChange(reduceCompose(state, { type: "set-outflow", value: next }));
               }
             }}
-            placeholder="0.00"
+            placeholder={amountPlaceholder()}
             disabled={busy}
           />
         </td>
@@ -201,7 +202,7 @@ export function RegisterComposeRow({
                 onChange(reduceCompose(state, { type: "set-inflow", value: next }));
               }
             }}
-            placeholder="0.00"
+            placeholder={amountPlaceholder()}
             disabled={busy}
           />
         </td>

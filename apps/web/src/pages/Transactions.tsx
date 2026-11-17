@@ -28,7 +28,7 @@ import { splitCategoryGroups, UNCATEGORISED_CATEGORY_ID } from "../lib/categorie
 import { appliedReviewItems, reviewRows, suggestionRequestItems, suggestionTargets, type SuggestionReviewRow } from "../lib/category-suggestions";
 import { formatDate, todayIso, trailingMonthsRange } from "../lib/dates";
 import { stableHash } from "../lib/hash";
-import { currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
+import { amountPlaceholder, currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
 import {
   approveAllLabel,
   approvedToast,
@@ -2267,7 +2267,7 @@ export function TransactionsPage() {
                 <input
                   type="text"
                   inputMode="decimal"
-                  placeholder="0.00"
+                  placeholder={amountPlaceholder()}
                   value={reconcileDraft.statementBalance}
                   onChange={(event) => updateReconcile({ statementBalance: event.target.value })}
                   disabled={reconciliationBusy}

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, type ReactElement, type ReactNode } from "r
 import type { Account, Payee, Subtransaction, Transaction } from "../api/types";
 import type { splitCategoryGroups } from "../lib/categories";
 import { formatDate } from "../lib/dates";
-import { formatAmount, formatMoney } from "../lib/money";
+import { amountPlaceholder, formatAmount, formatMoney } from "../lib/money";
 import { canonicalPayeeName, findTransferPayee, formatComposeAmount } from "../lib/register-compose";
 import {
   moveTargets,
@@ -571,7 +571,7 @@ function AmountInput({
         inputMode="decimal"
         name={focus}
         value={value}
-        placeholder="0.00"
+        placeholder={amountPlaceholder()}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
         onBlur={() => {
@@ -704,7 +704,7 @@ function SplitEditor({ id, lines, categoryId, total, amountText, remainder, paye
                 <input
                   type="text"
                   inputMode="decimal"
-                  placeholder="0.00"
+                  placeholder={amountPlaceholder()}
                   aria-label={`Split line ${index + 1} amount`}
                   value={line.amount}
                   disabled={disabled}

@@ -5,7 +5,7 @@ import type { QuickEntrySplitLine, Transaction } from "../api/types";
 import { CategorySelect } from "../components/CategorySelect";
 import { splitCategoryGroups } from "../lib/categories";
 import { formatDate, todayIso, yesterdayIso } from "../lib/dates";
-import { currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
+import { amountPlaceholder, amountStep, currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
 import { resolvePostingAccountId, type QuickEntryCopy } from "../lib/register-compose";
 import { usePlan } from "../state/plan";
 import { StatusPanel } from "../components/StatusPanel";
@@ -250,9 +250,9 @@ export function QuickEntryPage() {
               type="number"
               name="amount"
               inputMode="decimal"
-              step="0.01"
+              step={amountStep()}
               min="0"
-              placeholder="0.00"
+              placeholder={amountPlaceholder()}
               value={amount}
               onChange={(event) => {
                 clearStatus();
@@ -375,10 +375,10 @@ export function QuickEntryPage() {
                     <input
                       type="number"
                       inputMode="decimal"
-                      min="0.01"
-                      step="0.01"
+                      min={amountStep()}
+                      step={amountStep()}
                       required
-                      placeholder="0.00"
+                      placeholder={amountPlaceholder()}
                       aria-label={`Split line ${index + 1} amount`}
                       value={line.amount}
                       onChange={(event) => updateSplitLine(line.key, { amount: event.target.value })}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { StatusPanel } from "../components/StatusPanel";
-import { amountFormatHint, parseMilliunits } from "../lib/money";
+import { amountFormatHint, amountPlaceholder, parseMilliunits } from "../lib/money";
 import { ACCOUNT_KIND_GROUPS, accountKindGroup, newAccountRequest, storesLiability, type NewAccountKind } from "../lib/new-account";
 import { usePlan } from "../state/plan";
 
@@ -92,7 +92,7 @@ export function NewAccountPage() {
           <input
             value={balance}
             onChange={(event) => setBalance(event.target.value)}
-            placeholder="0.00"
+            placeholder={amountPlaceholder()}
             inputMode="decimal"
             autoComplete="off"
             aria-invalid={balanceInvalid || undefined}

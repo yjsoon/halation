@@ -88,6 +88,23 @@ export function amountFormatHint(): string {
     : `Enter a number such as 1500 or ${withPlanDecimal("1500.50")}.`;
 }
 
+/** How many decimal places the plan's currency has: 2 for cents, 0 for yen. */
+export function amountDecimalDigits(): number {
+  return Math.min(amountFormat.decimalDigits, 3);
+}
+
+/** The smallest amount a number field steps by: "0.01" for cents, "1" for yen. */
+export function amountStep(): string {
+  const digits = amountDecimalDigits();
+  return digits ? `0.${"0".repeat(digits - 1)}1` : "1";
+}
+
+/** An amount field's placeholder in the plan's currency: "0.00", or "0" for yen. */
+export function amountPlaceholder(): string {
+  const digits = amountDecimalDigits();
+  return withPlanDecimal(digits ? `0.${"0".repeat(digits)}` : "0");
+}
+
 /** `formatMilliunitsInput` with the plan's decimal mark, for a field's text. */
 export function formatMilliunitsField(milliunits: number): string {
   return withPlanDecimal(formatMilliunitsInput(milliunits));

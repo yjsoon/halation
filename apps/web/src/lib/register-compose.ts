@@ -1,7 +1,7 @@
 import type { Payee, QuickEntryInput, Transaction } from "../api/types";
 import { todayIso } from "./dates";
 import { legacyWords } from "./follow-up";
-import { amountFormatHint, formatMilliunitsInput, minorUnitMilliunits, parseMilliunits, withPlanDecimal } from "./money";
+import { amountDecimalDigits, amountFormatHint, formatMilliunitsInput, parseMilliunits, withPlanDecimal } from "./money";
 
 export type RegisterComposeDraft = {
   clientId: string;
@@ -223,7 +223,7 @@ export function formatMilliunitsPadded(milliunits: number): string {
  * keeps them.
  */
 function paddedAmount(milliunits: number): string {
-  const digits = 3 - Math.round(Math.log10(minorUnitMilliunits()));
+  const digits = amountDecimalDigits();
   const [whole, fraction = ""] = formatMilliunitsInput(milliunits).split(".");
   const padded = fraction.padEnd(digits, "0");
   return padded ? `${whole}.${padded}` : whole;
