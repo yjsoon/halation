@@ -253,7 +253,7 @@ export function Shell() {
             <span className="sidebar-balance" title="Open-account balance as of today">{formatMoney(openAccounts.reduce((sum, account) => sum + balanceOf(account), 0))}</span>
           </NavLink>
           <NavLink
-            to={{ pathname: "/scheduled", search: location.search }}
+            to="/scheduled"
             viewTransition={location.pathname !== "/scheduled"}
             {...prefetch(loadScheduled)}
             className={({ isActive }) => isActive ? "sidebar-primary-link sidebar-link-active" : "sidebar-primary-link"}
@@ -261,7 +261,7 @@ export function Shell() {
             <span aria-hidden="true">◷</span> Scheduled
           </NavLink>
           <NavLink
-            to={{ pathname: "/rewards", search: location.search }}
+            to="/rewards"
             viewTransition={location.pathname !== "/rewards"}
             {...prefetch(loadRewards)}
             className={() => isRewardsPath(location.pathname) ? "sidebar-primary-link sidebar-link-active" : "sidebar-primary-link"}
