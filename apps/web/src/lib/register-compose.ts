@@ -1,7 +1,7 @@
 import type { Payee, QuickEntryInput, Transaction } from "../api/types";
 import { todayIso } from "./dates";
 import { legacyWords } from "./follow-up";
-import { amountFormatHint, formatMilliunitsField, formatMilliunitsInput, parseMilliunits, withPlanDecimal } from "./money";
+import { amountFormatHint, formatMilliunitsInput, minorUnitMilliunits, parseMilliunits, withPlanDecimal } from "./money";
 
 export type RegisterComposeDraft = {
   clientId: string;
@@ -60,7 +60,7 @@ export function emptyComposeDraft(accountId: string, date = todayIso()): Registe
  */
 export function duplicateComposeDraft(txn: Transaction): RegisterComposeDraft {
   const legacy = legacyWords(txn.memo);
-  const amount = formatMilliunitsField(Math.abs(txn.amount));
+  const amount = formatMilliunitsPadded(Math.abs(txn.amount));
   return {
     ...emptyComposeDraft(txn.account_id),
     payeeName: txn.payee_name ?? "",
@@ -92,12 +92,14 @@ export type QuickEntryCopy = {
 export function quickEntryCopy(txn: Transaction): QuickEntryCopy {
   const draft = duplicateComposeDraft(txn);
   const out = txn.amount < 0;
+  // Quick entry's amount is a number field, which reads only a dot.
+  const amount = paddedAmount(Math.abs(txn.amount));
   if (txn.transfer_account_id) {
     return {
       direction: "transfer",
       accountId: out ? txn.account_id : txn.transfer_account_id,
       toAccountId: out ? txn.transfer_account_id : txn.account_id,
-      amount: draft.outflow || draft.inflow,
+      amount,
       payeeName: "",
       categoryId: "",
       memo: draft.memo,
@@ -107,7 +109,7 @@ export function quickEntryCopy(txn: Transaction): QuickEntryCopy {
     direction: out ? "spend" : "income",
     accountId: txn.account_id,
     toAccountId: "",
-    amount: draft.outflow || draft.inflow,
+    amount,
     payeeName: draft.payeeName,
     categoryId: draft.categoryId,
     memo: draft.memo,
@@ -212,8 +214,19 @@ export function formatComposeAmount(value: string): string {
 }
 
 export function formatMilliunitsPadded(milliunits: number): string {
+  return withPlanDecimal(paddedAmount(milliunits));
+}
+
+/**
+ * An amount with every decimal the plan's currency has, as a dot-decimal
+ * number: 42.10 for cents, 1235 for yen. A stored amount with more decimals
+ * keeps them.
+ */
+function paddedAmount(milliunits: number): string {
+  const digits = 3 - Math.round(Math.log10(minorUnitMilliunits()));
   const [whole, fraction = ""] = formatMilliunitsInput(milliunits).split(".");
-  return withPlanDecimal(`${whole}.${fraction.padEnd(2, "0")}`);
+  const padded = fraction.padEnd(digits, "0");
+  return padded ? `${whole}.${padded}` : whole;
 }
 
 export function composePayload(
