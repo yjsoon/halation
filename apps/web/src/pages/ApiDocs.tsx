@@ -6,7 +6,7 @@ import { BrandLockup } from "../components/Brand";
 export function ApiDocsPage() {
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "API Documentation — Halation";
+    document.title = "API documentation · Halation";
     return () => {
       document.title = previousTitle;
     };
