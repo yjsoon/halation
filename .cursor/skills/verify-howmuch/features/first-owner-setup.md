@@ -13,7 +13,7 @@ A brand-new HowMuch database has no user. The first visitor creates the owner ac
 - `setup-reject-short-password` keeps **Create account** disabled while the password is under 15 characters (spaces at either end do not count), and the note under Password says how many more are needed.
 - `setup-empty-plan` setup creates no categories: `GET /v1/plans/{plan}/categories` has no groups until the first account (see [Add account](./add-account.md)), so the plan stays empty for snapshot import.
 - `setup-data-note` the setup form says `Your account and ledger are stored only on this server.`
-- `ia-no-plan` after create or sign-in: heading Ledger, Primary navigation has no `Plan`, `API tokens`, or `Rewards import`, `{web_url}/plan` and `{web_url}/no-such-route` both land on Ledger, and page text has no `Ready to assign`.
+- `ia-no-plan` after create or sign-in: heading Ledger, Primary navigation has no `Plan`, `API tokens`, or `Rewards import & export`, `{web_url}/plan` and `{web_url}/no-such-route` both land on Ledger, and page text has no `Ready to assign`.
 - `signin-return` shows **Sign in to Halation** after sign out (setup is no longer offered).
 - `signout` returns to the sign-in form and drops the session.
 
@@ -37,7 +37,7 @@ Preconditions:
 - **Token note.** Under Setup token the note reads `The HOWMUCH_API_TOKEN secret you set when deploying this server. How to set it`, and **How to set it** links to `self-hosting.md#4-create-the-setup-token`.
 - **Wrong token.** Fill Username `verifier`, Password `howmuch-verify-15`, Setup token `wrong-token`. Choose `Create account`. The alert reads `That setup token does not match. Use the HOWMUCH_API_TOKEN value you set when deploying this server.` The form stays up.
 - **Create owner.** Fill Username `verifier`, Password `howmuch-verify-15`, Setup token `howmuch-verify-bootstrap`. Choose `Create account`. The button reads `Please wait…`, then the shell appears with brand `Halation` and heading `Ledger`. Title is `Ledger · Halation`.
-- **Home IA.** `Primary navigation` has no link named `Plan`, `API tokens`, or `Rewards import`. `Settings` is in the sidebar footer. Open `{web_url}/plan`. Lands on Ledger. Open `{web_url}/no-such-route`. Lands on Ledger. Page text has no `Ready to assign`.
+- **Home IA.** `Primary navigation` has no link named `Plan`, `API tokens`, or `Rewards import & export`. `Settings` is in the sidebar footer. Open `{web_url}/plan`. Lands on Ledger. Open `{web_url}/no-such-route`. Lands on Ledger. Page text has no `Ready to assign`.
 - **Confirm session.** `control-howmuch http GET /api/auth/status` still reports `setup_required: false` (token is not a browser session). Proof that a user exists: `control-howmuch http GET /v1/plans` returns plan id `local-plan` and name `HowMuch Demo`.
 - **Sign out.** Choose `Sign out`. Heading becomes `Sign in to Halation`. There is no Setup token field. The page says `This is a private Halation instance. Run your own.`, and **Run your own** links to `https://github.com/yjsoon/halation`.
 - **Sign in.** Fill Username `verifier` and Password `howmuch-verify-15`. Choose `Sign in`. Ledger loads again.

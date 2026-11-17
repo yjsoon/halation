@@ -50,7 +50,7 @@ The aesthetic is a broadsheet ledger: ink on paper, hairline rules, controlled d
 | `/` | redirect to `/transactions?range=all&accounts=all` |
 | `*` | same redirect as `/` |
 | `/scheduled` | Recurring transactions: list, add, enter now |
-| `/settings` | Settings hub: API tokens and Rewards import |
+| `/settings` | Settings hub: API tokens and Rewards import & export |
 | `/api-tokens` | Personal API tokens: mint and revoke |
 | `/import/rewards` | Rewards Tracker settings export import. Replaces the stored card set. |
 | `/spending` | Spending Breakdown: total, share bars per category grouped by category group, click-through to filtered transactions |

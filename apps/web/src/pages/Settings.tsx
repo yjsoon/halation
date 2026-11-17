@@ -40,8 +40,8 @@ const TOOLS = [
   },
   {
     to: "/import/rewards",
-    name: "Rewards import",
-    detail: "Import a Rewards Tracker settings export.",
+    name: "Rewards import & export",
+    detail: "Import or export Rewards Tracker settings.",
   },
 ];
 

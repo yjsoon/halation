@@ -1279,7 +1279,7 @@ Checked against the local API on 21 Oct 2026: every card matches the table. Row 
 
 **Then add these sub-features:** `ios-rewards-exposure-states`, `ios-rewards-exposure-sheet`, `ios-rewards-exposure-motion`, `ios-rewards-exposure-register` and `ios-rewards-exposure-accessibility`. Steps:
 
-1. **Set-up** (not under test). Launch with `control-howmuch launch` and pass `doctor`. Import the states fixture through web **Settings → Rewards import**. Sign the Simulator in, and enable Simulator accessibility as `apps/ios/AGENTS.md` describes.
+1. **Set-up** (not under test). Launch with `control-howmuch launch` and pass `doctor`. Import the states fixture through web **Settings → Rewards import & export**. Sign the Simulator in, and enable Simulator accessibility as `apps/ios/AGENTS.md` describes.
 2. **States.** Rewards → Featured menu → **All Cards**. Today menu → **Choose Date…** → 24 May 2026 → **Done**. For each card, screenshot the row and dump its accessibility element. Compare the text and value with the fixture table and the state tables. Measure each marker's x against `h × W` and each sun's centre against the sun's path for its pose, and compare A and B (failure mode 5). Sample A's sky and ground either side of the marker (failure mode 7).
 3. **Sheet.** Open A: the marker at 0.631 W with the half-disc sun on it, the ridges apart, the label "$500.00 minimum" and the minimum tick at the sun's column. Then open K, D (fully lit, the sun 0.32 up its column), P (past halfway), F (the sun gone off the top, the glow from the top edge) and J (monochrome). Screenshot each hero.
 4. **Appearances.** Screenshot A, B, C, F, I, J and N again:
@@ -1322,7 +1322,7 @@ A screenshot alone does not prove step 6: the GET output does.
 ### Web recipe: `.cursor/skills/verify-howmuch/features/rewards.md`
 
 - **Open filled.** The face's headline now reads "Minimum met · Resets in 8 days" with the basis line. "Full-period minimum met" moves inside **Targets, periods and tiers** (on the Stacked board, inside the open slip's **Totals, qualifications and tiers**).
-- **New `rewards-exposure-states`.** Import the states fixture through Settings → Rewards import and open `/rewards?to=2026-05-24`. For each card:
+- **New `rewards-exposure-states`.** Import the states fixture through Settings → Rewards import & export and open `/rewards?to=2026-05-24`. For each card:
   - check the slip text and the `data-stage` and `data-mono` attributes against the fixture table;
   - check the marker line's x against `h × W` and the sun's centre against its pose.
   Do it at 1440 × 900 (3:2 face) and 390 × 844 (strip). Screenshot Dusk Ridge light and dark, plus one other look in both modes. Within a mode the faces must be pixel-identical across looks; only the chrome differs. Between modes they differ by design: daytime faces in light, the prints in dark.

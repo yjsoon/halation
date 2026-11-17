@@ -6,7 +6,7 @@ not its Expo client. HowMuch uses the same reward calculation rules against its 
 
 ## Exchange one account’s configuration
 
-In the web app, open **Settings → Rewards import → One account’s rewards configuration**.
+In the web app, open **Settings → Rewards import & export → One account’s rewards configuration**.
 Choose an account and **Export account config** to download a JSON file compatible
 with Rewards Tracker’s per-account exchange. To import, choose the destination
 account, select the per-account JSON file, check the source and destination shown,
@@ -44,7 +44,7 @@ replacement flow to import a single account.
 ## Import configuration separately from ledger history
 
 1. Export settings from Rewards Tracker web.
-2. In HowMuch, open **Settings → Rewards import** (native: **Rewards → More (…) → Import & Export…**).
+2. In HowMuch, open **Settings → Rewards import & export** (native: **Rewards → More (…) → Import & Export…**).
 3. Export the existing HowMuch configuration before replacing it, then import the tracker JSON.
 4. Check linked account names, rates, flag categories and spend tiers. HowMuch can track open on-budget checking/debit accounts as well as credit accounts.
 5. Open Rewards at a known historical date and compare the card periods, qualifying spend and rewards.

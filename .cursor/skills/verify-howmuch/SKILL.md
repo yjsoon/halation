@@ -16,7 +16,7 @@ HowMuch has two user surfaces in this repo. Drive the one the change actually to
 Not covered here:
 
 - Hosted Worker + D1. Do not run Wrangler deploys for this skill.
-- YNAB Rewards Tracker (`yjsoon/ynab-rewards-tracker`) — not in this repo. HowMuch imports a settings export at **Rewards import** (`/import/rewards`) and shows the live dashboard at **Rewards** (`/rewards`) against the HowMuch ledger. There is no YNAB OAuth to drive.
+- YNAB Rewards Tracker (`yjsoon/ynab-rewards-tracker`) — not in this repo. HowMuch imports a settings export at **Rewards import & export** (`/import/rewards`) and shows the live dashboard at **Rewards** (`/rewards`) against the HowMuch ledger. There is no YNAB OAuth to drive.
 - The clickable HTML prototype (`docs/frontend/intake-ui.html`). That is a layout draft. It is not the app. Never treat a prototype screenshot as proof that iOS meets a recipe.
 
 There is no Playwright/Cypress harness. Drive web with Cursor browser / computer-use against the URL `control-howmuch state` prints. Drive iOS with computer-use against the Simulator. Use `control-howmuch http` as a second, read-only view of stored data.
@@ -148,7 +148,7 @@ Stable web handles:
 | Primary nav | `nav` named `Primary navigation` |
 | Nav links | `Ledger`, `Scheduled`, `Rewards`, then the Reports group (`Spending`, `Income v spending`, `Net worth`, `Money age`); account list button `Organise` |
 | Reports | `Reports` is a disclosure summary inside Primary navigation. It opens itself on a report route and is otherwise closed until clicked. Click it only when the four report names are not visible |
-| Settings | sidebar footer link `Settings` (drawer footer, under the accounts, on viewport ≤720px). Hub has `Appearance` and lists `API tokens` and `Rewards import` |
+| Settings | sidebar footer link `Settings` (drawer footer, under the accounts, on viewport ≤720px). Hub has `Appearance` and lists `API tokens` and `Rewards import & export` |
 | Quick entry | route `/add`, or masthead `+ Add` on viewport ≤720px |
 | Register compose | account register toolbar `+ Add transaction` |
 | Sign out | button `Sign out` |

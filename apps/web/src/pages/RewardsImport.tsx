@@ -61,7 +61,7 @@ export function RewardsImportPage() {
   return (
     <>
       <header className="report-header">
-        <SettingsCrumb current="Rewards import" />
+        <SettingsCrumb current="Rewards import & export" />
       </header>
 
       <AccountConfigExchange key={planId} busy={busy} setBusy={setBusy} configuredAccounts={cards.map((card) => card.ynabAccountId)} onImported={() => {

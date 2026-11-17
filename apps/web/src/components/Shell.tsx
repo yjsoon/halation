@@ -162,7 +162,7 @@ export function Shell() {
       ?? (location.pathname === "/scheduled" ? "Scheduled transactions" : null)
       ?? (location.pathname === "/settings" ? "Settings" : null)
       ?? (location.pathname === "/api-tokens" ? "API tokens" : null)
-      ?? (location.pathname === "/import/rewards" ? "Rewards import" : null)
+      ?? (location.pathname === "/import/rewards" ? "Rewards import & export" : null)
       ?? (location.pathname === "/tools/reward-terms" ? "Reward terms" : null)
       ?? (location.pathname === "/tools/statement-formatter" ? "Statement formatter" : null)
       ?? (location.pathname === "/rewards/new" ? "Add card" : null)

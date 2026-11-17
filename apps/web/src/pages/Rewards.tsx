@@ -708,7 +708,7 @@ function ArrangeMenu({ preferences, hiddenCount, onChange }: {
             <input type="checkbox" checked={preferences.showHidden} onChange={(event) => onChange({ showHidden: event.target.checked })} /> Show hidden ({hiddenCount})
           </label>
           <div className="rw-popover-rule" aria-hidden="true" />
-          <Link className="rw-popover-link" to="/import/rewards">Import or export…</Link>
+          <Link className="rw-popover-link" to="/import/rewards">Rewards import & export…</Link>
         </div>
       )}
     </div>
