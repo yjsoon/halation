@@ -1786,6 +1786,26 @@ export function TransactionsPage() {
     () => flowTotals(narrowsLines ? footerRows.flatMap((txn) => reportLines(txn).filter(lineInView)) : footerRows),
     [categoryIds, filters.categoryIds.length, flow, narrowsLines, footerRows, wantsUncategorised],
   );
+  // Escape clears a selection, as it closes the register's editors, once
+  // nothing that takes the key first is open: an editor, a confirmation, a
+  // dialog, a menu or the phone drawer. Focus stays in the register.
+  const escapeClearsSelection = selectedRowIds.length > 0 && rowEdit.status === "idle" && compose.status !== "open"
+    && !pendingDeletion && !pendingBulkDeletion && !pendingReconciledSave && !reconcileDraft && !suggestionReview
+    && !cardSettingsOpen && !cardTermsOpen;
+  useEffect(() => {
+    if (!escapeClearsSelection) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || mutationLockRef.current) return;
+      if (document.querySelector('dialog[open], .mobile-nav-open, .filter-trigger[aria-expanded="true"], .account-icon-button[aria-expanded="true"], [role="combobox"][aria-expanded="true"]')) return;
+      event.preventDefault();
+      const active = document.activeElement;
+      const keepsFocus = active instanceof HTMLElement && active !== document.body && !active.closest(".register-bulk-bar");
+      dispatchSelection({ kind: "none" });
+      if (!keepsFocus) selectAllFallback()?.focus({ preventScroll: true });
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [escapeClearsSelection]);
   const selectedAnyReconciled = selectedRows.some((txn) => txn.cleared === "reconciled");
   const selectedAllReconciled = selectedRows.length > 0 && selectedRows.every((txn) => txn.cleared === "reconciled");
   const selectedTotals = useMemo(() => flowTotals(selectedRows), [selectedRows]);
