@@ -415,7 +415,13 @@ function ScheduleEditorForm({ schedule, prefill, accounts, categoryGroups, payee
     await onSave(input, `scheduled-${operationSeed}-${stableHash(JSON.stringify(input))}`);
   };
 
-  return <section className="transaction-editor schedule-editor" aria-labelledby="schedule-editor-heading">
+  return <section className="transaction-editor schedule-editor" aria-labelledby="schedule-editor-heading"
+    onKeyDown={(event) => {
+      if (event.key === "Escape" && !saving && !event.defaultPrevented) {
+        event.preventDefault();
+        onCancel();
+      }
+    }}>
     <div className="section-heading"><div><span className="section-title" id="schedule-editor-heading">{schedule ? "Edit scheduled transaction" : prefill?.heading ?? "Add scheduled transaction"}</span><span className="section-meta">{schedule ? "Changes apply to future repeats." : prefill?.note ?? "Add a repeating transaction."}</span></div><button type="button" className="text-button" onClick={onCancel} disabled={saving}>Cancel</button></div>
     <form className="transaction-editor-form" onSubmit={(event) => void submit(event)}>
       <div className="field-row transaction-editor-top-row"><label className="field"><span className="field-label">Account</span><select ref={firstFieldRef} value={accountId} onChange={(event) => setAccountId(event.target.value)} required><option value="">Choose account</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}{account.closed ? " (closed)" : ""}</option>)}</select></label><label className="field"><span className="field-label">Amount</span><input type="text" inputMode="decimal" value={isSplit ? formatMilliunitsField(splitTotal) : amount} onChange={(event) => setAmount(event.target.value)} disabled={isSplit} required /><span className="field-note">Use a minus sign for outflow.</span></label></div>
