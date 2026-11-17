@@ -400,6 +400,21 @@ export function TransactionsPage() {
   // account, asks for the heading so focus does not fall to the page.
   const location = useLocation();
   const headingRef = useRef<HTMLHeadingElement>(null);
+  // The reward masthead replaces the plain header once it loads, which mounts
+  // a new heading; one that had focus hands it to its replacement.
+  const headingHadFocusRef = useRef(false);
+  const setHeading = useCallback((element: HTMLHeadingElement | null) => {
+    if (element) {
+      headingRef.current = element;
+      if (headingHadFocusRef.current) {
+        headingHadFocusRef.current = false;
+        element.focus({ preventScroll: true });
+      }
+      return;
+    }
+    headingHadFocusRef.current = headingRef.current !== null && document.activeElement === headingRef.current;
+    headingRef.current = null;
+  }, []);
   useEffect(() => {
     if ((location.state as { focusHeading?: boolean } | null)?.focusHeading) {
       headingRef.current?.focus({ preventScroll: true });
@@ -1938,7 +1953,7 @@ export function TransactionsPage() {
   return (
     <>
       {(() => {
-        const title = <h1 ref={headingRef} tabIndex={-1}>{registerLabel}</h1>;
+        const title = <h1 ref={setHeading} tabIndex={-1}>{registerLabel}</h1>;
         const balanceRow = (
           <div className="headline-row register-balances">
             <div className="headline-figure register-balance-hero">
