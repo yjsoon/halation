@@ -2,10 +2,13 @@ import { useEffect, useMemo, useRef, type ReactElement, type ReactNode } from "r
 import type { Account, Payee, Subtransaction, Transaction } from "../api/types";
 import type { splitCategoryGroups } from "../lib/categories";
 import { formatDate } from "../lib/dates";
-import { formatAmount } from "../lib/money";
+import { formatAmount, formatMoney } from "../lib/money";
 import { canonicalPayeeName, findTransferPayee, formatComposeAmount } from "../lib/register-compose";
 import {
   moveTargets,
+  newRowSplitLine,
+  splitRemainder,
+  type RowSplitLine,
   beginRowEdit,
   payeeListEntries,
   postingAccountId,
@@ -286,7 +289,9 @@ export function RegisterEditableRow(props: {
           {payeeExtra}
         </td>
         <td className="muted">
-          {findTransferPayee(surface.payees, draft.payeeName) ? (
+          {row.kind === "posted" && draft.splitLines ? (
+            `Split · ${draft.splitLines.length} lines`
+          ) : findTransferPayee(surface.payees, draft.payeeName) ? (
             <span className="register-compose-transfer">Transfer</span>
           ) : rowFieldWritable(row, "category", draft, surface.payees) ? (
             <span data-row-focus="category">
@@ -361,6 +366,20 @@ export function RegisterEditableRow(props: {
       >
         <td colSpan={9}>
           <div className="register-compose-actions">
+            {row.kind === "posted" && !row.transaction.transfer_account_id && !findTransferPayee(surface.payees, draft.payeeName) ? (
+              <SplitEditor
+                id={fieldId}
+                lines={draft.splitLines ?? null}
+                categoryId={draft.categoryId}
+                total={draft.outflow.trim() ? "spend" : "income"}
+                amountText={draft.outflow.trim() || draft.inflow.trim()}
+                remainder={splitRemainder(draft)}
+                payeeOptions={payeeListEntries(surface.payees, surface.accounts, postingAccountId(row)).map((entry) => entry.value)}
+                groups={surface.groups}
+                disabled={busy}
+                onChange={(splitLines) => surface.dispatch({ type: "patch", draft: { splitLines } })}
+              />
+            ) : null}
             {split ? null : (
               <div className="register-compose-meta">
                 <div className="register-compose-flags">
@@ -628,4 +647,126 @@ function idleOutflow(row: RegisterRowRef, line: Subtransaction | undefined): str
 function idleInflow(row: RegisterRowRef, line: Subtransaction | undefined): string {
   const amount = row.kind === "split-line" ? line?.amount ?? 0 : row.transaction.amount;
   return amount > 0 ? formatAmount(amount) : "";
+}
+
+/**
+ * A posted row's split lines, edited as in Quick entry: a category, an
+ * amount with Outflow or Inflow, and an optional payee and memo per line,
+ * with what is left to assign against the row's own amount.
+ */
+function SplitEditor({ id, lines, categoryId, total, amountText, remainder, payeeOptions, groups, disabled, onChange }: {
+  id: string;
+  lines: readonly RowSplitLine[] | null;
+  categoryId: string;
+  total: RowSplitLine["direction"];
+  amountText: string;
+  remainder: number | null;
+  payeeOptions: readonly string[];
+  groups: ReturnType<typeof splitCategoryGroups>;
+  disabled: boolean;
+  onChange: (lines: readonly RowSplitLine[] | null) => void;
+}): ReactElement {
+  const update = (key: string, patch: Partial<RowSplitLine>) =>
+    onChange((lines ?? []).map((line) => (line.key === key ? { ...line, ...patch } : line)));
+  return (
+    <div className="register-split">
+      <div className="split-controls">
+        {lines && <span className="field-label">Split categories</span>}
+        <button
+          type="button"
+          className="split-toggle"
+          disabled={disabled}
+          // As on iOS, the first line starts with the whole amount.
+          onClick={() => onChange(lines ? null : [newRowSplitLine(total, amountText, categoryId), newRowSplitLine(total)])}
+        >
+          {lines ? "Use one category" : "+ Split categories"}
+        </button>
+      </div>
+      {lines && (
+        <div className="split-lines register-split-lines">
+          <datalist id={`${id}-split-payees`}>
+            {payeeOptions.map((value) => <option key={value} value={value} />)}
+          </datalist>
+          {lines.map((line, index) => (
+            <div key={line.key} className="split-line" role="group" aria-label={`Allocation ${index + 1}`}>
+              <label className="split-line-category">
+                <span>Category</span>
+                <CategorySelect
+                  aria-label={`Split line ${index + 1} category`}
+                  value={line.categoryId}
+                  onChange={(value) => update(line.key, { categoryId: value })}
+                  groups={groups}
+                  disabled={disabled}
+                />
+              </label>
+              <label className="split-line-amount">
+                <span>Amount</span>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  aria-label={`Split line ${index + 1} amount`}
+                  value={line.amount}
+                  disabled={disabled}
+                  onChange={(event) => update(line.key, { amount: event.target.value })}
+                />
+              </label>
+              <div className="segmented split-line-direction" role="group" aria-label={`Split line ${index + 1} direction`}>
+                <button type="button" className={line.direction === "spend" ? "segment segment-active" : "segment"} aria-pressed={line.direction === "spend"} disabled={disabled} onClick={() => update(line.key, { direction: "spend" })}>Outflow</button>
+                <button type="button" className={line.direction === "income" ? "segment segment-active" : "segment"} aria-pressed={line.direction === "income"} disabled={disabled} onClick={() => update(line.key, { direction: "income" })}>Inflow</button>
+              </div>
+              <details className="split-line-memo" open={Boolean(line.payeeName || line.memo) || undefined}>
+                <summary>Payee / memo</summary>
+                <label className="field">
+                  <span className="field-label">Payee <small>optional</small></span>
+                  <input
+                    type="text"
+                    list={`${id}-split-payees`}
+                    placeholder="Merchant"
+                    aria-label={`Split line ${index + 1} payee`}
+                    value={line.payeeName}
+                    maxLength={200}
+                    autoComplete="off"
+                    disabled={disabled}
+                    onChange={(event) => update(line.key, { payeeName: event.target.value })}
+                  />
+                </label>
+                <label className="field">
+                  <span className="field-label">Memo <small>optional</small></span>
+                  <input
+                    type="text"
+                    placeholder="Note"
+                    aria-label={`Split line ${index + 1} memo`}
+                    value={line.memo}
+                    disabled={disabled}
+                    onChange={(event) => update(line.key, { memo: event.target.value })}
+                  />
+                </label>
+              </details>
+              {lines.length > 2 && (
+                <button
+                  type="button"
+                  className="split-line-remove"
+                  aria-label={`Remove split line ${index + 1}`}
+                  title="Remove line"
+                  disabled={disabled}
+                  onClick={() => onChange(lines.filter((candidate) => candidate.key !== line.key))}
+                >
+                  Remove line
+                </button>
+              )}
+            </div>
+          ))}
+          <button type="button" className="split-toggle" disabled={disabled} onClick={() => onChange([...lines, newRowSplitLine(total)])}>
+            + Add line
+          </button>
+          <p role="status" className={remainder === 0 ? "split-remainder split-remainder-ok" : "split-remainder"}>
+            {remainder === 0
+              ? "✓ Lines match the total."
+              : remainder === null ? "" : `${formatMoney(remainder, { sign: true })} left to assign.`}
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }

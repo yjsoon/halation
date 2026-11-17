@@ -1390,6 +1390,8 @@ export function TransactionsPage() {
   const deepLinkedTransactionId = forcedTransaction?.id ?? null;
 
   const editingRowId = rowEdit.status === "idle" ? null : rowId(rowEdit.row);
+  // A split being edited from its own row shows its lines there instead.
+  const splitEditorId = rowEdit.status !== "idle" && rowEdit.row.kind === "posted" ? rowEdit.row.transaction.id : null;
   const applyRowFilters = (rows: Transaction[]) => {
     return rows
       .filter((txn) => !txn.deleted)
@@ -2471,7 +2473,7 @@ export function TransactionsPage() {
                             onConfirm={() => void confirmAmount(txn)}
                             confirming={writeLocked || mutatingId === txn.id}
                           />,
-                          ...(txn.subtransactions ?? []).map((sub) => (
+                          ...(txn.id === splitEditorId ? [] : txn.subtransactions ?? []).map((sub) => (
                             <RegisterEditableRow
                               key={sub.id}
                               row={{ kind: "split-line", parent: txn, lineId: sub.id }}
@@ -2529,7 +2531,7 @@ export function TransactionsPage() {
                         confirming={writeLocked || mutatingId === txn.id}
                         targeted={deepLink.kind === "valid" && deepLink.link.subtransactionId === null && txn.id === deepLinkedTransactionId}
                       />,
-                      ...(txn.subtransactions ?? []).map((sub) => (
+                      ...(txn.id === splitEditorId ? [] : txn.subtransactions ?? []).map((sub) => (
                         <RegisterEditableRow
                           key={sub.id}
                           row={{ kind: "split-line", parent: txn, lineId: sub.id }}

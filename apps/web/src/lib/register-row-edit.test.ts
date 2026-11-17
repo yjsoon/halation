@@ -175,7 +175,7 @@ describe("beginRowEdit", () => {
     const row = posted(txn());
     expect(beginRowEdit(row, "category", unlocked)).toEqual({
       kind: "begin",
-      action: { type: "begin", row, draft: shopDraft, focus: "category" },
+      action: { type: "begin", row, draft: { ...shopDraft, splitLines: null }, focus: "category" },
     });
   });
 

@@ -157,8 +157,9 @@ export interface TransactionUpdateInput {
   payee_name?: string | null;
   category_id?: string | null;
   transfer_account_id?: string | null;
+  /** The whole set: a line without an id is added, a line left out is removed, `[]` unsplits. */
   subtransactions?: Array<{
-    id: string;
+    id?: string;
     amount: number;
     payee_id?: string | null;
     payee_name?: string | null;

@@ -1243,6 +1243,84 @@ a.page-eyebrow:hover {
   flex-basis: 100%;
 }
 
+/* A posted row's split lines, laid out as in Quick entry. */
+.register-split {
+  flex-basis: 100%;
+  min-width: 0;
+  text-align: left;
+}
+
+.register-split .split-controls {
+  margin: 0 0 8px;
+}
+
+.register-split-lines {
+  margin-bottom: 4px;
+}
+
+.register-split-lines .split-line {
+  grid-template-columns: minmax(0, 1.4fr) 120px auto minmax(0, 1.6fr) auto;
+  align-items: end;
+}
+
+.register-split-lines .split-line label {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.register-split-lines .split-line-memo {
+  align-self: center;
+}
+
+.register-split-lines .split-line-memo[open] {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 8px;
+}
+
+.register-split-lines .split-line-memo[open] summary {
+  grid-column: 1 / -1;
+}
+
+.register-split-lines .split-line-direction .segment {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.register-split-lines > .split-toggle {
+  align-self: start;
+}
+
+@media (max-width: 720px) {
+  .register-split-lines .split-line {
+    grid-template-columns: minmax(0, 1fr) 110px;
+    gap: 6px 10px;
+  }
+
+  .register-split-lines .split-line-direction,
+  .register-split-lines .split-line-memo {
+    grid-column: 1 / -1;
+  }
+
+  /* Phones stretch every segmented control; this one keeps to its two words, as in Quick entry. */
+  .register-split-lines .split-line-direction {
+    justify-self: start;
+    width: auto;
+  }
+
+  .register-split-lines .split-line-memo[open] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .register-split-lines .split-line-remove {
+    grid-column: 1 / -1;
+    justify-self: end;
+    min-height: 44px;
+  }
+}
+
 /* On a phone the copy takes its own line, so Delete, Cancel and Save stay together. */
 @media (max-width: 720px) {
   .register-row-duplicate {

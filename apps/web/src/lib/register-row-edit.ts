@@ -1,6 +1,6 @@
 import { isStorableMilliunits } from "@howmuch/money";
 import type { Payee, Subtransaction, Transaction, TransactionUpdateInput } from "../api/types";
-import { amountFormatHint, minorUnitMilliunits, parseMilliunits, planDecimalIsComma } from "./money";
+import { amountFormatHint, formatMoney, minorUnitMilliunits, parseMilliunits, planDecimalIsComma } from "./money";
 import { accountIcon } from "./account-icon";
 import { canonicalPayeeName, findTransferPayee, formatMilliunitsPadded } from "./register-compose";
 import { legacyWords, type ClaimStatus } from "./follow-up";
@@ -16,7 +16,54 @@ export type RegisterRowDraft = {
   readonly flagColor: string;
   readonly needsConfirmation: boolean;
   readonly claimStatus: ClaimStatus | null;
+  /**
+   * A posted row's split lines, edited as in Quick entry: `null` is one
+   * category, a list is a split. Left out, the row keeps what it has.
+   */
+  readonly splitLines?: readonly RowSplitLine[] | null;
 };
+
+export type RowSplitLine = {
+  readonly key: string;
+  /** The saved line this edits; absent for a line added here. */
+  readonly sourceId?: string;
+  readonly categoryId: string;
+  readonly amount: string;
+  readonly direction: "spend" | "income";
+  readonly payeeName: string;
+  readonly memo: string;
+};
+
+export function newRowSplitLine(direction: RowSplitLine["direction"], amount = "", categoryId = ""): RowSplitLine {
+  return { key: crypto.randomUUID(), categoryId, amount, direction, payeeName: "", memo: "" };
+}
+
+/** The row's own amount as the draft has it, signed; null when it does not parse. */
+export function draftSignedAmount(draft: RegisterRowDraft): number | null {
+  const outflow = draft.outflow.trim();
+  const inflow = draft.inflow.trim();
+  if (!outflow && !inflow) return 0;
+  const magnitude = parseAmountEntry(outflow || inflow);
+  return magnitude === null ? null : outflow ? -magnitude : magnitude;
+}
+
+/**
+ * What the lines still have to cover, in the row's own direction, as Quick
+ * entry shows it; null while a line has no amount, so an empty line never
+ * reads as matching.
+ */
+export function splitRemainder(draft: RegisterRowDraft): number | null {
+  const total = draftSignedAmount(draft);
+  if (total === null || !draft.splitLines) return null;
+  if (draft.splitLines.some((line) => !((parseAmountEntry(line.amount) ?? 0) > 0))) {
+    return null;
+  }
+  let assigned = 0;
+  for (const line of draft.splitLines) {
+    assigned += (parseAmountEntry(line.amount) ?? 0) * (line.direction === "income" ? 1 : -1);
+  }
+  return (total - assigned) * (total > 0 ? 1 : -1);
+}
 
 type RowEditAccount = {
   readonly id: string;
@@ -58,7 +105,7 @@ export type RegisterRowEditSession =
 
 export type RegisterRowEditAction =
   | { readonly type: "begin"; readonly row: RegisterRowRef; readonly draft: RegisterRowDraft; readonly focus: RegisterRowFocus }
-  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "accountId" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "claimStatus">> }
+  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "accountId" | "splitLines" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "claimStatus">> }
   | { readonly type: "set-outflow"; readonly value: string }
   | { readonly type: "set-inflow"; readonly value: string }
   | { readonly type: "invalid"; readonly message: string; readonly focus?: RegisterRowFocus }
@@ -208,12 +255,15 @@ export function rowFieldWritable(
   payees: readonly Payee[] = [],
 ): boolean {
   if (row.kind === "posted") {
-    const splitParent = Boolean(row.transaction.subtransactions?.length);
+    const splitParent = draft?.splitLines === undefined
+      ? Boolean(row.transaction.subtransactions?.length)
+      : draft.splitLines !== null;
     const savedTransfer = Boolean(row.transaction.transfer_account_id);
     if (field === "category" && (splitParent || categoryLocked(savedTransfer, row.transaction.payee_name ?? "", draft, payees))) {
       return false;
     }
-    if ((field === "outflow" || field === "inflow") && splitParent) {
+    // A split's total stays editable: its lines are checked against it.
+    if ((field === "outflow" || field === "inflow") && splitParent && draft?.splitLines === undefined) {
       return false;
     }
     return true;
@@ -381,6 +431,19 @@ function postedDraft(txn: Transaction): RegisterRowDraft {
     needsConfirmation: txn.needs_confirmation === true || legacy.toCheck,
     claimStatus: txn.claim_status ?? legacy.claim,
     ...amountDraft(txn.amount),
+    splitLines: txn.subtransactions?.length ? txn.subtransactions.map(rowSplitLine) : null,
+  };
+}
+
+function rowSplitLine(line: Subtransaction): RowSplitLine {
+  return {
+    key: line.id,
+    sourceId: line.id,
+    categoryId: line.category_id ?? "",
+    amount: formatMilliunitsPadded(Math.abs(line.amount)),
+    direction: line.amount > 0 ? "income" : "spend",
+    payeeName: line.payee_name ?? "",
+    memo: line.memo ?? "",
   };
 }
 
@@ -533,6 +596,18 @@ function planPostedCommit(
     input.account_id = draft.accountId;
   }
 
+  if (draft.splitLines !== undefined) {
+    const split = planSplitLines(txn, draft.splitLines, input.amount ?? txn.amount, payees);
+    if (split.kind === "invalid") {
+      return split;
+    }
+    if (split.kind === "changed") {
+      input.subtransactions = split.lines;
+      // A split's category lives on its lines.
+      if (split.lines.length && txn.category_id) input.category_id = null;
+    }
+  }
+
   if (options?.approve && !txn.approved) {
     input.approved = true;
   }
@@ -551,6 +626,68 @@ export function moveTargets<A extends RowEditAccount>(txn: Transaction, accounts
   if (txn.cleared === "reconciled") return null;
   const pinned = new Set([txn.transfer_account_id, ...(txn.subtransactions ?? []).map((line) => line.transfer_account_id)]);
   return accounts.filter((account) => account.id === txn.account_id || (!account.closed && !pinned.has(account.id)));
+}
+
+/**
+ * The whole set of lines to send, as iOS and Quick entry check them: at least
+ * two, each with an amount, together equal to the row. `null` lines unsplit
+ * the row. A line keeps its saved payee and transfer while its payee text is
+ * unchanged; otherwise the text names a payee or a transfer, as on a row.
+ */
+function planSplitLines(
+  txn: Transaction,
+  lines: readonly RowSplitLine[] | null,
+  total: number,
+  payees: readonly Payee[],
+):
+  | { readonly kind: "same" }
+  | { readonly kind: "changed"; readonly lines: NonNullable<TransactionUpdateInput["subtransactions"]> }
+  | { readonly kind: "invalid"; readonly message: string } {
+  const saved = txn.subtransactions ?? [];
+  if (lines === null) {
+    return saved.length ? { kind: "changed", lines: [] } : { kind: "same" };
+  }
+  if (lines.length < 2) {
+    return { kind: "invalid", message: "A split transaction needs at least two lines." };
+  }
+  const next: NonNullable<TransactionUpdateInput["subtransactions"]> = [];
+  for (const line of lines) {
+    const magnitude = parseAmountEntry(line.amount);
+    if (magnitude === null || magnitude <= 0) {
+      return { kind: "invalid", message: "Enter a valid amount for every split line." };
+    }
+    const amount = line.direction === "income" ? magnitude : -magnitude;
+    const original = line.sourceId ? saved.find((sub) => sub.id === line.sourceId) : undefined;
+    const payeeName = line.payeeName.trim();
+    const transfer = findTransferPayee(payees, payeeName);
+    const payee = original && payeeName === (original.payee_name ?? "")
+      ? {
+          payee_id: original.payee_id,
+          payee_name: original.payee_name ?? null,
+          transfer_account_id: original.transfer_account_id ?? null,
+          transfer_transaction_id: original.transfer_transaction_id ?? null,
+        }
+      : transfer
+        ? { payee_id: transfer.id, payee_name: null, transfer_account_id: transfer.transfer_account_id ?? null, transfer_transaction_id: null }
+        : { payee_id: null, payee_name: payeeName || null, transfer_account_id: null, transfer_transaction_id: null };
+    next.push({
+      ...(original ? { id: original.id } : {}),
+      amount,
+      ...payee,
+      category_id: line.categoryId || null,
+      memo: line.memo.trim() || null,
+    });
+  }
+  const assigned = next.reduce((sum, line) => sum + line.amount, 0);
+  if (assigned !== total) {
+    return { kind: "invalid", message: `${formatMoney((total - assigned) * (total > 0 ? 1 : -1), { sign: true })} left to assign.` };
+  }
+  const sameLine = (a: NonNullable<TransactionUpdateInput["subtransactions"]>[number], b: Subtransaction) =>
+    a.id === b.id && a.amount === b.amount && (a.payee_id ?? null) === (b.payee_id ?? null)
+    && (a.payee_name ?? null) === (b.payee_name ?? null) && (a.category_id ?? null) === (b.category_id ?? null)
+    && (a.memo ?? null) === (b.memo ?? null) && (a.transfer_account_id ?? null) === (b.transfer_account_id ?? null);
+  const unchanged = next.length === saved.length && next.every((line, index) => sameLine(line, saved[index]!));
+  return unchanged ? { kind: "same" } : { kind: "changed", lines: next };
 }
 
 function planSplitCommit(
