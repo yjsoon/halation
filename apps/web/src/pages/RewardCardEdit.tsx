@@ -130,7 +130,13 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   const [scope, setScope] = useState<"current" | "next" | "everywhere">("current");
   const changeDates = card ? ruleChangeDates(card, rewardsToday()) : null;
   const [busy, setBusy] = useState<"save" | "delete" | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // The form is several screens tall, so an error shows beside the control that raised it.
+  const [error, setErrorAt] = useState<{ at: "save" | "flag" | "delete"; message: string } | null>(null);
+  const errorPanel = (at: "save" | "flag" | "delete", title: string) => error?.at === at && (
+    <StatusPanel error role="alert" title={title}>
+      {error.message}
+    </StatusPanel>
+  );
   const [pendingDelete, setPendingDelete] = useState(false);
   // The confirmation renders at the top of the page, far from Delete card.
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
@@ -167,11 +173,11 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   const save = async () => {
     const written = creditCardWrite(draft, { clearMissing: Boolean(card) });
     if ("error" in written) {
-      setError(written.error);
+      setErrorAt({ at: "save", message: written.error });
       return;
     }
     setBusy("save");
-    setError(null);
+    setErrorAt(null);
     try {
       if (card && changeDates) {
         await api.updateRewardCard(planId, card.id, written.card,
@@ -181,7 +187,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
       }
       navigate(rewardsHref);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setErrorAt({ at: "save", message: cause instanceof Error ? cause.message : String(cause) });
     } finally {
       setBusy(null);
     }
@@ -190,12 +196,12 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   const remove = async () => {
     if (!card) return;
     setBusy("delete");
-    setError(null);
+    setErrorAt(null);
     try {
       await api.deleteRewardCard(planId, card.id);
       navigate(rewardsHref);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      setErrorAt({ at: "delete", message: cause instanceof Error ? cause.message : String(cause) });
     } finally {
       setBusy(null);
     }
@@ -203,15 +209,15 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
 
   const addImportedFlag = () => {
     if (!importCategoryId || !categoryName) {
-      setError("Choose a category to add as a flag.");
+      setErrorAt({ at: "flag", message: "Choose a category to add as a flag." });
       return;
     }
     const rate = requiredFinite(importRate, "Category flag rate");
     if (!rate.ok) {
-      setError(rate.error);
+      setErrorAt({ at: "flag", message: rate.error });
       return;
     }
-    setError(null);
+    setErrorAt(null);
     setDraft((current) => {
       const named = current.flagNames[importFlagColor]?.trim() || categoryName;
       return {
@@ -241,12 +247,6 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
         </div>
       </header>
 
-      {error && (
-        <StatusPanel error role="alert" title="Could not update this card.">
-          {error}
-        </StatusPanel>
-      )}
-
       {pendingDelete && card && (
         <section className="transaction-editor schedule-delete-confirm" aria-labelledby="delete-card-heading">
           <div className="section-heading">
@@ -256,6 +256,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
             </div>
           </div>
           <p>{card.name} will no longer appear on Rewards.</p>
+          {errorPanel("delete", "Could not delete this card.")}
           <div className="transaction-editor-actions">
             <button type="button" ref={deleteCancelRef} className="text-button" onClick={() => setPendingDelete(false)} disabled={busy === "delete"}>Cancel</button>
             <button type="button" className="save-button schedule-delete-button" onClick={() => void remove()} disabled={busy === "delete"}>
@@ -535,6 +536,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
               </label>
             </div>
             <button type="button" className="text-button" onClick={addImportedFlag}>Add flag from category</button>
+            {errorPanel("flag", "Could not add this flag.")}
             {draft.flags.map((flag, index) => (
               <FlagRow
                 key={flag.id}
@@ -619,6 +621,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
             </fieldset>
           )}
 
+          {errorPanel("save", card ? "Could not update this card." : "Could not add this card.")}
           <div className="transaction-editor-actions">
             <Link to={rewardsHref} className="text-button">Cancel</Link>
             {card && (
