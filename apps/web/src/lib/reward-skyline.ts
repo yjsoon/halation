@@ -1,5 +1,6 @@
 import type { RewardsReport } from "../api/types";
 import type { Stage } from "./reward-exposure";
+import { formatDayMonth } from "./dates";
 
 /*
  * The Skyline board's row rules (docs/frontend/rewards-exposure-card.md "Skyline"): how tall a
@@ -62,10 +63,8 @@ export function activeMonth(calc: Calculation, asOf: string | undefined): Monthl
   return calc.monthly_qualifications?.find((month) => month.start <= asOf && asOf <= month.end) ?? null;
 }
 
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
-/** "17 May": the rails' day labels. */
+/** "17 May", or "May 17" on a month-first plan: the rails' day labels. */
 export function dayMonth(iso: string): string {
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso);
-  return match ? `${Number(match[3])} ${MONTHS[Number(match[2]) - 1]}` : iso;
+  const match = /^\d{4}-\d{2}-\d{2}/.exec(iso);
+  return match ? formatDayMonth(match[0]) : iso;
 }

@@ -13,7 +13,7 @@ import type {
 import { CategorySelect } from "../components/CategorySelect";
 import { FlagPicker, FlagTag } from "../components/FlagTag";
 import { splitCategoryGroups } from "../lib/categories";
-import { formatDate, formatDayMonth, monthRange, todayIso } from "../lib/dates";
+import { formatDate, formatDayMonth, formatPeriod, monthRange, todayIso } from "../lib/dates";
 import { rewardsToday } from "../../../api/src/rewards/engine/date-utils";
 import { ruleChangeDates } from "../../../api/src/rewards/versions";
 import { isFlagColour, ledgerFlagFromReward, rewardFlagFromLedger } from "../lib/flags";
@@ -936,7 +936,7 @@ function CardLedger({
           placeholder="Payee, memo, flag:red…" onChange={(event) => { setSearch(event.target.value); setOffset(0); }} /></label>
       </div>
       <p className="field-note">Earned rewards use saved card rules and full cycle context, not only this page or the search results. Save rule changes to recalculate.</p>
-      {calculation && <p className="field-note">Card period: {calculation.period}</p>}
+      {calculation && <p className="field-note">Card period: {formatPeriod(calculation.period)}</p>}
       {rewards.error && <p role="alert">Could not calculate rewards: {rewards.error}</p>}
       {!range.from && !since && !rewards.loading && <p role="status">Current-period boundaries unavailable. Choose a date preset to view the ledger.</p>}
       {range.from && range.to && range.from > range.to && <p role="alert">Ledger start must be on or before the end date.</p>}

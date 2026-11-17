@@ -650,7 +650,7 @@ function CardMenu({ row, search, hidden, expiry, today, onToggleHidden, onHideUn
             <li>
               <button type="button" aria-label={`Hide ${row.card.name} until next period`} aria-describedby={`${id}-returns`}
                 disabled={!expiry || expiry <= today}
-                title={expiry && expiry > today ? `Returns ${expiry} (Singapore)` : "No upcoming period boundary in this report"}
+                title={expiry && expiry > today ? `Returns ${formatDate(expiry)} (Singapore)` : "No upcoming period boundary in this report"}
                 onClick={() => { if (!expiry) return; setOpen(false); trigger.current?.focus(); onHideUntil(expiry); }}>Hide until next period</button>
               <span className="rw-menu-note" id={`${id}-returns`}>{returns ? `Returns ${formatDate(returns)}` : "No upcoming period boundary in this report"}</span>
             </li>

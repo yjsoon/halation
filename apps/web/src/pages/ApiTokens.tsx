@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, useApi, type CreatedPersonalApiToken } from "../api/client";
 import { SettingsCrumb } from "../components/SettingsCrumb";
 import { useConfirmationFocus } from "../lib/use-confirmation-focus";
+import { formatDate } from "../lib/dates";
 import { StatusPanel } from "../components/StatusPanel";
 
 export function ApiTokensPage() {
@@ -189,6 +190,9 @@ export function ApiTokensPage() {
   );
 }
 
+/** The local date in the plan's date format, then the time. */
 function formatTimestamp(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(timestamp * 1_000));
+  const at = new Date(timestamp * 1_000);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${formatDate(`${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`)}, ${pad(at.getHours())}:${pad(at.getMinutes())}`;
 }
