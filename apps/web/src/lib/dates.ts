@@ -41,7 +41,7 @@ export function trailingMonthsRange(months: number, today: Date = new Date()): {
   return { from: iso(shiftMonths(today, -months)), to: iso(today) };
 }
 
-/** "2026-06" when from–to spans exactly that calendar month, else null. */
+/** A complete calendar month or the current month through today. */
 export function calendarMonthOf(from?: string, to?: string): string | null {
   const start = from?.match(/^(\d{4})-(\d{2})-01$/);
   if (!start || !to) {
@@ -49,13 +49,17 @@ export function calendarMonthOf(from?: string, to?: string): string | null {
   }
   const year = Number(start[1]);
   const monthIndex = Number(start[2]) - 1;
-  return monthBounds(year, monthIndex).to === to ? `${start[1]}-${start[2]}` : null;
+  const month = `${start[1]}-${start[2]}`;
+  return monthBounds(year, monthIndex).to === to || (month === todayIso().slice(0, 7) && to === todayIso())
+    ? month : null;
 }
 
 /** The calendar month `delta` months away from "YYYY-MM". */
-export function shiftMonth(month: string, delta: number): { from: string; to: string } {
+export function shiftMonth(month: string, delta: number, throughToday = false): { from: string; to: string } {
   const [year, monthNumber] = month.split("-").map(Number);
-  return monthBounds(year, monthNumber - 1 + delta);
+  const range = monthBounds(year, monthNumber - 1 + delta);
+  return throughToday && range.from.slice(0, 7) === todayIso().slice(0, 7)
+    ? { ...range, to: todayIso() } : range;
 }
 
 interface RangePreset {
@@ -74,8 +78,19 @@ export const RANGE_PRESETS: RangePreset[] = [
   { id: "all", label: "All", range: () => ({ from: undefined, to: undefined }) },
 ];
 
-export function matchPreset(from?: string, to?: string): string | null {
-  for (const preset of RANGE_PRESETS) {
+/** Reports count posted activity through today unless the user enters a future To date. */
+export function reportRange(range: { from?: string; to?: string }): { from?: string; to: string } {
+  const today = todayIso();
+  return { ...range, to: range.to && range.to < today ? range.to : today };
+}
+
+export const REPORT_RANGE_PRESETS: RangePreset[] = RANGE_PRESETS.map((preset) => ({
+  ...preset,
+  range: () => reportRange(preset.range()),
+}));
+
+export function matchPreset(from?: string, to?: string, presets = RANGE_PRESETS): string | null {
+  for (const preset of presets) {
     const range = preset.range();
     if (range.from === from && range.to === to) {
       return preset.id;

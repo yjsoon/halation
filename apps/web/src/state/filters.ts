@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Interval } from "../api/types";
 import type { ReportQuery } from "../api/client";
-import { monthRange } from "../lib/dates";
+import { monthRange, reportRange } from "../lib/dates";
 import { usePlan } from "./plan";
 import { loadPrefs, savePrefs } from "./prefs";
 
@@ -18,6 +18,8 @@ export interface Filters {
 interface FilterOptions {
   /** Range shown when the URL carries no explicit dates. Defaults to the current month. */
   defaultRange?: () => { from?: string; to?: string };
+  /** Report defaults and open-ended ranges stop today; explicit future dates remain valid. */
+  throughToday?: boolean;
   /**
    * Intervals this report offers. A remembered or linked interval outside the
    * list (Year chosen on Income, then Net worth opened) falls back to month, so
@@ -36,6 +38,7 @@ export function filtersFromSearch(
   params: URLSearchParams,
   options: {
     defaultRange: () => { from?: string; to?: string };
+    throughToday?: boolean;
     prefs?: ReturnType<typeof loadPrefs>;
     intervals?: Interval[];
     /** Open accounts. A remembered account outside it (closed or deleted since) is dropped. */
@@ -45,12 +48,13 @@ export function filtersFromSearch(
   const prefs = options.prefs ?? {};
   const explicitFrom = params.get("from") ?? undefined;
   const explicitTo = params.get("to") ?? undefined;
-  const range =
+  const requestedRange =
     explicitFrom || explicitTo
       ? { from: explicitFrom, to: explicitTo }
       : params.get("range") === "all"
         ? {}
         : options.defaultRange();
+  const range = options.throughToday && !explicitTo ? reportRange(requestedRange) : requestedRange;
 
   const accountsParam = params.get("accounts");
   const open = options.openAccountIds;
@@ -113,14 +117,15 @@ export function useFilters(options?: FilterOptions): {
   const { planId, accounts } = usePlan();
   const defaultRange = options?.defaultRange ?? monthRange;
   const intervals = options?.intervals;
+  const throughToday = options?.throughToday;
   const openAccountIds = useMemo(
     () => new Set(accounts.filter((account) => !account.closed).map((account) => account.id)),
     [accounts],
   );
 
   const filters = useMemo<Filters>(
-    () => filtersFromSearch(params, { defaultRange, prefs: loadPrefs(), intervals, openAccountIds }),
-    [params, defaultRange, intervals, openAccountIds],
+    () => filtersFromSearch(params, { defaultRange, throughToday, prefs: loadPrefs(), intervals, openAccountIds }),
+    [params, defaultRange, throughToday, intervals, openAccountIds],
   );
 
   const setFilters = useCallback(

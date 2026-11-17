@@ -14,7 +14,7 @@ const TRAILING_YEAR = () => trailingMonthsRange(12);
 const INTERVALS: Interval[] = ["week", "month"];
 
 export function NetWorthPage() {
-  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: TRAILING_YEAR, intervals: INTERVALS });
+  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: TRAILING_YEAR, intervals: INTERVALS, throughToday: true });
   const query = {
     ...reportQuery,
     category_ids: undefined,
@@ -57,6 +57,7 @@ export function NetWorthPage() {
         showCategories={false}
         busy={report.loading}
         collapsible={isPhone}
+        throughToday
       />
       <div className="report-header">
         <h1>Net worth</h1>

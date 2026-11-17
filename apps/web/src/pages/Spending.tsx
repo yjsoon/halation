@@ -12,7 +12,7 @@ import { StatusPanel } from "../components/StatusPanel";
 import { HeadlineFigure } from "../components/HeadlineFigure";
 
 export function SpendingPage() {
-  const { filters, setFilters, reportQuery } = useFilters();
+  const { filters, setFilters, reportQuery } = useFilters({ throughToday: true });
   const query = { ...reportQuery, interval: undefined };
   const report = useApi(JSON.stringify(query), () => api.spendingBreakdown(query));
   const isPhone = useIsPhone();
@@ -74,7 +74,7 @@ export function SpendingPage() {
 
   return (
     <div className="insights-page">
-      <FilterRail filters={filters} setFilters={setFilters} busy={report.loading} collapsible={isPhone} />
+      <FilterRail filters={filters} setFilters={setFilters} busy={report.loading} collapsible={isPhone} throughToday />
       <div className="report-header">
         <h1>Spending breakdown</h1>
         <div className="headline-row headline-row-paired">

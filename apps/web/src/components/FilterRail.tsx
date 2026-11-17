@@ -7,7 +7,9 @@ import {
   formatMonthName,
   matchPreset,
   RANGE_PRESETS,
+  REPORT_RANGE_PRESETS,
   shiftMonth,
+  todayIso,
 } from "../lib/dates";
 import { usePlan } from "../state/plan";
 import type { Filters } from "../state/filters";
@@ -23,13 +25,15 @@ interface Props {
   collapsible?: boolean;
   /** An account register: its account is the page, not a filter, so Clear filters keeps it. */
   accountScopeFixed?: boolean;
+  throughToday?: boolean;
 }
 
-export function FilterRail({ filters, setFilters, intervals, showCategories = true, groups, busy = false, collapsible = false, accountScopeFixed = false }: Props) {
+export function FilterRail({ filters, setFilters, intervals, showCategories = true, groups, busy = false, collapsible = false, accountScopeFixed = false, throughToday = false }: Props) {
   const [open, setOpen] = useState(false);
   const stackRef = useRef<HTMLDivElement>(null);
   const { accounts, categoryGroups } = usePlan();
-  const activePreset = matchPreset(filters.from, filters.to);
+  const presets = throughToday ? REPORT_RANGE_PRESETS : RANGE_PRESETS;
+  const activePreset = matchPreset(filters.from, filters.to, presets);
   const month = calendarMonthOf(filters.from, filters.to);
 
   const accountOptions: MultiSelectOption[] = [
@@ -60,7 +64,7 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
   const selectedInterval = intervals?.includes(filters.interval) ? filters.interval : intervals?.[0];
   const hasActiveFilters = Boolean(
     filters.from ||
-      filters.to ||
+      (filters.to && !(throughToday && !filters.from && filters.to === todayIso())) ||
       (!accountScopeFixed && filters.accountIds.length) ||
       (showCategories && filters.categoryIds.length) ||
       (selectedInterval && selectedInterval !== "month") ||
@@ -91,7 +95,7 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
     (all ?? stack?.querySelector<HTMLButtonElement>(".filter-toggle"))?.focus();
     setFilters({
       from: undefined,
-      to: undefined,
+      to: throughToday ? todayIso() : undefined,
       ...(accountScopeFixed ? {} : { accountIds: [] }),
       categoryIds: [],
       interval: intervals?.includes("month") ? "month" : (intervals?.[0] ?? "month"),
@@ -128,7 +132,7 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
               <button
                 type="button"
                 className="month-step"
-                onClick={() => setFilters(shiftMonth(month, -1))}
+                onClick={() => setFilters(shiftMonth(month, -1, throughToday))}
                 aria-label="Previous month"
               >
                 ‹
@@ -137,8 +141,9 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
               <button
                 type="button"
                 className="month-step"
-                onClick={() => setFilters(shiftMonth(month, 1))}
+                onClick={() => setFilters(shiftMonth(month, 1, throughToday))}
                 aria-label="Next month"
+                disabled={throughToday && month >= todayIso().slice(0, 7)}
               >
                 ›
               </button>
@@ -149,7 +154,7 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
         <div className="filter-cluster">
           <span className="rail-label">Range</span>
           <div className="segmented" role="group" aria-label="Date range">
-            {RANGE_PRESETS.map((preset) => (
+            {presets.map((preset) => (
               <button
                 key={preset.id}
                 type="button"

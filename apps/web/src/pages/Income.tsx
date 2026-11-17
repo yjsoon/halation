@@ -13,7 +13,7 @@ import { HeadlineFigure, signTone } from "../components/HeadlineFigure";
 const INTERVALS: Interval[] = ["week", "month", "year"];
 
 export function IncomePage() {
-  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ytdRange, intervals: INTERVALS });
+  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ytdRange, intervals: INTERVALS, throughToday: true });
   const report = useApi(JSON.stringify(reportQuery), () => api.incomeVsSpending(reportQuery));
   const isPhone = useIsPhone();
 
@@ -36,6 +36,7 @@ export function IncomePage() {
         intervals={INTERVALS}
         busy={report.loading}
         collapsible={isPhone}
+        throughToday
       />
       <div className="report-header">
         <h1>Income v spending</h1>
