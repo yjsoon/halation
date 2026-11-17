@@ -58,6 +58,8 @@ import { useIsPhone } from "../lib/use-is-phone";
 import {
   focusForRowError,
   idleRowEdit,
+  changesReconciliationGraph,
+  linkedTransferIds,
   planRowCommit,
   reduceRowEdit,
   registerRowDomId,
@@ -312,6 +314,20 @@ export function TransactionsPage() {
   }, []);
   const [pendingDeletion, setPendingDeletion] = useState<Transaction | null>(null);
   const [pendingBulkDeletion, setPendingBulkDeletion] = useState<readonly Transaction[] | null>(null);
+  // A save that would change what a reconciliation counted waits here for
+  // the reader's answer, as on iOS; focus goes back to the field it left.
+  const [pendingReconciledSave, setPendingReconciledSave] = useState<{ approve: boolean } | null>(null);
+  const reconciledSaveCancelRef = useRef<HTMLButtonElement>(null);
+  const reconciledSaveReturnRef = useRef<HTMLElement | null>(null);
+  const cancelReconciledSave = () => {
+    setPendingReconciledSave(null);
+    const field = reconciledSaveReturnRef.current;
+    reconciledSaveReturnRef.current = null;
+    if (field?.isConnected) field.focus();
+  };
+  useEffect(() => {
+    if (pendingReconciledSave) reconciledSaveCancelRef.current?.focus();
+  }, [pendingReconciledSave]);
   // The confirmation renders above the register, behind the row that asked
   // for it in tab order, so a keyboard user is taken to its Cancel button.
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
@@ -490,6 +506,7 @@ export function TransactionsPage() {
     setCompose(closedCompose());
     setPendingDeletion(null);
     setPendingBulkDeletion(null);
+    setPendingReconciledSave(null);
     setReconcileDraft(null);
     setSearch("");
     setUnapprovedOnlyState(false);
@@ -1010,11 +1027,16 @@ export function TransactionsPage() {
     };
   };
 
+  // Leaving the editor answers the question too.
+  useEffect(() => {
+    if (rowEdit.status === "idle") setPendingReconciledSave(null);
+  }, [rowEdit.status]);
+
   const dispatchRowEdit = (action: RegisterRowEditAction) => {
     replaceRowEdit(reduceRowEdit(rowEditRef.current, action));
   };
 
-  const commitRowEdit = async (options: { approve: boolean }) => {
+  const commitRowEdit = async (options: { approve: boolean; reconciledConfirmed?: boolean }) => {
     const session = rowEditRef.current;
     if (session.status !== "editing" || mutationLockRef.current) {
       return;
@@ -1032,6 +1054,26 @@ export function TransactionsPage() {
       });
       return;
     }
+    const saved = session.row.kind === "posted" ? session.row.transaction : session.row.parent;
+    if (!options.reconciledConfirmed && changesReconciliationGraph(saved, plan.input, payees.data ?? [])) {
+      const linked = linkedTransferIds(saved);
+      let reconciled = saved.cleared === "reconciled";
+      for (const id of linked) {
+        if (reconciled) break;
+        const loaded = page.transactions.find((txn) => txn.id === id)
+          ?? await api.transaction(planId, id).catch(() => null);
+        reconciled = loaded?.cleared === "reconciled";
+      }
+      if (reconciled) {
+        reconciledSaveReturnRef.current = document.activeElement instanceof HTMLElement && document.activeElement !== document.body
+          ? document.activeElement
+          : null;
+        setPendingReconciledSave({ approve: options.approve });
+        return;
+      }
+    }
+    setPendingReconciledSave(null);
+    reconciledSaveReturnRef.current = null;
     mutationLockRef.current = true;
     setWriteLocked(true);
     setMutatingId(rowId(session.row));
@@ -2294,6 +2336,34 @@ export function TransactionsPage() {
             <button type="button" ref={deleteCancelRef} className="text-button" onClick={() => setPendingDeletion(null)} disabled={writeLocked || mutatingId === pendingDeletion.id}>Cancel</button>
             <button type="button" className="transaction-delete-button" onClick={() => void deleteTransaction(pendingDeletion)} disabled={writeLocked || mutatingId === pendingDeletion.id}>
               {mutatingId === pendingDeletion.id ? "Removing…" : pendingDeletion.approved ? "Delete transaction" : "Reject transaction"}
+            </button>
+          </div>
+        </section>
+      )}
+      {pendingReconciledSave && rowEdit.status !== "idle" && (
+        <section
+          className="transaction-delete-confirm"
+          role="region"
+          aria-labelledby="reconciled-save-heading"
+          onKeyDown={(event) => {
+            if (event.key !== "Escape" || writeLocked) return;
+            event.preventDefault();
+            cancelReconciledSave();
+          }}
+        >
+          <div>
+            <h2 id="reconciled-save-heading">Save transaction changes?</h2>
+            <p>This transaction or a linked transfer has been reconciled. Its status stays locked, but changing its amount, account, date, or transfer destination can make your next reconciliation inaccurate.</p>
+          </div>
+          <div className="transaction-delete-confirm-actions">
+            <button type="button" ref={reconciledSaveCancelRef} className="text-button" onClick={cancelReconciledSave} disabled={writeLocked}>Cancel</button>
+            <button
+              type="button"
+              className="register-compose-save"
+              onClick={() => void commitRowEdit({ ...pendingReconciledSave, reconciledConfirmed: true })}
+              disabled={writeLocked}
+            >
+              Save changes
             </button>
           </div>
         </section>

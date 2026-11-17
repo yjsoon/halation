@@ -489,6 +489,40 @@ type RowCommitPlan =
   | { readonly kind: "unchanged" }
   | { readonly kind: "invalid"; readonly message: string };
 
+/**
+ * The ids of the rows a save would also move: the row's own transfer
+ * mirror and its split lines' mirrors, as iOS collects them.
+ */
+export function linkedTransferIds(txn: Transaction): string[] {
+  return [txn.transfer_transaction_id, ...(txn.subtransactions ?? []).map((line) => line.transfer_transaction_id)]
+    .filter((id): id is string => Boolean(id));
+}
+
+/**
+ * Whether a save changes what a reconciliation counted, as iOS's
+ * `changesReconciliationGraph` decides: the amount, account or date, the
+ * transfer destination, or a split's transfer lines. Only then, on a row
+ * that is reconciled or has a reconciled linked transfer, does iOS ask
+ * before saving.
+ */
+export function changesReconciliationGraph(txn: Transaction, input: TransactionUpdateInput, payees: readonly Payee[]): boolean {
+  if (input.amount !== undefined && input.amount !== txn.amount) return true;
+  if (input.account_id !== undefined && input.account_id !== txn.account_id) return true;
+  if (input.date !== undefined && input.date !== txn.date) return true;
+  if (input.payee_id !== undefined || input.payee_name !== undefined) {
+    const destination = input.payee_id ? payees.find((payee) => payee.id === input.payee_id)?.transfer_account_id ?? null : null;
+    if (destination !== (txn.transfer_account_id ?? null)) return true;
+  }
+  if (input.subtransactions !== undefined) {
+    const signatures = (lines: ReadonlyArray<{ transfer_account_id?: string | null; transfer_transaction_id?: string | null; amount: number }>) =>
+      lines.filter((line) => line.transfer_account_id)
+        .map((line) => `${line.transfer_transaction_id ?? ""}|${line.transfer_account_id}|${line.amount}`)
+        .join(",");
+    if (signatures(input.subtransactions) !== signatures(txn.subtransactions ?? [])) return true;
+  }
+  return false;
+}
+
 export function planRowCommit(
   row: RegisterRowRef,
   draft: RegisterRowDraft,
