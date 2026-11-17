@@ -153,6 +153,15 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   const leaving = useRef(false);
   const blocker = useBlocker(({ currentLocation, nextLocation }) =>
     dirty && !leaving.current && currentLocation.pathname !== nextLocation.pathname);
+  // A reload or closing the tab is not router navigation, so the browser asks instead.
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!leaving.current) event.preventDefault();
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
   const pendingDiscard = blocker.state === "blocked";
   const discardCancelRef = useRef<HTMLButtonElement>(null);
   useConfirmationFocus(pendingDiscard, discardCancelRef);
