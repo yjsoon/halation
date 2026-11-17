@@ -717,6 +717,8 @@ function SplitEditor({ id, lines, categoryId, total, amountText, remainder, paye
               </div>
               <details className="split-line-memo" open={Boolean(line.payeeName || line.memo) || undefined}>
                 <summary>Payee / memo</summary>
+                {/* A details element's children are not its grid items, so this div holds the two columns. */}
+                <div className="split-line-memo-fields">
                 <label className="field">
                   <span className="field-label">Payee <small>optional</small></span>
                   <input
@@ -742,6 +744,7 @@ function SplitEditor({ id, lines, categoryId, total, amountText, remainder, paye
                     onChange={(event) => update(line.key, { memo: event.target.value })}
                   />
                 </label>
+                </div>
               </details>
               {lines.length > 2 && (
                 <button

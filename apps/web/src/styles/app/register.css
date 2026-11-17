@@ -1282,14 +1282,43 @@ a.page-eyebrow:hover {
   align-self: center;
 }
 
-.register-split-lines .split-line-memo[open] {
+/* The line's amount reads as the row's own Outflow and Inflow do. */
+.register-split-lines .split-line-amount input {
+  text-align: right;
+  font-family: var(--font-figures);
+  font-variant-numeric: tabular-nums;
+}
+
+.register-split-lines .split-line-memo-fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 8px;
 }
 
-.register-split-lines .split-line-memo[open] summary {
-  grid-column: 1 / -1;
+/* Above phone width each line keeps one row of controls; an open Payee /
+   memo takes a full-width row of its own under them. */
+@media (min-width: 721px) {
+  .register-split-lines .split-line-category { grid-column: 1; grid-row: 1; }
+  .register-split-lines .split-line-amount { grid-column: 2; grid-row: 1; }
+  .register-split-lines .split-line-direction { grid-column: 3; grid-row: 1; }
+  .register-split-lines .split-line-memo { grid-column: 4; grid-row: 1; }
+  .register-split-lines .split-line-remove { grid-column: 5; grid-row: 1; align-self: center; }
+
+  .register-split-lines .split-line-memo[open] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    align-self: start;
+  }
+
+  .register-split-lines .split-line-memo[open] summary {
+    min-height: 0;
+    padding-block: 6px;
+  }
+
+  /* Closed, the summary sits level with the controls, not with their labels. */
+  .register-split-lines .split-line-memo:not([open]) {
+    align-self: end;
+  }
 }
 
 .register-split-lines .split-line-direction .segment {
@@ -1319,7 +1348,7 @@ a.page-eyebrow:hover {
     width: auto;
   }
 
-  .register-split-lines .split-line-memo[open] {
+  .register-split-lines .split-line-memo-fields {
     grid-template-columns: minmax(0, 1fr);
   }
 
