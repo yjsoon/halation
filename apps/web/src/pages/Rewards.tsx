@@ -100,6 +100,17 @@ function RewardsBoard({ planId }: { planId: string }) {
   const [batchBusy, setBatchBusy] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const selectToggleRef = useRef<HTMLButtonElement>(null);
+  const doneSelecting = () => {
+    // The bar goes with selection mode; hand focus to the toolbar's
+    // Select button rather than letting it fall to <body>.
+    selectToggleRef.current?.focus();
+    setSelected([]);
+    setSelecting(false);
+  };
+  // Hiding a card, or showing the hidden ones, removes the control that was
+  // pressed. Focus moves to what took its place instead of falling to the page.
+  const boardRef = useRef<HTMLDivElement>(null);
+  const hidOrShowed = useRef(false);
   const [justUpdated, setJustUpdated] = useState<string[]>([]);
   // Functional, so a patch queued behind a running board transition merges into
   // the latest preferences rather than the ones captured at its render.
@@ -145,6 +156,14 @@ function RewardsBoard({ planId }: { planId: string }) {
   const addCardHref = { pathname: "/rewards/new", search: location.search };
   const milesValue = milesText ?? (shown ? String(shown.miles_valuation) : "");
   const hiddenCount = storedCards.filter((row) => isHidden(row.card.id)).length;
+  useEffect(() => {
+    if (!hidOrShowed.current) return;
+    hidOrShowed.current = false;
+    if (document.activeElement !== document.body) return;
+    const board = boardRef.current;
+    // The Show button after a hide, the revealed card after Show, else the toolbar.
+    (board?.querySelector<HTMLElement>(".rw-hidden-footer") ?? board?.querySelector<HTMLElement>("[data-hidden] .rw-menu .rw-icon-button") ?? selectToggleRef.current)?.focus();
+  }, [hiddenCount, preferences.showHidden]);
   const featuredCount = storedCards.filter((row) => row.card.featured).length;
   const projections = new Map(storedCards.map((row) => [row.card.id, projectRow(row, shown?.as_of, range, today)]));
   const summary = shown ? boardSummary(shown, [...projections.values()]) : null;
@@ -363,7 +382,8 @@ function RewardsBoard({ planId }: { planId: string }) {
       )}
 
       {storedCards.length > 0 && (
-        <div className="rw-board" data-refreshing={refreshing || undefined} aria-busy={refreshing}>
+        <div className="rw-board" ref={boardRef} data-refreshing={refreshing || undefined} aria-busy={refreshing}
+          onKeyDown={(event) => { if (event.key === "Escape" && selecting && !batchBusy) doneSelecting(); }}>
           {(selecting || selected.length > 0) && (
             <div className="rw-bulk" role="region" aria-label="Batch card edits">
               <span className="rw-bulk-count" aria-live="polite">{selected.length} selected</span>
@@ -380,13 +400,7 @@ function RewardsBoard({ planId }: { planId: string }) {
                   {batchField === "featured" ? <><option value="true">Featured</option><option value="false">Not featured</option></> : <><option value="cashback">Cashback</option><option value="miles">Miles</option></>}
                 </select>}
               <button type="button" className="rw-bulk-apply" disabled={!selected.length || batchBusy} onClick={() => void applyBatch()}>{batchBusy ? "Applying…" : "Apply to selected"}</button>
-              <button type="button" onClick={() => {
-                // The bar goes with selection mode; hand focus to the toolbar's
-                // Select button rather than letting it fall to <body>.
-                selectToggleRef.current?.focus();
-                setSelected([]);
-                setSelecting(false);
-              }}>Done</button>
+              <button type="button" onClick={doneSelecting}>Done</button>
             </div>
           )}
           {!visibleCards.length && (
@@ -440,8 +454,8 @@ function RewardsBoard({ planId }: { planId: string }) {
                       first={index === 0}
                       last={index === group.rows.length - 1}
                       onMove={(direction) => withViewTransition("board", () => moveCard(row.card.id, group.rows[index + direction]!.card.id))}
-                      onToggleHidden={() => withViewTransition("board", () => toggleHidden(row.card.id))}
-                      onHideUntil={(date) => arrange({ hiddenUntil: { ...preferences.hiddenUntil, [row.card.id]: date } })}
+                      onToggleHidden={() => { hidOrShowed.current = true; withViewTransition("board", () => toggleHidden(row.card.id)); }}
+                      onHideUntil={(date) => { hidOrShowed.current = true; arrange({ hiddenUntil: { ...preferences.hiddenUntil, [row.card.id]: date } }); }}
                     />
                   ))}
                 </div>
@@ -449,7 +463,7 @@ function RewardsBoard({ planId }: { planId: string }) {
             );
           })}
           {hiddenCount > 0 && !preferences.showHidden && visibleCards.length > 0 &&
-            <button type="button" className="rw-hidden-footer" onClick={() => arrange({ showHidden: true })}>{hiddenCount} hidden · Show</button>}
+            <button type="button" className="rw-hidden-footer" onClick={() => { hidOrShowed.current = true; arrange({ showHidden: true }); }}>{hiddenCount} hidden · Show</button>}
         </div>
       )}
 

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from "react";
 import { NavLink } from "react-router-dom";
 import { api, ApiError, useApi } from "../api/client";
 import type { PlanSettings } from "../api/types";
@@ -166,6 +166,8 @@ function ChangePasswordSection() {
   const [next, setNext] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  useSettledFocus(busy, submitRef, "settings-password-heading");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
 
@@ -224,7 +226,7 @@ function ChangePasswordSection() {
           <span className="field-label">Confirm new password</span>
           <input type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" required />
         </label>
-        <button type="submit" className="save-button settings-form-button" disabled={busy || !current || !next || !confirm}>
+        <button type="submit" ref={submitRef} className="save-button settings-form-button" disabled={busy || !current || !next || !confirm}>
           {busy ? "Changing…" : "Change password"}
         </button>
       </form>
@@ -234,6 +236,26 @@ function ChangePasswordSection() {
   );
 }
 
+/**
+ * Submitting disables the button that had focus. When the request settles,
+ * focus goes back to it, or to the section heading when it stays disabled
+ * (nothing left to submit), instead of falling to the page.
+ */
+function useSettledFocus(busy: boolean, button: RefObject<HTMLButtonElement | null>, headingId: string): void {
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (busy) {
+      wasBusy.current = true;
+      return;
+    }
+    if (!wasBusy.current) return;
+    wasBusy.current = false;
+    if (document.activeElement !== document.body) return;
+    const target = button.current && !button.current.disabled ? button.current : document.getElementById(headingId);
+    target?.focus({ preventScroll: true });
+  }, [busy, button, headingId]);
+}
+
 function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onSaved: (settings: PlanSettings) => void }) {
   const { planId, reload } = usePlan();
   const savedCurrency = settings.currency_format?.iso_code ?? "";
@@ -241,6 +263,8 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
   const [currency, setCurrency] = useState(savedCurrency);
   const [dateFormat, setDateFormat] = useState(savedDate);
   const [busy, setBusy] = useState(false);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  useSettledFocus(busy, submitRef, "settings-formats-heading");
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   // A plan imported from elsewhere may use a value the form does not offer;
@@ -296,7 +320,7 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
             {dateFormats.map((format) => <option key={format} value={format}>{DATE_FORMAT_LABELS[format as DateFormatChoice] ?? format}</option>)}
           </select>
         </label>
-        <button type="submit" className="save-button settings-form-button" disabled={busy || !changed}>
+        <button type="submit" ref={submitRef} className="save-button settings-form-button" disabled={busy || !changed}>
           {busy ? "Saving…" : "Save formats"}
         </button>
       </form>

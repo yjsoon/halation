@@ -155,6 +155,14 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
   // The confirmation renders at the top of the page, far from Delete card.
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   useConfirmationFocus(pendingDelete, deleteCancelRef);
+  // Both confirmations open at the top of the page. When one is cancelled, focus
+  // goes back to the control that asked, which may be screens below: bring it into view.
+  const confirming = pendingDelete || pendingDiscard;
+  useEffect(() => {
+    if (confirming) return;
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active !== document.body) active.scrollIntoView({ block: "nearest" });
+  }, [confirming]);
   const [importCategoryId, setImportCategoryId] = useState("");
   const [importFlagColor, setImportFlagColor] = useState<RewardFlagColour>("red");
   const [importRate, setImportRate] = useState("");
@@ -264,7 +272,8 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
       </header>
 
       {pendingDiscard && (
-        <section className="transaction-editor schedule-delete-confirm" aria-labelledby="discard-card-heading">
+        <section className="transaction-editor schedule-delete-confirm" aria-labelledby="discard-card-heading"
+          onKeyDown={(event) => { if (event.key === "Escape") blocker.reset?.(); }}>
           <div className="section-heading">
             <div>
               <span className="section-title" id="discard-card-heading">Discard reward changes?</span>
@@ -279,7 +288,8 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
       )}
 
       {pendingDelete && card && (
-        <section className="transaction-editor schedule-delete-confirm" aria-labelledby="delete-card-heading">
+        <section className="transaction-editor schedule-delete-confirm" aria-labelledby="delete-card-heading"
+          onKeyDown={(event) => { if (event.key === "Escape" && busy !== "delete") setPendingDelete(false); }}>
           <div className="section-heading">
             <div>
               <span className="section-title" id="delete-card-heading">Delete this reward card?</span>

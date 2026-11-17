@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, useApi, type CreatedPersonalApiToken } from "../api/client";
 import { SettingsCrumb } from "../components/SettingsCrumb";
 import { useConfirmationFocus } from "../lib/use-confirmation-focus";
@@ -18,6 +18,16 @@ export function ApiTokensPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const tokens = useApi(`personal-api-tokens:${generation}`, api.personalApiTokens);
+  // Creating, dismissing and revoking each remove the control that was pressed.
+  // Focus moves to what replaced it instead of falling to the page.
+  const nameRef = useRef<HTMLInputElement>(null);
+  const copyRef = useRef<HTMLButtonElement>(null);
+  const acted = useRef<"created" | "dismissed" | "revoked" | null>(null);
+  useEffect(() => {
+    if (!acted.current || document.activeElement !== document.body) return;
+    const remaining = acted.current === "revoked" ? document.querySelector<HTMLButtonElement>(".api-token-list .api-token-revoke") : null;
+    (copyRef.current ?? remaining ?? nameRef.current)?.focus();
+  }, [created, tokens.data]);
   const active = (tokens.data ?? []).filter((token) => token.revoked_at === null);
   const revoked = (tokens.data ?? []).filter((token) => token.revoked_at !== null);
 
@@ -27,6 +37,7 @@ export function ApiTokensPage() {
     setCopyStatus(null);
     try {
       const result = await api.createPersonalApiToken(name);
+      acted.current = "created";
       setCreated(result);
       setName("");
       setGeneration((value) => value + 1);
@@ -53,6 +64,7 @@ export function ApiTokensPage() {
     setError(null);
     try {
       await api.revokePersonalApiToken(id);
+      acted.current = "revoked";
       setPendingRevoke(null);
       setCreated((current) => current?.token.id === id ? null : current);
       setGeneration((value) => value + 1);
@@ -94,11 +106,11 @@ export function ApiTokensPage() {
               spellCheck={false}
               onFocus={(event) => event.currentTarget.select()}
             />
-            <button type="button" className="api-token-copy" onClick={() => void copyToken()}>Copy token</button>
+            <button type="button" ref={copyRef} className="api-token-copy" onClick={() => void copyToken()}>Copy token</button>
           </div>
           <div className="api-token-reveal-footer">
             <span role="status">{copyStatus}</span>
-            <button type="button" className="text-button" onClick={() => { setCreated(null); setCopyStatus(null); }}>I’ve saved it</button>
+            <button type="button" className="text-button" onClick={() => { acted.current = "dismissed"; setCreated(null); setCopyStatus(null); }}>I’ve saved it</button>
           </div>
         </section>
       )}
@@ -118,6 +130,7 @@ export function ApiTokensPage() {
             <label className="field">
               <span className="field-label">Token name</span>
               <input
+                ref={nameRef}
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder="OpenClaw on home server"
@@ -150,7 +163,7 @@ export function ApiTokensPage() {
                   <span>Created {formatTimestamp(token.created_at)}</span>
                 </div>
                 {pendingRevoke === token.id ? (
-                  <div className="api-token-confirm">
+                  <div className="api-token-confirm" onKeyDown={(event) => { if (event.key === "Escape" && busy === null) setPendingRevoke(null); }}>
                     <span>Stop this token immediately?</span>
                     <button type="button" ref={revokeCancelRef} className="text-button" onClick={() => setPendingRevoke(null)} disabled={busy !== null}>Cancel</button>
                     <button type="button" className="api-token-revoke" onClick={() => void revokeToken(token.id)} disabled={busy !== null}>{busy === token.id ? "Revoking…" : "Revoke"}</button>
