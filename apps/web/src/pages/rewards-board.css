@@ -2417,6 +2417,13 @@
   text-align: right;
 }
 
+/* A long flag, payee or memo wraps, so Reward and Txns stay on a phone screen. */
+.rw-breakdown td:first-child,
+.rw-breakdown td:first-child .flag-tag {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .rw-breakdown-empty {
   color: var(--ink-soft);
 }
