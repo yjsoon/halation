@@ -535,14 +535,8 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
             </label>
           </div>
 
-          {card ? (
-            <fieldset className="transaction-editor-splits rewards-editor-block">
-              <legend>Colour names</legend>
-              <p className="field-note">
-                Edit colour names in <Link to={`/transactions?accounts=${encodeURIComponent(card.ynabAccountId)}&range=all`}>Account settings on this card’s register</Link>.
-              </p>
-            </fieldset>
-          ) : (
+          {/* A stored card names its colours in each flag's row below, and in Account settings on its register. */}
+          {!card && (
           <fieldset className="transaction-editor-splits rewards-editor-block">
             <legend>Colour names</legend>
             <p className="field-note">Names apply only to this account.</p>
@@ -580,7 +574,11 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
               Enable flag subcategories
             </label>
             <p className="field-note">Disabling keeps every rule and tier override for later use.</p>
-            <p className="field-note">These are the same colour tags as the ledger. None is Unflagged spend. Name the colour above and it appears on this account.</p>
+            <p className="field-note">
+              These are the same colour tags as the ledger. None is Unflagged spend.
+              {/* Only Add card has the Colour names fields above. */}
+              {!card && " Name the colour above and it appears on this account."}
+            </p>
             <div className="field-row">
               <label className="field">
                 <span className="field-label">Import category</span>
