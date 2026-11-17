@@ -3,7 +3,7 @@ import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
 import { PairedColumns } from "../components/charts";
 import { ReportTable } from "../components/ReportTable";
-import { formatPeriod, ytdRange } from "../lib/dates";
+import { formatPeriod, periodBounds, reportPeriods, todayIso, ytdRange } from "../lib/dates";
 import { formatAmount, formatMoney, formatSavingsRate } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
 import { useFilters } from "../state/filters";
@@ -17,7 +17,20 @@ export function IncomePage() {
   const report = useApi(JSON.stringify(reportQuery), () => api.incomeVsSpending(reportQuery));
   const isPhone = useIsPhone();
 
-  const periods = report.data?.periods ?? [];
+  const activity = report.data?.periods ?? [];
+  const firstDate = filters.from ?? (activity[0] ? periodBounds(activity[0].period).from : undefined);
+  const byPeriod = new Map(activity.map((period) => [period.period, period]));
+  let cumulativeNet = 0;
+  const periods = report.data && firstDate
+    ? reportPeriods(firstDate, filters.to ?? todayIso(), filters.interval).map((range) => {
+        const values = byPeriod.get(range.period);
+        const income = values?.income ?? 0;
+        const spending = values?.spending ?? 0;
+        const net = income - spending;
+        cumulativeNet += net;
+        return { ...range, income, spending, net, cumulative_net: cumulativeNet };
+      })
+    : [];
   const totals = periods.reduce(
     (sums, period) => ({
       income: sums.income + period.income,

@@ -1,5 +1,37 @@
 import { afterEach, describe, expect, setSystemTime, test } from "bun:test";
-import { calendarMonthOf, monthRange, shiftMonth, trailingMonthsRange } from "./dates";
+import { calendarMonthOf, monthRange, reportPeriods, shiftMonth, trailingMonthsRange } from "./dates";
+
+// A normal browser fixture cannot expose SQLite's week 00, the split week at
+// New Year, leap days, or DST. Missing these would drop or duplicate activity.
+describe("report period boundaries", () => {
+  test("keeps empty calendar months and clips the first and last periods", () => {
+    expect(reportPeriods("2026-05-20", "2026-07-03", "month")).toEqual([
+      { period: "2026-05", from: "2026-05-20", to: "2026-05-31" },
+      { period: "2026-06", from: "2026-06-01", to: "2026-06-30" },
+      { period: "2026-07", from: "2026-07-01", to: "2026-07-03" },
+    ]);
+  });
+
+  test("uses SQLite Monday weeks, including a partial week zero at New Year", () => {
+    expect(reportPeriods("2025-12-29", "2026-01-06", "week")).toEqual([
+      { period: "2025-W52", from: "2025-12-29", to: "2025-12-31" },
+      { period: "2026-W00", from: "2026-01-01", to: "2026-01-04" },
+      { period: "2026-W01", from: "2026-01-05", to: "2026-01-06" },
+    ]);
+    expect(reportPeriods("2024-01-01", "2024-01-01", "week")[0].period).toBe("2024-W01");
+  });
+
+  test("retains leap days and calendar days across daylight saving", () => {
+    expect(reportPeriods("2028-02-28", "2028-03-01", "day").map((p) => p.period))
+      .toEqual(["2028-02-28", "2028-02-29", "2028-03-01"]);
+    expect(reportPeriods("2026-03-07", "2026-03-09", "day").map((p) => p.period))
+      .toEqual(["2026-03-07", "2026-03-08", "2026-03-09"]);
+    expect(reportPeriods("2025-12-31", "2026-01-01", "year")).toEqual([
+      { period: "2025", from: "2025-12-31", to: "2025-12-31" },
+      { period: "2026", from: "2026-01-01", to: "2026-01-01" },
+    ]);
+  });
+});
 
 // The browser exercises today's preset, but cannot cover a leap-day month end
 // or prove that the shared register/rewards month bounds remain unchanged.

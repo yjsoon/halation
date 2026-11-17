@@ -41,6 +41,47 @@ export function trailingMonthsRange(months: number, today: Date = new Date()): {
   return { from: iso(shiftMonths(today, -months)), to: iso(today) };
 }
 
+/** Calendar bounds for the API's day/month/year or SQLite %Y-W%W label. */
+export function periodBounds(period: string): { from: string; to: string } {
+  const year = Number(period.slice(0, 4));
+  if (period.includes("-W")) {
+    const january = Date.UTC(year, 0, 1);
+    const firstMonday = (8 - new Date(january).getUTCDay()) % 7;
+    const week = Number(period.slice(6));
+    const start = week === 0 ? 0 : firstMonday + (week - 1) * 7;
+    const end = week === 0 ? firstMonday - 1 : start + 6;
+    return {
+      from: new Date(january + start * 86400000).toISOString().slice(0, 10),
+      to: new Date(Math.min(Date.UTC(year, 11, 31), january + end * 86400000)).toISOString().slice(0, 10),
+    };
+  }
+  if (period.length === 4) return { from: `${period}-01-01`, to: `${period}-12-31` };
+  if (period.length === 7) return monthBounds(year, Number(period.slice(5)) - 1);
+  return { from: period, to: period };
+}
+
+/** Every API period intersecting the inclusive window, with clipped drill-down bounds. */
+export function reportPeriods(from: string, to: string, interval: "day" | "week" | "month" | "year") {
+  const periods: Array<{ period: string; from: string; to: string }> = [];
+  let cursor = from;
+  while (cursor <= to) {
+    const date = new Date(`${cursor}T00:00:00Z`);
+    let period = cursor.slice(0, interval === "year" ? 4 : interval === "month" ? 7 : 10);
+    if (interval === "week") {
+      const january = Date.UTC(date.getUTCFullYear(), 0, 1);
+      const firstMonday = (8 - new Date(january).getUTCDay()) % 7;
+      const day = (date.getTime() - january) / 86400000;
+      const week = day < firstMonday ? 0 : Math.floor((day - firstMonday) / 7) + 1;
+      period = `${date.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+    }
+    const bounds = periodBounds(period);
+    const end = bounds.to < to ? bounds.to : to;
+    periods.push({ period, from: cursor, to: end });
+    cursor = new Date(new Date(`${end}T00:00:00Z`).getTime() + 86400000).toISOString().slice(0, 10);
+  }
+  return periods;
+}
+
 /** A complete calendar month or the current month through today. */
 export function calendarMonthOf(from?: string, to?: string): string | null {
   const start = from?.match(/^(\d{4})-(\d{2})-01$/);
