@@ -79,6 +79,7 @@ export function QuickEntryPage() {
 
   const canSave = Boolean(
     selectedAccount &&
+      date &&
       amountMilliunits !== null &&
       amountMilliunits > 0 &&
       !saving &&
@@ -419,11 +420,13 @@ export function QuickEntryPage() {
                   type="date"
                   name="date"
                   value={date}
+                  required
                   onChange={(event) => {
                     clearStatus();
                     setDate(event.target.value);
                   }}
                 />
+                {!date && <span className="field-note" role="alert">Choose a date.</span>}
                 <div className="segmented date-presets" role="group" aria-label="Date shortcuts">
                   <button
                     type="button"

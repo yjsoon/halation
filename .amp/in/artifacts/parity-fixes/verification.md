@@ -23,3 +23,10 @@ Setup: existing disposable `control-howmuch launch` stack `20261117T113404-3430`
 
 - At both widths, `/scheduled` shows `Audit Dining` beside No payee. DOM text and title both equal `Audit Dining`; document horizontal overflow is false. Inspected `named-flag-1440.png` and `named-flag-390.png`.
 - Read-back: `control-howmuch http GET /api/import/rewards-tracker` returns Travel Card with `flagNames.red = "Audit Dining"`; `/v1/plans/local-plan/scheduled_transactions` retains `account_id: "acct-credit", flag_color: "red"` for Named flag audit. No write is needed to display the current account-specific name.
+
+## P-12: Required date
+
+- At both widths, fill amount 1.12 and payee `P12 date {width}`. Clear the native date with Backspace, ArrowRight, Backspace, ArrowRight, Backspace (the browser automation's date `fill` does not update React state reliably and was not used as proof).
+- DOM result: `{date:"", valid:false, disabled:true, error:"Choose a date."}`. The local field message remains until a date is chosen.
+- Choose Today, Save spend, wait for `.status-panel-success`. `control-howmuch http GET '/v1/plans/local-plan/transactions?since_date=2026-11-17'` returns exactly one P12 date 1440 and one P12 date 390, each date 2026-11-17 and amount −1120 milliunits. No blank-date row was written.
+- Inspected date-required-1440.png and date-required-390.png.
