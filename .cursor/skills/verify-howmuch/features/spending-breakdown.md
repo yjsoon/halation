@@ -14,7 +14,8 @@ Spending breakdown totals outflows by category. The default range is this calend
 
 - Choose **Spending** in the **Reports** group of Primary navigation (open the group by its summary if it is closed).
 - Open `{web_url}/spending`.
-- Keep the current query string when moving from another Reports link.
+- Keep the current query string when moving from another Reports link. From the register or any other page, Reports links carry no query: the report opens on its default range and the remembered account scope.
+- `report-scope-memory`: the account scope starts at **All accounts**, and the last scope chosen on any report is remembered for every report, including after a reload. A remembered account that is now closed or deleted falls back to **All accounts**.
 
 ## Driving it with control-howmuch
 

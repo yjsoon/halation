@@ -121,16 +121,11 @@ export function Shell() {
   const registerLabel = filters.accountIds.length === 0
     ? "Ledger"
     : selectedAccount?.name ?? (filters.accountIds.length === 1 ? "Account unavailable" : "Selected Accounts");
-  // The register's "uncategorised" pill is a triage view, not a choice of
-  // what to report on; carrying it would make the report silently partial.
-  const reportSearch = (() => {
-    if (location.pathname !== "/transactions") return location.search;
-    const params = new URLSearchParams(location.search);
-    if (params.get("categories") !== "uncategorised") return location.search;
-    params.delete("categories");
-    const search = params.toString();
-    return search ? `?${search}` : "";
-  })();
+  // Moving between reports keeps their shared filters. Arriving from anywhere
+  // else opens the report on its own range and the remembered account scope:
+  // the register's open account or triage pill is not a choice of what to
+  // report on.
+  const reportSearch = isReportPath(location.pathname) ? location.search : "";
   const handleLogout = async () => {
     setLogoutError(null);
     try {

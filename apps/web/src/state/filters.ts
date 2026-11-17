@@ -38,6 +38,8 @@ export function filtersFromSearch(
     defaultRange: () => { from?: string; to?: string };
     prefs?: ReturnType<typeof loadPrefs>;
     intervals?: Interval[];
+    /** Open accounts. A remembered account outside it (closed or deleted since) is dropped. */
+    openAccountIds?: ReadonlySet<string>;
   },
 ): Filters {
   const prefs = options.prefs ?? {};
@@ -51,8 +53,10 @@ export function filtersFromSearch(
         : options.defaultRange();
 
   const accountsParam = params.get("accounts");
+  const open = options.openAccountIds;
+  const remembered = (prefs.accountIds ?? []).filter((id) => !open || open.has(id));
   const accountIds =
-    accountsParam === null ? (prefs.accountIds ?? []) : accountsParam === "all" ? [] : parseList(accountsParam);
+    accountsParam === null ? remembered : accountsParam === "all" ? [] : parseList(accountsParam);
 
   const requested = (params.get("interval") ?? prefs.interval) as Interval | null;
   const supported = options.intervals ?? INTERVALS;
@@ -106,13 +110,17 @@ export function useFilters(options?: FilterOptions): {
   reportQuery: ReportQuery;
 } {
   const [params, setParams] = useSearchParams();
-  const { planId } = usePlan();
+  const { planId, accounts } = usePlan();
   const defaultRange = options?.defaultRange ?? monthRange;
   const intervals = options?.intervals;
+  const openAccountIds = useMemo(
+    () => new Set(accounts.filter((account) => !account.closed).map((account) => account.id)),
+    [accounts],
+  );
 
   const filters = useMemo<Filters>(
-    () => filtersFromSearch(params, { defaultRange, prefs: loadPrefs(), intervals }),
-    [params, defaultRange, intervals],
+    () => filtersFromSearch(params, { defaultRange, prefs: loadPrefs(), intervals, openAccountIds }),
+    [params, defaultRange, intervals, openAccountIds],
   );
 
   const setFilters = useCallback(
