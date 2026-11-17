@@ -517,8 +517,9 @@ export function TransactionsPage() {
   });
   // The count endpoint is scoped to the plan or to one account, so it can only
   // stand in for the queue when the register is scoped the same way. A register
-  // filtered to several accounts has no matching count, and keeps counting rows.
-  const countMatchesRegisterScope = filters.accountIds.length <= 1;
+  // filtered to several accounts, to categories or to a report's rows has no
+  // matching count, and keeps counting rows.
+  const countMatchesRegisterScope = filters.accountIds.length <= 1 && !filters.categoryIds.length && !flow;
   // The badge, eagerly: one bounded count, so the register never waits on the
   // queue behind it.
   const unapprovedCountQuery = useUnapprovedCount({
@@ -1305,15 +1306,26 @@ export function TransactionsPage() {
     if (unapprovedCountQuery.data) setResolvedWhenCounted(resolvedIdsRef.current);
   }, [unapprovedCountQuery.data]);
 
+  // The flow and category filters a drill-down narrows the register with.
+  const inRegisterView = (txn: Transaction): boolean => {
+    if ((flow === "outflow" || wantsUncategorised) && !isSpendingOutflow(txn)) return false;
+    if (flow === "activity" && !isReportActivity(txn)) return false;
+    if (!filters.categoryIds.length) return true;
+    const matchesCategory =
+      (txn.category_id !== null && categoryIds.has(txn.category_id)) ||
+      txn.subtransactions?.some((sub) => sub.category_id !== null && categoryIds.has(sub.category_id));
+    return Boolean(matchesCategory) || (wantsUncategorised && hasUncategorisedLine(txn));
+  };
   // Row-exact only once the approval flow has actually loaded the queue.
   const queueRowCount = useMemo(
     () =>
       approvalQueue.data === null
         ? null
         : patchedQueue.filter(
-            (transaction) => !transaction.deleted && registerAccountIds.has(transaction.account_id) && !transaction.approved,
+            (transaction) => !transaction.deleted && registerAccountIds.has(transaction.account_id) && !transaction.approved
+              && inRegisterView(transaction),
           ).length,
-    [approvalQueue.data, patchedQueue, registerAccountIds],
+    [approvalQueue.data, categoryIds, filters.categoryIds.length, flow, patchedQueue, registerAccountIds, wantsUncategorised],
   );
   const unapprovedCount = unapprovedBadgeCount(
     queueRowCount,
@@ -1322,26 +1334,10 @@ export function TransactionsPage() {
   );
 
   const normallyScopedRows = useMemo(() => {
-    const outflowOnly = flow === "outflow" || wantsUncategorised;
     return inScope
       .filter((txn) => !unapprovedOnly || !txn.approved)
       .filter((txn) => matchesFollowUp(txn, followUpOnly))
-      .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
-      .filter((txn) => flow !== "activity" || isReportActivity(txn))
-      .filter((txn) => {
-        if (!filters.categoryIds.length) {
-          return true;
-        }
-
-        const matchesCategory =
-          (txn.category_id !== null && categoryIds.has(txn.category_id)) ||
-          txn.subtransactions?.some((sub) => sub.category_id !== null && categoryIds.has(sub.category_id));
-        if (matchesCategory) {
-          return true;
-        }
-
-        return wantsUncategorised && hasUncategorisedLine(txn);
-      })
+      .filter(inRegisterView)
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   }, [categoryIds, filters.categoryIds.length, flow, followUpOnly, inScope, unapprovedOnly, wantsUncategorised]);
 
@@ -1370,27 +1366,13 @@ export function TransactionsPage() {
 
   const editingRowId = rowEdit.status === "idle" ? null : rowId(rowEdit.row);
   const applyRowFilters = (rows: Transaction[]) => {
-    const outflowOnly = flow === "outflow" || wantsUncategorised;
     return rows
       .filter((txn) => !txn.deleted)
       .filter((txn) => registerAccountIds.has(txn.account_id))
       .filter((txn) => queueMode || dateInRegisterWindow(txn.date, filters.from, filters.to, today))
       .filter((txn) => !unapprovedOnly || !txn.approved)
       .filter((txn) => matchesFollowUp(txn, followUpOnly))
-      .filter((txn) => !outflowOnly || isSpendingOutflow(txn))
-      .filter((txn) => flow !== "activity" || isReportActivity(txn))
-      .filter((txn) => {
-        if (!filters.categoryIds.length) {
-          return true;
-        }
-        const matchesCategory =
-          (txn.category_id !== null && categoryIds.has(txn.category_id)) ||
-          txn.subtransactions?.some((sub) => sub.category_id !== null && categoryIds.has(sub.category_id));
-        if (matchesCategory) {
-          return true;
-        }
-        return wantsUncategorised && hasUncategorisedLine(txn);
-      });
+      .filter(inRegisterView);
   };
   const matchedRows = useMemo(() => {
     const localMatches = scopedRows.filter((txn) => {
