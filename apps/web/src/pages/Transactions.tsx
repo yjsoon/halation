@@ -340,8 +340,14 @@ export function TransactionsPage() {
   // The bulk bar's own button opened the bulk confirmation, the review and
   // the reconcile editor; when that control is gone (the selection was
   // cleared by the write), focus stays in the register at select-all.
-  const selectAllFallback = () =>
-    document.querySelector<HTMLInputElement>("input[aria-label='Select all visible transactions']") ?? addTransactionRef.current;
+  const selectAllFallback = () => {
+    // Phones hide select-all and Add (the masthead adds there), so focus
+    // goes to the always-present Filters toggle instead.
+    const shown = (element: HTMLElement | null) => (element?.offsetWidth ? element : null);
+    return shown(document.querySelector<HTMLInputElement>("input[aria-label='Select all visible transactions']"))
+      ?? shown(addTransactionRef.current)
+      ?? document.querySelector<HTMLButtonElement>(".filter-toggle");
+  };
   useConfirmationFocus(pendingBulkDeletion, bulkDeleteCancelRef, selectAllFallback);
   const [suggestionReview, setSuggestionReview] = useState<SuggestionReviewRow[] | null>(null);
   const [suggesting, setSuggesting] = useState(false);
@@ -378,7 +384,11 @@ export function TransactionsPage() {
     if (!onScreen && (page.loading || page.filling)) return;
     bloomRows(bloomIds);
     setBloomIds([]);
-    const refocus = refocusRowIdRef.current ? document.getElementById(refocusRowIdRef.current) : null;
+    // A row saved to a date after today moves under Scheduled, out of sight;
+    // focus then stays in the register rather than dropping to <body>.
+    const refocus = refocusRowIdRef.current
+      ? document.getElementById(refocusRowIdRef.current) ?? selectAllFallback()
+      : null;
     refocusRowIdRef.current = null;
     if (refocus && (document.activeElement === null || document.activeElement === document.body)) {
       refocus.focus({ preventScroll: true });
@@ -1489,6 +1499,21 @@ export function TransactionsPage() {
     () => selectedRows.filter((txn) => !txn.approved).map((txn) => txn.id),
     [selectedRows],
   );
+  // The bulk bar's menus and buttons go with the selection a bulk write
+  // clears, so focus stays in the register rather than dropping to <body>.
+  const bulkBarOpen = selectedRows.length > 0;
+  const bulkBarWasOpen = useRef(false);
+  useEffect(() => {
+    if (bulkBarOpen) {
+      bulkBarWasOpen.current = true;
+      return;
+    }
+    if (!bulkBarWasOpen.current) return;
+    bulkBarWasOpen.current = false;
+    if (document.activeElement === null || document.activeElement === document.body) {
+      selectAllFallback()?.focus({ preventScroll: true });
+    }
+  }, [bulkBarOpen]);
   const selectionHeader = useMemo(
     () => headerState(selection, selectionRows, listKey),
     [listKey, selection, selectionRows],
@@ -2317,7 +2342,8 @@ export function TransactionsPage() {
         <StatusPanel title="Could not load transactions to claim." error>{claimQueue.error}</StatusPanel>
       )}
 
-      {registerLoaded && (
+      {/* Account settings stay open while a save refetches the register. */}
+      {(registerLoaded || cardSettingsOpen) && (
         <section className="report-section">
           {selectedAccount && cardSettingsOpen && <AccountSettings
             key={`${planId}:${selectedAccount.id}:${selectedRewardCard?.id ?? "none"}`}
@@ -2344,194 +2370,198 @@ export function TransactionsPage() {
               reload();
             }}
           />}
-          {rows.length > 0 || showScheduledDisclosure || compose.status === "open" ? (
-            <div className="table-wrap table-wrap-wide">
-              <table className={selectedAccount ? "ledger-table register-table register-table-one-account" : "ledger-table register-table"}>
-                <thead>
-                  <tr>
-                    <th className="register-select-heading">
-                      <input
-                        type="checkbox"
-                        ref={(node) => {
-                          if (node) node.indeterminate = selectionHeader === "some";
-                        }}
-                        checked={selectionHeader === "all"}
-                        onChange={() => dispatchSelection({
-                          kind: selectionHeader === "all" ? "none" : "all",
-                        })}
-                        disabled={mutationBusy || selectionRows.length === 0}
-                        aria-label="Select all visible transactions"
-                      />
-                    </th>
-                    <th>Date</th>
-                    <th>Account</th>
-                    <th title="Who you paid, or who paid you">Payee</th>
-                    <th>Category</th>
-                    <th>Memo</th>
-                    <th className="num" title="Money out: what you spent or paid">Outflow</th>
-                    <th className="num" title="Money in: what you received">Inflow</th>
-                    <th className="register-status-heading">Cleared</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {compose.status === "open" && (
-                    <RegisterComposeRow
-                      state={compose}
-                      accounts={composeAccounts}
-                      transferAccounts={accounts}
-                      lockedAccount={lockedComposeAccount}
-                      payees={payees.data ?? []}
-                      categoryGroups={categoryGroups}
-                      disabled={mutationBusy && mutatingId !== "compose"}
-                      focusNonce={composeFocus}
-                      flagNames={ledgerFlagNames(colourNamesByAccountId.get(compose.draft.accountId) ?? {})}
-                      onChange={setCompose}
-                      onCancel={() => {
-                        setCompose(closedCompose());
-                        setMutationError(null);
-                      }}
-                      onSave={(keepOpen) => void saveCompose(keepOpen)}
-                    />
-                  )}
-                  {showScheduledDisclosure && (
-                    <RegisterScheduledDisclosure
-                      key={selectedAccountId ?? "all"}
-                      schedules={visibleSchedules}
-                      posted={postedFutureRows}
-                      loading={schedules.loading}
-                      error={schedules.error}
-                      accounts={accounts}
-                      categoryGroups={categoryGroups}
-                      payees={payees.data ?? []}
-                      renderPosted={(txn) => [
-                        <RegisterEditableRow
-                          key={txn.id}
-                          row={{ kind: "posted", transaction: txn }}
-                          surface={rowSurface}
-                          leading={null}
-                          account={txn.account_name}
-                          onDelete={() => {
-                            rowSurface.cancel();
-                            setPendingDeletion(txn);
-                            setMutationError(null);
-                          }}
-                          status={(
-                            <ClearedStatus
-                              transaction={txn}
-                              busy={writeLocked || mutatingId === txn.id}
-                              onToggle={() => void toggleCleared(txn)}
-                              onApprove={() => void approveMany([txn.id])}
-                              approving={approvalSession.pending.has(txn.id)}
-                            />
-                          )}
-                          payeeExtra={<FlagTag colour={txn.flag_color} name={namedFlagLabel(colourNamesByAccountId.get(txn.account_id), txn.flag_color, txn.flag_name)} />}
-                          flagNames={ledgerFlagNames(colourNamesByAccountId.get(txn.account_id) ?? {})}
-                          onConfirm={() => void confirmAmount(txn)}
-                          confirming={writeLocked || mutatingId === txn.id}
-                        />,
-                        ...(txn.subtransactions ?? []).map((sub) => (
-                          <RegisterEditableRow
-                            key={sub.id}
-                            row={{ kind: "split-line", parent: txn, lineId: sub.id }}
-                            surface={rowSurface}
-                            leading={null}
-                            account={null}
-                            status={null}
-                          />
-                        )),
-                      ]}
-                    />
-                  )}
-                  {rows.flatMap((txn) => [
-                    <RegisterEditableRow
-                      key={txn.id}
-                      row={{ kind: "posted", transaction: txn }}
-                      surface={rowSurface}
-                      leading={!txn.deleted ? (
+          {registerLoaded && (
+            <>
+            {rows.length > 0 || showScheduledDisclosure || compose.status === "open" ? (
+              <div className="table-wrap table-wrap-wide">
+                <table className={selectedAccount ? "ledger-table register-table register-table-one-account" : "ledger-table register-table"}>
+                  <thead>
+                    <tr>
+                      <th className="register-select-heading">
                         <input
                           type="checkbox"
-                          checked={selectedRowIdSet.has(txn.id)}
-                          onClick={(event) => {
-                            const index = selectionRows.findIndex((row) => row.id === txn.id);
-                            if (index >= 0) {
-                              dispatchSelection({
-                                kind: event.shiftKey ? "extend" : "toggle",
-                                index,
-                              });
-                            }
+                          ref={(node) => {
+                            if (node) node.indeterminate = selectionHeader === "some";
                           }}
-                          onChange={() => {}}
-                          disabled={mutationBusy}
-                          aria-label={`Select ${txn.payee_name ?? (txn.transfer_account_id ? "transfer" : "transaction")} on ${formatDate(txn.date)}`}
+                          checked={selectionHeader === "all"}
+                          onChange={() => dispatchSelection({
+                            kind: selectionHeader === "all" ? "none" : "all",
+                          })}
+                          disabled={mutationBusy || selectionRows.length === 0}
+                          aria-label="Select all visible transactions"
                         />
-                      ) : null}
-                      account={txn.account_name}
-                      onDelete={() => {
-                        rowSurface.cancel();
-                        setPendingDeletion(txn);
-                        setMutationError(null);
-                      }}
-                      status={(
-                        <ClearedStatus
-                          transaction={txn}
-                          busy={writeLocked || mutatingId === txn.id}
-                          onToggle={() => void toggleCleared(txn)}
-                          onApprove={() => void approveMany([txn.id])}
-                          approving={approvalSession.pending.has(txn.id)}
-                        />
-                      )}
-                      payeeExtra={<FlagTag colour={txn.flag_color} name={namedFlagLabel(colourNamesByAccountId.get(txn.account_id), txn.flag_color, txn.flag_name)} />}
-                      flagNames={ledgerFlagNames(colourNamesByAccountId.get(txn.account_id) ?? {})}
-                      onConfirm={() => void confirmAmount(txn)}
-                      confirming={writeLocked || mutatingId === txn.id}
-                      targeted={deepLink.kind === "valid" && deepLink.link.subtransactionId === null && txn.id === deepLinkedTransactionId}
-                    />,
-                    ...(txn.subtransactions ?? []).map((sub) => (
-                      <RegisterEditableRow
-                        key={sub.id}
-                        row={{ kind: "split-line", parent: txn, lineId: sub.id }}
-                        surface={rowSurface}
-                        leading={null}
-                        account={null}
-                        status={null}
-                        targeted={deepLink.kind === "valid" && deepLink.link.subtransactionId === sub.id && txn.id === deepLinkedTransactionId}
+                      </th>
+                      <th>Date</th>
+                      <th>Account</th>
+                      <th title="Who you paid, or who paid you">Payee</th>
+                      <th>Category</th>
+                      <th>Memo</th>
+                      <th className="num" title="Money out: what you spent or paid">Outflow</th>
+                      <th className="num" title="Money in: what you received">Inflow</th>
+                      <th className="register-status-heading">Cleared</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {compose.status === "open" && (
+                      <RegisterComposeRow
+                        state={compose}
+                        accounts={composeAccounts}
+                        transferAccounts={accounts}
+                        lockedAccount={lockedComposeAccount}
+                        payees={payees.data ?? []}
+                        categoryGroups={categoryGroups}
+                        disabled={mutationBusy && mutatingId !== "compose"}
+                        focusNonce={composeFocus}
+                        flagNames={ledgerFlagNames(colourNamesByAccountId.get(compose.draft.accountId) ?? {})}
+                        onChange={setCompose}
+                        onCancel={() => {
+                          setCompose(closedCompose());
+                          setMutationError(null);
+                        }}
+                        onSave={(keepOpen) => void saveCompose(keepOpen)}
                       />
-                    )),
-                  ])}
-                </tbody>
-              </table>
-              {rows.length === 0 && !page.filling && !confirmationRowsPending && compose.status !== "open" && !showScheduledDisclosure && (
-                <div className="register-empty-state">
-                  <p className="status-title">{emptyMessage}</p>
-                  <p className="status-detail">{emptyDetail}</p>
-                </div>
+                    )}
+                    {showScheduledDisclosure && (
+                      <RegisterScheduledDisclosure
+                        key={selectedAccountId ?? "all"}
+                        schedules={visibleSchedules}
+                        posted={postedFutureRows}
+                        loading={schedules.loading}
+                        error={schedules.error}
+                        accounts={accounts}
+                        categoryGroups={categoryGroups}
+                        payees={payees.data ?? []}
+                        renderPosted={(txn) => [
+                          <RegisterEditableRow
+                            key={txn.id}
+                            row={{ kind: "posted", transaction: txn }}
+                            surface={rowSurface}
+                            leading={null}
+                            account={txn.account_name}
+                            onDelete={() => {
+                              rowSurface.cancel();
+                              setPendingDeletion(txn);
+                              setMutationError(null);
+                            }}
+                            status={(
+                              <ClearedStatus
+                                transaction={txn}
+                                busy={writeLocked || mutatingId === txn.id}
+                                onToggle={() => void toggleCleared(txn)}
+                                onApprove={() => void approveMany([txn.id])}
+                                approving={approvalSession.pending.has(txn.id)}
+                              />
+                            )}
+                            payeeExtra={<FlagTag colour={txn.flag_color} name={namedFlagLabel(colourNamesByAccountId.get(txn.account_id), txn.flag_color, txn.flag_name)} />}
+                            flagNames={ledgerFlagNames(colourNamesByAccountId.get(txn.account_id) ?? {})}
+                            onConfirm={() => void confirmAmount(txn)}
+                            confirming={writeLocked || mutatingId === txn.id}
+                          />,
+                          ...(txn.subtransactions ?? []).map((sub) => (
+                            <RegisterEditableRow
+                              key={sub.id}
+                              row={{ kind: "split-line", parent: txn, lineId: sub.id }}
+                              surface={rowSurface}
+                              leading={null}
+                              account={null}
+                              status={null}
+                            />
+                          )),
+                        ]}
+                      />
+                    )}
+                    {rows.flatMap((txn) => [
+                      <RegisterEditableRow
+                        key={txn.id}
+                        row={{ kind: "posted", transaction: txn }}
+                        surface={rowSurface}
+                        leading={!txn.deleted ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedRowIdSet.has(txn.id)}
+                            onClick={(event) => {
+                              const index = selectionRows.findIndex((row) => row.id === txn.id);
+                              if (index >= 0) {
+                                dispatchSelection({
+                                  kind: event.shiftKey ? "extend" : "toggle",
+                                  index,
+                                });
+                              }
+                            }}
+                            onChange={() => {}}
+                            disabled={mutationBusy}
+                            aria-label={`Select ${txn.payee_name ?? (txn.transfer_account_id ? "transfer" : "transaction")} on ${formatDate(txn.date)}`}
+                          />
+                        ) : null}
+                        account={txn.account_name}
+                        onDelete={() => {
+                          rowSurface.cancel();
+                          setPendingDeletion(txn);
+                          setMutationError(null);
+                        }}
+                        status={(
+                          <ClearedStatus
+                            transaction={txn}
+                            busy={writeLocked || mutatingId === txn.id}
+                            onToggle={() => void toggleCleared(txn)}
+                            onApprove={() => void approveMany([txn.id])}
+                            approving={approvalSession.pending.has(txn.id)}
+                          />
+                        )}
+                        payeeExtra={<FlagTag colour={txn.flag_color} name={namedFlagLabel(colourNamesByAccountId.get(txn.account_id), txn.flag_color, txn.flag_name)} />}
+                        flagNames={ledgerFlagNames(colourNamesByAccountId.get(txn.account_id) ?? {})}
+                        onConfirm={() => void confirmAmount(txn)}
+                        confirming={writeLocked || mutatingId === txn.id}
+                        targeted={deepLink.kind === "valid" && deepLink.link.subtransactionId === null && txn.id === deepLinkedTransactionId}
+                      />,
+                      ...(txn.subtransactions ?? []).map((sub) => (
+                        <RegisterEditableRow
+                          key={sub.id}
+                          row={{ kind: "split-line", parent: txn, lineId: sub.id }}
+                          surface={rowSurface}
+                          leading={null}
+                          account={null}
+                          status={null}
+                          targeted={deepLink.kind === "valid" && deepLink.link.subtransactionId === sub.id && txn.id === deepLinkedTransactionId}
+                        />
+                      )),
+                    ])}
+                  </tbody>
+                </table>
+                {rows.length === 0 && !page.filling && !confirmationRowsPending && compose.status !== "open" && !showScheduledDisclosure && (
+                  <div className="register-empty-state">
+                    <p className="status-title">{emptyMessage}</p>
+                    <p className="status-detail">{emptyDetail}</p>
+                  </div>
+                )}
+              </div>
+            ) : page.filling ? null : (
+              <StatusPanel title={emptyMessage}>{emptyDetail}</StatusPanel>
+            )}
+            <div className="register-footer" ref={footerRef}>
+              <span className="register-footer-meta">
+                {footerMetaWithMore}
+                {olderTapNote && " · "}
+                <span role="status">{olderTapNote ?? ""}</span>
+              </span>
+              <span className="register-hint">Double-click a cell or press Enter to edit · Esc cancels · Shift-click selects a range</span>
+              {hasMoreToLoad && (
+                <button
+                  type="button"
+                  className="register-load-more-button"
+                  onClick={olderWalkStalled ? searchFurtherBack : () => void loadOlder()}
+                  disabled={registerQuery ? searchPage.loadingMore : page.loadingMore}
+                >
+                  {registerQuery
+                    ? (searchPage.loadingMore ? "Loading older matches…" : "Load older matches")
+                    : page.loadingMore
+                      ? "Loading older transactions…"
+                      : olderWalkStalled ? "Search further back" : "Load older transactions"}
+                </button>
               )}
             </div>
-          ) : page.filling ? null : (
-            <StatusPanel title={emptyMessage}>{emptyDetail}</StatusPanel>
+            </>
           )}
-          <div className="register-footer" ref={footerRef}>
-            <span className="register-footer-meta">
-              {footerMetaWithMore}
-              {olderTapNote && " · "}
-              <span role="status">{olderTapNote ?? ""}</span>
-            </span>
-            <span className="register-hint">Double-click a cell or press Enter to edit · Esc cancels · Shift-click selects a range</span>
-            {hasMoreToLoad && (
-              <button
-                type="button"
-                className="register-load-more-button"
-                onClick={olderWalkStalled ? searchFurtherBack : () => void loadOlder()}
-                disabled={registerQuery ? searchPage.loadingMore : page.loadingMore}
-              >
-                {registerQuery
-                  ? (searchPage.loadingMore ? "Loading older matches…" : "Load older matches")
-                  : page.loadingMore
-                    ? "Loading older transactions…"
-                    : olderWalkStalled ? "Search further back" : "Load older transactions"}
-              </button>
-            )}
-          </div>
         </section>
       )}
     </>

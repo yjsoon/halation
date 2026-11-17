@@ -1,4 +1,4 @@
-import { useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { Link } from "react-router-dom";
 import { cycleDatesFor } from "../../../api/src/card-payments";
 import { rewardsToday } from "../../../api/src/rewards/engine/date-utils";
@@ -89,7 +89,22 @@ function AccountBand({ account, hasRewards, firstFieldRef, onSaved, onDeleted, o
   const favouritesAvailable = accountPreferencesSync.phase !== "unsupported";
   const favourite = accountPreferencesSync.preferences.favourite_account_ids.includes(account.id);
 
+  // Saving disables the fields, which drops focus to <body>; it goes back
+  // to the field or button the save came from once they are enabled again.
+  // Save itself stays disabled after a save (nothing left to save), so
+  // focus then goes to Name.
+  const refocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (saving) return;
+    const from = refocusRef.current;
+    refocusRef.current = null;
+    if (!from || (document.activeElement !== null && document.activeElement !== document.body)) return;
+    const target = from.isConnected && !from.matches(":disabled") ? from : firstFieldRef.current;
+    target?.focus({ preventScroll: true });
+  }, [saving, firstFieldRef]);
   const run = async (work: () => Promise<void>, failure: string) => {
+    const active = document.activeElement;
+    refocusRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
     setSaving(true);
     onSavingChange(true);
     setError(null);

@@ -142,7 +142,10 @@ export function Shell() {
   useEffect(() => {
     if (mobileNav === "closed") return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileNav("closed");
+      if (event.key !== "Escape") return;
+      setMobileNav("closed");
+      // The drawer's links go out of reach; focus goes back to its toggle.
+      document.querySelector<HTMLButtonElement>(".mobile-nav-toggle")?.focus();
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
