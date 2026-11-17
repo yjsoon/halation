@@ -4,8 +4,13 @@ import UIKit
 
 extension View {
   func ynabCard() -> some View {
-    background(Theme.card, in: RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-      .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
+    // A shape view, not `background(_:in:)`: that also makes the card the
+    // container shape, so a row's `.background(colour)` inside rounds its
+    // own corners instead of filling the row.
+    background {
+      RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous).fill(Theme.card)
+    }
+    .clipShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
   }
 
   func rollingNumber(_ value: Int) -> some View {
