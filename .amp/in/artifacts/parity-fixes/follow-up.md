@@ -21,3 +21,12 @@ Base: `53be3b42`. Disposable stack `20261117T113404-3430`, Chromium browser sess
 - `control-howmuch http GET /v1/plans/local-plan/card_payment_terms` confirmed `account_id: acct-credit`, statement days 16 (1440) and 15 (390), then 17 after editing. The recorded final setup persisted day 19 with enabled true and due_gap_days 25.
 - Only ScheduledTransactions.tsx changes. CardTermsDialog.tsx and CardPaymentsPanel.tsx remain untouched. Restoration does not override an existing focused control, and Add schedule is the fallback if no panel control exists.
 - Captures: terms-focus-1440.png, terms-focus-390.png and terms-focus.mp4. Browser accessibility/DOM checks, not the screenshots alone, establish the focus destination.
+
+## VP-01: Include closed transfer accounts in schedule entry checks
+
+- Base: integrated `06322e8b`, fetched from the lead's hillclimb-2.bundle and branched as parity-review-fixes. Continued on the same disposable stack; doctor passed.
+- Through the UI, reopened Rainy Day Saver, created `VP01 plain` (Everyday Account → saver, −15), `VP01 split` (−15 transfer to saver and −5 ordinary allocation) and `VP01 open` (Everyday Account → Travel Card, −15), then closed the saver. Before, all three offered Enter now and neither transfer target carried a closed label.
+- After, at 390 and 1440, plain/split schedules expose only Edit and Delete. Both their transfer labels say `Transfer to Rainy Day Saver (closed)`. Everyday Account remains unlabelled as it is open. Editing the saved plain transfer still retains its labelled closed target. The all-open schedule retains Enter now.
+- Entered the all-open schedule once at each width. `control-howmuch http GET /v1/plans/local-plan/transactions` returned two reciprocal pairs for `VP01 open`: −15000 on acct-everyday and +15000 on acct-credit, with matching transfer account IDs. Filtering acct-saver and sorting by ID before and after gives byte-identical JSON (`cmp`: `Closed-account transactions unchanged`). Neither closed-target schedule was materialised.
+- Code checks the posting account, parent transfer account and every split transfer account. The label belongs to the actual closed account, not the open posting account. No API changes.
+- Inspected vp01-after-390.png and vp01-after-1440.png, with matching before captures. Both show the plain/split/open cases without clipping or overlap.

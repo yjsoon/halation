@@ -90,8 +90,11 @@ export function ScheduledTransactionsPage() {
     const action = scheduleId ? document.getElementById(`schedule-${scheduleId}`)?.querySelector<HTMLButtonElement>("button:not(:disabled)") : null;
     (action ?? addScheduleRef.current)?.focus({ preventScroll: true });
   }, [schedules.loading, active]);
-  const accountNames = useMemo(() => new Map(accounts.map((account) => [account.id, account.name])), [accounts]);
+  const accountNames = useMemo(() => new Map(accounts.map((account) => [account.id, account.name + (account.closed ? " (closed)" : "")])), [accounts]);
   const closedAccountIds = useMemo(() => new Set(accounts.filter((account) => account.closed).map((account) => account.id)), [accounts]);
+  const isClosedSchedule = (schedule: ScheduledTransaction) =>
+    [schedule.account_id, schedule.transfer_account_id, ...(schedule.subtransactions ?? []).map((line) => line.transfer_account_id)]
+      .some((accountId) => closedAccountIds.has(accountId ?? ""));
   const payeeNames = useMemo(() => new Map((payees.data ?? []).map((payee) => [payee.id, payee.name])), [payees.data]);
   const rewardsSnapshot = useApi(`${planId}:reward-flag-names`, () => api.rewardsTrackerSnapshot(planId));
   const flagNamesByAccount = useMemo(() => colourNamesByAccount(rewardsSnapshot.data?.cards), [rewardsSnapshot.data]);
@@ -357,11 +360,11 @@ export function ScheduledTransactionsPage() {
           <div className="table-wrap table-wrap-wide">
             <table className="ledger-table schedule-table"><thead><tr><th>Next</th><th>Payee / memo</th><th>Account</th><th>Category</th><th>Repeat</th><th className="num">Amount</th><th><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>{group.schedules.map((schedule) => <ScheduleRows key={schedule.id} schedule={schedule}
-                closed={closedAccountIds.has(schedule.account_id ?? "")}
+                closed={isClosedSchedule(schedule)}
                 flagName={namedFlagLabel(flagNamesByAccount.get(schedule.account_id ?? ""), schedule.flag_color)}
                 accounts={accountNames} categories={categoryNames} payees={payeeNames} busy={mutatingId === schedule.id}
                 onEdit={() => { setEditor({ mode: "edit", schedule }); setMutationError(null); setMutationSuccess(null); }}
-                onEnter={() => { if (!schedule.date_next || closedAccountIds.has(schedule.account_id ?? "")) return; const operationSeed = crypto.randomUUID(); const enteredDate = todayIso(); setPendingEntry({ schedule, occurrenceDate: schedule.date_next, enteredDate, operationSeed, idempotencyKey: materializationKey(schedule.id, schedule.date_next, enteredDate, operationSeed) }); setMutationError(null); setMutationSuccess(null); }}
+                onEnter={() => { if (!schedule.date_next || isClosedSchedule(schedule)) return; const operationSeed = crypto.randomUUID(); const enteredDate = todayIso(); setPendingEntry({ schedule, occurrenceDate: schedule.date_next, enteredDate, operationSeed, idempotencyKey: materializationKey(schedule.id, schedule.date_next, enteredDate, operationSeed) }); setMutationError(null); setMutationSuccess(null); }}
                 onDelete={() => { setPendingDeletion({ schedule, idempotencyKey: mutationKey(`delete-${schedule.id}`) }); setMutationError(null); setMutationSuccess(null); }} />)}</tbody>
             </table>
           </div>
@@ -372,7 +375,7 @@ export function ScheduledTransactionsPage() {
 }
 
 function ScheduleRows({ schedule, closed, flagName, accounts, categories, payees, busy, onEdit, onEnter, onDelete }: { schedule: ScheduledTransaction; closed: boolean; flagName?: string; accounts: Map<string, string>; categories: Map<string, string>; payees: Map<string, string>; busy: boolean; onEdit: () => void; onEnter: () => void; onDelete: () => void }) {
-  const account = nameFor(schedule.account_name, schedule.account_id, accounts, "Account unavailable") + (closed ? " (closed)" : "");
+  const account = nameFor(accounts.get(schedule.account_id ?? "") ?? schedule.account_name, schedule.account_id, accounts, "Account unavailable");
   const payee = scheduleLabel(schedule, payees, accounts);
   const category = categoryLabel(schedule, accounts, categories);
   const amount = amountFor(schedule);
@@ -394,7 +397,7 @@ function ScheduleRows({ schedule, closed, flagName, accounts, categories, payees
 }
 
 function SplitScheduleRow({ line, accounts, categories, payees }: { line: ScheduledSubtransaction; accounts: Map<string, string>; categories: Map<string, string>; payees: Map<string, string> }) {
-  const payee = nameFor(line.payee_name, line.payee_id, payees, line.transfer_account_id ? transferName(line.transfer_account_id, accounts) : "Split line");
+  const payee = line.transfer_account_id ? transferName(line.transfer_account_id, accounts) : nameFor(line.payee_name, line.payee_id, payees, "Split line");
   const category = line.transfer_account_id ? transferName(line.transfer_account_id, accounts) : nameFor(line.category_name, line.category_id, categories, "Uncategorised");
   return <tr className="split-line-row schedule-split-row"><td aria-hidden="true" /><td className="split-line-cell"><span className="schedule-split-mark">Split</span> {payee}{line.memo ? ` · ${line.memo}` : ""}<div className="schedule-mobile-detail">{category}</div></td><td aria-hidden="true" /><td>{category}</td><td aria-hidden="true" /><td className={line.amount < 0 ? "num amount-negative" : line.amount > 0 ? "num amount-positive" : "num"}>{formatMoney(line.amount, { sign: line.amount > 0 })}</td><td aria-hidden="true" /></tr>;
 }
@@ -496,7 +499,7 @@ function groupSchedules(schedules: ScheduledTransaction[]): ScheduleGroup[] { co
 function compareSchedules(left: ScheduledTransaction, right: ScheduledTransaction): number { return (left.date_next ?? left.date_first ?? "9999-12-31").localeCompare(right.date_next ?? right.date_first ?? "9999-12-31") || left.id.localeCompare(right.id); }
 function amountFor(schedule: ScheduledTransaction): number { if (Number.isSafeInteger(schedule.amount)) return Number(schedule.amount); return (schedule.subtransactions ?? []).reduce((sum, line) => sum + (Number.isSafeInteger(line.amount) ? line.amount : 0), 0); }
 function nameFor(name: string | null | undefined, id: string | null | undefined, names: Map<string, string>, fallback: string): string { return name ?? (id ? names.get(id) ?? fallback : fallback); }
-function scheduleLabel(schedule: ScheduledTransaction, payees: Map<string, string>, accounts: Map<string, string>): string { return nameFor(schedule.payee_name, schedule.payee_id, payees, schedule.transfer_account_id ? transferName(schedule.transfer_account_id, accounts) : "No payee"); }
+function scheduleLabel(schedule: ScheduledTransaction, payees: Map<string, string>, accounts: Map<string, string>): string { return schedule.transfer_account_id ? transferName(schedule.transfer_account_id, accounts) : nameFor(schedule.payee_name, schedule.payee_id, payees, "No payee"); }
 function transferName(accountId: string, accounts: Map<string, string>): string { return `Transfer to ${accounts.get(accountId) ?? "account"}`; }
 function categoryLabel(schedule: ScheduledTransaction, accounts: Map<string, string>, categories: Map<string, string>): string { if (schedule.transfer_account_id) return transferName(schedule.transfer_account_id, accounts); return nameFor(schedule.category_name, schedule.category_id, categories, "Uncategorised"); }
 function draftKey(): string { return `split-${crypto.randomUUID()}`; }
