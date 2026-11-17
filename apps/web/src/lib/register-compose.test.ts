@@ -97,9 +97,9 @@ describe("register compose", () => {
     expect(composePayload(
       { ...emptyComposeDraft("acct-everyday"), outflow: "1" },
       [],
-    )).toEqual({
-      ok: false,
-      error: "Enter a payee.",
+    )).toMatchObject({
+      ok: true,
+      input: { payee_id: null, payee_name: null, amount_milli: -1000 },
     });
   });
 

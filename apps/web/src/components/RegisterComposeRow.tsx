@@ -132,7 +132,6 @@ export function RegisterComposeRow({
             value={state.draft.payeeName}
             entries={payeeEntries}
             disabled={busy}
-            required
             onChange={(payeeName) => patch({ payeeName })}
             onCommitName={() => {
               const snapped = canonicalPayeeName(payees, state.draft.payeeName);

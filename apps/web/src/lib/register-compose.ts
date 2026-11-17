@@ -169,8 +169,7 @@ export function composePayload(
   const amountText = outflow || inflow;
   const payeeName = canonicalPayeeName(payees, draft.payeeName);
   if (!amountText) {
-    // Both at once, so fixing one does not uncover the other.
-    return { ok: false, error: payeeName ? "Enter an amount in Outflow (money out) or Inflow (money in)." : "Enter a payee and an amount." };
+    return { ok: false, error: "Enter an amount in Outflow (money out) or Inflow (money in)." };
   }
   const magnitude = parseMilliunits(amountText);
   if (magnitude === null) {
@@ -180,10 +179,9 @@ export function composePayload(
     return { ok: false, error: "Enter an amount above zero: money out goes in Outflow, money in goes in Inflow." };
   }
 
+  // A payee is optional, as on iOS and in the Scheduled editor; a transfer
+  // is chosen by its payee, so it always has one.
   const transfer = findTransferPayee(payees, payeeName);
-  if (!payeeName) {
-    return { ok: false, error: "Enter a payee." };
-  }
 
   const signedAmount = (outflow ? -1 : 1) * magnitude;
   return {
@@ -194,7 +192,7 @@ export function composePayload(
       date: draft.date,
       amount_milli: signedAmount,
       payee_id: transfer?.id ?? null,
-      payee_name: transfer ? null : payeeName,
+      payee_name: transfer ? null : payeeName || null,
       category_id: transfer ? null : draft.categoryId || null,
       memo: draft.memo.trim() || null,
       flag_color: draft.flagColor || null,
