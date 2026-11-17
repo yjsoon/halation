@@ -1395,13 +1395,19 @@ export function TransactionsPage() {
     unapprovedOnly,
     wantsUncategorised,
   ]);
+  // Posted rows after today wait under Scheduled, unless the chosen range
+  // itself reaches past today: then the rows inside it are listed and
+  // counted, as the report that linked here counts them.
+  const listsRow = (txn: Transaction) => txn.id === deepLinkedTransactionId
+    || !isUpcomingRegisterDate(txn.date, today)
+    || (filters.to !== undefined && filters.to > today && txn.date <= filters.to);
   const rows = useMemo(
-    () => matchedRows.filter((txn) => txn.id === deepLinkedTransactionId || !isUpcomingRegisterDate(txn.date, today)),
-    [deepLinkedTransactionId, matchedRows, today],
+    () => matchedRows.filter(listsRow),
+    [deepLinkedTransactionId, filters.to, matchedRows, today],
   );
   const postedFutureRows = useMemo(
-    () => matchedRows.filter((txn) => txn.id !== deepLinkedTransactionId && isUpcomingRegisterDate(txn.date, today)),
-    [deepLinkedTransactionId, matchedRows, today],
+    () => matchedRows.filter((txn) => !listsRow(txn)),
+    [deepLinkedTransactionId, filters.to, matchedRows, today],
   );
   const visibleSchedules = useMemo(() => {
     if (queueMode) {
