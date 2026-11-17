@@ -1,4 +1,4 @@
-import { useCallback, useState, type CSSProperties } from "react";
+import { useCallback, useState, type CSSProperties, type KeyboardEvent } from "react";
 import { formatAmount, formatMoney, withPlanDecimal } from "../lib/money";
 import { formatPeriod } from "../lib/dates";
 
@@ -23,16 +23,29 @@ function useChartWidth() {
 function useChartDetail(labels: Map<string, string>) {
   const [focused, setFocused] = useState<string | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const active = selected && labels.has(selected) ? selected : [...labels.keys()].at(-1);
   return {
     detail: labels.get(hovered ?? focused ?? "") ?? "\u00a0",
     pointProps: (period: string) => ({
-      tabIndex: 0,
+      tabIndex: period === active ? 0 : -1,
       role: "img",
       "aria-label": labels.get(period),
       className: "chart-point",
       onFocus: () => {
+        setSelected(period);
         setFocused(period);
         setHovered(null);
+      },
+      onKeyDown: (event: KeyboardEvent<SVGGElement>) => {
+        const points = [...(event.currentTarget.parentElement?.querySelectorAll<SVGGElement>(".chart-point") ?? [])];
+        const index = points.indexOf(event.currentTarget);
+        const target = event.key === "Home" ? 0 : event.key === "End" ? points.length - 1
+          : event.key === "ArrowLeft" ? Math.max(0, index - 1)
+          : event.key === "ArrowRight" ? Math.min(points.length - 1, index + 1) : undefined;
+        if (target === undefined) return;
+        event.preventDefault();
+        points[target]?.focus();
       },
       onBlur: () => setFocused(null),
       onMouseEnter: () => setHovered(period),
