@@ -28,7 +28,7 @@ export function IncomePage() {
   const firstDate = filters.from ?? (activity[0] ? periodBounds(activity[0].period).from : undefined);
   const byPeriod = new Map(activity.map((period) => [period.period, period]));
   let cumulativeNet = 0;
-  const periods = report.data && firstDate
+  const periods = activity.length > 0 && firstDate
     ? reportPeriods(firstDate, filters.to ?? todayIso(), filters.interval).map((range) => {
         const values = byPeriod.get(range.period);
         const income = values?.income ?? 0;
