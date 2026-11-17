@@ -1318,11 +1318,12 @@ export function TransactionsPage() {
   // The flow and category filters a drill-down narrows the register with.
   // Report lines (a transaction, or each of its split lines) are judged one
   // at a time, as the reports do: a Spending drill-down (`flow=outflow`) and
-  // the Uncategorised list take outflows, and either leaves out uncategorised
-  // transfer legs.
+  // the Uncategorised list take outflows, Income v spending (`flow=activity`)
+  // takes both signs, and each leaves out uncategorised transfer legs.
   const narrowsLines = Boolean(flow) || filters.categoryIds.length > 0;
   const lineInView = (line: ReportLine): boolean => {
-    const outflowOnly = flow === "outflow" || wantsUncategorised;
+    // Income v spending asks for both signs, Uncategorised included.
+    const outflowOnly = flow === "outflow" || (wantsUncategorised && flow !== "activity");
     if (outflowOnly && line.amount >= 0) return false;
     if ((flow || wantsUncategorised) && !countsInReports(line)) return false;
     if (!filters.categoryIds.length) return true;
