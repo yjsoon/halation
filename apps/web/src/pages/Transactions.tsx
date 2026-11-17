@@ -1101,10 +1101,14 @@ export function TransactionsPage() {
       refreshFirstPage();
       setReconciliationPreviewGeneration((generation) => generation + 1);
       const savedName = (updated.payee_name ?? session.draft.payeeName).trim() || "Entry";
+      // A moved row may leave this list, so the message says where it went.
+      const movedTo = updated.account_id !== prior.account_id
+        ? ` to ${accounts.find((account) => account.id === updated.account_id)?.name ?? updated.account_name}`
+        : "";
       setMutationSuccess(
         dateInRegisterWindow(updated.date, filters.from, filters.to, today)
-          ? `${savedName} saved.`
-          : `${savedName} saved. It is outside this date range.`,
+          ? `${savedName} saved${movedTo}.`
+          : `${savedName} saved${movedTo}. It is outside this date range.`,
       );
       refocusRowIdRef.current = registerRowDomId(session.row);
       setBloomIds([registerRowDomId(session.row)]);
