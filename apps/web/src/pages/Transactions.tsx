@@ -1843,7 +1843,7 @@ export function TransactionsPage() {
             </div>
           );
       })()}
-      <FilterRail filters={filters} setFilters={setFilters} busy={page.loading || page.filling || page.loadingMore} collapsible />
+      <FilterRail filters={filters} setFilters={setFilters} busy={page.loading || page.filling || page.loadingMore} collapsible accountScopeFixed={Boolean(selectedAccount)} />
       <div className="register-toolbar">
         <div className="register-toolbar-actions">
           {noAccounts ? (

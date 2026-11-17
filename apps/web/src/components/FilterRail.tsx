@@ -21,9 +21,11 @@ interface Props {
   groups?: Array<"flag" | "payee" | "category" | "memo">;
   busy?: boolean;
   collapsible?: boolean;
+  /** An account register: its account is the page, not a filter, so Clear filters keeps it. */
+  accountScopeFixed?: boolean;
 }
 
-export function FilterRail({ filters, setFilters, intervals, showCategories = true, groups, busy = false, collapsible = false }: Props) {
+export function FilterRail({ filters, setFilters, intervals, showCategories = true, groups, busy = false, collapsible = false, accountScopeFixed = false }: Props) {
   const [open, setOpen] = useState(false);
   const stackRef = useRef<HTMLDivElement>(null);
   const { accounts, categoryGroups } = usePlan();
@@ -59,7 +61,7 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
   const hasActiveFilters = Boolean(
     filters.from ||
       filters.to ||
-      filters.accountIds.length ||
+      (!accountScopeFixed && filters.accountIds.length) ||
       (showCategories && filters.categoryIds.length) ||
       (selectedInterval && selectedInterval !== "month") ||
       (groups && filters.groupBy !== "flag"),
@@ -90,7 +92,7 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
     setFilters({
       from: undefined,
       to: undefined,
-      accountIds: [],
+      ...(accountScopeFixed ? {} : { accountIds: [] }),
       categoryIds: [],
       interval: intervals?.includes("month") ? "month" : (intervals?.[0] ?? "month"),
       groupBy: "flag",
