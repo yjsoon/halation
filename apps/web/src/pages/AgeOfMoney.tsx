@@ -18,7 +18,7 @@ const INTERVALS: Interval[] = ["week", "month"];
 const days = (count: number) => `${count} ${Math.abs(count) === 1 ? "day" : "days"}`;
 
 export function AgeOfMoneyPage() {
-  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ALL_TIME, intervals: INTERVALS, throughToday: true });
+  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ALL_TIME, intervals: INTERVALS, throughToday: true, rememberAccounts: true });
   const query = { ...reportQuery, category_ids: undefined };
   const report = useApi(JSON.stringify(query), () => api.ageOfMoney(query));
 

@@ -20,7 +20,7 @@ function incomeIntervals({ from, to }: { from?: string; to?: string }): Interval
 }
 
 export function IncomePage() {
-  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ytdRange, intervals: incomeIntervals, throughToday: true });
+  const { filters, setFilters, reportQuery } = useFilters({ defaultRange: ytdRange, intervals: incomeIntervals, throughToday: true, rememberAccounts: true });
   const report = useApi(JSON.stringify(reportQuery), () => api.incomeVsSpending(reportQuery));
   const isPhone = useIsPhone();
 

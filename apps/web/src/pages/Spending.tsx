@@ -12,7 +12,7 @@ import { StatusPanel } from "../components/StatusPanel";
 import { HeadlineFigure } from "../components/HeadlineFigure";
 
 export function SpendingPage() {
-  const { filters, setFilters, reportQuery } = useFilters({ throughToday: true });
+  const { filters, setFilters, reportQuery } = useFilters({ throughToday: true, rememberAccounts: true });
   const query = { ...reportQuery, interval: undefined };
   const report = useApi(JSON.stringify(query), () => api.spendingBreakdown(query));
   const isPhone = useIsPhone();

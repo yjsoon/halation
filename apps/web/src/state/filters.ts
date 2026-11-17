@@ -20,6 +20,8 @@ interface FilterOptions {
   defaultRange?: () => { from?: string; to?: string };
   /** Report defaults and open-ended ranges stop today; explicit future dates remain valid. */
   throughToday?: boolean;
+  /** Only reports share remembered account scope; other pages use the URL alone. */
+  rememberAccounts?: boolean;
   /**
    * Intervals this report offers. A remembered or linked interval outside the
    * list (Year chosen on Income, then Money age opened) falls back to month, so
@@ -39,6 +41,7 @@ export function filtersFromSearch(
   options: {
     defaultRange: () => { from?: string; to?: string };
     throughToday?: boolean;
+    rememberAccounts?: boolean;
     prefs?: ReturnType<typeof loadPrefs>;
     intervals?: FilterOptions["intervals"];
     /** Open accounts. A remembered account outside it (closed or deleted since) is dropped. */
@@ -58,7 +61,7 @@ export function filtersFromSearch(
 
   const accountsParam = params.get("accounts");
   const open = options.openAccountIds;
-  const remembered = (prefs.accountIds ?? []).filter((id) => !open || open.has(id));
+  const remembered = (options.rememberAccounts ? prefs.accountIds ?? [] : []).filter((id) => !open || open.has(id));
   const accountIds =
     accountsParam === null ? remembered : accountsParam === "all" ? [] : parseList(accountsParam);
 
@@ -120,19 +123,20 @@ export function useFilters(options?: FilterOptions): {
   const defaultRange = options?.defaultRange ?? monthRange;
   const intervals = options?.intervals;
   const throughToday = options?.throughToday;
+  const rememberAccounts = options?.rememberAccounts;
   const openAccountIds = useMemo(
     () => new Set(accounts.filter((account) => !account.closed).map((account) => account.id)),
     [accounts],
   );
 
   const filters = useMemo<Filters>(
-    () => filtersFromSearch(params, { defaultRange, throughToday, prefs: loadPrefs(), intervals, openAccountIds }),
-    [params, defaultRange, throughToday, intervals, openAccountIds],
+    () => filtersFromSearch(params, { defaultRange, throughToday, rememberAccounts, prefs: loadPrefs(), intervals, openAccountIds }),
+    [params, defaultRange, throughToday, rememberAccounts, intervals, openAccountIds],
   );
 
   const setFilters = useCallback(
     (patch: Partial<Filters>) => {
-      if ("accountIds" in patch && patch.accountIds !== undefined) {
+      if (rememberAccounts && "accountIds" in patch && patch.accountIds !== undefined) {
         savePrefs({ accountIds: patch.accountIds });
       }
       if (patch.interval) {
@@ -140,7 +144,7 @@ export function useFilters(options?: FilterOptions): {
       }
       setParams((previous) => applyFilterPatch(previous, patch), { replace: true });
     },
-    [setParams],
+    [setParams, rememberAccounts],
   );
 
   const reportQuery = useMemo<ReportQuery>(

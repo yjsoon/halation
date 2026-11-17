@@ -25,17 +25,21 @@ describe("filtersFromSearch", () => {
   test("treats accounts=all as a deliberate empty selection", () => {
     const filters = filtersFromSearch(new URLSearchParams("accounts=all"), {
       defaultRange: () => ({ from: "2026-08-01", to: "2026-08-31" }),
+      rememberAccounts: true,
       prefs: { accountIds: ["remembered"] },
     });
     expect(filters.accountIds).toEqual([]);
     expect(filters.from).toBe("2026-08-01");
   });
 
-  test("falls back to remembered accounts only when the URL omits them", () => {
-    const filters = filtersFromSearch(new URLSearchParams(), {
+  test("uses remembered accounts only for opted-in reports without a URL scope", () => {
+    const options = {
       defaultRange: () => ({}),
-      prefs: { accountIds: ["remembered"], interval: "week" },
-    });
+      prefs: { accountIds: ["remembered"], interval: "week" as const },
+    };
+    expect(filtersFromSearch(new URLSearchParams(), options).accountIds).toEqual([]);
+    expect(filtersFromSearch(new URLSearchParams("accounts=explicit"), options).accountIds).toEqual(["explicit"]);
+    const filters = filtersFromSearch(new URLSearchParams(), { ...options, rememberAccounts: true });
     expect(filters.accountIds).toEqual(["remembered"]);
     expect(filters.interval).toBe("week");
   });
