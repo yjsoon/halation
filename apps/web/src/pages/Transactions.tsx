@@ -151,7 +151,7 @@ function isReportActivity(txn: Transaction): boolean {
 
 export function TransactionsPage() {
   const { filters, setFilters } = useFilters({ defaultRange: () => trailingMonthsRange(2) });
-  const { accounts, categoryGroups, planId, planSelectionError, userId, ledgerKnowledge, validatedKnowledge, cacheEpoch, reload } = usePlan();
+  const { accounts, categoryGroups, planId, planSelectionError, userId, ledgerKnowledge, validatedKnowledge, cacheEpoch, reload, categoriserEnabled } = usePlan();
   const cacheIdentity = useMemo(() => ({ userId, planId }), [userId, planId]);
   const payees = useCachedApi<Payee[]>({
     slot: "payees",
@@ -2021,16 +2021,18 @@ export function TransactionsPage() {
             })}
             <option value={NO_FLAG}>Remove flag</option>
           </select>
-          <button
-            type="button"
-            ref={suggestButtonRef}
-            className="register-bulk-action"
-            onClick={() => void suggestCategories(selectedRows)}
-            disabled={mutationBusy || suggesting || suggestionTargets(selectedRows).length === 0}
-            title="Send the selected transactions to TypeSafe's Jev model for a suggested category each. You review before anything changes."
-          >
-            {suggesting ? "Suggesting…" : "Suggest categories"}
-          </button>
+          {categoriserEnabled && (
+            <button
+              type="button"
+              ref={suggestButtonRef}
+              className="register-bulk-action"
+              onClick={() => void suggestCategories(selectedRows)}
+              disabled={mutationBusy || suggesting || suggestionTargets(selectedRows).length === 0}
+              title="Send the selected transactions to TypeSafe's Jev model for a suggested category each. You review before anything changes."
+            >
+              {suggesting ? "Suggesting…" : "Suggest categories"}
+            </button>
+          )}
           <span className="register-bulk-sep" aria-hidden="true" />
           <button type="button" className="register-bulk-action" onClick={() => void setClearedMany(selectedRows, "cleared")} disabled={mutationBusy}>Mark cleared</button>
           <button type="button" className="register-bulk-action" onClick={() => void setClearedMany(selectedRows, "uncleared")} disabled={mutationBusy}>Mark uncleared</button>

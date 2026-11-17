@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 import {
   ApiError,
@@ -113,6 +113,8 @@ interface PlanContextValue {
   categoryNames: Map<string, string>;
   reload: () => void;
   logout: () => Promise<void>;
+  /** Whether this server suggests categories through TypeSafe; set by the provider. */
+  categoriserEnabled?: boolean;
 }
 
 const PlanContext = createContext<PlanContextValue | null>(null);
@@ -216,6 +218,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const [authMode, setAuthMode] = useState<"checking" | SignedOutMode | "ready">("checking");
   const [bootstrapRequired, setBootstrapRequired] = useState(true);
   const [categoriserEnabled, setCategoriserEnabled] = useState(false);
+  const contextValue = useMemo(() => value && { ...value, categoriserEnabled }, [value, categoriserEnabled]);
   const [generation, setGeneration] = useState(0);
   const sessionEndedRef = useRef(false);
   const cancelBootstrapRef = useRef<() => void>(() => {});
@@ -651,7 +654,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   // state. Remount it when identity changes so plan A state cannot submit or
   // complete into plan B after a client-side deep-link navigation.
   return (
-    <PlanContext.Provider value={value} key={bootstrapControllerKey(value.userId, value.planId)}>
+    <PlanContext.Provider value={contextValue} key={bootstrapControllerKey(value.userId, value.planId)}>
       {children}
     </PlanContext.Provider>
   );
