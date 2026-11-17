@@ -757,6 +757,8 @@ function FlagRow({
   const patch = (next: Partial<FlagDraft>) => onChange({ ...flag, ...next, updatedAt: new Date().toISOString() });
   const ledgerColour = ledgerFlagFromReward(flag.flagColor);
   const errorId = `flag-${index + 1}-error`;
+  // Marks the input the row's error is about, which is also where focus goes.
+  const fault = (field: FlagErrorField) => (error?.field === field ? { "aria-invalid": true, "aria-describedby": errorId } as const : {});
   // Save may be screens below the row it complains about: go to the field, or at least show the row.
   const rowRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -783,8 +785,7 @@ function FlagRow({
           value={colourName}
           onChange={(event) => onColourName(event.target.value)}
           aria-label={`Flag ${index + 1} colour name`}
-          aria-invalid={error?.field === "name" || undefined}
-          aria-describedby={error?.field === "name" ? errorId : undefined}
+          {...fault("name")}
         />
       </label>
       <div className="field">
@@ -802,23 +803,23 @@ function FlagRow({
       </div>
       <label className="field">
         <span className="field-label">Reward value</span>
-        <input type="text" inputMode="decimal" value={flag.rewardValue} onChange={(event) => patch({ rewardValue: event.target.value })} aria-label={`Flag ${index + 1} reward value`} />
+        <input type="text" inputMode="decimal" value={flag.rewardValue} onChange={(event) => patch({ rewardValue: event.target.value })} aria-label={`Flag ${index + 1} reward value`} {...fault("rewardValue")} />
       </label>
       <label className="field">
         <span className="field-label">Priority</span>
-        <input type="text" inputMode="numeric" value={flag.priority} onChange={(event) => patch({ priority: event.target.value })} aria-label={`Flag ${index + 1} priority`} />
+        <input type="text" inputMode="numeric" value={flag.priority} onChange={(event) => patch({ priority: event.target.value })} aria-label={`Flag ${index + 1} priority`} {...fault("priority")} />
       </label>
       <label className="field">
         <span className="field-label">Minimum spend</span>
-        <input type="text" inputMode="decimal" value={flag.minimumSpend} onChange={(event) => patch({ minimumSpend: event.target.value })} />
+        <input type="text" inputMode="decimal" value={flag.minimumSpend} onChange={(event) => patch({ minimumSpend: event.target.value })} {...fault("minimumSpend")} />
       </label>
       <label className="field">
         <span className="field-label">Maximum spend</span>
-        <input type="text" inputMode="decimal" value={flag.maximumSpend} onChange={(event) => patch({ maximumSpend: event.target.value })} />
+        <input type="text" inputMode="decimal" value={flag.maximumSpend} onChange={(event) => patch({ maximumSpend: event.target.value })} {...fault("maximumSpend")} />
       </label>
       <label className="field">
         <span className="field-label">Miles block</span>
-        <input type="text" inputMode="decimal" value={flag.milesBlockSize} onChange={(event) => patch({ milesBlockSize: event.target.value })} />
+        <input type="text" inputMode="decimal" value={flag.milesBlockSize} onChange={(event) => patch({ milesBlockSize: event.target.value })} {...fault("milesBlockSize")} />
       </label>
       <label className="transaction-editor-checkbox">
         <input type="checkbox" checked={flag.active} onChange={(event) => patch({ active: event.target.checked })} />
@@ -1187,7 +1188,7 @@ export function draftFromCard(card: CreditCard): CardDraft {
   };
 }
 
-type FlagErrorField = "colour" | "name";
+type FlagErrorField = "colour" | "name" | "rewardValue" | "priority" | "milesBlockSize" | "minimumSpend" | "maximumSpend";
 
 const DUPLICATE_COLOUR = "Active flag colours must be unique.";
 
@@ -1272,16 +1273,17 @@ export function creditCardWrite(
     const colourName = draft.flagNames[flag.flagColor]?.trim() || flag.name.trim();
     if (!colourName) return { error: `Name the ${flag.flagColor === "unflagged" ? "None" : flag.flagColor} colour on this card.`, flagId: flag.id, field: "name" };
     if (!isRewardFlagColour(flag.flagColor)) return { error: `Flag ${index + 1} needs a recognised colour.`, flagId: flag.id, field: "colour" };
-    const rewardValue = requiredFinite(flag.rewardValue, `Flag ${index + 1} reward value`);
-    if (!rewardValue.ok) return { error: rewardValue.error, flagId: flag.id };
-    const priority = requiredFinite(flag.priority, `Flag ${index + 1} priority`, false);
-    if (!priority.ok) return { error: priority.error, flagId: flag.id };
-    const milesBlockSize = optionalFinite(flag.milesBlockSize, `Flag ${index + 1} miles block`);
-    if (!milesBlockSize.ok) return { error: milesBlockSize.error, flagId: flag.id };
-    const flagMinimum = optionalFinite(flag.minimumSpend, `Flag ${index + 1} minimum spend`);
-    if (!flagMinimum.ok) return { error: flagMinimum.error, flagId: flag.id };
-    const flagMaximum = optionalFinite(flag.maximumSpend, `Flag ${index + 1} maximum spend`);
-    if (!flagMaximum.ok) return { error: flagMaximum.error, flagId: flag.id };
+    // These show in the flag's own row, so they name the field and not a flag number the rows do not show.
+    const rewardValue = requiredFinite(flag.rewardValue, "Reward value");
+    if (!rewardValue.ok) return { error: rewardValue.error, flagId: flag.id, field: "rewardValue" };
+    const priority = requiredFinite(flag.priority, "Priority", false);
+    if (!priority.ok) return { error: priority.error, flagId: flag.id, field: "priority" };
+    const milesBlockSize = optionalFinite(flag.milesBlockSize, "Miles block");
+    if (!milesBlockSize.ok) return { error: milesBlockSize.error, flagId: flag.id, field: "milesBlockSize" };
+    const flagMinimum = optionalFinite(flag.minimumSpend, "Minimum spend");
+    if (!flagMinimum.ok) return { error: flagMinimum.error, flagId: flag.id, field: "minimumSpend" };
+    const flagMaximum = optionalFinite(flag.maximumSpend, "Maximum spend");
+    if (!flagMaximum.ok) return { error: flagMaximum.error, flagId: flag.id, field: "maximumSpend" };
     const written: CardSubcategory = {
       id: flag.id,
       name: colourName,
