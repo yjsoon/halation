@@ -65,6 +65,10 @@ scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests/RegisterApprovalTes
 
 These are scoped feedback loops, not substitutes for affected E2E recipes or the [landing checks](AGENTS.md#landing-work-on-main). Include API tests when changing a shared contract or persisted behaviour. `bun test` still runs the full Bun suite; it does not run iOS tests. The iOS `test` command still rebuilds before running the selected class.
 
+Use `bun run check` for the landing checks selected from the diff against `origin/main` (override with `HOWMUCH_CHECK_BASE`). It runs cheap checks before the full Bun suite and prints each command's elapsed time, user/system CPU time and exit status. A failure stops the gate; it never becomes a cached pass.
+
+When affected scope is uncertain, run `bun run check --full` on a Mac with Xcode, Bun and Chrome. It runs both typechecks, all three `verify:ios-*` checks, engine freshness, every Bun test and `HowMuchTests`, even on a clean checkout with no base ref. It fails on Linux rather than silently skipping iOS. This covers the scripted checks, not every interactive feature recipe.
+
 The repository is laid out as follows:
 
 - `apps/api`: the ledger, reports and importers.
