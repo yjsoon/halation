@@ -1519,8 +1519,11 @@ export function TransactionsPage() {
     () => matchedRows.filter((txn) => !listsRow(txn)),
     [deepLinkedTransactionId, filters.to, matchedRows, today],
   );
+  // Upcoming schedules belong to a range with no end or one that reaches
+  // today; a range that ended earlier has nothing scheduled in it.
+  const rangeEndedBeforeToday = filters.to !== undefined && filters.to < today;
   const visibleSchedules = useMemo(() => {
-    if (queueMode) {
+    if (queueMode || rangeEndedBeforeToday) {
       return [];
     }
     const query = registerQuery;
@@ -1542,9 +1545,9 @@ export function TransactionsPage() {
       const payeeName = schedule.payee_name ?? (schedule.payee_id ? payees.data?.find((payee) => payee.id === schedule.payee_id)?.name : undefined);
       return matchesRegisterQuery(query, fieldsFromSchedule(schedule, { accountName, payeeName }));
     });
-  }, [accounts, categoryIds, filters.categoryIds.length, payees.data, registerAccountIds, registerQuery, schedules.data, queueMode, wantsUncategorised]);
+  }, [accounts, categoryIds, filters.categoryIds.length, payees.data, rangeEndedBeforeToday, registerAccountIds, registerQuery, schedules.data, queueMode, wantsUncategorised]);
   const scheduledDisclosureCount = postedFutureRows.length + visibleSchedules.length;
-  const showScheduledDisclosure = scheduledDisclosureCount > 0 || Boolean(schedules.error);
+  const showScheduledDisclosure = scheduledDisclosureCount > 0 || (Boolean(schedules.error) && !rangeEndedBeforeToday);
 
   const confirmationRowsPending = (toConfirmOnly && confirmationRows === null) || (toClaimOnly && claimRows === null);
   useEffect(() => {
