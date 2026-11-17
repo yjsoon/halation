@@ -10,6 +10,7 @@ import { MultiSelect } from "../components/MultiSelect";
 import { formatDate, formatDateRange } from "../lib/dates";
 import { formatAmount } from "../lib/money";
 import { rewardCardAccountChoices } from "../lib/reward-card-accounts";
+import { namedFlagGroups } from "../lib/reward-flag-names";
 import { exposure, stillExposure } from "../lib/reward-exposure";
 import { beyondCap, boardSummary, projectRow, roundedUpToCent, rowText, type RewardRowProjection, type RowText, type Tone } from "../lib/reward-row-projection";
 import { activeMonth, dayMonth, dayMonthSpan, periodDays, rowSize, type MonthlyQualification, type PeriodDays } from "../lib/reward-skyline";
@@ -141,6 +142,8 @@ function RewardsBoard({ planId }: { planId: string }) {
   const shown = report.error ? null : (report.data ?? lastGood.current);
   const refreshing = report.loading && shown != null;
   const storedCards = shown?.cards ?? [];
+  // By flag reads the names the cards give their colours now, as the register does.
+  const shownGroups = namedFlagGroups(shown?.groups ?? [], storedCards.map((row) => row.card));
   // Keep IDs outside the current account/featured/hidden filters so moving a
   // visible card cannot discard another card's saved position.
   const cardOrder = [...new Set([...preferences.cardOrder, ...[...storedCards]
@@ -481,7 +484,7 @@ function RewardsBoard({ planId }: { planId: string }) {
           <div className="section-heading">
             <div>
               <span className="section-title" id="rewards-groups-heading">By {GROUP_LABEL[filters.groupBy].toLowerCase()}</span>
-              <span className="section-meta">{shown.groups.length} {shown.groups.length === 1 ? "group" : "groups"}</span>
+              <span className="section-meta">{shownGroups.length} {shownGroups.length === 1 ? "group" : "groups"}</span>
             </div>
             {!range && (
               <div className="segmented" role="group" aria-label="Report grouping">
@@ -503,7 +506,7 @@ function RewardsBoard({ planId }: { planId: string }) {
               </tr>
             </thead>
             <tbody>
-              {shown.groups.map((row) => (
+              {shownGroups.map((row) => (
                 <tr key={row.key}>
                   <td>
                     <span className="rewards-group-label">
@@ -516,7 +519,7 @@ function RewardsBoard({ planId }: { planId: string }) {
                   <td className="num">{row.transaction_count}</td>
                 </tr>
               ))}
-              {shown.groups.length === 0 && (
+              {shownGroups.length === 0 && (
                 <tr><td colSpan={4} className="rw-breakdown-empty">No qualifying transactions</td></tr>
               )}
             </tbody>

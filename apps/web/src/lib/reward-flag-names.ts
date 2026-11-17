@@ -89,3 +89,44 @@ export function colourNamesByAccount(
   }
   return mapped;
 }
+
+/**
+ * Rewards' By flag groups, named as the register names the same rows. A row
+ * flagged before its colour had a name is grouped under the bare colour; that
+ * group takes the name the report's cards give the colour now and joins the
+ * group already under that name. When the cards name the colour differently
+ * the report cannot tell their rows apart, so the colour stays.
+ */
+export function namedFlagGroups<Group extends {
+  key: string;
+  label: string;
+  flag_color: string | null;
+  spend: number;
+  reward: number;
+  reward_dollars: number;
+  transaction_count: number;
+}>(
+  groups: Group[],
+  cards: Array<Parameters<typeof colourNamesForCard>[0]>,
+): Group[] {
+  const names = cards.map(colourNamesForCard);
+  const merged = new Map<string, Group>();
+  for (const group of groups) {
+    const colour = group.flag_color;
+    let label = group.label;
+    if (isFlagColour(colour) && group.key === `flag:${colour}`) {
+      const current = new Set(names.map((entry) => entry[colour]?.trim()).filter(Boolean));
+      if (current.size === 1) label = [...current][0]!;
+    }
+    const key = `${colour ?? ""}:${label}`;
+    const earlier = merged.get(key);
+    merged.set(key, earlier ? {
+      ...earlier,
+      spend: earlier.spend + group.spend,
+      reward: earlier.reward + group.reward,
+      reward_dollars: earlier.reward_dollars + group.reward_dollars,
+      transaction_count: earlier.transaction_count + group.transaction_count,
+    } : { ...group, label });
+  }
+  return [...merged.values()].sort((left, right) => right.spend - left.spend || left.key.localeCompare(right.key));
+}
