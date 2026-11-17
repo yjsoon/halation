@@ -303,6 +303,7 @@ export interface RewardsReport {
 export interface QuickEntrySplitLine {
   amount_milli: number;
   category_id: string | null;
+  payee_name?: string | null;
   memo?: string | null;
 }
 

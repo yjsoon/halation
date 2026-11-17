@@ -537,6 +537,14 @@
   grid-column: 1;
 }
 
+.quick-entry .split-line-removable .split-line-memo[open] {
+  grid-column: 1 / -1;
+}
+
+.quick-entry .split-line-memo[open] + .split-line-remove {
+  grid-row: 4;
+}
+
 .quick-entry .split-line label {
   min-width: 0;
   font-size: 12px;

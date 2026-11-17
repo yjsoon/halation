@@ -44,3 +44,10 @@ Setup: existing disposable `control-howmuch launch` stack `20261117T113404-3430`
 - Ordinary amount zero still disables Save. `abc` and `1.234` split lines disable Save with `Every split line needs a valid signed amount.` Clearing a line with Control+A/Backspace does too. Automation `fill ''` alone changes DOM without the React event, so was not accepted as evidence.
 - Use one category after −5 + 15 yields Income and amount 10. After each successful split save, focus returns to Amount after it becomes editable again.
 - Both viewports have no document horizontal overflow. Inspected the mixed split at 390 and zero-net split at 1440; all six combinations were captured. No per-line transfers added.
+
+## P-04b: Optional split payees
+
+- Optional Payee / memo disclosure keeps the default split compact. At both widths create three lines −15, +5, 0; open the first two disclosures and set a new payee `Audit split payee {width}` and existing payee MUJI respectively. Leave the third payee empty. Add a memo on the first line and save with parent memo `P04 payees {width}`.
+- Transactions read-back confirms parent −10000, children −15000 with the new payee and memo, +5000 with MUJI, and 0 with null payee. No server change or separate payee-creation request needed.
+- At 390, expanded inputs are 316 CSS pixels wide, and at 1440 they are 434 pixels. No document horizontal overflow. Inspected both full-page captures, including the three-line Remove control; recorded disclosure/edit/save interaction.
+- Outside the two owned pages/styles: added only optional `payee_name` to `QuickEntrySplitLine` in `apps/web/src/api/types.ts`.

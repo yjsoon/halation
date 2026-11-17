@@ -17,11 +17,12 @@ type SplitLineDraft = {
   categoryId: string;
   amount: string;
   direction: "spend" | "income";
+  payeeName: string;
   memo: string;
 };
 
 function newSplitLine(direction: Direction): SplitLineDraft {
-  return { key: crypto.randomUUID(), categoryId: "", amount: "", direction: direction === "income" ? "income" : "spend", memo: "" };
+  return { key: crypto.randomUUID(), categoryId: "", amount: "", direction: direction === "income" ? "income" : "spend", payeeName: "", memo: "" };
 }
 
 export function QuickEntryPage() {
@@ -140,6 +141,7 @@ export function QuickEntryPage() {
           ? splitLines.map((line) => ({
               amount_milli: parseMilliunits(line.amount)! * (line.direction === "income" ? 1 : -1),
               category_id: line.categoryId || null,
+              payee_name: line.payeeName.trim() || null,
               memo: line.memo.trim() || null,
             }))
           : undefined;
@@ -380,14 +382,30 @@ export function QuickEntryPage() {
                     <button type="button" className={line.direction === "income" ? "segment segment-active" : "segment"} aria-pressed={line.direction === "income"} onClick={() => updateSplitLine(line.key, { direction: "income" })}>Inflow</button>
                   </div>
                   <details className="split-line-memo">
-                    <summary>{line.memo ? "Note" : "Add note"}</summary>
-                    <input
-                      type="text"
-                      placeholder="Note (optional)"
-                      aria-label={`Split line ${index + 1} memo`}
-                      value={line.memo}
-                      onChange={(event) => updateSplitLine(line.key, { memo: event.target.value })}
-                    />
+                    <summary>Payee / memo</summary>
+                    <label className="field">
+                      <span className="field-label">Payee <small>optional</small></span>
+                      <input
+                        type="text"
+                        list="payee-options"
+                        placeholder="Merchant"
+                        aria-label={`Split line ${index + 1} payee`}
+                        value={line.payeeName}
+                        maxLength={200}
+                        autoComplete="off"
+                        onChange={(event) => updateSplitLine(line.key, { payeeName: event.target.value })}
+                      />
+                    </label>
+                    <label className="field">
+                      <span className="field-label">Memo <small>optional</small></span>
+                      <input
+                        type="text"
+                        placeholder="Note"
+                        aria-label={`Split line ${index + 1} memo`}
+                        value={line.memo}
+                        onChange={(event) => updateSplitLine(line.key, { memo: event.target.value })}
+                      />
+                    </label>
                   </details>
                   {splitLines.length > 2 && <button
                     type="button"
