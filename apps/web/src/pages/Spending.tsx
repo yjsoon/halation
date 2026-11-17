@@ -78,7 +78,7 @@ export function SpendingPage() {
       <div className="report-header">
         <h1>Spending breakdown</h1>
         <div className="headline-row headline-row-paired">
-          <HeadlineFigure label="Total spending" settleKey={total} tone={total > 0 ? "negative" : undefined} value={formatAmount(total)} />
+          <HeadlineFigure label="Total spending" settleKey={report.data ? total : "none"} tone={total > 0 ? "negative" : undefined} value={report.data ? formatAmount(total) : "-"} />
           <HeadlineFigure label="Largest line" settleKey={topCategory?.category_id ?? "none"} value={topCategory ? topCategory.category_name : "-"} />
           <HeadlineFigure
             label="Average transaction"

@@ -61,9 +61,9 @@ export function IncomePage() {
       <div className="report-header">
         <h1>Income v spending</h1>
         <div className="headline-row headline-row-paired">
-          <HeadlineFigure label="Income" settleKey={totals.income} tone="positive" value={formatAmount(totals.income)} />
-          <HeadlineFigure label="Spending" settleKey={totals.spending} tone="negative" value={formatAmount(totals.spending)} />
-          <HeadlineFigure label="Net" settleKey={net} tone={signTone(net)} value={formatMoney(net, { sign: true })} />
+          <HeadlineFigure label="Income" settleKey={report.data ? totals.income : "none"} tone={report.data ? "positive" : undefined} value={report.data ? formatAmount(totals.income) : "-"} />
+          <HeadlineFigure label="Spending" settleKey={report.data ? totals.spending : "none"} tone={report.data ? "negative" : undefined} value={report.data ? formatAmount(totals.spending) : "-"} />
+          <HeadlineFigure label="Net" settleKey={report.data ? net : "none"} tone={report.data ? signTone(net) : undefined} value={report.data ? formatMoney(net, { sign: true }) : "-"} />
           {filters.categoryIds.length === 0 && (
             <HeadlineFigure
               label="Savings rate"
