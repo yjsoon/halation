@@ -548,9 +548,23 @@
   grid-row: 1;
 }
 
-.quick-entry .split-line-memo {
+.quick-entry .split-line-direction {
   grid-column: 1 / -1;
   grid-row: 2;
+  justify-self: start;
+  /* Phones stretch every segmented control; this one is two short words. */
+  width: auto;
+}
+
+.quick-entry .split-line-direction .segment {
+  min-height: 44px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.quick-entry .split-line-memo {
+  grid-column: 1 / -1;
+  grid-row: 3;
   width: 100%;
 }
 
@@ -600,9 +614,10 @@
   background: transparent;
 }
 
-.quick-entry .split-line input[type="number"] {
+.quick-entry .split-line-amount input {
   font-family: var(--font-ui);
   font-variant-numeric: tabular-nums;
+  text-align: right;
   appearance: textfield;
   padding-inline: 6px;
 }
@@ -619,7 +634,7 @@
 
 .quick-entry .split-line-remove {
   grid-column: 2;
-  grid-row: 2;
+  grid-row: 3;
   justify-self: end;
   align-self: start;
   min-width: 44px;

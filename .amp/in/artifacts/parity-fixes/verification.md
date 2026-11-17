@@ -36,3 +36,11 @@ Setup: existing disposable `control-howmuch launch` stack `20261117T113404-3430`
 - At both widths, create Spend and Income for 1.05, leave payee blank and use memo `P05 {Spend|Income} {width}`. Save enabled, followed by Saved. Read-back using the transactions endpoint above confirms null payee names and −1050/+1050 milliunits respectively.
 - Control: at both widths create Transfer 1.05 to Travel Card with `P05 Transfer {width}`. Read-back confirms paired −1050/+1050 rows and the reciprocal transfer account IDs. Transfer still requires its selected target; its gate is unchanged.
 - The register compose side is owned by the register worker and is not changed here. The existing quick-entry recipe's mandatory-payee assertions are superseded by this explicitly requested behaviour.
+
+## P-04a: Signed and zero-net splits
+
+- At both widths, Quick entry → Split categories. Parent amount is derived and disabled; signed lines use the Scheduled wording, `Use a minus sign for outflow.` Save has no contradictory Spend/Income direction.
+- Created three entries per width, memo `P04 {mixed|zero|positive} {width}`. Read-back from the transactions endpoint confirms: −15 + 5 → −10000 milliunits; −5 + 5 → 0; −5 + 15 → +10000. Each persisted child retains its own sign. The API may return child lines in a different order.
+- Ordinary amount zero still disables Save. `abc` and `1.234` split lines disable Save with `Every split line needs a valid signed amount.` Clearing a line with Control+A/Backspace does too. Automation `fill ''` alone changes DOM without the React event, so was not accepted as evidence.
+- Use one category after −5 + 15 yields Income and amount 10. After each successful split save, focus returns to Amount after it becomes editable again.
+- Both viewports have no document horizontal overflow. Inspected the mixed split at 390 and zero-net split at 1440; all six combinations were captured. No per-line transfers added.

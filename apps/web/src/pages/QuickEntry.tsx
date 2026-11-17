@@ -16,11 +16,12 @@ type SplitLineDraft = {
   key: string;
   categoryId: string;
   amount: string;
+  direction: "spend" | "income";
   memo: string;
 };
 
-function newSplitLine(): SplitLineDraft {
-  return { key: crypto.randomUUID(), categoryId: "", amount: "", memo: "" };
+function newSplitLine(direction: Direction): SplitLineDraft {
+  return { key: crypto.randomUUID(), categoryId: "", amount: "", direction: direction === "income" ? "income" : "spend", memo: "" };
 }
 
 export function QuickEntryPage() {
@@ -53,7 +54,10 @@ export function QuickEntryPage() {
   // The amount takes focus again for the next entry; keep the confirmation,
   // which sits just above it, on screen rather than scrolled away.
   useEffect(() => {
-    if (saved) savedRef.current?.scrollIntoView({ block: "nearest" });
+    if (saved) {
+      amountRef.current?.focus({ preventScroll: true });
+      savedRef.current?.scrollIntoView({ block: "nearest" });
+    }
   }, [saved]);
 
   useEffect(() => {
@@ -73,22 +77,19 @@ export function QuickEntryPage() {
   const selectedTarget = transferTargets.find((account) => account.id === toAccountId) ?? transferTargets[0];
 
   const amountMilliunits = parseMilliunits(amount);
-  const splitRemainderMilliunits = isSplit
-    ? (amountMilliunits ?? 0) - splitLines.reduce((sum, line) => sum + (parseMilliunits(line.amount) ?? 0), 0)
-    : 0;
+  const entrySign = direction === "income" ? 1 : -1;
+  const splitTotal = splitLines.reduce((sum, line) => sum + (parseMilliunits(line.amount) ?? 0) * (line.direction === "income" ? 1 : -1), 0);
+  const splitRemainderMilliunits = (amountMilliunits ?? 0) - splitTotal * entrySign;
+  const validSplit = splitLines.length >= 2 && splitLines.every((line) => (parseMilliunits(line.amount) ?? 0) > 0)
+    && splitRemainderMilliunits === 0;
 
   const canSave = Boolean(
     selectedAccount &&
       date &&
-      amountMilliunits !== null &&
-      amountMilliunits > 0 &&
       !saving &&
-      (isTransfer
-        ? Boolean(selectedTarget)
-        : (!isSplit ||
-            (splitLines.length >= 2 &&
-              splitRemainderMilliunits === 0 &&
-              splitLines.every((line) => (parseMilliunits(line.amount) ?? 0) > 0)))),
+      amount.trim() !== "" && amountMilliunits !== null &&
+      (isSplit ? amountMilliunits >= 0 && validSplit : amountMilliunits > 0) &&
+      (!isTransfer || Boolean(selectedTarget)),
   );
 
   const clearStatus = () => {
@@ -101,6 +102,10 @@ export function QuickEntryPage() {
     setDirection(next);
     if (next === "transfer") {
       setIsSplit(false);
+    } else if (direction !== "transfer" && next !== direction) {
+      // Spend to Income turns the whole entry round, so each line turns with it
+      // and a line that ran against the entry still runs against it.
+      setSplitLines((lines) => lines.map((line) => ({ ...line, direction: line.direction === "income" ? "spend" : "income" })));
     }
   };
 
@@ -109,8 +114,10 @@ export function QuickEntryPage() {
     const next = !isSplit;
     setIsSplit(next);
     if (next) {
-      setSplitLines((lines) => (lines.length >= 2 ? lines : [newSplitLine(), newSplitLine()]));
+      setSplitLines([newSplitLine(direction), newSplitLine(direction)]);
       setCategoryId("");
+    } else {
+      setSplitLines([]);
     }
   };
 
@@ -127,11 +134,11 @@ export function QuickEntryPage() {
     setSaving(true);
     setError(null);
     try {
-      const signedAmount = (direction === "income" ? 1 : -1) * (parseMilliunits(amount) ?? 0);
+      const signedAmount = entrySign * (amountMilliunits ?? 0);
       const subtransactions: QuickEntrySplitLine[] | undefined =
         !isTransfer && isSplit
           ? splitLines.map((line) => ({
-              amount_milli: (direction === "income" ? 1 : -1) * (parseMilliunits(line.amount) ?? 0),
+              amount_milli: parseMilliunits(line.amount)! * (line.direction === "income" ? 1 : -1),
               category_id: line.categoryId || null,
               memo: line.memo.trim() || null,
             }))
@@ -163,7 +170,6 @@ export function QuickEntryPage() {
       setIsSplit(false);
       setSplitLines([]);
       clientIdRef.current = crypto.randomUUID();
-      amountRef.current?.focus({ preventScroll: true });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -360,14 +366,19 @@ export function QuickEntryPage() {
                     <input
                       type="number"
                       inputMode="decimal"
+                      min="0.01"
                       step="0.01"
-                      min="0"
+                      required
                       placeholder="0.00"
                       aria-label={`Split line ${index + 1} amount`}
                       value={line.amount}
                       onChange={(event) => updateSplitLine(line.key, { amount: event.target.value })}
                     />
                   </label>
+                  <div className="segmented split-line-direction" role="group" aria-label={`Split line ${index + 1} direction`}>
+                    <button type="button" className={line.direction === "spend" ? "segment segment-active" : "segment"} aria-pressed={line.direction === "spend"} onClick={() => updateSplitLine(line.key, { direction: "spend" })}>Outflow</button>
+                    <button type="button" className={line.direction === "income" ? "segment segment-active" : "segment"} aria-pressed={line.direction === "income"} onClick={() => updateSplitLine(line.key, { direction: "income" })}>Inflow</button>
+                  </div>
                   <details className="split-line-memo">
                     <summary>{line.memo ? "Note" : "Add note"}</summary>
                     <input
@@ -397,7 +408,7 @@ export function QuickEntryPage() {
                 className="split-toggle"
                 onClick={() => {
                   clearStatus();
-                  setSplitLines((lines) => [...lines, newSplitLine()]);
+                  setSplitLines((lines) => [...lines, newSplitLine(direction)]);
                 }}
               >
                 + Add line
