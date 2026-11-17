@@ -890,6 +890,10 @@ a.page-eyebrow:hover {
   opacity: 0.72;
 }
 
+.register-bulk-note {
+  opacity: 0.72;
+}
+
 .register-bulk-sep {
   width: 1px;
   height: 18px;
@@ -947,6 +951,11 @@ a.page-eyebrow:hover {
     grid-row: 2;
     flex-wrap: wrap;
     padding: 2px 8px 4px;
+  }
+
+  .register-bulk-bar .register-bulk-note {
+    grid-column: 1 / -1;
+    padding: 0 8px 4px;
   }
 
   .register-bulk-bar .register-bulk-approve {

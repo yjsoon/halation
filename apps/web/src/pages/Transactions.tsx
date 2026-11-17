@@ -1747,6 +1747,8 @@ export function TransactionsPage() {
     () => flowTotals(narrowsLines ? rows.flatMap((txn) => reportLines(txn).filter(lineInView)) : rows),
     [categoryIds, filters.categoryIds.length, flow, narrowsLines, rows, wantsUncategorised],
   );
+  const selectedAnyReconciled = selectedRows.some((txn) => txn.cleared === "reconciled");
+  const selectedAllReconciled = selectedRows.length > 0 && selectedRows.every((txn) => txn.cleared === "reconciled");
   const selectedTotals = useMemo(() => flowTotals(selectedRows), [selectedRows]);
   // Cards name their colours, and each row takes its own card's name. The
   // menu shows names only when every selected row is on the same card.
@@ -2107,8 +2109,10 @@ export function TransactionsPage() {
             </button>
           )}
           <span className="register-bulk-sep" aria-hidden="true" />
-          <button type="button" className="register-bulk-action" onClick={() => void setClearedMany(selectedRows, "cleared")} disabled={mutationBusy}>Mark cleared</button>
-          <button type="button" className="register-bulk-action" onClick={() => void setClearedMany(selectedRows, "uncleared")} disabled={mutationBusy}>Mark uncleared</button>
+          {/* As on iOS: reconciled rows keep their status, and say so. */}
+          <button type="button" className="register-bulk-action" onClick={() => void setClearedMany(selectedRows, "cleared")} disabled={mutationBusy || selectedAllReconciled} aria-describedby={selectedAnyReconciled ? "register-bulk-locked" : undefined}>Mark cleared</button>
+          <button type="button" className="register-bulk-action" onClick={() => void setClearedMany(selectedRows, "uncleared")} disabled={mutationBusy || selectedAllReconciled} aria-describedby={selectedAnyReconciled ? "register-bulk-locked" : undefined}>Mark uncleared</button>
+          {selectedAnyReconciled && <span id="register-bulk-locked" className="register-bulk-note">Reconciled transactions stay locked</span>}
         </div>
       )}
       {page.error && (
