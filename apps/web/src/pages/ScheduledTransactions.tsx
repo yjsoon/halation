@@ -261,7 +261,7 @@ export function ScheduledTransactionsPage() {
           <h1>Scheduled transactions</h1>
         </div>
         <div className="headline-row headline-row-paired schedule-figures" aria-label="Schedule summary">
-          <Figure label="Active schedules" value={String(active.length)} />
+          <Figure label="Active schedules" value={schedules.data ? String(active.length) : "-"} />
           <Figure label="Next due" value={nextDate ? formatDate(nextDate) : "-"} />
           <button
             type="button"
@@ -348,7 +348,7 @@ export function ScheduledTransactionsPage() {
         </section>
       )}
 
-      {schedules.error && <StatusPanel error role="alert" title="Could not load scheduled transactions.">{schedules.error}</StatusPanel>}
+      {schedules.error && <StatusPanel error role="alert" title="Could not load scheduled transactions.">{schedules.error} Reload to try again.</StatusPanel>}
       {schedules.loading && !schedules.data && <StatusPanel title="Loading scheduled transactions…" />}
       {!schedules.loading && !schedules.error && active.length === 0 && !editor && (
         <StatusPanel title="No active schedules.">Add a recurring transaction to keep upcoming spending and income visible.</StatusPanel>

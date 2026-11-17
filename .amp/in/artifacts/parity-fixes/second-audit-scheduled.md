@@ -44,3 +44,32 @@ width `640px`, rendered width `736`. Generic table rules were not edited.
 
 Untracked media: `n01-before-721.png`, `n01-after-721.png`,
 `n01-after-390.png`, `n01-after-1440.png` in this directory.
+
+## N-05: unavailable schedule count and retry wording
+
+Before: abort only `**/scheduled_transactions*` using agent-browser network
+interception. Remove `howmuch.cache.v1.scheduled` from localStorage and reload.
+Observed: count `0`, no rows, alert “Could not load scheduled transactions.Failed
+to fetch”. This is a transport failure, not a stubbed successful API response.
+
+After, at both 390 and 1440: figures `["-", "-"]`, zero schedule rows, alert
+“Could not load scheduled transactions.Failed to fetch Reload to try again.”
+The retry sentence is copied from Rewards. Both error captures were inspected.
+Remove interception and reload: count `4`, four rows, zero alerts, matching
+`control-howmuch http GET /v1/plans/local-plan/scheduled_transactions`.
+
+Saved-list distinction: navigating back with equal cached server knowledge
+shows four rows and no error even with the endpoint blocked. The hook skips
+the request, so there is no failed refresh to report. Forcing older cached
+knowledge (`serverKnowledge: -1` in this disposable browser's scheduled cache)
+causes a real request. Aborting it drops all four cached rows and shows the
+error with both figures unavailable. This behaviour already exists on the base
+in `use-cached-api.ts` and is not changed here.
+
+The saved-list warning half remains open as instructed. No existing sentence
+describes an unrefreshed saved list. Candidates checked: Rewards says “Could not
+load rewards.” followed by its error and “Reload to try again.”; the register
+says “Could not load older transactions.” followed by its error; Account
+settings says “Could not load payment reminders.” None says that saved rows
+may be out of date. Changing cache revalidation would also cross this page's
+ownership boundary. No new warning sentence or shared-cache change was made.
