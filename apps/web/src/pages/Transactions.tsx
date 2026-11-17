@@ -207,7 +207,7 @@ export function TransactionsPage() {
   const registerLabel = filters.accountIds.length === 0
     ? "Ledger"
     : selectedAccount?.name
-      ?? (filters.accountIds.length === 1 ? "Account unavailable" : "Selected Accounts");
+      ?? (filters.accountIds.length === 1 ? "Account unavailable" : "Selected accounts");
   // The shell's as-of-today figures, so the header leads with what the sidebar shows.
   const todayBalances = useOutletContext<ShellOutletContext | undefined>()?.todayBalances;
   const balances = balanceAccounts.reduce(

@@ -101,7 +101,8 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
       to: throughToday ? todayIso() : undefined,
       ...(accountScopeFixed ? {} : { accountIds: [] }),
       categoryIds: [],
-      interval: intervals?.includes("month") ? "month" : (intervals?.[0] ?? "month"),
+      // Only a page with an interval control has an interval to reset.
+      ...(intervals?.length ? { interval: intervals.includes("month") ? "month" : intervals[0] } : {}),
       groupBy: "flag",
     });
   };

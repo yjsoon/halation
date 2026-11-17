@@ -569,9 +569,10 @@ tr:hover .share-bar {
   margin-top: 12px;
 }
 
+/* Bottom right on wide screens, clear of the register header's balance. */
 .register-toast {
   position: fixed;
-  top: 16px;
+  bottom: 20px;
   right: 20px;
   z-index: 40;
   display: flex;
@@ -609,6 +610,7 @@ tr:hover .share-bar {
 @media (max-width: 720px) {
   .register-toast {
     top: calc(var(--masthead-h) + 8px);
+    bottom: auto;
     left: 12px;
     right: 12px;
     max-width: none;

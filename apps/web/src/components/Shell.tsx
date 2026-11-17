@@ -120,7 +120,7 @@ export function Shell() {
     : undefined;
   const registerLabel = filters.accountIds.length === 0
     ? "Ledger"
-    : selectedAccount?.name ?? (filters.accountIds.length === 1 ? "Account unavailable" : "Selected Accounts");
+    : selectedAccount?.name ?? (filters.accountIds.length === 1 ? "Account unavailable" : "Selected accounts");
   // Moving between reports keeps their shared filters. Arriving from anywhere
   // else opens the report on its own range and the remembered account scope:
   // the register's open account or triage pill is not a choice of what to
