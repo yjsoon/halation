@@ -85,8 +85,7 @@ export function QuickEntryPage() {
       !saving &&
       (isTransfer
         ? Boolean(selectedTarget)
-        : Boolean(payeeName.trim()) &&
-          (!isSplit ||
+        : (!isSplit ||
             (splitLines.length >= 2 &&
               splitRemainderMilliunits === 0 &&
               splitLines.every((line) => (parseMilliunits(line.amount) ?? 0) > 0)))),
@@ -143,7 +142,7 @@ export function QuickEntryPage() {
         date,
         amount_milli: signedAmount,
         payee_id: isTransfer ? (selectedTarget?.transfer_payee_id ?? null) : null,
-        payee_name: isTransfer ? null : payeeName.trim(),
+        payee_name: isTransfer ? null : payeeName.trim() || null,
         category_id: isTransfer || isSplit ? null : categoryId || null,
         memo: memo.trim() || null,
         flag_color: null,
@@ -254,7 +253,7 @@ export function QuickEntryPage() {
 
           {!isTransfer && (
             <label className="field">
-              <span className="field-label">Payee</span>
+              <span className="field-label">Payee <small>optional</small></span>
               <input
                 type="text"
                 name="payee"
@@ -266,7 +265,6 @@ export function QuickEntryPage() {
                 }}
                 placeholder="Merchant"
                 maxLength={200}
-                required
                 autoComplete="off"
               />
               <datalist id="payee-options">

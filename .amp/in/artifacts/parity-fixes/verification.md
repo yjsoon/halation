@@ -30,3 +30,9 @@ Setup: existing disposable `control-howmuch launch` stack `20261117T113404-3430`
 - DOM result: `{date:"", valid:false, disabled:true, error:"Choose a date."}`. The local field message remains until a date is chosen.
 - Choose Today, Save spend, wait for `.status-panel-success`. `control-howmuch http GET '/v1/plans/local-plan/transactions?since_date=2026-11-17'` returns exactly one P12 date 1440 and one P12 date 390, each date 2026-11-17 and amount −1120 milliunits. No blank-date row was written.
 - Inspected date-required-1440.png and date-required-390.png.
+
+## P-05: Optional payee in Quick entry
+
+- At both widths, create Spend and Income for 1.05, leave payee blank and use memo `P05 {Spend|Income} {width}`. Save enabled, followed by Saved. Read-back using the transactions endpoint above confirms null payee names and −1050/+1050 milliunits respectively.
+- Control: at both widths create Transfer 1.05 to Travel Card with `P05 Transfer {width}`. Read-back confirms paired −1050/+1050 rows and the reciprocal transfer account IDs. Transfer still requires its selected target; its gate is unchanged.
+- The register compose side is owned by the register worker and is not changed here. The existing quick-entry recipe's mandatory-payee assertions are superseded by this explicitly requested behaviour.
