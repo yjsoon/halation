@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import type { CreditCard, RewardsReport } from "../api/types";
@@ -108,6 +108,11 @@ function RewardsBoard({ planId }: { planId: string }) {
     setSelecting(false);
     // A batch error belongs to the bar that is closing.
     setSettingsError(null);
+  };
+  // Escape leaves Select mode from the toolbar's Done as well as from the board:
+  // the two are siblings, so each carries the handler.
+  const escapeSelecting = (event: KeyboardEvent) => {
+    if (event.key === "Escape" && selecting && !batchBusy) doneSelecting();
   };
   // Hiding a card, or showing the hidden ones, removes the control that was
   // pressed. Focus moves to what took its place instead of falling to the page.
@@ -326,6 +331,7 @@ function RewardsBoard({ planId }: { planId: string }) {
         <div className="rw-toolbar-end">
           <ArrangeMenu preferences={preferences} hiddenCount={hiddenCount} onChange={arrange} />
           <button type="button" ref={selectToggleRef} className="rw-tool-button" aria-pressed={selecting}
+            onKeyDown={escapeSelecting}
             onClick={() => { if (selecting) doneSelecting(); else setSelecting(true); }}>{selecting ? "Done" : "Select"}</button>
         </div>
       </section>
@@ -386,7 +392,7 @@ function RewardsBoard({ planId }: { planId: string }) {
 
       {storedCards.length > 0 && (
         <div className="rw-board" ref={boardRef} data-refreshing={refreshing || undefined} aria-busy={refreshing}
-          onKeyDown={(event) => { if (event.key === "Escape" && selecting && !batchBusy) doneSelecting(); }}>
+          onKeyDown={escapeSelecting}>
           {(selecting || selected.length > 0) && (
             <div className="rw-bulk" role="region" aria-label="Batch card edits">
               <span className="rw-bulk-count" aria-live="polite">{selected.length} selected</span>
