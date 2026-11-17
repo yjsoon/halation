@@ -14,6 +14,7 @@ export function RewardTermsPage() {
   const [params, setParams] = useSearchParams();
   const cardId = params.get("card") ?? "";
   const [cards, setCards] = useState<CreditCard[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [credentials, setCredentials] = useState<ToolCredentials>({ provider: "openai", apiKey: "", model: "" });
   const [terms, setTerms] = useState(""); const [url, setUrl] = useState("");
   const [raw, setRaw] = useState("");
@@ -24,8 +25,8 @@ export function RewardTermsPage() {
   const controller = useRef<AbortController | null>(null);
   const card = cards.find((c) => c.id === cardId);
   useEffect(() => {
-    let cancelled = false; setCards([]); setError("");
-    api.rewardsTrackerSnapshot(planId).then((data) => { if (!cancelled) setCards(data.cards); }).catch(() => { if (!cancelled) setError("Could not load reward cards. Reload to try again."); });
+    let cancelled = false; setCards([]); setLoaded(false); setError("");
+    api.rewardsTrackerSnapshot(planId).then((data) => { if (!cancelled) { setCards(data.cards); setLoaded(true); } }).catch(() => { if (!cancelled) setError("Could not load reward cards. Reload to try again."); });
     return () => { cancelled = true; controller.current?.abort(); };
   }, [planId]);
   useEffect(() => { controller.current?.abort(); setBusy(false); setGenerating(false); setConsent(false); setRaw(""); setDraft(null); setStatus(""); }, [cardId, planId]);
@@ -61,6 +62,7 @@ export function RewardTermsPage() {
     <header className="report-header"><SettingsCrumb current="Reward terms" /></header>
     <p>Turn bank terms into a draft. Review every rate, spend cap and exclusion before saving. No ledger data or account identifiers are sent to the provider.</p>
     <label>Existing reward card<select disabled={busy} value={cardId} onChange={(event) => setParams({ card: event.target.value })}><option value="">Select a card…</option>{cards.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+    {loaded && cards.length === 0 && <p className="diagnostic-note">No reward cards yet. <Link to="/rewards/new">Add card</Link> on Rewards first, then come back to draft its rules.</p>}
     {cardId && cards.length > 0 && !card && <p role="alert">This card is unavailable.</p>}
     <form onSubmit={(event) => { event.preventDefault(); void generate(); }}>
       <fieldset disabled={busy}><ToolProvider value={credentials} onChange={(value) => { setCredentials(value); setConsent(false); }} />
