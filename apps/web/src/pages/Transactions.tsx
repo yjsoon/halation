@@ -52,6 +52,7 @@ import {
   reduceCompose,
   type RegisterComposeState,
   duplicateComposeDraft,
+  quickEntryCopy,
 } from "../lib/register-compose";
 import { useIsPhone } from "../lib/use-is-phone";
 import {
@@ -993,11 +994,13 @@ export function TransactionsPage() {
     setMutationSuccess(null);
   };
 
-  // Desktop only, like the add row it opens; a split cannot be copied there.
+  // The add row, or Quick entry on a phone; neither copy holds split lines yet.
   const duplicateFor = (txn: Transaction) => {
-    if (isPhone || !canCompose || txn.subtransactions?.length) return undefined;
+    if (!canCompose || txn.subtransactions?.length) return undefined;
     if (lockedComposeAccount && lockedComposeAccount.id !== txn.account_id) return undefined;
-    if (!accounts.some((account) => account.id === txn.account_id && !account.closed)) return undefined;
+    const open = (id: string | null) => accounts.some((account) => account.id === id && !account.closed);
+    if (!open(txn.account_id) || (txn.transfer_account_id && !open(txn.transfer_account_id))) return undefined;
+    if (isPhone) return () => navigate("/add", { state: { copy: quickEntryCopy(txn) } });
     return () => {
       replaceRowEdit(idleRowEdit());
       setCompose((current) => reduceCompose(current, { type: "open-draft", draft: duplicateComposeDraft(txn) }));

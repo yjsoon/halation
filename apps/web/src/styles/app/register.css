@@ -1243,6 +1243,13 @@ a.page-eyebrow:hover {
   flex-basis: 100%;
 }
 
+/* On a phone the copy takes its own line, so Delete, Cancel and Save stay together. */
+@media (max-width: 720px) {
+  .register-row-duplicate {
+    flex-basis: 100%;
+  }
+}
+
 /* Up to 1000 pixels the editor stacks every cell, Account included. */
 @media (max-width: 1000px) {
   .register-row-account {

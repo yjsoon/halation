@@ -393,7 +393,7 @@ export function RegisterEditableRow(props: {
               </div>
             )}
             {onDuplicate && !split ? (
-              <button type="button" className="register-compose-cancel" onClick={onDuplicate} disabled={busy}>
+              <button type="button" className="register-compose-cancel register-row-duplicate" onClick={onDuplicate} disabled={busy}>
                 Duplicate for today
               </button>
             ) : null}

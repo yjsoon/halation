@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { api, useApi } from "../api/client";
 import type { QuickEntrySplitLine, Transaction } from "../api/types";
 import { CategorySelect } from "../components/CategorySelect";
 import { splitCategoryGroups } from "../lib/categories";
 import { formatDate, todayIso, yesterdayIso } from "../lib/dates";
 import { currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
-import { resolvePostingAccountId } from "../lib/register-compose";
+import { resolvePostingAccountId, type QuickEntryCopy } from "../lib/register-compose";
 import { usePlan } from "../state/plan";
 import { StatusPanel } from "../components/StatusPanel";
 
@@ -30,19 +30,26 @@ export function QuickEntryPage() {
   const payees = useApi(planId, () => api.payees(planId));
   const [params] = useSearchParams();
   const requestedAccountId = params.get("account") ?? "";
+  // Duplicate for today on a phone arrives with its copy in router state.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [copy] = useState(() => (location.state as { copy?: QuickEntryCopy } | null)?.copy);
+  useEffect(() => {
+    if (copy) navigate(`${location.pathname}${location.search}`, { replace: true, state: null });
+  }, []);
 
   const openAccounts = useMemo(() => accounts.filter((account) => !account.closed), [accounts]);
   const orderedGroups = useMemo(() => splitCategoryGroups(categoryGroups), [categoryGroups]);
 
-  const [direction, setDirection] = useState<Direction>("spend");
-  const [amount, setAmount] = useState("");
-  const [accountId, setAccountId] = useState("");
-  const [toAccountId, setToAccountId] = useState("");
-  const [payeeName, setPayeeName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
+  const [direction, setDirection] = useState<Direction>(copy?.direction ?? "spend");
+  const [amount, setAmount] = useState(copy?.amount ?? "");
+  const [accountId, setAccountId] = useState(copy?.accountId ?? "");
+  const [toAccountId, setToAccountId] = useState(copy?.toAccountId ?? "");
+  const [payeeName, setPayeeName] = useState(copy?.payeeName ?? "");
+  const [categoryId, setCategoryId] = useState(copy?.categoryId ?? "");
   const [isSplit, setIsSplit] = useState(false);
   const [splitLines, setSplitLines] = useState<SplitLineDraft[]>([]);
-  const [memo, setMemo] = useState("");
+  const [memo, setMemo] = useState(copy?.memo ?? "");
   const [date, setDate] = useState(todayIso());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);

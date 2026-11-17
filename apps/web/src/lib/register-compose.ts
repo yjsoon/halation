@@ -73,6 +73,47 @@ export function duplicateComposeDraft(txn: Transaction): RegisterComposeDraft {
   };
 }
 
+/** A Duplicate for today copy for Quick entry, which a phone uses instead of the add row. */
+export type QuickEntryCopy = {
+  direction: "spend" | "income" | "transfer";
+  accountId: string;
+  toAccountId: string;
+  amount: string;
+  payeeName: string;
+  categoryId: string;
+  memo: string;
+};
+
+/**
+ * The same copy as `duplicateComposeDraft`, in Quick entry's terms: a transfer
+ * runs from the account the money left. Quick entry has no Flag or To claim,
+ * so those stay behind.
+ */
+export function quickEntryCopy(txn: Transaction): QuickEntryCopy {
+  const draft = duplicateComposeDraft(txn);
+  const out = txn.amount < 0;
+  if (txn.transfer_account_id) {
+    return {
+      direction: "transfer",
+      accountId: out ? txn.account_id : txn.transfer_account_id,
+      toAccountId: out ? txn.transfer_account_id : txn.account_id,
+      amount: draft.outflow || draft.inflow,
+      payeeName: "",
+      categoryId: "",
+      memo: draft.memo,
+    };
+  }
+  return {
+    direction: out ? "spend" : "income",
+    accountId: txn.account_id,
+    toAccountId: "",
+    amount: draft.outflow || draft.inflow,
+    payeeName: draft.payeeName,
+    categoryId: draft.categoryId,
+    memo: draft.memo,
+  };
+}
+
 export function closedCompose(): RegisterComposeState {
   return { status: "closed" };
 }
