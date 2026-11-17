@@ -114,7 +114,7 @@ export function formatShare(share: number): string {
 
 export function formatSavingsRate(net: number, income: number): string {
   if (income <= 0) {
-    return "—";
+    return "-";
   }
   // Overspending shows as a negative rate however deep it goes; the dash is
   // reserved for "no income to compare with".

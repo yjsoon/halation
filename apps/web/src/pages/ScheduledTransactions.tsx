@@ -262,7 +262,7 @@ export function ScheduledTransactionsPage() {
         </div>
         <div className="headline-row headline-row-paired schedule-figures" aria-label="Schedule summary">
           <Figure label="Active schedules" value={String(active.length)} />
-          <Figure label="Next due" value={nextDate ? formatDate(nextDate) : "—"} />
+          <Figure label="Next due" value={nextDate ? formatDate(nextDate) : "-"} />
           <button
             type="button"
             ref={addScheduleRef}

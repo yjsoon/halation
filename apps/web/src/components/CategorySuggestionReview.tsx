@@ -75,7 +75,7 @@ export function CategorySuggestionReview({
                     />
                   </td>
                   <td className="num muted">
-                    {suggestion ? `${Math.round(suggestion.confidence * 100)}%${hasEvidence(suggestion) ? "" : " · no history"}` : "—"}
+                    {suggestion ? `${Math.round(suggestion.confidence * 100)}%${hasEvidence(suggestion) ? "" : " · no history"}` : "-"}
                   </td>
                 </tr>
               );

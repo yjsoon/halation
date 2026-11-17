@@ -30,7 +30,7 @@ export function AgeOfMoneyPage() {
     latest && previous ? Math.round(latest.age_of_money_days! - previous.age_of_money_days!) : null;
   const unmatchedTotal = periods.reduce((sum, period) => sum + period.unmatched_spending, 0);
   const matchedTotal = periods.reduce((sum, period) => sum + period.spent, 0);
-  const latestDays = latest?.age_of_money_days != null ? days(Math.round(latest.age_of_money_days)) : "—";
+  const latestDays = latest?.age_of_money_days != null ? days(Math.round(latest.age_of_money_days)) : "-";
   const isPhone = useIsPhone();
 
   return (
@@ -56,9 +56,9 @@ export function AgeOfMoneyPage() {
             label="Change on previous period"
             settleKey={delta ?? "none"}
             tone={delta ? signTone(delta) : undefined}
-            value={delta === null ? "—" : `${delta > 0 ? "+" : ""}${days(delta)}`}
+            value={delta === null ? "-" : `${delta > 0 ? "+" : ""}${days(delta)}`}
           />
-          <HeadlineFigure label="Spending matched" settleKey={matchedTotal} value={matchedTotal > 0 ? formatAmount(matchedTotal) : "—"} />
+          <HeadlineFigure label="Spending matched" settleKey={matchedTotal} value={matchedTotal > 0 ? formatAmount(matchedTotal) : "-"} />
         </div>
       </div>
 
@@ -114,11 +114,11 @@ export function AgeOfMoneyPage() {
                         <tr key={period.period}>
                           <td>{formatPeriod(period.period)}</td>
                           <td className="num strong">
-                            {period.age_of_money_days != null ? days(Math.round(period.age_of_money_days)) : "—"}
+                            {period.age_of_money_days != null ? days(Math.round(period.age_of_money_days)) : "-"}
                           </td>
                           <td className="num">{formatAmount(period.spent)}</td>
                           <td className="num muted">
-                            {period.unmatched_spending > 0 ? formatAmount(period.unmatched_spending) : "—"}
+                            {period.unmatched_spending > 0 ? formatAmount(period.unmatched_spending) : "-"}
                           </td>
                         </tr>
                       ))}

@@ -139,7 +139,7 @@ export function NetWorthPage() {
                                 key={account.account_id}
                                 className={balance != null && balance < 0 ? "num amount-negative" : "num"}
                               >
-                                {balance == null ? "—" : formatMoney(balance)}
+                                {balance == null ? "-" : formatMoney(balance)}
                               </td>
                               );
                             })}

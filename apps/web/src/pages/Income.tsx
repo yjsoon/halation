@@ -68,7 +68,7 @@ export function IncomePage() {
             <HeadlineFigure
               label="Savings rate"
               settleKey={savingsRate}
-              tone={savingsRate === "—" ? undefined : signTone(net)}
+              tone={savingsRate === "-" ? undefined : signTone(net)}
               value={savingsRate}
             />
           )}
