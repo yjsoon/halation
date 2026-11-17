@@ -118,3 +118,28 @@
   min-height: 0;
   margin-bottom: 0;
 }
+
+/* A long colour name wraps inside its own column instead of running under the next field. */
+.rewards-editor-row > .field {
+  min-width: 0;
+}
+
+.rewards-editor-block :is(.flag-picker, .flag-picker-option) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.rewards-editor-block .flag-picker-none,
+.rewards-flag-colour-row .flag-tag {
+  height: auto;
+  max-width: 100%;
+  margin-left: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+/* Save card takes the spare width; Cancel and Delete card keep to one line beside it. */
+.rewards-editor-block ~ .transaction-editor-actions .text-button {
+  white-space: nowrap;
+}
