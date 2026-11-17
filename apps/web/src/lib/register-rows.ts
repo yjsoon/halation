@@ -112,7 +112,9 @@ export function applyClearedOverlays<T extends ClearedOverlayRow>(
   if (overlays.size === 0) return [...rows];
   return rows.map((row) => {
     const cleared = overlays.get(row.id);
-    return cleared !== undefined && cleared !== row.cleared ? { ...row, cleared } : row;
+    // A flip only moves a row between uncleared and cleared, so a row the
+    // server has since reconciled is newer than any flip held for it.
+    return cleared !== undefined && cleared !== row.cleared && row.cleared !== "reconciled" ? { ...row, cleared } : row;
   });
 }
 
@@ -142,7 +144,7 @@ export function reconcileClearedOverlays<T extends ClearedOverlayRow>(
       return row ? [row] : [];
     });
     if (present.length === 0) continue;
-    if (present.every((row) => row.cleared === cleared)) next.delete(id);
+    if (present.every((row) => row.cleared === cleared || row.cleared === "reconciled")) next.delete(id);
   }
   return next;
 }

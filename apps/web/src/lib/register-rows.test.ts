@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  applyClearedOverlays,
   deletedIdsForRemoval,
   reconcileClearedOverlays,
   supersedeClearedOverlays,
@@ -82,5 +83,16 @@ describe("register rows", () => {
     expect(
       [...reconcileClearedOverlays(overlays, [freshQueue, freshQueue], new Set())],
     ).toEqual([]);
+  });
+
+  // Failure mode: a row marked cleared in this visit and then reconciled never
+  // equals its "cleared" flip again, so the flip stayed for the rest of the
+  // visit. The register showed the row as cleared and unlocked until a reload.
+  // No browser recipe completes a reconciliation after marking a row cleared.
+  test("a reconciled row is shown as reconciled and drops its older cleared flip", () => {
+    const overlays = new Map([["row", "cleared"]]);
+    const reconciled = [row("row", false, "reconciled")];
+    expect(applyClearedOverlays(reconciled, overlays)).toEqual(reconciled);
+    expect([...reconcileClearedOverlays(overlays, [reconciled], new Set())]).toEqual([]);
   });
 });
