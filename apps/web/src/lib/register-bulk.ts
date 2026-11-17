@@ -74,7 +74,7 @@ export function bulkOutcomeToast(label: string, summary: TransactionBulkSummary)
   return sentences.join(" ");
 }
 
-export type BulkWriteKind = "categorise" | "cleared" | "delete";
+export type BulkWriteKind = "categorise" | "flag" | "cleared" | "delete";
 
 /**
  * Whether a completed bulk register write can move the reconciliation preview.

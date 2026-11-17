@@ -83,6 +83,11 @@ interface TransactionCategoryBulkItem {
   category_id: string | null;
 }
 
+interface TransactionFlagBulkItem {
+  id: string;
+  flag_color: string | null;
+}
+
 interface TransactionClearedBulkItem {
   id: string;
   expected_cleared: "uncleared" | "cleared";
@@ -160,6 +165,42 @@ async function runBulkChunks<Item extends { id: string }>(
     }
   }
   return countBulkOutcomes(outcomes);
+}
+
+/**
+ * Writes one field per row through the collection PATCH in bounded chunks.
+ *
+ * A 2xx is not enough: the server can normalise a value away, so the response
+ * is read back per row and only a returned value that matches the request
+ * counts as applied. Anything else is a `conflict`, and a chunk that failed
+ * without per-item outcomes is `unresolved` rather than guessed at.
+ */
+function patchTransactionField<Field extends "category_id" | "flag_color">(
+  planId: string,
+  items: ReadonlyArray<{ id: string } & Record<Field, string | null>>,
+  field: Field,
+  conflictDetail: string,
+): Promise<TransactionBulkSummary> {
+  return runBulkChunks(items, async (chunk) => {
+    const result = await request<{ transactions: Array<{ id: string } & Partial<Record<Field, string | null>>> }>(
+      planUrl(planId, "transactions"),
+      {
+        method: "PATCH",
+        body: JSON.stringify({ transactions: chunk.map((item) => ({ id: item.id, [field]: item[field] })) }),
+      },
+    );
+    const byId = new Map(result.transactions.map((transaction) => [transaction.id, transaction]));
+    return chunk.map((item) => {
+      const returned = byId.get(item.id);
+      if (!returned) {
+        return { id: item.id, status: "unresolved" as const, detail: "The server did not confirm this row" };
+      }
+      if ((returned[field] || null) !== (item[field] || null)) {
+        return { id: item.id, status: "conflict" as const, detail: conflictDetail };
+      }
+      return { id: item.id, status: "applied" as const };
+    });
+  });
 }
 
 /**
@@ -589,38 +630,18 @@ export const api = {
   },
   /**
    * Categorises eligible rows through the existing collection PATCH, in
-   * bounded chunks.
-   *
-   * A 2xx is not enough: the server normalises a category away when the row is
-   * (or has just become) a split parent or a transfer, so the response is read
-   * back per row and only a returned category that matches the request counts
-   * as applied. Anything else is a `conflict`, and a chunk that failed without
-   * per-item outcomes is `unresolved` rather than guessed at.
+   * bounded chunks. The server normalises a category away when the row is (or
+   * has just become) a split parent or a transfer, so only a returned category
+   * that matches the request counts as applied.
    */
   categoriseTransactions: (planId: string, items: readonly TransactionCategoryBulkItem[]) => {
     if (items.length === 0) throw new Error("Transactions to categorise must not be empty.");
-    return runBulkChunks(items, async (chunk) => {
-      const result = await request<{ transactions: Array<{ id: string; category_id: string | null }> }>(
-        planUrl(planId, "transactions"),
-        {
-          method: "PATCH",
-          body: JSON.stringify({
-            transactions: chunk.map((item) => ({ id: item.id, category_id: item.category_id })),
-          }),
-        },
-      );
-      const byId = new Map(result.transactions.map((transaction) => [transaction.id, transaction]));
-      return chunk.map((item) => {
-        const returned = byId.get(item.id);
-        if (!returned) {
-          return { id: item.id, status: "unresolved" as const, detail: "The server did not confirm this row" };
-        }
-        if ((returned.category_id ?? null) !== (item.category_id ?? null)) {
-          return { id: item.id, status: "conflict" as const, detail: "The server did not apply this category" };
-        }
-        return { id: item.id, status: "applied" as const };
-      });
-    });
+    return patchTransactionField(planId, items, "category_id", "The server did not apply this category");
+  },
+  /** Sets or removes the flag colour on each row, read back the same way. */
+  flagTransactions: (planId: string, items: readonly TransactionFlagBulkItem[]) => {
+    if (items.length === 0) throw new Error("Transactions to flag must not be empty.");
+    return patchTransactionField(planId, items, "flag_color", "The server did not apply this flag");
   },
   /**
    * Jev category suggestions for up to MAX_CATEGORY_SUGGESTIONS rows, sent in

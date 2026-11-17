@@ -14,6 +14,7 @@ import type {
 import { colourNamesByAccount, ledgerFlagNames, namedFlagLabel } from "../lib/reward-flag-names";
 import { FilterRail } from "../components/FilterRail";
 import { FlagTag } from "../components/FlagTag";
+import { FLAG_COLOURS, flagTitle } from "../lib/flags";
 import { CategorySelect } from "../components/CategorySelect";
 import { CardTermsDialog } from "../components/CardTermsDialog";
 import { AccountSettings } from "../components/AccountSettings";
@@ -97,6 +98,9 @@ import { StatusPanel } from "../components/StatusPanel";
 import { ClearedStatus } from "../components/ClearedStatus";
 import { confirmedMessage } from "../lib/follow-up";
 import { RegisterScheduledDisclosure } from "../components/RegisterScheduledDisclosure";
+
+/** The bulk Flag menu's "Remove flag" option; "" is its placeholder. */
+const NO_FLAG = "none";
 
 // Older loads in a row that may list nothing in this view before the
 // register stops loading on its own and offers to search further back.
@@ -1503,6 +1507,24 @@ export function TransactionsPage() {
   const categoriseMany = (targets: readonly Transaction[], categoryId: string) =>
     categoriseItems(categorisableRows(targets).map((txn) => ({ id: txn.id, category_id: categoryId || null })));
 
+  const flagMany = async (targets: readonly Transaction[], flagColor: string) => {
+    const items = targets
+      .filter((txn) => (txn.flag_color || "") !== flagColor)
+      .map((txn) => ({ id: txn.id, flag_color: flagColor || null }));
+    if (mutationLockRef.current || items.length === 0) return;
+    const label = flagColor ? "Flagged" : "Removed the flag from";
+    await runBulkWrite("flag", async () => {
+      const summary = await api.flagTransactions(planId, items);
+      if (bulkOutcomeIsComplete(summary)) {
+        dispatchSelection({ kind: "none" });
+        setMutationSuccess(bulkOutcomeToast(label, summary));
+        return;
+      }
+      dispatchSelection({ kind: "only", ids: remainingWorkIds(summary) });
+      setMutationError(bulkOutcomeToast(label, summary));
+    });
+  };
+
   const suggestCategories = async (targets: readonly Transaction[]) => {
     const rows = suggestionTargets(targets);
     if (suggesting || rows.length === 0) return;
@@ -1607,6 +1629,13 @@ export function TransactionsPage() {
 
   const totals = useMemo(() => flowTotals(rows), [rows]);
   const selectedTotals = useMemo(() => flowTotals(selectedRows), [selectedRows]);
+  // Cards name their colours, and each row takes its own card's name. The
+  // menu shows names only when every selected row is on the same card.
+  const selectedFlagNames = useMemo(() => {
+    const accounts = new Set(selectedRows.map((txn) => txn.account_id));
+    const [only] = accounts;
+    return accounts.size === 1 && only ? ledgerFlagNames(colourNamesByAccountId.get(only) ?? {}) : {};
+  }, [selectedRows, colourNamesByAccountId]);
 
   const hasMoreToLoad = ((registerQuery && !queueMode) ? searchPage.hasMore : page.hasMore)
     && !page.filling
@@ -1922,6 +1951,19 @@ export function TransactionsPage() {
             emptyLabel="Categorise…"
             disabled={mutationBusy}
           />
+          <select
+            aria-label="Set flag for selected transactions"
+            value=""
+            onChange={(event) => { if (event.target.value) void flagMany(selectedRows, event.target.value === NO_FLAG ? "" : event.target.value); }}
+            disabled={mutationBusy}
+          >
+            <option value="">Flag…</option>
+            {FLAG_COLOURS.map((colour) => {
+              const name = selectedFlagNames[colour];
+              return <option key={colour} value={colour}>{name ? `${name} (${flagTitle(colour)})` : flagTitle(colour)}</option>;
+            })}
+            <option value={NO_FLAG}>Remove flag</option>
+          </select>
           <button
             type="button"
             ref={suggestButtonRef}
