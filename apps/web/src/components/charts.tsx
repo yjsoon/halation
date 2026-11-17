@@ -83,16 +83,20 @@ function Gridlines({ frame }: { frame: Frame }) {
 }
 
 function XLabels({ labels, frame }: { labels: string[]; frame: Frame }) {
-  const every = Math.ceil(labels.length / Math.max(2, Math.floor(frame.innerWidth / 68)));
+  // Allow for the longest formatted date and the inward-anchored final label.
+  const labelSpacing = Math.max(68, ...labels.map((label) => formatPeriod(label).length * 10 + 12));
+  const count = Math.min(labels.length, Math.max(2, Math.floor(frame.innerWidth / labelSpacing)));
+  const visible = new Set(Array.from({ length: count }, (_, index) =>
+    Math.round(index * (labels.length - 1) / Math.max(count - 1, 1))));
   return (
     <g className="chart-axis">
       {labels.map((label, index) =>
-        index % every === 0 ? (
+        visible.has(index) ? (
           <text
             key={`${label}-${index}`}
             x={frame.x(index, labels.length)}
             y={HEIGHT - 6}
-            textAnchor="middle"
+            textAnchor={index === labels.length - 1 ? "end" : "middle"}
           >
             {formatPeriod(label)}
           </text>
