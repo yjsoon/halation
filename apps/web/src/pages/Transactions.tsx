@@ -376,7 +376,16 @@ export function TransactionsPage() {
   const cardSettingsOpen = Boolean(selectedAccount && cardSettingsAccountId === selectedAccount.id);
   useConfirmationFocus(cardSettingsOpen, cardSettingsFirstFieldRef, () => cardSettingsButtonRef.current);
   const reconcileFirstFieldRef = useRef<HTMLSelectElement>(null);
-  useConfirmationFocus(reconcileDraft?.operationSeed, reconcileFirstFieldRef, () => addTransactionRef.current);
+  // Review swaps its button for a Confirm that starts disabled, so focus
+  // moves to the review it opened rather than falling to the page.
+  const reconcileReviewRef = useRef<HTMLDivElement>(null);
+  const reconcileReviewReady = Boolean(reconcileDraft?.reviewReady);
+  useEffect(() => {
+    if (reconcileReviewReady) reconcileReviewRef.current?.focus();
+  }, [reconcileReviewReady]);
+  // Phones hide Add, so the editor's Escape lands where the bulk bar's does.
+  useConfirmationFocus(reconcileDraft?.operationSeed, reconcileFirstFieldRef, () =>
+    (addTransactionRef.current?.offsetWidth ? addTransactionRef.current : selectAllFallback()));
   const [reconciliationPreviewGeneration, setReconciliationPreviewGeneration] = useState(0);
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [mutationSuccess, setMutationSuccess] = useState<string | null>(null);
@@ -2195,7 +2204,17 @@ export function TransactionsPage() {
               Cancel
             </button>
           </div>
-          <div className="transaction-editor-form">
+          <form
+            className="transaction-editor-form"
+            noValidate
+            onSubmit={(event) => {
+              // Enter does what the editor's main button does.
+              event.preventDefault();
+              if (reconciliationBusy) return;
+              if (!reconcileDraft.reviewReady) reviewReconciliation();
+              else if (reconciliationCanConfirm) void submitReconciliation();
+            }}
+          >
             <div className="field-row reconcile-grid">
               <label className="field">
                 <span className="field-label">Account</span>
@@ -2246,7 +2265,7 @@ export function TransactionsPage() {
             </p>
 
             {reconcileDraft.reviewReady && (
-              <div className="reconcile-review" aria-live="polite">
+              <div className="reconcile-review" aria-live="polite" ref={reconcileReviewRef} tabIndex={-1}>
                 {reconciliationPreview.loading ? (
                   <p className="diagnostic-note">Loading the latest reconciliation preview…</p>
                 ) : reconciliationPreview.error ? (
@@ -2309,21 +2328,20 @@ export function TransactionsPage() {
                 Cancel
               </button>
               {!reconcileDraft.reviewReady ? (
-                <button type="button" className="save-button" onClick={reviewReconciliation} disabled={reconciliationBusy}>
+                <button type="submit" className="save-button" disabled={reconciliationBusy}>
                   Review reconciliation
                 </button>
               ) : (
                 <button
-                  type="button"
+                  type="submit"
                   className="save-button"
-                  onClick={() => void submitReconciliation()}
                   disabled={reconciliationBusy || !reconciliationCanConfirm}
                 >
                   {reconciliationBusy ? "Reconciling…" : "Confirm reconciliation"}
                 </button>
               )}
             </div>
-          </div>
+          </form>
         </section>
       )}
       {pendingDeletion && (
