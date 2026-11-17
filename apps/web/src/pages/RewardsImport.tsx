@@ -15,7 +15,7 @@ export function RewardsImportPage() {
   const [result, setResult] = useState<RewardsTrackerImportResult | null>(null);
   const snapshot = useApi(`rewards-tracker:${planId}:${generation}`, () => api.rewardsTrackerSnapshot(planId));
 
-  const chooseFile = async (file: File | undefined) => {
+  const chooseFile = async (file: File | undefined, input?: HTMLInputElement) => {
     setError(null);
     setResult(null);
     setPayload(null);
@@ -26,6 +26,8 @@ export function RewardsImportPage() {
       setPayload(parsed);
       setFileName(file.name);
     } catch {
+      // Clear the rejected file's name from the picker; the error says what to choose instead.
+      if (input) input.value = "";
       setError("That file is not valid JSON. Export settings from Rewards Tracker, then choose the .json file.");
     }
   };
@@ -75,27 +77,24 @@ export function RewardsImportPage() {
         <p className="field-note">Excludes connection credentials and cached transactions.</p>
       </section>
 
-      <p className="diagnostic-note">
-        Import a Rewards Tracker settings export. Importing the same file again updates it instead of duplicating.
-      </p>
-
-      <StatusPanel title="Import replaces the stored card set.">
-        Cards missing from the export are removed. Miles valuation is replaced when the export sets one.
-      </StatusPanel>
-
-      {error && (
-        <StatusPanel error role="alert" title="Could not import Rewards Tracker export.">
-          {error}
-        </StatusPanel>
-      )}
-
       <section className="report-section" aria-labelledby="rewards-import-heading">
         <div className="section-heading">
           <div>
-            <span className="section-title" id="rewards-import-heading">Export file</span>
+            <span className="section-title" id="rewards-import-heading">Restore Rewards Tracker backup</span>
             <span className="section-meta">Settings → Export in Rewards Tracker. PAT and Cloud Sync secrets are ignored.</span>
           </div>
         </div>
+        <p className="diagnostic-note">
+          Import a Rewards Tracker settings export. Importing the same file again updates it instead of duplicating.
+        </p>
+        <StatusPanel title="Import replaces the stored card set.">
+          Cards missing from the export are removed. Miles valuation is replaced when the export sets one.
+        </StatusPanel>
+        {error && (
+          <StatusPanel error role="alert" title="Could not import Rewards Tracker export.">
+            {error}
+          </StatusPanel>
+        )}
         <form
           className="rewards-import-form"
           onSubmit={(event) => {
@@ -109,7 +108,7 @@ export function RewardsImportPage() {
               type="file"
               accept="application/json,.json"
               aria-label="Rewards Tracker export"
-              onChange={(event) => void chooseFile(event.target.files?.[0])}
+              onChange={(event) => void chooseFile(event.target.files?.[0], event.target)}
             />
           </label>
           <button type="submit" className="save-button" disabled={busy || payload == null}>
