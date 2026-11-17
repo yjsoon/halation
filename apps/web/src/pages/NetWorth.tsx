@@ -15,7 +15,11 @@ const INTERVALS: Interval[] = ["week", "month"];
 
 export function NetWorthPage() {
   const { filters, setFilters, reportQuery } = useFilters({ defaultRange: TRAILING_YEAR, intervals: INTERVALS });
-  const query = { ...reportQuery, category_ids: undefined };
+  const query = {
+    ...reportQuery,
+    category_ids: undefined,
+    include_closed_accounts: filters.accountIds.length ? "true" : undefined,
+  };
   const report = useApi(JSON.stringify(query), () => api.netWorth(query));
   const isPhone = useIsPhone();
 
