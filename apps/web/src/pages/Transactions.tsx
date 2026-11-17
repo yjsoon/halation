@@ -1,5 +1,5 @@
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router-dom";
 import { ApiError, api, BulkApprovalError, useApi } from "../api/client";
 import type {
   AccountReconciliationPreview,
@@ -396,6 +396,15 @@ export function TransactionsPage() {
   // The row a keyboard save came from. The refetch remounts it, dropping focus
   // to <body>, so focus goes back to it when it lands, as Esc already does.
   const refocusRowIdRef = useRef<string | null>(null);
+  // A page that sends the reader here, such as New account after Create
+  // account, asks for the heading so focus does not fall to the page.
+  const location = useLocation();
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    if ((location.state as { focusHeading?: boolean } | null)?.focusHeading) {
+      headingRef.current?.focus({ preventScroll: true });
+    }
+  }, [location.key]);
   useEffect(() => {
     if (!bloomIds.length) return;
     const onScreen = bloomIds.some((id) => document.getElementById(id));
@@ -1613,6 +1622,12 @@ export function TransactionsPage() {
         : current);
       dispatchSelection({ kind: "none" });
       setMutationSuccess(approvedToast(result.approvedCount));
+      // Approving the last new row leaves the approval list, which would
+      // otherwise say nothing matches, and focus goes to that row.
+      if (unapprovedOnly && !rows.some((txn) => !txn.approved && !plannedIds.includes(txn.id))) {
+        setUnapprovedOnly(false);
+        refocusRowIdRef.current = postedRowDomId(plannedIds[plannedIds.length - 1]!);
+      }
       setBloomIds(plannedIds.map(postedRowDomId));
     } catch (cause) {
       // Only whole chunks are acknowledged. The failing chunk can still have
@@ -1900,7 +1915,7 @@ export function TransactionsPage() {
   return (
     <>
       {(() => {
-        const title = <h1>{registerLabel}</h1>;
+        const title = <h1 ref={headingRef} tabIndex={-1}>{registerLabel}</h1>;
         const balanceRow = (
           <div className="headline-row register-balances">
             <div className="headline-figure register-balance-hero">

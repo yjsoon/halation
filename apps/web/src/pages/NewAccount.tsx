@@ -37,7 +37,8 @@ export function NewAccountPage() {
         ? `/add?account=${encodeURIComponent(created.id)}`
         : `/transactions?accounts=${encodeURIComponent(created.id)}&range=all`,
       // Back must not reopen a blank form that invites a duplicate account.
-      { replace: true });
+      // The register focuses its heading, so focus does not fall to the page.
+      { replace: true, state: { focusHeading: true } });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
       setSaving(false);
