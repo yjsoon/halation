@@ -463,8 +463,12 @@ export function TransactionsPage() {
   }, [deepLink, planId, refreshGeneration]);
 
   const composeScope = selectedAccountId ?? (filters.accountIds.join(",") || "all");
+  // Opening another account closes what was open on the last one: a draft
+  // or confirmation there must not act on rows that are no longer on screen.
   useEffect(() => {
     setCompose(closedCompose());
+    setPendingDeletion(null);
+    setPendingBulkDeletion(null);
   }, [composeScope]);
   const schedules = useCachedApi<ScheduledTransaction[]>({
     slot: "scheduled",
