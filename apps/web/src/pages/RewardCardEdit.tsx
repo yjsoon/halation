@@ -597,10 +597,12 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
                 onChange={(next) => setDraft((current) => ({
                   ...current,
                   flags: current.flags.map((entry) => entry.id === flag.id ? next : entry),
-                  flagNames: next.flagColor === flag.flagColor
+                  // A colour without a name takes the flag's name with it, as on iOS.
+                  flagNames: next.flagColor === flag.flagColor || current.flagNames[next.flagColor]?.trim()
                     ? current.flagNames
-                    : { ...current.flagNames, [next.flagColor]: current.flagNames[next.flagColor] ?? next.name },
+                    : { ...current.flagNames, [next.flagColor]: next.name },
                 }))}
+                onColourName={(value) => setColourName(flag.flagColor, value)}
                 onRemove={() => setDraft((current) => ({
                   ...current,
                   flags: current.flags.filter((entry) => entry.id !== flag.id),
@@ -610,14 +612,19 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
             <button
               type="button"
               className="text-button"
-              onClick={() => setDraft((current) => ({
-                ...current,
-                // Start on a colour no other row uses: two rows on one colour leave one earning nothing.
-                flags: [...current.flags, newFlag({
-                  priority: String(current.flags.length + 1),
-                  flagColor: REWARD_NAME_COLOURS.find((colour) => current.flags.every((flag) => flag.flagColor !== colour)) ?? "red",
-                })],
-              }))}
+              disabled={!freeFlagColour(draft.flags)}
+              onClick={() => setDraft((current) => {
+                const flagColor = freeFlagColour(current.flags);
+                if (!flagColor) return current;
+                return {
+                  ...current,
+                  flags: [...current.flags, newFlag({
+                    priority: String(current.flags.length + 1),
+                    flagColor,
+                    name: current.flagNames[flagColor]?.trim() ?? "",
+                  })],
+                };
+              })}
             >
               Add flag
             </button>
@@ -697,6 +704,7 @@ function FlagRow({
   colourName,
   pickerNames,
   onChange,
+  onColourName,
   onRemove,
 }: {
   flag: FlagDraft;
@@ -704,12 +712,18 @@ function FlagRow({
   colourName: string;
   pickerNames: Record<string, string>;
   onChange: (flag: FlagDraft) => void;
+  onColourName: (value: string) => void;
   onRemove: () => void;
 }) {
   const patch = (next: Partial<FlagDraft>) => onChange({ ...flag, ...next, updatedAt: new Date().toISOString() });
   const ledgerColour = ledgerFlagFromReward(flag.flagColor);
   return (
     <div className="rewards-editor-row">
+      {/* The name belongs to the colour on this card, so it renames every flag of that colour. */}
+      <label className="field">
+        <span className="field-label">Colour name</span>
+        <input value={colourName} onChange={(event) => onColourName(event.target.value)} aria-label={`Flag ${index + 1} colour name`} />
+      </label>
       <div className="field">
         <span className="field-label" id={`flag-${index + 1}-colour-label`}>Flag colour</span>
         <span className="rewards-flag-colour-row">
@@ -1249,6 +1263,13 @@ export function creditCardWrite(draft: CardDraft, options: { clearMissing?: bool
   }
   card.spendingTiers = tiers;
   return { card };
+}
+
+// The colour a new row starts on: one no row uses, else one no active row uses.
+// Two active rows on one colour cannot be saved, so with none left there is no row to offer.
+function freeFlagColour(flags: FlagDraft[]): RewardFlagColour | undefined {
+  return REWARD_NAME_COLOURS.find((colour) => flags.every((flag) => flag.flagColor !== colour))
+    ?? REWARD_NAME_COLOURS.find((colour) => flags.every((flag) => flag.flagColor !== colour || !flag.active));
 }
 
 function newFlag(partial?: Partial<FlagDraft>): FlagDraft {
