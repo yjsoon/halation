@@ -101,6 +101,13 @@ function RewardsBoard({ planId }: { planId: string }) {
   const [batchBusy, setBatchBusy] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const selectToggleRef = useRef<HTMLButtonElement>(null);
+  // Arriving from the card editor's Save card or Delete card, the heading takes
+  // focus: the button that had it went with the editor.
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const focusHeading = (location.state as { focusHeading?: boolean } | null)?.focusHeading === true;
+  useEffect(() => {
+    if (focusHeading) headingRef.current?.focus({ preventScroll: true });
+  }, [focusHeading]);
   const doneSelecting = () => {
     // The bar goes with selection mode; hand focus to the toolbar's
     // Select button rather than letting it fall to <body>.
@@ -258,7 +265,7 @@ function RewardsBoard({ planId }: { planId: string }) {
     <div className="rw-page" data-selecting={selecting || undefined}>
       <header className="rw-hero">
         <div className="rw-hero-text">
-          <h1>Rewards</h1>
+          <h1 ref={headingRef} tabIndex={-1}>Rewards</h1>
           <p className="rw-hero-scope">{range ? formatDateRange(filters.from, filters.to) : `Card periods as of ${formatDate(asOf)}`} · {scopeLabel}</p>
           {storedCards.length > 0 && (
             <p className="rw-hero-status">Showing {visibleCards.length} of {storedCards.length} cards</p>

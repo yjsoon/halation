@@ -221,6 +221,27 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const contextValue = useMemo(() => value && { ...value, categoriserEnabled }, [value, categoriserEnabled]);
   const [generation, setGeneration] = useState(0);
   const sessionEndedRef = useRef(false);
+  // Setup and sign-in end by removing the form that held focus. Once the app
+  // is on screen the page's heading takes it, instead of the page itself.
+  const signedInRef = useRef(false);
+  const ready = value !== null;
+  useEffect(() => {
+    if (!ready || !signedInRef.current) return;
+    signedInRef.current = false;
+    let frames = 0;
+    let frame = requestAnimationFrame(function focusHeading() {
+      if (document.activeElement !== document.body) return;
+      const heading = document.querySelector<HTMLElement>("main h1");
+      if (heading) {
+        heading.tabIndex = -1;
+        heading.focus({ preventScroll: true });
+      } else if (++frames < 120) {
+        // A lazily loaded page has not painted its heading yet.
+        frame = requestAnimationFrame(focusHeading);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [ready]);
   const cancelBootstrapRef = useRef<() => void>(() => {});
   const accountPreferencesControllerRef = useRef<{
     key: string;
@@ -623,6 +644,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
         categoriserEnabled={categoriserEnabled}
         error={error}
         onSuccess={() => {
+          signedInRef.current = true;
           sessionEndedRef.current = false;
           setError(null);
           setAuthMode("checking");
@@ -720,6 +742,18 @@ function AuthForm({
     if (error) onError(null);
   };
   const passwordShortBy = Math.max(0, 15 - Array.from(setup ? password.trim() : password).length);
+  // The button is disabled while the request runs, so a click on it loses
+  // focus. After a refusal it goes to Password on sign-in, the field to
+  // retype, and back to the button on setup, where any field may be at fault.
+  const passwordRef = useRef<HTMLInputElement>(null);
+  const submitRef = useRef<HTMLButtonElement>(null);
+  const refused = useRef(false);
+  useEffect(() => {
+    if (submitting || !refused.current) return;
+    refused.current = false;
+    if (document.activeElement !== document.body) return;
+    (setup ? submitRef : passwordRef).current?.focus();
+  }, [submitting, setup]);
 
   return (
     <form
@@ -739,6 +773,7 @@ function AuthForm({
           setBootstrapToken("");
           onSuccess();
         } catch (cause) {
+          refused.current = true;
           onError(describeAuthFailure(cause));
         } finally {
           setSubmitting(false);
@@ -782,6 +817,7 @@ function AuthForm({
       <label>
         <span>Password</span>
         <input
+          ref={passwordRef}
           type="password"
           value={password}
           onChange={(event) => edit(setPassword)(event.target.value)}
@@ -832,6 +868,7 @@ function AuthForm({
         </>
       )}
       <button
+        ref={submitRef}
         type="submit"
         disabled={submitting || !username || passwordShortBy > 0 || (setup && bootstrapRequired && !bootstrapToken)}
       >

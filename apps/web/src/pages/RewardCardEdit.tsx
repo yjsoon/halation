@@ -124,6 +124,10 @@ export function RewardCardEditPage() {
   return <CardEditor card={card} takenAccountIds={takenAccountIds} />;
 }
 
+// Save card and Delete card leave for the board, where their button no longer
+// exists: the board gives focus to its heading instead of losing it to the page.
+const BOARD_FOCUS = { focusHeading: true };
+
 function editableJson(draft: CardDraft): string {
   return JSON.stringify(draft, (key, value) => (key === "updatedAt" ? undefined : value));
 }
@@ -234,7 +238,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
         await api.createRewardCard(planId, written.card);
       }
       leaving.current = true;
-      navigate(rewardsHref);
+      navigate(rewardsHref, { state: BOARD_FOCUS });
     } catch (cause) {
       setErrorAt({ at: "save", message: cause instanceof Error ? cause.message : String(cause) });
     } finally {
@@ -249,7 +253,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
     try {
       await api.deleteRewardCard(planId, card.id);
       leaving.current = true;
-      navigate(rewardsHref);
+      navigate(rewardsHref, { state: BOARD_FOCUS });
     } catch (cause) {
       setErrorAt({ at: "delete", message: cause instanceof Error ? cause.message : String(cause) });
     } finally {
