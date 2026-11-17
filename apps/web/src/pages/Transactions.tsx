@@ -1721,7 +1721,7 @@ export function TransactionsPage() {
         ? `Nothing older in this view back to ${formatDate(searchedBackTo)}.`
         : null;
   const footerMetaWithMore = filters.accountIds.length > 1 && hasMoreToLoad && !olderTapNote
-    ? `${footerMeta} · Load older entries to extend this multi-account result.`
+    ? `${footerMeta} · Load older transactions to extend this multi-account result.`
     : footerMeta;
 
   // The footer loads older rows as it nears the viewport, and again while it
@@ -2143,7 +2143,7 @@ export function TransactionsPage() {
                 <input
                   type="text"
                   inputMode="decimal"
-                  placeholder="0.000"
+                  placeholder="0.00"
                   value={reconcileDraft.statementBalance}
                   onChange={(event) => updateReconcile({ statementBalance: event.target.value })}
                   disabled={reconciliationBusy}
@@ -2264,7 +2264,7 @@ export function TransactionsPage() {
           <div className="transaction-delete-confirm-actions">
             <button type="button" ref={deleteCancelRef} className="text-button" onClick={() => setPendingDeletion(null)} disabled={writeLocked || mutatingId === pendingDeletion.id}>Cancel</button>
             <button type="button" className="transaction-delete-button" onClick={() => void deleteTransaction(pendingDeletion)} disabled={writeLocked || mutatingId === pendingDeletion.id}>
-              {mutatingId === pendingDeletion.id ? "Removing..." : pendingDeletion.approved ? "Delete transaction" : "Reject transaction"}
+              {mutatingId === pendingDeletion.id ? "Removing…" : pendingDeletion.approved ? "Delete transaction" : "Reject transaction"}
             </button>
           </div>
         </section>
@@ -2308,21 +2308,21 @@ export function TransactionsPage() {
         </section>
       )}
       {page.loading && !page.loaded && (
-        <StatusPanel title="Loading transactions..." />
+        <StatusPanel title="Loading transactions…" />
       )}
       {/* The queue is fetched only when this flow opens, so it needs its own
           waiting state -- the register itself is already up by then. */}
       {unapprovedOnly && approvalQueue.data === null && approvalQueue.loading && !approvalQueue.error && (
-        <StatusPanel title="Loading transactions awaiting approval..." />
+        <StatusPanel title="Loading transactions awaiting approval…" />
       )}
       {toConfirmOnly && confirmationRows === null && !confirmationQueue.error && (
-        <StatusPanel title="Loading transactions to confirm..." />
+        <StatusPanel title="Loading transactions to confirm…" />
       )}
       {toConfirmOnly && confirmationQueue.error && (
         <StatusPanel title="Could not load transactions to confirm." error>{confirmationQueue.error}</StatusPanel>
       )}
       {toClaimOnly && claimRows === null && !claimQueue.error && (
-        <StatusPanel title="Loading transactions to claim..." />
+        <StatusPanel title="Loading transactions to claim…" />
       )}
       {toClaimOnly && claimQueue.error && (
         <StatusPanel title="Could not load transactions to claim." error>{claimQueue.error}</StatusPanel>

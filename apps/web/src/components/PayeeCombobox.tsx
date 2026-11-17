@@ -243,7 +243,7 @@ export function PayeeCombobox({
         id={optionId(at)}
         role="option"
         aria-selected={at === active}
-        aria-label={transfer ? `Transfer: ${entry.transferAccount}` : undefined}
+        aria-label={transfer ? `Transfer : ${entry.transferAccount}` : undefined}
         data-option-index={at}
         className={`payee-menu-option${transfer ? " payee-menu-transfer" : ""}${at === active ? " is-active" : ""}`}
         onClick={() => choose(entry)}
