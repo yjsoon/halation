@@ -267,7 +267,7 @@
   flex-wrap: wrap;
 }
 
-.quick-entry .field-row-compact > .field:last-child {
+.quick-entry .field-row-compact > .field {
   flex-basis: 100%;
 }
 

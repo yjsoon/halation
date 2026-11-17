@@ -51,3 +51,10 @@ Setup: existing disposable `control-howmuch launch` stack `20261117T113404-3430`
 - Transactions read-back confirms parent −10000, children −15000 with the new payee and memo, +5000 with MUJI, and 0 with null payee. No server change or separate payee-creation request needed.
 - At 390, expanded inputs are 316 CSS pixels wide, and at 1440 they are 434 pixels. No document horizontal overflow. Inspected both full-page captures, including the three-line Remove control; recorded disclosure/edit/save interaction.
 - Outside the two owned pages/styles: added only optional `payee_name` to `QuickEntrySplitLine` in `apps/web/src/api/types.ts`.
+
+## R-06: Date and Memo each retain a full row
+
+- Reproduced at 721: Date label width 0, native input width 8 CSS pixels. Fix assigns both fields a full flex row instead of only Memo.
+- Checked 390, 720, 721, 800, 801, 1024 and 1440. Date/input widths respectively: 342/230, 460/348, 460/348, 460/348, 460/340, 460/340, 460/340. At every width Memo is below Date and document horizontal overflow is false.
+- At 721 changed the native date using ArrowRight/ArrowUp and saved amount 1.06, memo R06 date control. Transactions read-back confirms date 2026-11-18 and amount −1060, not merely a visible date field.
+- Captured every width and before/after at 721; inspected the breakpoint layouts.
