@@ -1788,7 +1788,9 @@ export function TransactionsPage() {
       ? <>New transactions need an open account. <Link to="/accounts/new">Create one</Link> to keep recording.</>
       : emptyLedger && !deferredSearch.trim() && canCompose
         ? "Choose + Add transaction to record the first one."
-        : "Try widening the date range, clearing filters, or shortening the search term.";
+        : emptyLedger && !deferredSearch.trim() && selectedAccount?.closed
+          ? "Closed: kept under Closed with all its transactions. Reopen it to record new ones."
+          : "Try widening the date range, clearing filters, or shortening the search term.";
   const reconciliationBusy = mutationBusy;
   const reviewedStatementBalance = reconcileDraft ? parseMilliunits(reconcileDraft.statementBalance) : null;
   const reconciliationPreviewData = reconciliationPreview.data
