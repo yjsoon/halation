@@ -22,7 +22,12 @@ fi
 # Pass the port to both windows explicitly: a tmux server that is already
 # running does not hand this shell's environment to new sessions, and Vite
 # otherwise proxies to :8787, which is the very port found busy above.
-tmux new-session -d -s "$SESSION_NAME" -c "$ROOT_DIR" "PORT=$API_PORT HOWMUCH_PORT=$API_PORT bun run api:dev"
+# The API is the real Worker under `wrangler dev`, over a local D1 database in
+# data/local-d1. HOWMUCH_API_TOKEN comes from apps/worker/.dev.vars (copy
+# .dev.vars.example); without it the Worker refuses first-owner setup.
+STATE_DIR="${HOWMUCH_LOCAL_D1:-$ROOT_DIR/data/local-d1}"
+"$ROOT_DIR/scripts/local-worker.sh" prepare "$STATE_DIR"
+tmux new-session -d -s "$SESSION_NAME" -c "$ROOT_DIR" "scripts/local-worker.sh start '$STATE_DIR' '$API_PORT'"
 tmux rename-window -t "$SESSION_NAME" api
 tmux set-option -t "$SESSION_NAME" -g remain-on-exit on >/dev/null
 

@@ -39,6 +39,26 @@
     "migrations_dir": "../api/d1-migrations"
   }],
   "env": {
+    // Local development and verify-howmuch only: `wrangler dev --env local`
+    // with a local D1 database (`--persist-to`). Never deploy it. It must
+    // not set HOWMUCH_REDIRECT_TARGET, and its database ID is a placeholder
+    // so it can never reach a real database.
+    "local": {
+      "name": "howmuch-local",
+      "workers_dev": false,
+      "routes": [],
+      "triggers": { "crons": [] },
+      "vars": {
+        "HOWMUCH_DEFAULT_PLAN_ID": "local-plan",
+        "HOWMUCH_TIME_ZONE": "UTC"
+      },
+      "d1_databases": [{
+        "binding": "DB",
+        "database_name": "howmuch-local",
+        "database_id": "00000000-0000-4000-8000-000000000000",
+        "migrations_dir": "../api/d1-migrations"
+      }]
+    },
     "preview": {
       "name": "howmuch-preview",
       "workers_dev": true,

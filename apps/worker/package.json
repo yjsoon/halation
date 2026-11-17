@@ -11,7 +11,7 @@
     "deploy:preview": "bun run build:web && wrangler deploy --env preview --profile yj",
     "deploy:tk": "bun run build:web && wrangler deploy --env tk --profile tinkertanker",
     "deploy:yj-redirect": "bun run build:web && wrangler deploy --profile yj",
-    "dev": "wrangler dev --test-scheduled",
+    "dev": "../../scripts/local-worker.sh prepare ../../data/local-d1 && ../../scripts/local-worker.sh start ../../data/local-d1 8787",
     "typecheck": "tsc --noEmit"
   }
 }

@@ -50,5 +50,5 @@ Preconditions:
 - scrypt is slow. Wait for Ledger, not a fixed 200ms sleep.
 - Opening any app route without a session still renders the setup/sign-in form. That is not a routing bug.
 - Do not POST `/api/auth/setup` from `control-howmuch http` and call the feature verified.
-- This stack always sets the token, so it cannot reach `setup-blocked`. For that, from the repo root with no `.dev.vars`, run `bun run --cwd apps/web build`, then `bunx wrangler d1 migrations apply DB --local --persist-to <tmp> --config wrangler.jsonc`, then `bunx wrangler dev --local --persist-to <tmp> --config wrangler.jsonc`. Never deploy.
+- This stack always sets the token, so it cannot reach `setup-blocked`. For that, with no `apps/worker/.dev.vars`, run `scripts/local-worker.sh prepare <tmp>`, then `scripts/local-worker.sh start <tmp> <port> --inspector-port <free port>` without a token, and point Vite's `HOWMUCH_API_URL` at it. Never deploy.
 - iOS Connection cannot create the owner. Finish this recipe on `{web_url}` before any `ios-*` recipe.

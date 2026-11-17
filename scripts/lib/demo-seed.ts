@@ -64,3 +64,36 @@ export async function seedDemoLedger(options?: {
 
   return { dbPath, fixturePath, planId };
 }
+
+/**
+ * Seeds the same fixture through the public API of a running Worker, such as
+ * `scripts/local-worker.sh start`. The plan must already exist if it should
+ * carry the fixture's name: the API has no plan-rename route.
+ */
+export async function seedDemoLedgerOverHttp(options: {
+  apiUrl: string;
+  token: string;
+  planId?: string;
+  fixturePath?: string;
+}): Promise<{ apiUrl: string; fixturePath: string; planId: string }> {
+  const fixturePath = resolveFixturePath(options.fixturePath);
+  const fixture = loadDemoFixture(fixturePath);
+  const planId = options.planId ?? fixture.plan.id;
+  const post = async (path: string, body: unknown) => {
+    const response = await fetch(`${options.apiUrl}/v1/plans/${encodeURIComponent(planId)}${path}`, {
+      method: "POST",
+      headers: { authorization: `Bearer ${options.token}`, "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) throw new Error(`Seeding ${path} failed: ${response.status} ${await response.text()}`);
+  };
+
+  for (const account of fixture.accounts) await post("/accounts", { account });
+  for (const group of fixture.category_groups) await post("/category_groups", { category_group: group });
+  for (const category of fixture.categories) {
+    await post("/categories", { category: { id: category.id, name: category.name, category_group_id: category.group_id } });
+  }
+  await post("/transactions", { transactions: fixture.transactions });
+
+  return { apiUrl: options.apiUrl, fixturePath, planId };
+}

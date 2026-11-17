@@ -1,6 +1,6 @@
 ---
 name: verify-howmuch
-description: Drive HowMuch in a real browser (web ledger) and, for capture/intake/Shortcuts, in the iOS Simulator against an isolated local Bun/SQLite stack. Use when proving user-facing behaviour (first-owner setup, reports, register, quick entry, schedules, tokens, iOS Add Transaction, typed intake, App Intents) or after changing apps/web, apps/ios, the local API, or auth.
+description: Drive HowMuch in a real browser (web ledger) and, for capture/intake/Shortcuts, in the iOS Simulator against an isolated local stack: the real Worker under `wrangler dev` with a local D1 database. Use when proving user-facing behaviour (first-owner setup, reports, register, quick entry, schedules, tokens, iOS Add Transaction, typed intake, App Intents) or after changing apps/web, apps/ios, the local API, or auth.
 ---
 
 # Verify HowMuch
@@ -31,14 +31,14 @@ control-howmuch launch
 control-howmuch doctor
 ```
 
-`launch` creates `/tmp/howmuch-verify/<run-id>/`, seeds `fixtures/demo-ledger.json` into a private SQLite file, and starts a tmux session named `howmuch-verify-<run-id>` with two windows:
+`launch` creates `/tmp/howmuch-verify/<run-id>/`, applies the D1 migrations to a private local D1 database in its `d1/` folder, starts a tmux session named `howmuch-verify-<run-id>`, and seeds `fixtures/demo-ledger.json` through the API. The session has two windows:
 
-- `api` — `bun run api:dev` on an OS-assigned localhost port
+- `api` — the production Worker under `wrangler dev --env local` (`scripts/local-worker.sh start`) on an OS-assigned localhost port, so recipes exercise the code production runs
 - `web` — Vite on an OS-assigned localhost port, `HOWMUCH_API_URL` pointed at that API
 
 Ready when `control-howmuch doctor` prints `ok` lines, including `ok health={"ok":true}` and `ok web_title=Halation`. `launch` already waits for `/health` and the Vite HTML shell.
 
-Do not use `bun run dev`, `bun run dev:stack`, or tmux session `howmuch-dev`. Those own the shared `data/howmuch.sqlite` on ports 8787/5173. If doctor would have to attach to that instance, stop and launch a disposable one instead.
+Do not use `bun run dev`, `bun run dev:stack`, or tmux session `howmuch-dev`. Those own the shared `data/local-d1` database on ports 8787/5173. If doctor would have to attach to that instance, stop and launch a disposable one instead.
 
 Two verification stacks can run side by side (different run ids, ports, and databases). `launch` refuses if `/tmp/howmuch-verify/current` already points at a healthy instance — `cleanup` first, or drive the one that is up.
 
@@ -66,12 +66,12 @@ control-howmuch doctor
 It must report:
 
 - tmux session `howmuch-verify-*` still running (never `howmuch-dev`)
-- SQLite path inside `/tmp/howmuch-verify/<run-id>/`, never `data/howmuch.sqlite`
+- local D1 folder inside `/tmp/howmuch-verify/<run-id>/`
 - `GET {api}/health` → `{"ok":true}`
 - `GET {api}/api/auth/status` reachable
 - `GET {web}/` HTML title `Halation`
 
-`control-howmuch state` prints the URLs, ports, db path, and credentials. If doctor fails, cleanup and launch again. Do not "fix" it by talking to 8787/5173.
+`control-howmuch state` prints the URLs, ports, local D1 folder, and credentials. If doctor fails, cleanup and launch again. Do not "fix" it by talking to 8787/5173.
 
 ## iOS Simulator
 

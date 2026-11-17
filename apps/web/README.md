@@ -6,8 +6,7 @@ The ledger, rewards and reports for the Halation web app (formerly HowMuch). See
 
 ```sh
 bun install        # from the repo root
-bun run api:dev    # start the API on :8787
-cd apps/web && bun run dev
+bun run dev:stack   # the Worker on :8787 (local D1) and this app on :5173
 ```
 
 The dev server runs on `:5173` and proxies `/api` and `/v1` to the API. Point it elsewhere with `HOWMUCH_API_URL=http://host:port`.

@@ -40,16 +40,17 @@ Moving from YNAB? The [YNAB migration guide](docs/ynab-migration.md) covers both
 
 ## Development
 
-Local development uses Bun and SQLite. The Bun server is for local development only and is not a supported way to self-host.
+Local development runs the production Worker under `wrangler dev`, with a local D1 database in `data/local-d1`, and Vite in front of it for the web app. Copy `apps/worker/.dev.vars.example` to `apps/worker/.dev.vars` first: it holds the setup token for first-owner setup. This stack is for local development only and is not a supported way to self-host.
 
 ```sh
 bun install
-bun run demo:seed
 bun run dev:stack
+# once it is up, optionally load the demo ledger:
+HOWMUCH_API_URL=http://127.0.0.1:8787 HOWMUCH_API_TOKEN=<token from .dev.vars> bun run demo:seed
 bun test
 ```
 
-The local API binds `127.0.0.1` by default. To serve beyond the machine, set `HOWMUCH_HOST` (for example `0.0.0.0`) together with `HOWMUCH_API_TOKEN`. The server refuses to start on a non-loopback host without a token, and anything tunnelling or reverse-proxying to the loopback server needs the token too.
+The older Bun/SQLite server (`bun run api:dev`) is still in the repository until #370 removes it. It binds `127.0.0.1` by default. To serve beyond the machine, set `HOWMUCH_HOST` (for example `0.0.0.0`) together with `HOWMUCH_API_TOKEN`. The server refuses to start on a non-loopback host without a token, and anything tunnelling or reverse-proxying to the loopback server needs the token too.
 
 For a checked web build, run `bun run --cwd apps/web build`. It runs TypeScript checking and Vite bundling concurrently and fails if either fails. Use `typecheck` in that package for checking alone; `bundle` alone is not a validation gate. Worker builds and deployments wait for the checked web build.
 

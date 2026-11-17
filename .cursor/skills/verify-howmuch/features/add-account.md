@@ -23,7 +23,7 @@ A signed-in owner creates an account on the web from `/accounts/new`. A new ledg
 
 Preconditions:
 
-- An isolated stack whose database has **no accounts**. `control-howmuch launch` seeds the demo ledger, so for the empty sub-features start the API on a fresh `HOWMUCH_DB_PATH` under `/tmp/howmuch-verify/` without `demo:seed`, and complete first-owner setup (`verifier` / `howmuch-verify-15`, token `howmuch-verify-bootstrap`).
+- An isolated stack whose database has **no accounts**. `control-howmuch launch` seeds the demo ledger, so for the empty sub-features start a second API on a fresh folder under `/tmp/howmuch-verify/` without seeding (`scripts/local-worker.sh prepare <dir>`, then `scripts/local-worker.sh start <dir> <port> --var HOWMUCH_API_TOKEN:howmuch-verify-bootstrap --inspector-port <free port>`, with Vite's `HOWMUCH_API_URL` pointed at it), and complete first-owner setup (`verifier` / `howmuch-verify-15`, token `howmuch-verify-bootstrap`).
 - `add-account-create` and `add-account-liability` also work on the seeded stack through **+ New**.
 
 - **Empty Ledger.** After setup, Ledger shows `Add your first account`, no "Try widening the date range" advice, and the toolbar has a `+ Add your first account` link to `/accounts/new` instead of `+ Add transaction` and `Reconcile`.

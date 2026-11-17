@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Isolated launch/doctor/cleanup for HowMuch web verification.
-# Never attach to the developer's `howmuch-dev` tmux session or the default
-# data/howmuch.sqlite file.
+# Isolated launch/doctor/cleanup for HowMuch web verification. The API is the
+# real Worker under `wrangler dev` (scripts/local-worker.sh) with a local D1
+# database in the run directory. Never attach to the developer's `howmuch-dev`
+# tmux session or its data/ directory.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../../.." && pwd)"
@@ -130,17 +131,17 @@ cmd_launch() {
   fi
 
   mkdir -p "$dir"
-  local db_path="$dir/howmuch.sqlite"
-  local api_port web_port
+  local state_dir="$dir/d1"
+  local api_port web_port inspector_port time_zone
   api_port="$(pick_port)"
   web_port="$(pick_port)"
-  (
-    cd "$ROOT"
-    HOWMUCH_DB_PATH="$db_path" HOWMUCH_DEFAULT_PLAN_ID="$DEFAULT_PLAN_ID" bun run demo:seed
-  )
+  inspector_port="$(pick_port)"
+  # "Today" follows this machine's calendar, as recipes expect.
+  time_zone="$(cd "$ROOT" && bun -e 'console.log(Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC")')"
+  "$ROOT/scripts/local-worker.sh" prepare "$state_dir" "HowMuch Demo"
 
   tmux new-session -d -s "$session" -c "$ROOT" \
-    "export HOWMUCH_DB_PATH='$db_path' HOWMUCH_PORT='$api_port' PORT='$api_port' HOWMUCH_API_TOKEN='$DEFAULT_TOKEN' HOWMUCH_DEFAULT_PLAN_ID='$DEFAULT_PLAN_ID'; bun run api:dev"
+    "scripts/local-worker.sh start '$state_dir' '$api_port' --inspector-port '$inspector_port' --var 'HOWMUCH_API_TOKEN:$DEFAULT_TOKEN' --var 'HOWMUCH_DEFAULT_PLAN_ID:$DEFAULT_PLAN_ID' --var 'HOWMUCH_TIME_ZONE:$time_zone'"
   tmux rename-window -t "$session" api
   tmux new-window -t "$session" -n web -c "$ROOT/apps/web" \
     "export HOWMUCH_API_URL='http://127.0.0.1:$api_port'; bun run dev -- --host 127.0.0.1 --port $web_port --strictPort"
@@ -154,7 +155,7 @@ json.dump({
   "api_url": "http://127.0.0.1:$api_port",
   "api_port": $api_port,
   "web_port": $web_port,
-  "db_path": "$db_path",
+  "state_dir": "$state_dir",
   "plan_id": "$DEFAULT_PLAN_ID",
   "username": "$DEFAULT_USERNAME",
   "password": "$DEFAULT_PASSWORD",
@@ -167,42 +168,42 @@ PY
   ln -sfn "$dir" "$CURRENT_LINK"
 
   wait_http "http://127.0.0.1:$api_port/health" '"ok":true'
+  (
+    cd "$ROOT"
+    HOWMUCH_API_URL="http://127.0.0.1:$api_port" HOWMUCH_API_TOKEN="$DEFAULT_TOKEN" HOWMUCH_DEFAULT_PLAN_ID="$DEFAULT_PLAN_ID" bun run demo:seed
+  )
   wait_http "http://127.0.0.1:$web_port/" "<div id=\"root\">"
 
   echo "launched $session"
   echo "web  http://127.0.0.1:$web_port"
   echo "api  http://127.0.0.1:$api_port"
-  echo "db   $db_path"
+  echo "d1   $state_dir"
   echo "user $DEFAULT_USERNAME"
   echo "ready. run control-howmuch doctor before driving."
 }
 
 cmd_doctor() {
   need_cmd curl
-  local dir file session api_url web_url db_path api_port web_port
+  local dir file session api_url web_url state_dir api_port web_port
   dir="$(run_dir)"
   file="$dir/state.json"
   session="$(read_state session)"
   api_url="$(read_state api_url)"
   web_url="$(read_state web_url)"
-  db_path="$(read_state db_path)"
+  state_dir="$(read_state state_dir)"
   api_port="$(read_state api_port)"
   web_port="$(read_state web_port)"
   dir="$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$dir")"
-  db_path="$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$db_path")"
+  state_dir="$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$state_dir")"
 
   if [[ "$session" == "howmuch-dev" ]]; then
     echo "fail session is the shared howmuch-dev session" >&2
     exit 1
   fi
-  if [[ "$db_path" == "$ROOT/data/howmuch.sqlite" || "$db_path" == "data/howmuch.sqlite" ]]; then
-    echo "fail db path is the shared default ledger" >&2
-    exit 1
-  fi
-  case "$db_path" in
+  case "$state_dir" in
     "$dir"/*) ;;
     *)
-      echo "fail db path $db_path is outside this run directory" >&2
+      echo "fail local D1 $state_dir is outside this run directory" >&2
       exit 1
       ;;
   esac
@@ -227,7 +228,7 @@ cmd_doctor() {
   echo "ok session=$session"
   echo "ok web=$web_url"
   echo "ok api=$api_url"
-  echo "ok db=$db_path"
+  echo "ok d1=$state_dir"
   echo "ok health=$health"
   echo "ok auth_status=$status"
   echo "ok web_title=Halation"

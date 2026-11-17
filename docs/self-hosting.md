@@ -10,7 +10,7 @@ Self-hosting is the only way to run Halation on a server. There is no hosted ser
 - There is no public sign-up. Setup creates the first owner once; after that nobody can register.
 - There is no budgeting. Categories are tags on transactions, used for reports and rewards rules.
 - You operate it: you apply migrations, take backups and keep the Worker updated.
-- The Bun and SQLite server (`bun run dev:stack`) is for local development only. It is not a supported way to self-host.
+- The local development stack (`bun run dev:stack`) is for local development only. It is not a supported way to self-host.
 
 ## One-click install
 
