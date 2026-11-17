@@ -81,6 +81,8 @@
   font-size: 0.88em;
   background: var(--accent-press);
   border-radius: 2px;
+  /* A long path in running text breaks instead of running off a phone screen. */
+  overflow-wrap: anywhere;
 }
 
 .api-docs-content pre {
@@ -99,6 +101,7 @@
   color: inherit;
   background: transparent;
   border-radius: 0;
+  overflow-wrap: normal;
 }
 
 .api-token-header {
