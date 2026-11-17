@@ -13,3 +13,11 @@ Base: `53be3b42`. Disposable stack `20261117T113404-3430`, Chromium browser sess
 - Existing optional payee/memo still persists: parent memo `P04 rework controls 390`, total −10000, children −15000 with payee `Rework split payee` and memo `Receipt allocation`, +6000 and −1000 with null payees. Its API contract and controls are unchanged; only grid rows move to make room for line direction.
 - Inspected screenshots: split-rework-plain-390.png, split-rework-zero-1440.png and split-rework-controls-390.png. All eight case/width combinations were captured. Recording split-directions.mp4 shows pointer navigation, changing a line to Inflow and opening/closing its optional fields. Returning to one category was verified through the DOM checks above.
 - No iPhone keyboard claim is made from Chromium. Quick entry no longer requires a minus key. Existing signed fields in Scheduled and register were left unchanged as requested.
+
+## S-11: Restore focus when payment terms replace their opener
+
+- Before: Scheduled → Set up payment reminders → set statement day 15 → Save terms. After the Payments due panel refreshed and the dialog closed, `document.activeElement.tagName` was `BODY`.
+- After at 1440 and 390: the same flow focuses `Schedule payment for Travel Card`, the panel's first control, once the dialog closes and both queries finish. Removal of the last terms returns focus to Set up payment reminders. Editing existing terms and Cancel retain focus on `Payment terms for Travel Card`.
+- `control-howmuch http GET /v1/plans/local-plan/card_payment_terms` confirmed `account_id: acct-credit`, statement days 16 (1440) and 15 (390), then 17 after editing. The recorded final setup persisted day 19 with enabled true and due_gap_days 25.
+- Only ScheduledTransactions.tsx changes. CardTermsDialog.tsx and CardPaymentsPanel.tsx remain untouched. Restoration does not override an existing focused control, and Add schedule is the fallback if no panel control exists.
+- Captures: terms-focus-1440.png, terms-focus-390.png and terms-focus.mp4. Browser accessibility/DOM checks, not the screenshots alone, establish the focus destination.

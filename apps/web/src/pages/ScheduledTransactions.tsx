@@ -37,6 +37,7 @@ export function ScheduledTransactionsPage() {
   const [pendingEntry, setPendingEntry] = useState<PendingEntry | null>(null);
   const [termsDialog, setTermsDialog] = useState<{ accountId: string | null } | null>(null);
   const [termsGeneration, setTermsGeneration] = useState(0);
+  const restoreTermsFocus = useRef(false);
   // Both confirmations render above the list, behind the row's buttons in tab order.
   const deleteCancelRef = useRef<HTMLButtonElement>(null);
   const entryCancelRef = useRef<HTMLButtonElement>(null);
@@ -104,6 +105,14 @@ export function ScheduledTransactionsPage() {
   const cardTerms = useSticky(cardTermsQuery.data, `${planId}`);
   const cardPayments = useSticky<CardPaymentsView>(cardPaymentsQuery.data, `${planId}`);
   const termsByAccount = useMemo(() => new Map((cardTerms?.card_payment_terms ?? []).map((terms) => [terms.account_id, terms])), [cardTerms]);
+
+  useEffect(() => {
+    if (!restoreTermsFocus.current || termsDialog || cardTermsQuery.loading || cardPaymentsQuery.loading) return;
+    restoreTermsFocus.current = false;
+    if (document.activeElement !== document.body) return;
+    const action = document.querySelector<HTMLButtonElement>(".card-payments button:not(:disabled), .card-payments-setup button:not(:disabled)");
+    (action ?? addScheduleRef.current)?.focus({ preventScroll: true });
+  }, [termsDialog, cardTermsQuery.loading, cardPaymentsQuery.loading, cardTerms, cardPayments]);
 
   // Re-reads the view first: a tab left open past the window would otherwise prefill a stale cycle.
   const openCardSchedule = async (stale: CardPaymentCycle, terms: CardPaymentTerms) => {
@@ -283,7 +292,7 @@ export function ScheduledTransactionsPage() {
         <CardTermsDialog
           accountId={termsDialog.accountId}
           onClose={() => setTermsDialog(null)}
-          onSaved={(message) => { setTermsGeneration((value) => value + 1); setMutationError(null); setMutationSuccess(message); }}
+          onSaved={(message) => { restoreTermsFocus.current = true; setTermsGeneration((value) => value + 1); setMutationError(null); setMutationSuccess(message); }}
         />
       )}
       {editor && (
