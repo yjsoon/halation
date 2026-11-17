@@ -2,7 +2,7 @@ import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Interval } from "../api/types";
 import type { ReportQuery } from "../api/client";
-import { monthRange, reportRange } from "../lib/dates";
+import { monthRange, reportRange, todayIso } from "../lib/dates";
 import { usePlan } from "./plan";
 import { loadPrefs, savePrefs } from "./prefs";
 
@@ -81,13 +81,15 @@ export function filtersFromSearch(
   };
 }
 
-export function applyFilterPatch(previous: URLSearchParams, patch: Partial<Filters>): URLSearchParams {
+export function applyFilterPatch(previous: URLSearchParams, patch: Partial<Filters>, options?: { throughToday?: boolean }): URLSearchParams {
   const next = new URLSearchParams(previous);
   if ("from" in patch) {
     writeParam(next, "from", patch.from);
   }
   if ("to" in patch) {
-    writeParam(next, "to", patch.to);
+    // An open report range is resolved against today's date when read, so a
+    // bookmark or another report does not freeze this visit's cut-off.
+    writeParam(next, "to", options?.throughToday && patch.to === todayIso() ? undefined : patch.to);
   }
   if ("from" in patch || "to" in patch) {
     // Both cleared means an explicit "all time", not "use the default".
@@ -142,9 +144,9 @@ export function useFilters(options?: FilterOptions): {
       if (patch.interval) {
         savePrefs({ interval: patch.interval });
       }
-      setParams((previous) => applyFilterPatch(previous, patch), { replace: true });
+      setParams((previous) => applyFilterPatch(previous, patch, { throughToday }), { replace: true });
     },
-    [setParams, rememberAccounts],
+    [setParams, rememberAccounts, throughToday],
   );
 
   const reportQuery = useMemo<ReportQuery>(

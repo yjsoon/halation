@@ -177,7 +177,10 @@ export function FilterRail({ filters, setFilters, intervals, showCategories = tr
             <input
               type="date"
               value={filters.from ?? ""}
-              onChange={(event) => setFilters({ from: event.target.value || undefined, to: filters.to })}
+              onChange={(event) => setFilters({
+                from: event.target.value || undefined,
+                to: throughToday && filters.to && event.target.value > filters.to ? undefined : filters.to,
+              })}
               aria-label="From date"
             />
             <span className="range-dash">-</span>

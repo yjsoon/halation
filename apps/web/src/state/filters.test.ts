@@ -1,5 +1,40 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, setSystemTime, test } from "bun:test";
 import { applyFilterPatch, filtersFromSearch } from "./filters";
+import { REPORT_RANGE_PRESETS } from "../lib/dates";
+
+// A same-day browser check cannot catch a saved report link freezing its end
+// at yesterday. Exercise the write/read contract across midnight as well.
+describe("rolling report ranges", () => {
+  afterEach(() => setSystemTime());
+
+  test("keeps report presets ending today open when saved and read tomorrow", () => {
+    for (const preset of REPORT_RANGE_PRESETS.filter((preset) => preset.id !== "last-month")) {
+      setSystemTime(new Date(2026, 10, 17, 12));
+      const params = applyFilterPatch(new URLSearchParams(), preset.range(), { throughToday: true });
+      expect(params.get("to")).toBeNull();
+      expect(params.get("range")).toBe(preset.id === "all" ? "all" : null);
+      setSystemTime(new Date(2026, 10, 18, 12));
+      expect(filtersFromSearch(params, { defaultRange: () => ({}), throughToday: true }).to).toBe("2026-11-18");
+    }
+  });
+
+  test("keeps fixed report ranges and non-report ranges explicit", () => {
+    setSystemTime(new Date(2026, 10, 17, 12));
+    for (const to of ["2026-10-31", "2026-12-31"]) {
+      expect(applyFilterPatch(new URLSearchParams(), { from: "2026-10-01", to }, { throughToday: true }).get("to")).toBe(to);
+    }
+    expect(applyFilterPatch(new URLSearchParams(), { to: "2026-11-17" }).get("to")).toBe("2026-11-17");
+  });
+
+  test("does not invert a future open range or discard its explicit end", () => {
+    setSystemTime(new Date(2026, 10, 17, 12));
+    const options = { defaultRange: () => ({}), throughToday: true };
+    const future = filtersFromSearch(new URLSearchParams("from=2026-12-01"), options);
+    expect(future.from).toBe("2026-12-01");
+    expect(future.to).toBeUndefined();
+    expect(filtersFromSearch(new URLSearchParams("from=2026-12-01&to=2026-12-31"), options).to).toBe("2026-12-31");
+  });
+});
 
 describe("applyFilterPatch", () => {
   test("writes empty account and category selections instead of ignoring them", () => {

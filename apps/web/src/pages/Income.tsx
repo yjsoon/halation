@@ -4,7 +4,7 @@ import type { Interval } from "../api/types";
 import { FilterRail } from "../components/FilterRail";
 import { PairedColumns } from "../components/charts";
 import { ReportTable } from "../components/ReportTable";
-import { formatPeriod, periodBounds, reportPeriods, todayIso, ytdRange } from "../lib/dates";
+import { formatPeriod, periodBounds, reportPeriods, ytdRange } from "../lib/dates";
 import { formatAmount, formatMoney, formatSavingsRate } from "../lib/money";
 import { useIsPhone } from "../lib/use-is-phone";
 import { transactionsLink, useFilters } from "../state/filters";
@@ -29,7 +29,7 @@ export function IncomePage() {
   const byPeriod = new Map(activity.map((period) => [period.period, period]));
   let cumulativeNet = 0;
   const periods = activity.length > 0 && firstDate
-    ? reportPeriods(firstDate, filters.to ?? todayIso(), filters.interval).map((range) => {
+    ? reportPeriods(firstDate, filters.to ?? periodBounds(activity.at(-1)!.period).to, filters.interval).map((range) => {
         const values = byPeriod.get(range.period);
         const income = values?.income ?? 0;
         const spending = values?.spending ?? 0;

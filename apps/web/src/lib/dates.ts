@@ -120,8 +120,9 @@ export const RANGE_PRESETS: RangePreset[] = [
 ];
 
 /** Reports count posted activity through today unless the user enters a future To date. */
-export function reportRange(range: { from?: string; to?: string }): { from?: string; to: string } {
+export function reportRange(range: { from?: string; to?: string }): { from?: string; to?: string } {
   const today = todayIso();
+  if (!range.to && range.from && range.from > today) return range;
   return { ...range, to: range.to && range.to < today ? range.to : today };
 }
 
