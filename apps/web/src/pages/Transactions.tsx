@@ -2068,7 +2068,16 @@ export function TransactionsPage() {
         </div>
       )}
       {reconcileDraft && (
-        <section className="transaction-editor reconcile-editor" aria-labelledby="reconcile-account-heading">
+        <section
+          className="transaction-editor reconcile-editor"
+          aria-labelledby="reconcile-account-heading"
+          onKeyDown={(event) => {
+            if (event.key !== "Escape" || reconciliationBusy) return;
+            event.preventDefault();
+            setReconcileDraft(null);
+            setMutationError(null);
+          }}
+        >
           <div className="section-heading">
             <div>
               <span className="section-title" id="reconcile-account-heading">Reconcile account</span>
@@ -2220,7 +2229,16 @@ export function TransactionsPage() {
         </section>
       )}
       {pendingDeletion && (
-        <section className="transaction-delete-confirm" role="region" aria-labelledby="delete-transaction-heading">
+        <section
+          className="transaction-delete-confirm"
+          role="region"
+          aria-labelledby="delete-transaction-heading"
+          onKeyDown={(event) => {
+            if (event.key !== "Escape" || writeLocked || mutatingId === pendingDeletion.id) return;
+            event.preventDefault();
+            setPendingDeletion(null);
+          }}
+        >
           <div>
             <h2 id="delete-transaction-heading">{pendingDeletion.approved ? "Delete transaction?" : "Reject new transaction?"}</h2>
             <p id="delete-transaction-detail">
@@ -2252,7 +2270,16 @@ export function TransactionsPage() {
         />
       )}
       {pendingBulkDeletion && (
-        <section className="transaction-delete-confirm" role="region" aria-labelledby="delete-many-heading">
+        <section
+          className="transaction-delete-confirm"
+          role="region"
+          aria-labelledby="delete-many-heading"
+          onKeyDown={(event) => {
+            if (event.key !== "Escape" || mutationBusy) return;
+            event.preventDefault();
+            setPendingBulkDeletion(null);
+          }}
+        >
           <div>
             <h2 id="delete-many-heading">
               {pendingBulkDeletion.every((txn) => !txn.approved)
