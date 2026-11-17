@@ -90,6 +90,7 @@ export function ScheduledTransactionsPage() {
     (action ?? addScheduleRef.current)?.focus({ preventScroll: true });
   }, [schedules.loading, active]);
   const accountNames = useMemo(() => new Map(accounts.map((account) => [account.id, account.name])), [accounts]);
+  const closedAccountIds = useMemo(() => new Set(accounts.filter((account) => account.closed).map((account) => account.id)), [accounts]);
   const payeeNames = useMemo(() => new Map((payees.data ?? []).map((payee) => [payee.id, payee.name])), [payees.data]);
   const rewardsSnapshot = useApi(`${planId}:reward-flag-names`, () => api.rewardsTrackerSnapshot(planId));
   const flagNamesByAccount = useMemo(() => colourNamesByAccount(rewardsSnapshot.data?.cards), [rewardsSnapshot.data]);
@@ -346,7 +347,13 @@ export function ScheduledTransactionsPage() {
           <div className="section-heading"><h2 id={`schedule-date-${group.date}`} className="section-title">{formatDate(group.date)}</h2><span className="section-meta">{group.schedules.length} {group.schedules.length === 1 ? "schedule" : "schedules"}</span></div>
           <div className="table-wrap table-wrap-wide">
             <table className="ledger-table schedule-table"><thead><tr><th>Next</th><th>Payee / memo</th><th>Account</th><th>Category</th><th>Repeat</th><th className="num">Amount</th><th><span className="sr-only">Actions</span></th></tr></thead>
-              <tbody>{group.schedules.map((schedule) => <ScheduleRows key={schedule.id} schedule={schedule} flagName={namedFlagLabel(flagNamesByAccount.get(schedule.account_id ?? ""), schedule.flag_color)} accounts={accountNames} categories={categoryNames} payees={payeeNames} busy={mutatingId === schedule.id} onEdit={() => { setEditor({ mode: "edit", schedule }); setMutationError(null); setMutationSuccess(null); }} onEnter={() => { if (!schedule.date_next) return; const operationSeed = crypto.randomUUID(); const enteredDate = todayIso(); setPendingEntry({ schedule, occurrenceDate: schedule.date_next, enteredDate, operationSeed, idempotencyKey: materializationKey(schedule.id, schedule.date_next, enteredDate, operationSeed) }); setMutationError(null); setMutationSuccess(null); }} onDelete={() => { setPendingDeletion({ schedule, idempotencyKey: mutationKey(`delete-${schedule.id}`) }); setMutationError(null); setMutationSuccess(null); }} />)}</tbody>
+              <tbody>{group.schedules.map((schedule) => <ScheduleRows key={schedule.id} schedule={schedule}
+                closed={closedAccountIds.has(schedule.account_id ?? "")}
+                flagName={namedFlagLabel(flagNamesByAccount.get(schedule.account_id ?? ""), schedule.flag_color)}
+                accounts={accountNames} categories={categoryNames} payees={payeeNames} busy={mutatingId === schedule.id}
+                onEdit={() => { setEditor({ mode: "edit", schedule }); setMutationError(null); setMutationSuccess(null); }}
+                onEnter={() => { if (!schedule.date_next || closedAccountIds.has(schedule.account_id ?? "")) return; const operationSeed = crypto.randomUUID(); const enteredDate = todayIso(); setPendingEntry({ schedule, occurrenceDate: schedule.date_next, enteredDate, operationSeed, idempotencyKey: materializationKey(schedule.id, schedule.date_next, enteredDate, operationSeed) }); setMutationError(null); setMutationSuccess(null); }}
+                onDelete={() => { setPendingDeletion({ schedule, idempotencyKey: mutationKey(`delete-${schedule.id}`) }); setMutationError(null); setMutationSuccess(null); }} />)}</tbody>
             </table>
           </div>
         </section>
@@ -355,14 +362,24 @@ export function ScheduledTransactionsPage() {
   );
 }
 
-function ScheduleRows({ schedule, flagName, accounts, categories, payees, busy, onEdit, onEnter, onDelete }: { schedule: ScheduledTransaction; flagName?: string; accounts: Map<string, string>; categories: Map<string, string>; payees: Map<string, string>; busy: boolean; onEdit: () => void; onEnter: () => void; onDelete: () => void }) {
-  const account = nameFor(schedule.account_name, schedule.account_id, accounts, "Account unavailable");
+function ScheduleRows({ schedule, closed, flagName, accounts, categories, payees, busy, onEdit, onEnter, onDelete }: { schedule: ScheduledTransaction; closed: boolean; flagName?: string; accounts: Map<string, string>; categories: Map<string, string>; payees: Map<string, string>; busy: boolean; onEdit: () => void; onEnter: () => void; onDelete: () => void }) {
+  const account = nameFor(schedule.account_name, schedule.account_id, accounts, "Account unavailable") + (closed ? " (closed)" : "");
   const payee = scheduleLabel(schedule, payees, accounts);
   const category = categoryLabel(schedule, accounts, categories);
   const amount = amountFor(schedule);
   const detail = [account, category, scheduleRecurrence(schedule.frequency)].filter(Boolean).join(" · ");
   return <>
-    <tr id={`schedule-${schedule.id}`} className="schedule-row"><td className="schedule-date">{schedule.date_next ? formatDate(schedule.date_next) : "Date unavailable"}</td><td><div className="schedule-payee">{payee}<FlagTag colour={schedule.flag_color} name={flagName} /></div>{schedule.memo && <div className="schedule-memo">{schedule.memo}</div>}<div className="schedule-mobile-detail">{detail}</div></td><td>{account}</td><td>{category}</td><td>{scheduleRecurrence(schedule.frequency)}</td><td className={amount < 0 ? "num amount-negative" : amount > 0 ? "num amount-positive" : "num"}>{formatMoney(amount, { sign: amount > 0 })}</td><td className="schedule-actions"><button type="button" className="register-row-action" onClick={onEnter} disabled={busy || !schedule.date_next} aria-label={`Enter ${payee} now`}>Enter now</button><button type="button" className="register-row-action" onClick={onEdit} disabled={busy} aria-label={`Edit ${payee}`}>Edit</button><button type="button" className="register-row-action register-row-action-danger" onClick={onDelete} disabled={busy} aria-label={`Delete ${payee}`}>Delete</button></td></tr>
+    <tr id={`schedule-${schedule.id}`} className="schedule-row">
+      <td className="schedule-date">{schedule.date_next ? formatDate(schedule.date_next) : "Date unavailable"}</td>
+      <td><div className="schedule-payee">{payee}<FlagTag colour={schedule.flag_color} name={flagName} /></div>{schedule.memo && <div className="schedule-memo">{schedule.memo}</div>}<div className="schedule-mobile-detail">{detail}</div></td>
+      <td>{account}</td><td>{category}</td><td>{scheduleRecurrence(schedule.frequency)}</td>
+      <td className={amount < 0 ? "num amount-negative" : amount > 0 ? "num amount-positive" : "num"}>{formatMoney(amount, { sign: amount > 0 })}</td>
+      <td className="schedule-actions">
+        {!closed && <button type="button" className="register-row-action" onClick={onEnter} disabled={busy || !schedule.date_next} aria-label={`Enter ${payee} now`}>Enter now</button>}
+        <button type="button" className="register-row-action" onClick={onEdit} disabled={busy} aria-label={`Edit ${payee}`}>Edit</button>
+        <button type="button" className="register-row-action register-row-action-danger" onClick={onDelete} disabled={busy} aria-label={`Delete ${payee}`}>Delete</button>
+      </td>
+    </tr>
     {(schedule.subtransactions ?? []).map((line) => <SplitScheduleRow key={line.id} line={line} accounts={accounts} categories={categories} payees={payees} />)}
   </>;
 }
