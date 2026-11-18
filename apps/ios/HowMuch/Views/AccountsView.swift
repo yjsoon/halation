@@ -64,6 +64,7 @@ struct AccountsView: View {
   @Environment(AppModel.self) private var model
   @Environment(RootChromeState.self) private var chrome: RootChromeState?
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.tabBarPlacement) private var tabBarPlacement
   var usesSplit: Bool
   @State private var collapsedGroups: Set<String> = ["closed"]
   @State private var presentedSheet: AccountsSheet?
@@ -73,6 +74,10 @@ struct AccountsView: View {
   /// fold, so compact still opens on the overview.
   @State private var autoSelectedPane: AccountsPane?
   @State private var columnVisibility = NavigationSplitViewVisibility.all
+  /// One point for a moment after the tabs move between the sidebar and the
+  /// top of the screen; see where it is applied.
+  @State private var barPlacementNudge: CGFloat = 0
+  @State private var barPlacementNudgeTask: Task<Void, Never>?
   @State private var shortcutsWidth: CGFloat = 0
   /// Moved forward when the outbox card's reveal date passes; see
   /// `AppModel.outboxCardRevealDate`.
@@ -109,6 +114,24 @@ struct AccountsView: View {
               .leading, columnVisibility == .detailOnly ? 0 : fold?.width ?? 0)
           }
           .navigationSplitViewStyle(.balanced)
+          // In portrait, hiding the tab sidebar leaves both columns' bars in
+          // the row the tabs move into, so the tabs cover the register's title
+          // and this column's buttons until the iPad is rotated. Once the tabs
+          // have moved, changing the top safe area by a point and taking it
+          // straight back makes the system place the bars under them.
+          .safeAreaPadding(.top, barPlacementNudge)
+          .onChange(of: tabBarPlacement) {
+            // The tabs moved again before the last nudge finished: drop it,
+            // so it cannot end this one early.
+            barPlacementNudgeTask?.cancel()
+            barPlacementNudge = 0
+            barPlacementNudgeTask = Task { @MainActor in
+              guard (try? await Task.sleep(for: .milliseconds(600))) != nil else { return }
+              barPlacementNudge = 1
+              guard (try? await Task.sleep(for: .milliseconds(100))) != nil else { return }
+              barPlacementNudge = 0
+            }
+          }
         }
       } else {
         NavigationStack {
