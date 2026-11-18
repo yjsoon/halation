@@ -649,7 +649,12 @@ struct AccountsView: View {
         } else {
           VStack(spacing: 0) {
             ForEach(group.accounts.enumerated(), id: \.element.id) { index, account in
-              accountRow(account, balance: balances[account.id] ?? account.balance)
+              accountRow(
+                account,
+                balance: balances[account.id] ?? account.balance,
+                isFirst: index == 0,
+                isLast: index == group.accounts.count - 1
+              )
 
               if index < group.accounts.count - 1 {
                 Divider().padding(.leading, 16)
@@ -667,44 +672,54 @@ struct AccountsView: View {
   private static let groupCardTransition = AnyTransition.opacity
     .combined(with: .scale(scale: 0.96, anchor: .top))
 
-  private func accountRow(_ account: Account, balance: Int) -> some View {
+  private func accountRow(_ account: Account, balance: Int, isFirst: Bool, isLast: Bool) -> some View {
     let selected = isShowing(.account(account.id))
-    return Button {
-      pane = .account(account.id)
-    } label: {
-      HStack(alignment: .center, spacing: 8) {
-        Text(account.displayIcon)
-          .font(.title3)
-          .frame(width: 32)
-          .accessibilityHidden(true)
+    let content = HStack(alignment: .center, spacing: 8) {
+      Text(account.displayIcon)
+        .font(.title3)
+        .frame(width: 32)
+        .accessibilityHidden(true)
 
-        Group {
-          if dynamicTypeSize >= .xxLarge {
-            VStack(alignment: .leading, spacing: 4) {
-              Text(account.name)
-                .font(selected ? .body.weight(.semibold) : .body)
-                .foregroundStyle(Theme.textPrimary)
-              accountBalance(balance)
-            }
-          } else {
-            HStack {
-              Text(account.name)
-                .font(selected ? .body.weight(.semibold) : .body)
-                .foregroundStyle(Theme.textPrimary)
-              Spacer()
-              accountBalance(balance)
-            }
+      Group {
+        if dynamicTypeSize >= .xxLarge {
+          VStack(alignment: .leading, spacing: 4) {
+            Text(account.name)
+              .font(selected ? .body.weight(.semibold) : .body)
+              .foregroundStyle(Theme.textPrimary)
+            accountBalance(balance)
+          }
+        } else {
+          HStack {
+            Text(account.name)
+              .font(selected ? .body.weight(.semibold) : .body)
+              .foregroundStyle(Theme.textPrimary)
+            Spacer()
+            accountBalance(balance)
           }
         }
       }
-      .padding(.horizontal, 16)
-      .padding(.vertical, 14)
-      .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
-      .contentShape(Rectangle())
-      .background(selected ? Theme.accent.opacity(0.12) : Color.clear)
-      .animation(Theme.Motion.standard, value: selected)
+    }
+    .padding(.horizontal, 16)
+    .padding(.vertical, 14)
+    .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+    .contentShape(Rectangle())
+    .background(selected ? Theme.accent.opacity(0.12) : Color.clear)
+    .animation(Theme.Motion.standard, value: selected)
+
+    return Button {
+      pane = .account(account.id)
+    } label: {
+      content
     }
     .buttonStyle(.cardRow)
+    // UIKit's pre-menu highlight is outside the parent card's clip.
+    .contentShape(.contextMenuPreview, UnevenRoundedRectangle(
+      topLeadingRadius: isFirst ? Theme.Radius.card : 0,
+      bottomLeadingRadius: isLast ? Theme.Radius.card : 0,
+      bottomTrailingRadius: isLast ? Theme.Radius.card : 0,
+      topTrailingRadius: isFirst ? Theme.Radius.card : 0,
+      style: .continuous
+    ))
     .accessibilityLabel("\(account.displayIcon) \(account.name)")
     .accessibilityAddTraits(selected ? .isSelected : [])
     .accessibilityValue(MoneyCodec.displayString(for: balance, currencyFormat: model.currencyFormat))
@@ -737,6 +752,10 @@ struct AccountsView: View {
       Button("Edit Account") {
         presentedSheet = .edit(account)
       }
+    } preview: {
+      content
+        .fixedSize(horizontal: false, vertical: true)
+        .ynabCard()
     }
   }
 
