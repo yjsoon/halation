@@ -2212,6 +2212,8 @@ struct RewardsReportScreen: View {
           RewardGroupMenu(group: $group)
         }
       }
+      // Flush with the cards below, as on the other reports.
+      .listRowInsets(EdgeInsets())
       .listRowBackground(Color.clear)
       .listRowSeparator(.hidden)
 
