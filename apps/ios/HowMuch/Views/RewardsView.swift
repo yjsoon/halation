@@ -1636,7 +1636,17 @@ struct RewardFilledRow: View {
         .fixedSize(horizontal: false, vertical: true)
       deadline
     }
-    if dynamicTypeSize.isAccessibilitySize {
+    if dynamicTypeSize.isAccessibilitySize, let figure = figureText(text, surface: surface, tall: tall) {
+      // The figure takes a line of its own so it never breaks between digits.
+      VStack(alignment: .leading, spacing: 2) {
+        figure
+          .lineLimit(1)
+          .minimumScaleFactor(0.5)
+        actionLabelText(text, surface: surface, tall: tall)
+          .fixedSize(horizontal: false, vertical: true)
+        deadline
+      }
+    } else if dynamicTypeSize.isAccessibilitySize {
       stacked
     } else {
       ViewThatFits(in: .horizontal) {
@@ -1654,18 +1664,29 @@ struct RewardFilledRow: View {
   /// An unmet minimum's figure takes the urgent amber, the ink the deadline takes in its last days:
   /// the reward is at stake, not just a bonus. The gate's figure is set large.
   private func headlineText(_ text: RewardRowText, surface: Surface, tall: Bool = false) -> Text {
-    let ink = headlineInk(surface)
-    if let amount = text.amount {
-      let figure = Text(amount)
-        .font(tall ? monoType(.medium, 22, relativeTo: .title2, bold: bold) : monoType(.medium, 17, relativeTo: .headline, bold: bold))
-        .foregroundStyle(projection.tone == .needsMinimum ? urgentInk(surface) : ink)
-      return Text("\(figure) \(text.actionLabel)")
+    if let figure = figureText(text, surface: surface, tall: tall) {
+      return Text("\(figure) \(actionLabelText(text, surface: surface, tall: tall))")
         .font(tall ? sansType(.semibold, 17, relativeTo: .headline, bold: bold) : sansType(.regular, 15, relativeTo: .subheadline, bold: bold))
-        .foregroundStyle(ink)
+        .foregroundStyle(headlineInk(surface))
     }
     return Text(text.actionLabel)
       .font(sansType(.semibold, 17, relativeTo: .headline, bold: bold))
-      .foregroundStyle(ink)
+      .foregroundStyle(headlineInk(surface))
+  }
+
+  private func figureText(_ text: RewardRowText, surface: Surface, tall: Bool) -> Text? {
+    text.amount.map { amount in
+      Text(amount)
+        .font(tall ? monoType(.medium, 22, relativeTo: .title2, bold: bold) : monoType(.medium, 17, relativeTo: .headline, bold: bold))
+        .foregroundStyle(projection.tone == .needsMinimum ? urgentInk(surface) : headlineInk(surface))
+    }
+  }
+
+  /// The words after the figure, such as "to minimum".
+  private func actionLabelText(_ text: RewardRowText, surface: Surface, tall: Bool) -> Text {
+    Text(text.actionLabel)
+      .font(tall ? sansType(.semibold, 17, relativeTo: .headline, bold: bold) : sansType(.regular, 15, relativeTo: .subheadline, bold: bold))
+      .foregroundStyle(headlineInk(surface))
   }
 
   // MARK: Type
