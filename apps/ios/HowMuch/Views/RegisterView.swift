@@ -1919,6 +1919,9 @@ struct RegisterView: View {
             Text("Scheduled")
               .font(.subheadline.weight(.semibold))
               .foregroundStyle(Theme.textPrimary)
+              // One word: shrink a little rather than hyphenate at the largest sizes.
+              .lineLimit(1)
+              .minimumScaleFactor(0.8)
             Spacer()
             Text("\(snapshot.scheduledDisclosureCount)")
               .font(.subheadline)
