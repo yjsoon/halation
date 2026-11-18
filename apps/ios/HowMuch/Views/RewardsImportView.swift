@@ -121,6 +121,7 @@ final class RewardsAccountImportSelection {
 struct RewardsImportView: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var accountImport: RewardsAccountImportSelection
   @State private var snapshot: RewardsTrackerSnapshot?
   @State private var phase: LoadPhase = .idle
@@ -217,11 +218,17 @@ struct RewardsImportView: View {
   }
 
   private func hubRow(icon: String, title: String, subtitle: String) -> some View {
-    HStack(alignment: .top, spacing: 12) {
+    // The symbol grows with the text and outgrows its 22pt column, so
+    // accessibility sizes put it above the title instead of over it.
+    let stacks = dynamicTypeSize.isAccessibilitySize
+    let row = stacks
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+      : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+    return row {
       Image(systemName: icon)
         .foregroundStyle(Theme.accent)
-        .frame(width: 22)
-        .padding(.top, 2)
+        .frame(width: stacks ? nil : 22)
+        .padding(.top, stacks ? 0 : 2)
       VStack(alignment: .leading, spacing: 2) {
         Text(title)
         Text(subtitle)
