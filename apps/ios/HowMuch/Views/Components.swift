@@ -132,6 +132,7 @@ struct FormCardRow<Content: View>: View {
     HStack(alignment: alignment, spacing: Theme.FormRow.iconSpacing) {
       Image(systemName: icon)
         .foregroundStyle(iconColor)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(width: Theme.FormRow.iconColumn, alignment: .center)
       content()
     }
@@ -220,6 +221,7 @@ struct DisclosureValueRow: View {
     HStack(alignment: .center, spacing: Theme.FormRow.iconSpacing) {
       Image(systemName: icon)
         .foregroundStyle(Theme.accent)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(width: Theme.FormRow.iconColumn, alignment: .center)
 
       titleAndValue
