@@ -140,7 +140,9 @@ struct AssistantView: View {
         Text(brief.detail)
           .font(.subheadline)
           .foregroundStyle(Theme.textPrimary)
-        Text("\(brief.from) – \(brief.to) · \(brief.accountLabel)")
+        let from = LedgerDate.friendlyString(fromISO: brief.from)
+        let to = LedgerDate.friendlyString(fromISO: brief.to)
+        Text("\(from == to ? from : "\(from) – \(to)") · \(brief.accountLabel)")
           .font(.footnote)
           .foregroundStyle(.secondary)
         if brief.isRecordedSpending {

@@ -624,7 +624,9 @@ struct CaptureAssistantReply: View {
   }
 
   private func queryCard(_ card: LedgerQueryResult) -> some View {
-    let range = card.from == card.to ? card.from : "\(card.from) – \(card.to)"
+    let from = LedgerDate.friendlyString(fromISO: card.from)
+    let to = LedgerDate.friendlyString(fromISO: card.to)
+    let range = from == to ? from : "\(from) – \(to)"
     return VStack(alignment: .leading, spacing: 8) {
       Text("Recorded spending")
         .font(.footnote.weight(.semibold))
@@ -639,10 +641,12 @@ struct CaptureAssistantReply: View {
           Text(card.sourceCount == 1
             ? "Inspect 1 matching payment"
             : "Inspect \(card.sourceCount) matching payments")
+            // Inside the label, so the whole 44pt row is the target.
+            .frame(minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
         .font(.footnote.weight(.semibold))
         .tint(Theme.accent)
-        .frame(minHeight: 44, alignment: .leading)
       }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
