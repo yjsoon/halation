@@ -993,11 +993,14 @@ struct RegisterView: View {
             Text(MoneyCodec.displayString(for: current, currencyFormat: model.currencyFormat))
               .font(.title2.weight(.bold))
               .monospacedDigit()
+              // One line, so the minus never takes a line of its own.
+              .lineLimit(1)
+              .minimumScaleFactor(0.5)
               .rollingNumber(current)
               .foregroundStyle(Theme.textPrimary)
               .accessibilityLabel(headlineAccessibilityLabel(current: current, working: working))
             if current != working {
-              Text("Working \(MoneyCodec.displayString(for: working, currencyFormat: model.currencyFormat)) including posted scheduled")
+              Text("Working \(MoneyCodec.displayString(for: working, currencyFormat: model.currencyFormat).replacingOccurrences(of: "-", with: "-\u{2060}")) including posted scheduled")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .accessibilityHidden(true)
@@ -1095,7 +1098,7 @@ struct RegisterView: View {
         .foregroundStyle(ink)
         .accessibilityElement(children: .contain)
         if current != working {
-          Text("Working \(MoneyCodec.displayString(for: working, currencyFormat: model.currencyFormat)) including posted scheduled")
+          Text("Working \(MoneyCodec.displayString(for: working, currencyFormat: model.currencyFormat).replacingOccurrences(of: "-", with: "-\u{2060}")) including posted scheduled")
             .font(.caption)
             .foregroundStyle(softInk)
             .accessibilityHidden(true)
@@ -2931,8 +2934,11 @@ struct TransactionRow: View {
   var syncStatus: PendingRow.Status? = nil
   /// Set in selection mode: whether this row is picked. A tap then toggles it.
   var isSelected: Bool? = nil
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   var body: some View {
+    // Accessibility sizes put the amount under the payee so neither is cut.
+    let stacks = dynamicTypeSize.isAccessibilitySize
     HStack(alignment: .center, spacing: 4) {
       Button(action: onOpen) {
         HStack(alignment: .center, spacing: 10) {
@@ -2944,35 +2950,46 @@ struct TransactionRow: View {
               .animation(Theme.Motion.standard, value: isSelected)
               .accessibilityHidden(true)
           }
-          VStack(alignment: .leading, spacing: 3) {
-            Text(payeeDisplay)
-              .font(.body.weight(.semibold))
-              .foregroundStyle(Theme.textPrimary)
-              .lineLimit(1)
-            Text(detailLine)
-              .font(.footnote)
-              .foregroundStyle(transaction.isUncategorised ? AnyShapeStyle(Theme.uncategorised) : AnyShapeStyle(.secondary))
-              .lineLimit(1)
-            if !(transaction.memo ?? "").isEmpty || transaction.claimStatus != nil {
-              RegisterMemoLine(memo: transaction.memo ?? "", claimStatus: transaction.claimStatus)
+          let layout = stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 10))
+          layout {
+            VStack(alignment: .leading, spacing: 3) {
+              Text(payeeDisplay)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Theme.textPrimary)
+                .lineLimit(stacks ? nil : 1)
+              Text(detailLine)
+                .font(.footnote)
+                .foregroundStyle(transaction.isUncategorised ? AnyShapeStyle(Theme.uncategorised) : AnyShapeStyle(.secondary))
+                .lineLimit(stacks ? nil : 1)
+              if !(transaction.memo ?? "").isEmpty || transaction.claimStatus != nil {
+                RegisterMemoLine(memo: transaction.memo ?? "", claimStatus: transaction.claimStatus)
+              }
             }
-          }
 
-          Spacer()
-
-          HStack(spacing: 4) {
-            syncGlyph
-            if transaction.isToConfirm {
-              EstimateMark()
+            if !stacks {
+              Spacer()
             }
-            Text(MoneyCodec.signedDisplayString(for: transaction.amount, currencyFormat: currencyFormat))
-              .font(.subheadline.weight(.medium))
-              .monospacedDigit()
-              .foregroundStyle(Theme.registerAmountColour(transaction.amount))
+
+            HStack(spacing: 4) {
+              syncGlyph
+              if transaction.isToConfirm {
+                EstimateMark()
+              }
+              Text(MoneyCodec.signedDisplayString(for: transaction.amount, currencyFormat: currencyFormat))
+                .font(.subheadline.weight(.medium))
+                .monospacedDigit()
+                .foregroundStyle(Theme.registerAmountColour(transaction.amount))
+                .lineLimit(stacks ? 1 : nil)
+                .minimumScaleFactor(stacks ? 0.5 : 1)
+            }
           }
         }
-        .contentShape(Rectangle())
+        // The frame first: stacked, nothing else fills the row, and the space
+        // beside the text must open the transaction too.
         .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
       .accessibilityAddTraits(isSelected == true ? .isSelected : [])
