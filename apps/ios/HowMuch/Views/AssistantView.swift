@@ -156,7 +156,10 @@ struct AssistantView: View {
               ? "Inspect 1 matching payment"
               : "Inspect \(brief.sourceCount) matching payments")
               .font(.footnote.weight(.semibold))
+              .padding(.vertical, 14)
+              .contentShape(Rectangle())
           }
+          .padding(.vertical, -14)
         }
       } else {
         Text("No recorded-spending brief yet.")
