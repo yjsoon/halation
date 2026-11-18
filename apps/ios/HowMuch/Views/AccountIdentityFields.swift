@@ -76,6 +76,31 @@ struct AccountIdentityFields: View {
     .ynabCard()
   }
 
+  /// A label with its value and chevron beside it, or under it at accessibility
+  /// sizes, as the name card does, so neither breaks mid-word.
+  private func stackedAtAccessibilitySizes(
+    @ViewBuilder label: () -> some View, @ViewBuilder value: () -> some View
+  ) -> some View {
+    let stacks = dynamicTypeSize.isAccessibilitySize
+    let layout = stacks ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6)) : AnyLayout(HStackLayout())
+    return layout {
+      label()
+      if !stacks {
+        Spacer()
+      }
+      HStack {
+        value()
+        if stacks {
+          Spacer()
+        }
+        Image(systemName: "chevron.right")
+          .font(.caption.weight(.semibold))
+          .foregroundStyle(.secondary)
+          .accessibilityHidden(true)
+      }
+    }
+  }
+
   private var nameField: some View {
     TextField(classification.kind?.placeholderName ?? "Account name", text: $name)
       .textInputAutocapitalization(.words)
@@ -88,19 +113,18 @@ struct AccountIdentityFields: View {
     NavigationLink {
       AccountKindPicker(selection: $classification)
     } label: {
-      HStack {
+      stackedAtAccessibilitySizes {
         Text("Type")
           .foregroundStyle(Theme.textPrimary)
-        Spacer()
+      } value: {
         Text(classification.defaultIcon.rawValue)
           .font(.title3)
           .accessibilityHidden(true)
         Text(classification.title)
           .foregroundStyle(.secondary)
-        Image(systemName: "chevron.right")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
-          .accessibilityHidden(true)
+          // Beside the emoji and chevron a word would break, so it shrinks instead.
+          .lineLimit(dynamicTypeSize.isAccessibilitySize ? 1 : nil)
+          .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 0.5 : 1)
       }
       .padding(.horizontal, 16)
       .padding(.vertical, 13)
@@ -118,16 +142,12 @@ struct AccountIdentityFields: View {
       nameFocus.wrappedValue = false
       isPickingIcon = true
     } label: {
-      HStack {
+      stackedAtAccessibilitySizes {
         Text("Icon")
           .foregroundStyle(Theme.textPrimary)
-        Spacer()
+      } value: {
         Text(shownIcon.rawValue)
           .font(.title3)
-          .accessibilityHidden(true)
-        Image(systemName: "chevron.right")
-          .font(.caption.weight(.semibold))
-          .foregroundStyle(.secondary)
           .accessibilityHidden(true)
       }
       .padding(.horizontal, 16)
