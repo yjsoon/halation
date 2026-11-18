@@ -170,6 +170,7 @@ struct RewardsView: View {
 
   /// Rows are capped and centred on wide screens.
   static let rowMaxWidth: CGFloat = 640
+  @ScaledMetric(relativeTo: .body) private var accessibilityRowMaxWidth = 640.0
 
   init(filter: RewardsReportFilter = RewardsReportFilter()) {
     var board = filter
@@ -491,7 +492,9 @@ struct RewardsView: View {
     }
     // On iPad the strip has no readable-width limit, and a 700pt strip turns into a thin ribbon; the
     // window rows use the whole width, with the figures in columns beside the window.
-    .frame(maxWidth: windowWidth == nil ? Self.rowMaxWidth : .infinity)
+    .frame(maxWidth: windowWidth == nil
+      ? (dynamicTypeSize.isAccessibilitySize ? accessibilityRowMaxWidth : Self.rowMaxWidth)
+      : .infinity)
     .frame(maxWidth: .infinity)
     // The open card is lifted: the margin below gives its shadow room.
     .listRowInsets(EdgeInsets(top: isOpen ? 8 : 5, leading: rowGutter, bottom: isOpen ? 16 : 5, trailing: rowGutter))
