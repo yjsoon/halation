@@ -5,6 +5,9 @@ import UIKit
 /// account groups. Shown only when at least one card has terms.
 struct PaymentsDueBand: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @ScaledMetric(relativeTo: .subheadline) private var minimumRowWidth = 360.0
+  @State private var bandWidth: CGFloat = 0
   var onOpenAccount: (String) -> Void
   @State private var sheet: PaymentsDueSheet?
   @State private var busyCycleID: String?
@@ -61,6 +64,7 @@ struct PaymentsDueBand: View {
         .ynabCard()
       }
       .accessibilityIdentifier("payments-due-band")
+      .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { bandWidth = $0 }
       .sheet(item: $sheet) { sheet in
         Group {
           switch sheet {
@@ -99,22 +103,30 @@ struct PaymentsDueBand: View {
   @ViewBuilder
   private func rowView(_ row: PaymentsDueRow) -> some View {
     let money = { (value: Int) in MoneyCodec.displayString(for: value, currencyFormat: model.currencyFormat) }
-    HStack(alignment: .top, spacing: 12) {
+    let layout = dynamicTypeSize.isAccessibilitySize || bandWidth < minimumRowWidth
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+      : AnyLayout(HStackLayout(alignment: .top, spacing: 12))
+    layout {
       Button {
         onOpenAccount(row.account.id)
       } label: {
         VStack(alignment: .leading, spacing: 4) {
-          HStack(alignment: .firstTextBaseline) {
+          let headingLayout = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+          headingLayout {
             Text(row.account.name)
               .font(.subheadline.weight(.semibold))
               .foregroundStyle(Theme.textPrimary)
-              .lineLimit(1)
-            Spacer(minLength: 8)
+              .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
+            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
             if let cycle = row.cycle, cycle.hasAmountDue {
               Text(money(cycle.statementBalance))
                 .font(.subheadline.weight(.semibold))
                 .monospacedDigit()
                 .foregroundStyle(Theme.textPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
             }
           }
           Text(row.primaryLine(money: money))
@@ -132,6 +144,7 @@ struct PaymentsDueBand: View {
               .accessibilityIdentifier("payments-due-previous-unpaid")
           }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
@@ -167,12 +180,16 @@ struct PaymentsDueBand: View {
       Button {
         schedule(cycle)
       } label: {
-        if busyCycleID == cycle.id {
-          ProgressView()
-        } else {
-          Text("Schedule")
-            .font(.subheadline.weight(.semibold))
+        Group {
+          if busyCycleID == cycle.id {
+            ProgressView()
+          } else {
+            Text("Schedule")
+              .font(.subheadline.weight(.semibold))
+          }
         }
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(minHeight: 30)
       }
       .buttonStyle(.bordered)
       .tint(row.isOverdue ? Theme.outflow : Theme.accent)
