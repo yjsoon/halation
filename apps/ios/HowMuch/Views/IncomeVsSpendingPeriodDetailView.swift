@@ -35,7 +35,9 @@ struct ReportStatRow: View {
         }
       }
     } else {
-      HStack(alignment: .top, spacing: 8) {
+      // By the figures' tops: a title that wraps (Savings rate on the iPhone
+      // Duo's outer display) grows upwards and its figure stays in line.
+      HStack(alignment: .reportFigureTop, spacing: 8) {
         ForEach(Array(stats.enumerated()), id: \.element.id) { index, stat in
           if index > 0 {
             Spacer(minLength: 0)
@@ -57,9 +59,19 @@ struct ReportStatRow: View {
         .foregroundStyle(stat.colour)
         .lineLimit(singleLine ? 1 : nil)
         .minimumScaleFactor(singleLine ? 0.8 : 1)
+        .alignmentGuide(.reportFigureTop) { $0[.top] }
     }
     .accessibilityElement(children: .combine)
   }
+}
+
+private extension VerticalAlignment {
+  private enum ReportFigureTop: AlignmentID {
+    static func defaultValue(in context: ViewDimensions) -> CGFloat { context[.top] }
+  }
+
+  /// The top of a report figure, under its title.
+  static let reportFigureTop = VerticalAlignment(ReportFigureTop.self)
 }
 
 /// Income over spending as two bars on one scale, green above red. In the
