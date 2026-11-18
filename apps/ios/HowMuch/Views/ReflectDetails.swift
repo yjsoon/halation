@@ -534,36 +534,28 @@ struct SpendingBreakdownDetailView: View {
         .rollingNumber(total)
       StackedShareBar(segments: ReflectMaths.shareSegments(rows, limit: 6))
 
-      HStack {
-        statColumn("Largest Line", rows.max { abs($0.amount) < abs($1.amount) }?.categoryName ?? "—")
-        Spacer()
-        statColumn(
-          "Avg Transaction",
-          transactionCount > 0
+      // Three abreast, then two by two and one per line at large sizes, as
+      // the other reports' figures do.
+      ReportStatRow(stats: [
+        ReportStatRow.Stat(
+          label: "Largest Line",
+          value: rows.max { abs($0.amount) < abs($1.amount) }?.categoryName ?? "—",
+          colour: Theme.textPrimary
+        ),
+        ReportStatRow.Stat(
+          label: "Avg Transaction",
+          value: transactionCount > 0
             ? MoneyCodec.displayString(for: total / transactionCount, currencyFormat: model.currencyFormat)
-            : "—"
-        )
-        Spacer()
-        statColumn("Transactions", "\(transactionCount)")
-      }
+            : "—",
+          colour: Theme.textPrimary
+        ),
+        ReportStatRow.Stat(label: "Transactions", value: "\(transactionCount)", colour: Theme.textPrimary),
+      ])
       .padding(.top, 2)
     }
     .frame(maxWidth: .infinity)
     .padding(16)
     .ynabCard()
-  }
-
-  private func statColumn(_ label: String, _ value: String) -> some View {
-    VStack(spacing: 2) {
-      Text(label)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-      Text(value)
-        .font(.footnote.weight(.semibold))
-        .monospacedDigit()
-        .foregroundStyle(Theme.textPrimary)
-        .lineLimit(1)
-    }
   }
 
   private func quietToggleNote(excluded: Int) -> some View {
