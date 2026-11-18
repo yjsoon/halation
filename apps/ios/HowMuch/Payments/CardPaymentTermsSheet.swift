@@ -65,7 +65,7 @@ struct CardPaymentTermsSheet: View {
             }
           }
           Stepper(value: $terms.dueGapDays, in: 1 ... 60) {
-            LabeledContent("Due", value: "\(terms.dueGapDays) days after statement")
+            stepperLabel("Due", value: "\(terms.dueGapDays) days after statement")
           }
           Picker("If due on a weekend", selection: $terms.dueWeekendRule) {
             ForEach(CardDueWeekendRule.allCases) { rule in
@@ -100,7 +100,7 @@ struct CardPaymentTermsSheet: View {
               .monospacedDigit()
           }
           Stepper(value: $terms.payDaysBeforeDue, in: 0 ... 10) {
-            LabeledContent("Pay on", value: payDaysLabel)
+            stepperLabel("Pay on", value: payDaysLabel)
           }
         } header: {
           Text("Paying")
@@ -110,7 +110,7 @@ struct CardPaymentTermsSheet: View {
 
         Section {
           Stepper(value: $terms.leadDays, in: 0 ... 30) {
-            LabeledContent("Remind me", value: terms.leadDays == 0 ? "On the due date" : "\(terms.leadDays) days before")
+            stepperLabel("Remind me", value: terms.leadDays == 0 ? "On the due date" : "\(terms.leadDays) days before")
           }
           Picker("At", selection: $terms.deliveryHour) {
             ForEach(0 ..< 24, id: \.self) { hour in
@@ -184,6 +184,21 @@ struct CardPaymentTermsSheet: View {
         message: { Text("Scheduled payments already made stay in place.") }
       ) {
         Task { await remove() }
+      }
+    }
+  }
+
+  /// A stepper's title and value on one line, or the value under the title
+  /// when they do not fit beside the stepper, as the system stacks a picker
+  /// row that is too long.
+  private func stepperLabel(_ title: String, value: String) -> some View {
+    ViewThatFits(in: .horizontal) {
+      LabeledContent(title, value: value)
+        .lineLimit(1)
+      VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+        Text(value)
+          .foregroundStyle(.secondary)
       }
     }
   }
