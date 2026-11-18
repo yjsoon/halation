@@ -58,3 +58,17 @@ Tests, same command:
 
 - at `79e3f937` (all four authors' fixes): "runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-18 18:37:39 +0000)" and "Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 196.917 (197.289) seconds".
 - at `414e6de7` (with the two corrections): "runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-18 18:56:11 +0000)" and "Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 182.256 (182.609) seconds".
+
+## After the reviews: corrections folded in
+
+The reviewers' corrections were folded into the commits they correct (`git rebase --autosquash`), so every hash named above and in the workers' records is from before that and no longer exists on the branch. Find a commit by its subject or its `Finding:` trailer. Three tap-target commits were dropped (follow-up chips, report filter chips and month arrows): taps on the `2258ef81` build showed those controls already took taps over 44pt or more, and the commits only added height.
+
+- LEAD-05, month between the Spending Breakdown arrows ("iOS: keep the month between the stepper's arrows whole at large sizes"). Steps: iPhone SE, Insights, Month to Date, text size `accessibility-extra-extra-extra-large`. Before: the label read "No- / vember / 2026". After: "November / 2026", frame [86, 403, 203, 104], between Back [24, 428, 54, 54] and Forward [297, 428, 54, 54]. At the default size on the iPhone 18 Pro the frames are the same before and after: label [143, 202, 115, 18], Back [24, 198, 28, 28], Forward [350, 198, 28, 28].
+- R-D8, word suggestions on the Reconcile balance keyboard: autocorrection is off on the field. Not seen running, because the simulator showed no software keyboard.
+- Combined head on the iPhone SE at `accessibility-extra-extra-extra-large`, Spending Breakdown: the filter chips sit inside the screen (x 16 to 336), the summary reads one figure per line ("Largest Line" [32, 32, 224, 52], "Avg Transaction" 291pt wide, "Transactions" 232pt wide), and the group heading reads "Home" [20, w 132], "$2,650.95" on one line and "57%" at x 270 to 354.
+
+Tests, same command, iPhone 18 Pro at the default size, with all four authors' fixes and corrections (45 commits on `2258ef81`):
+
+- First run: "Executed 822 tests, with 1 test skipped and 9 failures (0 unexpected)". Four `CaptureSnapshotTests` cases failed with an empty accessibility tree (`testAddAndEditTransactionFormRowsShareHeightAndOrder`, `testAddManuallySavesOnceAndCancelPreservesConversation`, `testAddTransactionDatePickerDoesNotResizeSheet`, `testAddTransactionMemoFocusHidesCalculatorKeypad`). The app was still open on the simulator from the manual checks. The cause was not established.
+- Second run, same build products, after terminating the app: "runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-18 21:39:02 +0000)" and "Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 182.506 (182.857) seconds".
+- Third run, same build products, app terminated first: "Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 179.381 (179.741) seconds".
