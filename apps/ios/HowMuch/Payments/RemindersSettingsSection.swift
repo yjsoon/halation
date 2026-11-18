@@ -33,6 +33,13 @@ struct RemindersSettingsSection: View {
               .foregroundStyle(Theme.textPrimary)
           }
         }
+        // One sheet, on the card's own row. A sheet on the Section is applied
+        // to every row in it: the rows all presented at once, UIKit refused
+        // all but one and Settings closed instead.
+        .sheet(isPresented: isEditing(account)) {
+          CardPaymentTermsSheet(account: account, existing: model.cardPayments.terms(for: account.id))
+            .environment(model)
+        }
       }
       LabeledContent("Reminders on this \(UIDevice.current.model)", value: "\(notifier.pendingReminders.count)")
       #if DEBUG
@@ -66,9 +73,13 @@ struct RemindersSettingsSection: View {
       await notifier.refreshAuthorisation()
       await notifier.reloadPendingList()
     }
-    .sheet(item: $editingAccount) { account in
-      CardPaymentTermsSheet(account: account, existing: model.cardPayments.terms(for: account.id))
-        .environment(model)
+  }
+
+  private func isEditing(_ account: Account) -> Binding<Bool> {
+    Binding {
+      editingAccount?.id == account.id
+    } set: { isPresented in
+      if !isPresented { editingAccount = nil }
     }
   }
 
