@@ -1,5 +1,4 @@
-import type { Database } from "bun:sqlite";
-import { D1Database, type D1Binding, type D1Result, type D1Statement } from "../../src/d1";
+import { D1Database, type D1Result } from "../../src/d1";
 import type { SqlValues } from "../../src/async-sql";
 import type { BatchStatement, RepositoryStatement } from "../../src/repository-db";
 
@@ -85,44 +84,4 @@ export class CountingD1Database extends D1Database {
   }
 }
 
-/** Minimal in-process stand-in for a Cloudflare D1 binding, backed by SQLite. */
-export function fakeD1Binding(db: Database): D1Binding {
-  class Statement implements D1Statement {
-    values: unknown[] = [];
-    constructor(readonly sql: string) {}
-    bind(...values: unknown[]) {
-      this.values = values;
-      return this;
-    }
-    async all<Row>(): Promise<D1Result<Row>> {
-      return { success: true, results: db.query(this.sql).all(...(this.values as any[])) as Row[] };
-    }
-    async first<Row>(): Promise<Row | null> {
-      return db.query(this.sql).get(...(this.values as any[])) as Row | null;
-    }
-    async run(): Promise<D1Result> {
-      const result = db.query(this.sql).run(...(this.values as any[]));
-      return { success: true, meta: { changes: Number(result.changes) } };
-    }
-  }
-  return {
-    prepare: (sql) => new Statement(sql),
-    batch: async <Row>(statements: D1Statement[]) => {
-      db.run("BEGIN IMMEDIATE");
-      try {
-        const results: D1Result<Row>[] = [];
-        for (const statement of statements) {
-          const sql = (statement as Statement).sql;
-          results.push(await (/^\s*(SELECT|WITH)\b/i.test(sql)
-            ? statement.all<Row>()
-            : statement.run() as Promise<D1Result<Row>>));
-        }
-        db.run("COMMIT");
-        return results;
-      } catch (error) {
-        if (db.inTransaction) db.run("ROLLBACK");
-        throw error;
-      }
-    },
-  };
-}
+export { sqliteD1Binding as fakeD1Binding } from "../../src/sqlite-d1";

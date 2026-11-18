@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import { parseArgs as parseCliArgs } from "node:util";
-import { openDatabase } from "../apps/api/src/db";
+import { D1Database } from "../apps/api/src/d1";
+import { D1LedgerRepository } from "../apps/api/src/d1-ledger-repository";
 import { importYnabExport } from "../apps/api/src/importers/ynab-export";
-import { LedgerRepository } from "../apps/api/src/repository";
+import { openD1Sqlite, sqliteD1Binding } from "../apps/api/src/sqlite-d1";
 import { ledgerSummary } from "./lib/import-summary";
 import { backupSqliteDatabase } from "./lib/sqlite-backup";
 
@@ -28,10 +29,12 @@ if (options.help) {
 
 const backupPath = options.noBackup ? null : backupSqliteDatabase(options.dbPath);
 const input = options.zipPath ? readYnabExportZip(options.zipPath) : readYnabExportFiles(options);
-const db = openDatabase(options.dbPath);
-const repo = new LedgerRepository(db, options.planId);
+const db = openD1Sqlite(options.dbPath);
+const repo = new D1LedgerRepository(new D1Database(sqliteD1Binding(db)), options.planId);
 
 try {
+  // D1 writes need the plan to exist, as production's first-owner setup makes it.
+  await repo.ensurePlan(options.planId, options.planName ?? input.planName);
   const result = await importYnabExport(repo, {
     planId: options.planId,
     planName: options.planName ?? input.planName,
@@ -85,7 +88,7 @@ function parseArgs(args: string[]): CliOptions {
     zipPath: values.zip,
     registerPath: values.register,
     planPath: values.plan,
-    dbPath: values.db ?? Bun.env.HOWMUCH_DB_PATH ?? "data/howmuch.sqlite",
+    dbPath: values.db ?? "data/ynab-import.sqlite",
     planId: values["plan-id"] ?? Bun.env.HOWMUCH_DEFAULT_PLAN_ID ?? "ynab-web-export",
     planName: values["plan-name"],
     dateFormat: dateFormat as CliOptions["dateFormat"],
@@ -157,17 +160,17 @@ function inferPlanName(path: string): string | undefined {
 }
 
 function printHelp(): void {
-  console.log(`Import a YNAB web export zip or CSV pair into a local HowMuch SQLite database.
+  console.log(`Import a YNAB web export zip or CSV pair into a local D1-schema SQLite database.
 
 Usage:
-  bun run import:ynab-export -- --zip "/path/to/YNAB Export - Plan as of YYYY-MM-DD HH-MM.zip" --db data/howmuch-real.sqlite
-  bun run import:ynab-export -- --register Register.csv --plan Plan.csv --db data/howmuch-real.sqlite
+  bun run import:ynab-export -- --zip "/path/to/YNAB Export - Plan as of YYYY-MM-DD HH-MM.zip" --db data/ynab-import.sqlite
+  bun run import:ynab-export -- --register Register.csv --plan Plan.csv --db data/ynab-import.sqlite
 
 Options:
   --zip <path>           YNAB web export zip containing Register.csv and Plan.csv
   --register <path>      Register CSV/TSV path when not importing a zip
   --plan <path>          Optional Plan CSV/TSV path when not importing a zip
-  --db <path>            SQLite database path (default HOWMUCH_DB_PATH or data/howmuch.sqlite)
+  --db <path>            D1-schema SQLite database path (default data/ynab-import.sqlite)
   --plan-id <id>         Local HowMuch plan id (default HOWMUCH_DEFAULT_PLAN_ID or ynab-web-export)
   --plan-name <name>     Local HowMuch plan name
   --date-format <fmt>    Date parser for non-ISO dates: dmy, mdy, or ymd (default dmy)

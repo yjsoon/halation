@@ -1,6 +1,4 @@
-import type { openDatabase } from "../../apps/api/src/db";
-
-type Db = ReturnType<typeof openDatabase>;
+import type { Database as Db } from "bun:sqlite";
 
 export function singleNumber(db: Db, sql: string, ...params: string[]): number {
   const row = db.query(sql).get(...params) as { value: number | bigint } | null;

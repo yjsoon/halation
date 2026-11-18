@@ -3,11 +3,11 @@ import { Database } from "bun:sqlite";
 import { existsSync, mkdtempSync, rmSync, readFileSync, writeFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase } from "../apps/api/src/db";
+import { openD1Sqlite } from "../apps/api/src/sqlite-d1";
 import { generateYnabD1Bootstrap, generateYnabD1BootstrapChunks } from "./lib/ynab-d1-bootstrap";
 
 function fixture(dir: string): string {
-  const path = join(dir, "source.sqlite"); const db = openDatabase(path);
+  const path = join(dir, "source.sqlite"); const db = openD1Sqlite(path);
   db.exec(`
     INSERT INTO plans(id,name,server_knowledge) VALUES('p','Private plan',50);
     INSERT INTO category_groups(id,plan_id,name) VALUES('g','p','Group');
@@ -229,7 +229,7 @@ describe("offline YNAB D1 bootstrap", () => {
     const cases: Array<[string, string]> = [
       ["INSERT INTO users(id) VALUES('u')", "authentication or setup"],
       ["INSERT INTO audit_events(id,plan_id,action,source) VALUES('reconcile-audit','p','account.reconcile','howmuch-local')", "account reconciliation history"],
-      ["INSERT INTO account_reconciliation_assertions(command_id,plan_id,account_id,statement_date,prior_reconciled_balance_milli,projected_reconciled_balance_milli,candidate_ids_json) VALUES('reconcile-assertion','p','a','2026-01-31',100,100,'[]')", "account reconciliation history"],
+      ["INSERT INTO write_commands(id,expected_write_version,kind,plan_id,transaction_id,request_hash) VALUES('reconcile-assertion',0,'account.reconcile','p','a','hash'); INSERT INTO account_reconciliation_assertions(command_id,plan_id,account_id,statement_date,prior_reconciled_balance_milli,projected_reconciled_balance_milli,candidate_ids_json) VALUES('reconcile-assertion','p','a','2026-01-31',100,100,'[]')", "account reconciliation history"],
       ["UPDATE import_rows SET row_index=row_index+1", "zero-based"],
       ["INSERT INTO source_events(id,plan_id,transaction_id,source_kind,source_ref) VALUES('extra','p','ta','api',NULL)", "exactly one matching"],
     ];

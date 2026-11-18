@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { openDatabase } from "../apps/api/src/db";
+import { openD1Sqlite } from "../apps/api/src/sqlite-d1";
 
 const plan = {
   id: "plan",
@@ -47,7 +47,7 @@ function writeFixture(dir: string, extraUnrelatedCategory = false, splitParent =
       category_id: "source-category",
     }],
   } : plan;
-  const db = openDatabase(databasePath);
+  const db = openD1Sqlite(databasePath);
   db.exec(`
     INSERT INTO plans(id,name) VALUES ('plan','Source plan');
     INSERT INTO accounts(id,plan_id,name,opening_balance_milli,balance_milli)
@@ -143,7 +143,7 @@ describe("YNAB parity verifier category placeholders", () => {
     const dir = mkdtempSync(join(tmpdir(), "howmuch-ynab-parity-"));
     try {
       const { databasePath, planPath } = writeFixture(dir, false, true);
-      const db = openDatabase(databasePath);
+      const db = openD1Sqlite(databasePath);
       db.exec("INSERT INTO category_groups(id,plan_id,name) VALUES ('uncategorized-group','plan','Uncategorised')");
       db.close();
 
@@ -160,7 +160,7 @@ describe("YNAB parity verifier category placeholders", () => {
     const dir = mkdtempSync(join(tmpdir(), "howmuch-ynab-parity-"));
     try {
       const { databasePath, planPath } = writeFixture(dir, false, true);
-      const db = openDatabase(databasePath);
+      const db = openD1Sqlite(databasePath);
       db.exec(`
         INSERT INTO category_groups(id,plan_id,name) VALUES ('uncategorized-group','plan','Uncategorised');
         INSERT INTO categories(id,plan_id,category_group_id,name)
@@ -184,7 +184,7 @@ describe("YNAB parity verifier category placeholders", () => {
       const settingsPath = join(dir, "settings.json");
       const settings = { date_format: { format: "YYYY-MM-DD" }, currency_format: { iso_code: "SGD" }, display: { flag_names: { blue: "Follow up" } } };
       writeFileSync(settingsPath, JSON.stringify({ data: { settings, server_knowledge: 42 } }));
-      const db = openDatabase(databasePath);
+      const db = openD1Sqlite(databasePath);
       db.query("INSERT INTO ynab_raw_objects(plan_id,object_type,object_id,payload_json) VALUES ('plan','settings','settings',?)")
         .run(JSON.stringify({ display: { flag_names: { blue: "Follow up" } }, currency_format: { iso_code: "SGD" }, date_format: { format: "YYYY-MM-DD" } }));
       db.close();
@@ -194,7 +194,7 @@ describe("YNAB parity verifier category placeholders", () => {
       expect(matched.stderr.toString()).toBe("");
       expect(matched.stdout.toString()).toMatch(/settings: source=1 mirror=1 source_hash=[a-f0-9]{64} mirror_hash=[a-f0-9]{64}/);
 
-      const changed = openDatabase(databasePath);
+      const changed = openD1Sqlite(databasePath);
       changed.query("UPDATE ynab_raw_objects SET payload_json=? WHERE plan_id='plan' AND object_type='settings' AND object_id='settings'")
         .run(JSON.stringify({ date_format: { format: "DD/MM/YYYY" } }));
       changed.close();

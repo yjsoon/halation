@@ -1,26 +1,23 @@
-import { mkdtempSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { AsyncReportService } from "../apps/api/src/async-reports";
+import { D1AuthStore } from "../apps/api/src/auth-store";
+import { D1Database } from "../apps/api/src/d1";
+import { D1LedgerRepository } from "../apps/api/src/d1-ledger-repository";
 import { createHandler } from "../apps/api/src/http";
-import { openDatabase } from "../apps/api/src/db";
+import { openD1Sqlite, sqliteD1Binding } from "../apps/api/src/sqlite-d1";
 import { seedDemoLedger } from "./lib/demo-seed";
 
-const tempDir = mkdtempSync(join(tmpdir(), "howmuch-smoke-"));
-const dbPath = join(tempDir, "howmuch.sqlite");
+// The production API and D1 stores over an in-memory database.
 const planId = "local-plan";
 const token = "smoke-token";
-
-await seedDemoLedger({ dbPath, planId });
-
-const db = openDatabase(dbPath);
+const db = openD1Sqlite();
+const d1 = new D1Database(sqliteD1Binding(db));
+const repo = new D1LedgerRepository(d1, planId);
+await seedDemoLedger(repo, { planId });
 const handler = createHandler({
-  db,
-  config: {
-    dbPath,
-    port: 8787,
-    apiToken: token,
-    defaultPlanId: planId,
-  },
+  repo,
+  reports: new AsyncReportService(d1),
+  auth: new D1AuthStore(d1),
+  config: { dbPath: ":memory:", port: 0, apiToken: token, defaultPlanId: planId },
 });
 const headers = {
   authorization: `Bearer ${token}`,

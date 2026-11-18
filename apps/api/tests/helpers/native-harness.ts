@@ -1,71 +1,50 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { AsyncReportService } from "../../src/async-reports";
-import { D1AuthStore, SQLiteAuthStore, type AuthStore } from "../../src/auth-store";
+import { D1AuthStore, type AuthStore } from "../../src/auth-store";
 import { D1Database } from "../../src/d1";
 import { D1LedgerRepository } from "../../src/d1-ledger-repository";
-import { applyMigrations } from "../../src/db";
-import { createHandler } from "../../src/http";
-import { LedgerRepository } from "../../src/repository";
+import { createHandler, type HandlerOptions } from "../../src/http";
 import type { LedgerStore } from "../../src/storage";
 import { newSession } from "../../src/password-auth";
-import { fakeD1Binding } from "./counting-d1";
-
-export const BACKENDS = ["SQLite", "D1"] as const;
-export type Backend = (typeof BACKENDS)[number];
+import { openD1Sqlite, sqliteD1Binding } from "../../src/sqlite-d1";
 
 export const API_TOKEN = "test-token";
 
 export type NativeHarness = {
-  backend: Backend;
   db: Database;
   repo: LedgerStore;
   /** The raw handler, for auth flows that need cookies, origins or session tokens of their own. */
   handle: (request: Request) => Promise<Response>;
   request: (path: string, init?: { method?: string; body?: unknown; key?: string; token?: string }) => Promise<Response>;
-  /** D1 only: statement count of every binding.batch call (reads and writes). */
+  /** Statement count of every binding.batch call (reads and writes). */
   batches: number[];
   close: () => void;
 };
 
 /**
- * One API over either storage backend, with plans `p` (default) and `q`
- * already created. SQLite uses the local migrations; D1 applies the D1
- * migrations to an in-memory database behind a fake binding, as production
- * would see them.
+ * The production API over an in-memory database with the D1 migrations
+ * applied behind a SQLite-backed D1 binding, with plans `p` (default) and
+ * `q` already created.
  */
 export async function nativeHarness(
-  backend: Backend,
   /** Wraps the auth store, so a test can run code between two of its calls. */
   wrapAuth: (store: AuthStore) => AuthStore = (store) => store,
 ): Promise<NativeHarness> {
-  const db = new Database(":memory:", { strict: true });
+  const db = openD1Sqlite();
   const writeBatches: number[] = [];
-  let repo: LedgerStore;
-  let handler: (request: Request) => Promise<Response>;
   const config = { dbPath: ":memory:", port: 0, apiToken: API_TOKEN, defaultPlanId: "p" };
-  if (backend === "SQLite") {
-    applyMigrations(db);
-    repo = new LedgerRepository(db, "p");
-    handler = createHandler({ db, repo, auth: wrapAuth(new SQLiteAuthStore(db)), config });
-  } else {
-    const directory = new URL("../../d1-migrations/", import.meta.url).pathname;
-    for (const file of [...new Bun.Glob("*.sql").scanSync(directory)].sort()) {
-      db.exec(await Bun.file(`${directory}${file}`).text());
-    }
-    const binding = fakeD1Binding(db);
-    const batch = binding.batch.bind(binding);
-    binding.batch = (async (statements: Parameters<typeof batch>[0]) => {
-      writeBatches.push(statements.length);
-      return batch(statements);
-    }) as typeof binding.batch;
-    const d1 = new D1Database(binding);
-    repo = new D1LedgerRepository(d1, "p");
-    handler = createHandler({ repo, reports: new AsyncReportService(d1), auth: wrapAuth(new D1AuthStore(d1)), config });
-  }
+  const binding = sqliteD1Binding(db);
+  const batch = binding.batch.bind(binding);
+  binding.batch = (async (statements: Parameters<typeof batch>[0]) => {
+    writeBatches.push(statements.length);
+    return batch(statements);
+  }) as typeof binding.batch;
+  const d1 = new D1Database(binding);
+  const repo: LedgerStore = new D1LedgerRepository(d1, "p");
+  const handler = d1Handler(db, { repo, auth: wrapAuth(new D1AuthStore(d1)), config }, d1);
   await repo.ensurePlan("p");
   await repo.ensurePlan("q");
   return {
-    backend,
     db,
     repo,
     handle: handler,
@@ -81,6 +60,25 @@ export async function nativeHarness(
     batches: writeBatches,
     close: () => db.close(),
   };
+}
+
+/** The ledger store production uses, over `db`. */
+export function d1Repo(db: Database, planId: string): D1LedgerRepository {
+  return new D1LedgerRepository(new D1Database(sqliteD1Binding(db)), planId);
+}
+
+/** The production handler over `db`; `repo` and `auth` default to the D1 stores. */
+export function d1Handler(
+  db: Database,
+  options: Omit<HandlerOptions, "db" | "reports">,
+  d1 = new D1Database(sqliteD1Binding(db)),
+): (request: Request) => Promise<Response> {
+  return createHandler({
+    ...options,
+    repo: options.repo ?? new D1LedgerRepository(d1, options.config.defaultPlanId),
+    reports: new AsyncReportService(d1),
+    auth: options.auth ?? new D1AuthStore(d1),
+  });
 }
 
 /** Makes plan `p` a YNAB mirror the way the importer does: it sets the plan marker. */

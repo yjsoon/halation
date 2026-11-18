@@ -310,7 +310,7 @@ function columns(db: Database, table: string): string[] { return (db.query(`PRAG
 function copyColumns(db: Database, table: string): string[] {
   const sourceColumns = columns(db, table);
   if (table === "plans" && !sourceColumns.includes("ynab_sourced")) return [...sourceColumns, "ynab_sourced"];
-  return table === "transactions" || table === "subtransactions"
+  return (table === "transactions" || table === "subtransactions") && !sourceColumns.includes("ledger_sequence")
     ? [...sourceColumns, "ledger_sequence"]
     : sourceColumns;
 }

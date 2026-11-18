@@ -1,7 +1,9 @@
 import { parseArgs as parseCliArgs } from "node:util";
-import { openDatabase } from "../apps/api/src/db";
+import type { Database } from "bun:sqlite";
+import { D1Database } from "../apps/api/src/d1";
+import { D1LedgerRepository } from "../apps/api/src/d1-ledger-repository";
 import { importYnabFromApi, listYnabPlans, type YnabPlanSummary } from "../apps/api/src/importers/ynab";
-import { LedgerRepository } from "../apps/api/src/repository";
+import { openD1Sqlite, sqliteD1Binding } from "../apps/api/src/sqlite-d1";
 import { ledgerSummary, singleNumber } from "./lib/import-summary";
 import { backupSqliteDatabase } from "./lib/sqlite-backup";
 
@@ -49,10 +51,12 @@ if (options.listPlans) {
 
 const selectedPlan = resolvePlan(plans, options.planId, options.planName);
 const backupPath = options.noBackup ? null : backupSqliteDatabase(options.dbPath);
-const db = openDatabase(options.dbPath);
-const repo = new LedgerRepository(db, selectedPlan.id);
+const db = openD1Sqlite(options.dbPath);
+const repo = new D1LedgerRepository(new D1Database(sqliteD1Binding(db)), selectedPlan.id);
 
 try {
+  // D1 writes need the plan to exist, as production's first-owner setup makes it.
+  await repo.ensurePlan(selectedPlan.id, selectedPlan.name);
   const result = await importYnabFromApi(repo, {
     token,
     planId: selectedPlan.id,
@@ -98,7 +102,7 @@ function parseArgs(args: string[]): CliOptions {
   return {
     planId: values["plan-id"],
     planName: values["plan-name"],
-    dbPath: values.db ?? Bun.env.HOWMUCH_DB_PATH ?? "data/howmuch.sqlite",
+    dbPath: values.db ?? "data/ynab-import.sqlite",
     baseUrl: values["base-url"] ?? Bun.env.YNAB_BASE_URL ?? "https://api.ynab.com/v1",
     sinceDate: values["since-date"],
     listPlans: values["list-plans"] ?? false,
@@ -138,7 +142,7 @@ function resolvePlan(plans: YnabPlanSummary[], planId?: string, planName?: strin
   throw new Error("Multiple YNAB plans are available. Run with --list-plans, then pass --plan-id.");
 }
 
-function queryImportSummary(db: ReturnType<typeof openDatabase>, planId: string) {
+function queryImportSummary(db: Database, planId: string) {
   const balanceMismatches = singleNumber(
     db,
     `SELECT COUNT(*) AS value
@@ -183,7 +187,7 @@ Options:
   --list-plans           List YNAB plans available to the token, then exit
   --plan-id <id>         Import a specific YNAB plan
   --plan-name <name>     Import a single plan by exact name
-  --db <path>            SQLite destination (default: data/howmuch.sqlite)
+  --db <path>            D1-schema SQLite destination (default: data/ynab-import.sqlite)
   --since-date <date>    Override the default full-history fetch start date
   --base-url <url>       Override the YNAB API base URL
   --no-backup            Skip the automatic SQLite backup

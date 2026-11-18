@@ -1,8 +1,10 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
-import { applyMigrations } from "../db";
-import { LedgerRepository, NotFoundError, ValidationError } from "../repository";
+import { NotFoundError, ValidationError } from "../repository";
 import { parseCreditCardWrite } from "./parse";
+import type { D1LedgerRepository } from "../d1-ledger-repository";
+import { openD1Sqlite } from "../sqlite-d1";
+import { d1Handler, d1Repo } from "../../tests/helpers/native-harness";
 import {
   createRewardsCard,
   deleteRewardsCard,
@@ -13,12 +15,12 @@ import {
 } from "./write";
 
 let db: Database;
-let repo: LedgerRepository;
+let repo: D1LedgerRepository;
 
 beforeEach(async () => {
-  db = new Database(":memory:");
-  applyMigrations(db);
-  repo = new LedgerRepository(db, "plan-test");
+  db = openD1Sqlite();
+  repo = d1Repo(db, "plan-test");
+  await repo.ensurePlan("plan-test");
   await repo.upsertAccount("plan-test", { id: "acct-rewards", name: "Rewards Card", type: "creditCard" });
 });
 

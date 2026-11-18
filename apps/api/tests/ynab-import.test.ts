@@ -1,17 +1,18 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { applyMigrations } from "../src/db";
 import { importYnabFromApi, ynabSimilarity } from "../src/importers/ynab";
-import { LedgerRepository } from "../src/repository";
+import type { D1LedgerRepository } from "../src/d1-ledger-repository";
+import { openD1Sqlite } from "../src/sqlite-d1";
+import { d1Handler, d1Repo } from "./helpers/native-harness";
 
 let db: Database;
-let repo: LedgerRepository;
+let repo: D1LedgerRepository;
 const originalFetch = globalThis.fetch;
 
-beforeEach(() => {
-  db = new Database(":memory:");
-  applyMigrations(db);
-  repo = new LedgerRepository(db, "plan-test");
+beforeEach(async () => {
+  db = openD1Sqlite();
+  repo = d1Repo(db, "plan-test");
+  await repo.ensurePlan("plan-test");
 });
 
 afterEach(() => {
@@ -103,7 +104,10 @@ describe("YNAB similarity guard", () => {
       payee_locations: [{ id: "location-1", payee_id: "payee-1", latitude: "1.2", longitude: "3.4", deleted: false }],
       months: [{ month: "2026-06-01", note: "month note", income: 9000, budgeted: 5000, activity: -1200, to_be_budgeted: 4000, age_of_money: 21, deleted: false, categories: [{ id: "category-1", category_group_id: "group-1", name: "Food", budgeted: 5000, activity: -1200, balance: 3800, goal_type: "TB", goal_target: 10000, goal_target_month: "2026-07-01", deleted: false }] }],
       transactions: [{ ...ynabTransaction("transaction-1", { account_id: "acct-1", payee_id: "payee-1", category_id: "legacy-split-parent-category", amount: -1200, account_note: "discarded by ledger but raw", subtransactions: undefined }) }],
-      subtransactions: [{ id: "sub-1", transaction_id: "transaction-1", amount: -1200, payee_id: "payee-1", category_id: "category-1", memo: "split note", deleted: false }],
+      subtransactions: [
+        { id: "sub-1", transaction_id: "transaction-1", amount: -700, payee_id: "payee-1", category_id: "category-1", memo: "split note", deleted: false },
+        { id: "sub-2", transaction_id: "transaction-1", amount: -500, payee_id: "payee-1", category_id: "category-1", memo: null, deleted: false },
+      ],
       scheduled_transactions: [{ id: "scheduled-1", account_id: "acct-1", date_first: "2026-06-10", date_next: "2026-07-10", frequency: "monthly", amount: -500, payee_id: "payee-1", category_id: "category-1", deleted: false }],
       scheduled_subtransactions: [{ id: "scheduled-sub-1", scheduled_transaction_id: "scheduled-1", amount: -500, payee_id: "payee-1", category_id: "category-1", deleted: false }],
     };
@@ -117,7 +121,7 @@ describe("YNAB similarity guard", () => {
     }) as typeof fetch;
 
     const result = await importYnabFromApi(repo, { token: "ynab-token", planId: "plan-test" });
-    expect(result.raw_objects).toMatchObject({ account: 1, month: 1, month_category: 1, scheduled_transaction: 1, scheduled_subtransaction: 1, payee_location: 1, money_movement: 1, money_movement_group: 1, transaction: 1, subtransaction: 1 });
+    expect(result.raw_objects).toMatchObject({ account: 1, month: 1, month_category: 1, scheduled_transaction: 1, scheduled_subtransaction: 1, payee_location: 1, money_movement: 1, money_movement_group: 1, transaction: 1, subtransaction: 2 });
     expect(db.query("SELECT payload_json FROM ynab_raw_objects WHERE plan_id='plan-test' AND object_type='account' AND object_id='acct-1'").get()).toEqual({ payload_json: JSON.stringify(fullPlan.accounts[0]) });
     expect(db.query("SELECT category_id FROM transactions WHERE id='transaction-1'").get()).toEqual({ category_id: null });
     expect(db.query("SELECT category_id FROM subtransactions WHERE id='sub-1'").get()).toEqual({ category_id: "category-1" });
@@ -321,6 +325,8 @@ describe("YNAB similarity guard", () => {
 
   test("applies YNAB split lines when the adopted local row has none", async () => {
     await repo.ensureAccount("plan-test", "acct-1", "Checking");
+    await repo.ensureCategory("plan-test", "cat-a", "A");
+    await repo.ensureCategory("plan-test", "cat-b", "B");
     const local = await repo.createTransaction("plan-test", {
       account_id: "acct-1",
       date: "2026-06-01",

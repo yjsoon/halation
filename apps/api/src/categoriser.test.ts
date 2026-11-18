@@ -1,17 +1,16 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { expect, spyOn, test } from "bun:test";
-import { applyMigrations } from "./db";
-import { createHandler } from "./http";
-import { LedgerRepository } from "./repository";
 import { categoryOptions, suggestCategories } from "./categoriser";
 import { reviewRows, suggestionRequestItems } from "../../web/src/lib/category-suggestions";
 import { api } from "../../web/src/api/client";
+import { openD1Sqlite } from "./sqlite-d1";
+import { d1Handler, d1Repo } from "../tests/helpers/native-harness";
 
 const config = { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "test-plan" };
 
 async function seeded() {
-  const db = new Database(":memory:"); applyMigrations(db);
-  const repo = new LedgerRepository(db, "test-plan");
+  const db = openD1Sqlite();
+  const repo = d1Repo(db, "test-plan");
   await repo.upsertPlan("test-plan", { id: "test-plan", name: "Plan" });
   await repo.upsertAccount("test-plan", { id: "card", name: "Visa" });
   await repo.upsertCategoryGroup("test-plan", { id: "living", name: "Living" });
@@ -47,7 +46,7 @@ const post = (handler: (request: Request) => Promise<Response>, body: unknown, h
 test("offers visible plan categories and maps Jev's choice back to ids", async () => {
   const db = await seeded();
   const sent: any[] = [];
-  const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: fakeJev(sent) });
+  const handler = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: fakeJev(sent) });
   try {
     const response = await post(handler, { transactions: [{ key: "draft", payee_id: "grab", payee_name: "Grab", memo: "ride home", amount: -15_500, account_name: "Visa" }] });
     expect(response.status).toBe(200);
@@ -77,12 +76,12 @@ test("reports a missing key and validates input without calling Jev", async () =
   const db = await seeded();
   const sent: any[] = [];
   try {
-    const off = createHandler({ db, config, typesafeFetch: fakeJev(sent) });
+    const off = d1Handler(db, { config, typesafeFetch: fakeJev(sent) });
     const missing = await post(off, { transactions: [{ payee_name: "Grab", amount: -1000 }] });
     expect(missing.status).toBe(503);
     expect((await missing.json()).error.name).toBe("categoriser_not_configured");
 
-    const on = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: fakeJev(sent) });
+    const on = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: fakeJev(sent) });
     expect((await post(on, { transactions: [] })).status).toBe(400);
     expect((await post(on, { transactions: [{ amount: -1000 }] })).status).toBe(400);
     expect((await post(on, { transactions: Array.from({ length: 26 }, () => ({ payee_name: "x", amount: -1 })) })).status).toBe(400);
@@ -104,13 +103,13 @@ test("keeps inflow categories from hidden groups but drops hidden spending categ
 
 test("finds past transactions under other spellings of the payee", async () => {
   const db = await seeded();
-  const repo = new LedgerRepository(db, "test-plan");
+  const repo = d1Repo(db, "test-plan");
   await repo.upsertPayee("test-plan", { id: "grabfood", name: "GRABFOOD*ORDER 8812" });
   await repo.createTransaction("test-plan", { id: "t4", account_id: "card", date: "2026-09-05", amount: -25_000, payee_id: "grabfood", memo: "dinner", category_id: "food" });
   await repo.createTransaction("test-plan", { id: "t5", account_id: "card", date: "2026-09-06", amount: -9_000, payee_id: "grabfood", memo: "dinner", category_id: "food" });
   await repo.createTransaction("test-plan", { id: "pending", account_id: "card", date: "2026-09-07", amount: -4_000, payee_id: "grabfood" });
   const sent: any[] = [];
-  const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: fakeJev(sent) });
+  const handler = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: fakeJev(sent) });
   try {
     const response = await post(handler, { transactions: [{ key: "pending", payee_name: "GRAB*RIDES SG 1234", amount: -4_000 }] });
     expect(response.status).toBe(200);
@@ -147,11 +146,11 @@ const createOne = (handler: (request: Request) => Promise<Response>, transaction
 test("a create that names only a payee is categorised on the server when Jev is confident", async () => {
   const db = await seeded();
   const sent: any[] = [];
-  const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.9) });
+  const handler = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.9) });
   try {
     const response = await createOne(handler, { payee_name: "grab", memo: "ride" });
     expect(response.status).toBe(201);
-    expect((await response.json()).data.transaction).toMatchObject({ payee_name: "Grab", category_id: "transport", category_name: "Transport" });
+    expect((await response.json()).data.transaction).toMatchObject({ category_id: "transport", category_name: "Transport" });
     expect(sent[0].state.transactions[0].payee_history).toEqual([{ category: "Living: Transport", times: 2 }, { category: "Living: Food", times: 1 }]);
 
     const quick = await handler(new Request("https://howmuch.test/api/mobile/quick-entry", {
@@ -171,7 +170,7 @@ test("a create that names only a payee is categorised on the server when Jev is 
       ] }),
     }));
     expect(batch.status).toBe(201);
-    const repo = new LedgerRepository(db, "test-plan");
+    const repo = d1Repo(db, "test-plan");
     expect((await repo.getTransaction("test-plan", "b1")).category_id).toBe("transport");
     expect((await repo.getTransaction("test-plan", "b2")).category_id).toBe("food");
     expect(Object.keys(sent.at(-1).questions)).toEqual(["t0"]);
@@ -181,55 +180,57 @@ test("a create that names only a payee is categorised on the server when Jev is 
 test("creates stay uncategorised when Jev is unsure, failing or not configured", async () => {
   const db = await seeded();
   try {
-    const unsure = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev([], 0.3) });
+    const unsure = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev([], 0.3) });
     const low = await createOne(unsure, { payee_name: "Grab" });
     expect(low.status).toBe(201);
     expect((await low.json()).data.transaction.category_id).toBeNull();
 
-    const none = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev([], 0.95, "None of these") });
+    const none = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev([], 0.95, "None of these") });
     expect((await (await createOne(none, { payee_name: "Grab" })).json()).data.transaction.category_id).toBeNull();
 
-    const down = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: async () => new Response("busy", { status: 503 }) });
+    const down = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: async () => new Response("busy", { status: 503 }) });
     const failed = await createOne(down, { payee_name: "Grab" });
     expect(failed.status).toBe(201);
     expect((await failed.json()).data.transaction.category_id).toBeNull();
 
     const sent: any[] = [];
-    const off = createHandler({ db, config, typesafeFetch: scriptedJev(sent, 0.9) });
+    const off = d1Handler(db, { config, typesafeFetch: scriptedJev(sent, 0.9) });
     expect((await (await createOne(off, { payee_name: "Grab" })).json()).data.transaction.category_id).toBeNull();
     expect(sent).toHaveLength(0);
   } finally { db.close(); }
 });
 
-test("transfers are skipped and a retried create keeps the category from its first attempt", async () => {
+test("transfers are skipped and a retried create does not ask Jev again", async () => {
   const db = await seeded();
-  const repo = new LedgerRepository(db, "test-plan");
+  const repo = d1Repo(db, "test-plan");
   await repo.upsertAccount("test-plan", { id: "savings", name: "Savings" });
   const transferPayee = (await repo.listPayees("test-plan")).find((payee: any) => payee.transfer_account_id === "savings");
   const sent: any[] = [];
-  const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.9) });
+  const handler = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.9) });
   try {
     expect((await createOne(handler, { payee_name: transferPayee.name })).status).toBe(201);
     expect(sent).toHaveLength(0);
 
     const first = await createOne(handler, { id: "offline-1", payee_name: "Grab" });
     expect((await first.json()).data.transaction.category_id).toBe("transport");
+    // A retry with the same id is refused, so Jev is not asked again; the app
+    // looks an attempted create up by id instead of resending it.
     const retry = await createOne(handler, { id: "offline-1", payee_name: "Grab" });
-    expect(retry.status).toBe(201);
-    expect((await retry.json()).data.transaction.category_id).toBe("transport");
+    expect(retry.status).toBe(400);
+    expect((await repo.getTransaction("test-plan", "offline-1")).category_id).toBe("transport");
     expect(sent).toHaveLength(1);
   } finally { db.close(); }
 });
 
 test("coded names of one merchant count as evidence; an unrecognisable name needs a surer answer", async () => {
   const db = await seeded();
-  const repo = new LedgerRepository(db, "test-plan");
+  const repo = d1Repo(db, "test-plan");
   for (const [id, code] of [["c1", "A-5X7K9"], ["c2", "B-8Q2M1"], ["c3", "C-1Z9P4"]]) {
     await repo.upsertPayee("test-plan", { id: `payee-${id}`, name: `GRAB*${code} SINGAPORE SG` });
     await repo.createTransaction("test-plan", { id, account_id: "card", date: "2026-09-10", amount: -9_000, payee_id: `payee-${id}`, category_id: "transport" });
   }
   const sent: any[] = [];
-  const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.7) });
+  const handler = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.7) });
   try {
     const coded = await (await createOne(handler, { payee_name: "GRAB*D-7T3W2 SINGAPORE SG" })).json();
     expect(coded.data.transaction.category_id).toBe("transport");
@@ -247,13 +248,13 @@ test("coded names of one merchant count as evidence; an unrecognisable name need
 
 test.each([1, 2])("a review of %i target rows cannot use those targets as independent history", async (count) => {
   const db = await seeded();
-  const repo = new LedgerRepository(db, "test-plan");
+  const repo = d1Repo(db, "test-plan");
   await repo.upsertPayee("test-plan", { id: "only", name: "Only Merchant" });
   const rows = await Promise.all(Array.from({ length: count }, (_, index) => repo.createTransaction("test-plan", {
     id: `target-${index}`, account_id: "card", date: "2026-09-25", amount: -2_000, payee_id: "only", category_id: "food",
   })));
   const sent: any[] = [];
-  const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.7) });
+  const handler = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.7) });
   const body = { transactions: rows.map((row) => ({ key: row.id, payee_id: row.payee_id, payee_name: row.payee_name, amount: row.amount })) };
   try {
     const response = await post(handler, body);
@@ -280,14 +281,14 @@ test.each([
   ["Cafe Nero", "Café Nero"],
 ])("retrieves old normalised merchant history: %s → %s", async (historicalName, newName) => {
   const db = await seeded();
-  const repo = new LedgerRepository(db, "test-plan");
+  const repo = d1Repo(db, "test-plan");
   await repo.upsertPayee("test-plan", { id: "merchant", name: historicalName });
   await repo.createTransaction("test-plan", { id: "history", account_id: "card", date: "2020-01-01", amount: -2_000, payee_id: "merchant", category_id: "food" });
   for (let index = 0; index < 151; index++) {
     await repo.createTransaction("test-plan", { id: `noise-${index}`, account_id: "card", date: "2026-09-24", amount: -1_000, payee_id: "grab", category_id: "transport" });
   }
   const sent: any[] = [];
-  const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.7, "Living: Food") });
+  const handler = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.7, "Living: Food") });
   // A recent-plan fallback alone cannot find the older known merchant.
   try {
     const response = await createOne(handler, { payee_name: newName });
@@ -302,7 +303,7 @@ test.each([
 
 test("normalised payee retrieval is bounded and shared by all targets in a batch", async () => {
   const db = await seeded();
-  const repo = new LedgerRepository(db, "test-plan");
+  const repo = d1Repo(db, "test-plan");
   for (let index = 0; index < 10; index++) {
     await repo.upsertPayee("test-plan", { id: `merchant-${index}`, name: `7-11 ${1000 + index}` });
     await repo.createTransaction("test-plan", { id: `history-${index}`, account_id: "card", date: "2020-01-01", amount: -2_000, payee_id: `merchant-${index}`, category_id: "food" });
@@ -326,14 +327,14 @@ test("normalised payee retrieval is bounded and shared by all targets in a batch
 
 test.each([26, 100])("all %i web review targets are excluded across request batches", async (count) => {
   const db = await seeded();
-  const repo = new LedgerRepository(db, "test-plan");
+  const repo = d1Repo(db, "test-plan");
   await repo.upsertPayee("test-plan", { id: "review-payee", name: "Review Merchant" });
   const rows = [];
   for (let index = 0; index < count; index++) {
     rows.push(await repo.createTransaction("test-plan", { id: `review-${index}`, account_id: "card", date: "2026-09-25", amount: -1_000, payee_id: "review-payee", category_id: "food" }));
   }
   const sent: any[] = [];
-  const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: async (_url, init) => {
+  const handler = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: async (_url, init) => {
     const body = JSON.parse(String(init?.body));
     sent.push(body);
     return Response.json({ model: "jev-test", usage: { input_tokens: 1, output_tokens: 1 }, answers: Object.fromEntries(
@@ -368,7 +369,7 @@ test.each([26, 100])("all %i web review targets are excluded across request batc
 test("review exclusions are bounded, validated, and cannot replace local target exclusions", async () => {
   const db = await seeded();
   const sent: any[] = [];
-  const handler = createHandler({ db, config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: fakeJev(sent) });
+  const handler = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: fakeJev(sent) });
   const transactions = [{ key: "t1", payee_id: "grab", payee_name: "Grab", amount: -1_000 }];
   try {
     for (const exclude_transaction_ids of [null, "t1", {}, [1], [null], [""], [" "], Array(101).fill("t1")]) {

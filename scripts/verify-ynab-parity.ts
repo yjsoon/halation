@@ -6,7 +6,7 @@ type SourceObject = { type: string; id: string; payload: unknown };
 
 const options = readOptions(process.argv.slice(2));
 if (!options.db || !options.planJson) {
-  console.error("Usage: bun run verify:ynab-parity --db <howmuch.sqlite> --plan-json <full-plan.json> [--settings <settings.json>] [--money-movements <json>] [--money-movement-groups <json>]");
+  console.error("Usage: bun run verify:ynab-parity --db <ynab-import.sqlite> --plan-json <full-plan.json> [--settings <settings.json>] [--money-movements <json>] [--money-movement-groups <json>]");
   process.exit(2);
 }
 

@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { chunkRows, MAX_SNAPSHOT_BYTES, parsePlanSnapshot, snapshotImportStatements, SNAPSHOT_FORMAT } from "../src/plan-snapshot";
-import { BACKENDS, count, markYnabMirror, nativeHarness, sessionFor, type Backend, type NativeHarness } from "./helpers/native-harness";
+import { count, markYnabMirror, nativeHarness, sessionFor, type NativeHarness } from "./helpers/native-harness";
 
 const harnesses: NativeHarness[] = [];
 afterEach(() => { for (const harness of harnesses.splice(0)) harness.close(); });
 
-async function open(backend: Backend): Promise<NativeHarness> {
-  const harness = await nativeHarness(backend);
+async function open(): Promise<NativeHarness> {
+  const harness = await nativeHarness();
   harnesses.push(harness);
   return harness;
 }
@@ -194,163 +194,161 @@ describe("snapshot core", () => {
   });
 });
 
-for (const backend of BACKENDS) {
-  describe(`${backend} plan snapshots`, () => {
-    test("export then import into an empty plan round-trips the ledger", async () => {
-      const source = await open(backend);
-      await seedLedger(source);
-      const exported = await exportSnapshot(source);
-      expect(exported.format).toBe(SNAPSHOT_FORMAT);
-      expect(exported.version).toBe(1);
-      expect(exported.transactions.map((transaction: any) => transaction.id)).not.toContain("t-gone");
-      expect(exported).not.toHaveProperty("month_assignments");
+describe(`plan snapshots`, () => {
+  test("export then import into an empty plan round-trips the ledger", async () => {
+    const source = await open();
+    await seedLedger(source);
+    const exported = await exportSnapshot(source);
+    expect(exported.format).toBe(SNAPSHOT_FORMAT);
+    expect(exported.version).toBe(1);
+    expect(exported.transactions.map((transaction: any) => transaction.id)).not.toContain("t-gone");
+    expect(exported).not.toHaveProperty("month_assignments");
 
-      const target = await open(backend);
-      const imported = await importSnapshot(target, exported);
-      expect(imported.status).toBe(201);
-      const body = (await imported.json()).data;
-      expect(body.replayed).toBeFalse();
-      expect(body.imported).toMatchObject({ accounts: 3, transactions: exported.transactions.length, scheduled_transactions: 2 });
+    const target = await open();
+    const imported = await importSnapshot(target, exported);
+    expect(imported.status).toBe(201);
+    const body = (await imported.json()).data;
+    expect(body.replayed).toBeFalse();
+    expect(body.imported).toMatchObject({ accounts: 3, transactions: exported.transactions.length, scheduled_transactions: 2 });
 
-      expect(await exportSnapshot(target)).toEqual(exported);
-      expect(await clientView(target)).toEqual(await clientView(source));
-      expect(count(target.db, "SELECT COUNT(*) AS n FROM audit_events WHERE action = 'plan.snapshot.import'")).toBe(1);
-    });
-
-    test("an exact retry replays; a different body under the same key conflicts", async () => {
-      const source = await open(backend);
-      await seedLedger(source);
-      const exported = await exportSnapshot(source);
-      const target = await open(backend);
-      expect((await importSnapshot(target, exported)).status).toBe(201);
-      const before = tableCounts(target);
-      const retry = await importSnapshot(target, exported);
-      expect(retry.status).toBe(201);
-      expect((await retry.json()).data.replayed).toBeTrue();
-      expect(tableCounts(target)).toEqual(before);
-      const reused = await importSnapshot(target, { ...exported, transactions: exported.transactions.map((transaction: any) => ({ ...transaction, memo: "changed" })) });
-      expect(reused.status).toBe(409);
-      const fresh = await importSnapshot(target, exported, "import-snapshot-2");
-      expect(fresh.status).toBe(409);
-      expect((await fresh.json()).error.name).toBe("plan_not_empty");
-    });
-
-    test("refuses a plan that already has accounts, but allows internal categories", async () => {
-      const source = await open(backend);
-      await seedLedger(source);
-      const exported = await exportSnapshot(source);
-
-      const occupied = await open(backend);
-      await occupied.repo.createAccount("p", { id: "existing", name: "Existing" });
-      const refused = await importSnapshot(occupied, exported);
-      expect(refused.status).toBe(409);
-      expect((await refused.json()).error.name).toBe("plan_not_empty");
-
-      const internalOnly = await open(backend);
-      internalOnly.db.run("INSERT INTO category_groups (id, plan_id, name, internal) VALUES ('int-grp', 'p', 'Internal Master Category', 1)");
-      internalOnly.db.run("INSERT INTO categories (id, plan_id, category_group_id, name, internal) VALUES ('int-rta', 'p', 'int-grp', 'Inflow: Ready to Assign', 1)");
-      expect((await importSnapshot(internalOnly, exported)).status).toBe(201);
-    });
-
-    test("a user category group or a payee makes the plan non-empty; a fresh plan is accepted", async () => {
-      const snapshot = transferSnapshot();
-
-      const withGroup = await open(backend);
-      const group = await withGroup.request("/v1/plans/p/category_groups", { method: "POST", body: { category_group: { id: "grp-empty", name: "Someday" } } });
-      expect(group.status).toBe(201);
-      const refusedGroup = await importSnapshot(withGroup, snapshot);
-      expect(refusedGroup.status).toBe(409);
-      expect((await refusedGroup.json()).error.name).toBe("plan_not_empty");
-      expect(count(withGroup.db, "SELECT COUNT(*) AS n FROM accounts WHERE plan_id = 'p'")).toBe(0);
-
-      const withPayee = await open(backend);
-      expect((await withPayee.request("/v1/plans/p/payees", { method: "POST", body: { payee: { name: "Grocer" } } })).status).toBeLessThan(300);
-      const refusedPayee = await importSnapshot(withPayee, snapshot);
-      expect(refusedPayee.status).toBe(409);
-      expect((await refusedPayee.json()).error.name).toBe("plan_not_empty");
-      expect(count(withPayee.db, "SELECT COUNT(*) AS n FROM accounts WHERE plan_id = 'p'")).toBe(0);
-
-      const fresh = await open(backend);
-      expect(tableCounts(fresh)).toEqual(Object.fromEntries(LEDGER_TABLES.map((table) => [table, 0])));
-      expect((await importSnapshot(fresh, snapshot)).status).toBe(201);
-    });
-
-    test("plain and split transfers round-trip; a broken link is 400 and writes nothing", async () => {
-      const target = await open(backend);
-      const bad = transferSnapshot();
-      bad.transactions[1].amount = 999;
-      const refused = await importSnapshot(target, bad, "bad-transfer-1");
-      expect(refused.status).toBe(400);
-      expect((await refused.json()).error.detail).toContain("counterpart t-in has amount 999; it must be 1000");
-      expect(tableCounts(target)).toEqual(Object.fromEntries(LEDGER_TABLES.map((table) => [table, 0])));
-
-      expect((await importSnapshot(target, transferSnapshot())).status).toBe(201);
-      const exported = await exportSnapshot(target);
-      const byId = Object.fromEntries(exported.transactions.map((row: any) => [row.id, row]));
-      expect(byId["t-out"]).toMatchObject({ account_id: "a", amount: -1000, transfer_account_id: "b", transfer_transaction_id: "t-in" });
-      expect(byId["t-in"]).toMatchObject({ account_id: "b", amount: 1000, transfer_account_id: "a", transfer_transaction_id: "t-out" });
-      expect(byId["t-split"].subtransactions[1]).toMatchObject({ id: "s-move", amount: -500, transfer_account_id: "b", transfer_transaction_id: "t-split-in" });
-      expect(byId["t-split-in"]).toMatchObject({ account_id: "b", amount: 500, transfer_account_id: "a", transfer_transaction_id: "s-move" });
-
-      const again = await open(backend);
-      expect((await importSnapshot(again, exported)).status).toBe(201);
-      expect(await exportSnapshot(again)).toEqual(exported);
-    });
-
-    test("refuses a YNAB-mirror plan with 409 ynab_mirror_plan and writes nothing", async () => {
-      const source = await open(backend);
-      await seedLedger(source);
-      const exported = await exportSnapshot(source);
-      const mirror = await open(backend);
-      markYnabMirror(mirror.db);
-      const before = tableCounts(mirror);
-      const refused = await importSnapshot(mirror, exported);
-      expect(refused.status).toBe(409);
-      expect((await refused.json()).error.name).toBe("ynab_mirror_plan");
-      expect(tableCounts(mirror)).toEqual(before);
-    });
-
-    test("an id owned by another plan aborts the whole import", async () => {
-      const source = await open(backend);
-      await seedLedger(source);
-      const exported = await exportSnapshot(source);
-      const target = await open(backend);
-      target.db.run("INSERT INTO accounts (id, plan_id, name) VALUES ('other-acct', 'q', 'Theirs')");
-      target.db.run("INSERT INTO transactions (id, plan_id, account_id, date, amount_milli) VALUES ('t-split', 'q', 'other-acct', '2026-01-01', -1)");
-      const knowledge = target.db.query("SELECT server_knowledge FROM plans WHERE id = 'p'").get();
-      const refused = await importSnapshot(target, exported);
-      expect(refused.status).toBe(409);
-      expect((await refused.json()).error.name).toBe("conflict");
-      expect(tableCounts(target)).toEqual(Object.fromEntries(LEDGER_TABLES.map((table) => [table, 0])));
-      expect(target.db.query("SELECT server_knowledge FROM plans WHERE id = 'p'").get()).toEqual(knowledge);
-      expect(target.db.query("SELECT plan_id, amount_milli FROM transactions WHERE id = 't-split'").get()).toEqual({ plan_id: "q", amount_milli: -1 });
-    });
-
-    test("invalid snapshots are 400 and change nothing", async () => {
-      const target = await open(backend);
-      const bad = await importSnapshot(target, { format: SNAPSHOT_FORMAT, version: 1, accounts: [{ id: "a", name: "A" }], transactions: [{ id: "t", account_id: "missing", date: "2026-01-01", amount: -1 }] });
-      expect(bad.status).toBe(400);
-      expect((await target.request("/v1/plans/p/import_snapshot", { method: "POST", body: { snapshot: { format: SNAPSHOT_FORMAT, version: 1 } } })).status).toBe(400);
-      expect((await target.request("/v1/plans/p/import_snapshot", { method: "POST", key: "no-snapshot-1", body: {} })).status).toBe(400);
-      expect(tableCounts(target)).toEqual(Object.fromEntries(LEDGER_TABLES.map((table) => [table, 0])));
-    });
-
-    test("import is owner-only and export excludes viewers", async () => {
-      const source = await open(backend);
-      await seedLedger(source);
-      const editor = sessionFor(source.db, "editor");
-      const viewer = sessionFor(source.db, "viewer");
-      expect((await source.request("/v1/plans/p/export_snapshot", { token: editor })).status).toBe(200);
-      expect((await source.request("/v1/plans/p/export_snapshot", { token: viewer })).status).toBe(403);
-      const target = await open(backend);
-      const exported = await exportSnapshot(source);
-      const editorImport = await target.request("/v1/plans/p/import_snapshot", { method: "POST", key: "editor-import-1", token: sessionFor(target.db, "editor"), body: { snapshot: exported } });
-      expect(editorImport.status).toBe(403);
-      const ownerImport = await target.request("/v1/plans/p/import_snapshot", { method: "POST", key: "owner-import-1", token: sessionFor(target.db, "owner"), body: { snapshot: exported } });
-      expect(ownerImport.status).toBe(201);
-    });
+    expect(await exportSnapshot(target)).toEqual(exported);
+    expect(await clientView(target)).toEqual(await clientView(source));
+    expect(count(target.db, "SELECT COUNT(*) AS n FROM audit_events WHERE action = 'plan.snapshot.import'")).toBe(1);
   });
-}
+
+  test("an exact retry replays; a different body under the same key conflicts", async () => {
+    const source = await open();
+    await seedLedger(source);
+    const exported = await exportSnapshot(source);
+    const target = await open();
+    expect((await importSnapshot(target, exported)).status).toBe(201);
+    const before = tableCounts(target);
+    const retry = await importSnapshot(target, exported);
+    expect(retry.status).toBe(201);
+    expect((await retry.json()).data.replayed).toBeTrue();
+    expect(tableCounts(target)).toEqual(before);
+    const reused = await importSnapshot(target, { ...exported, transactions: exported.transactions.map((transaction: any) => ({ ...transaction, memo: "changed" })) });
+    expect(reused.status).toBe(409);
+    const fresh = await importSnapshot(target, exported, "import-snapshot-2");
+    expect(fresh.status).toBe(409);
+    expect((await fresh.json()).error.name).toBe("plan_not_empty");
+  });
+
+  test("refuses a plan that already has accounts, but allows internal categories", async () => {
+    const source = await open();
+    await seedLedger(source);
+    const exported = await exportSnapshot(source);
+
+    const occupied = await open();
+    await occupied.repo.createAccount("p", { id: "existing", name: "Existing" });
+    const refused = await importSnapshot(occupied, exported);
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).error.name).toBe("plan_not_empty");
+
+    const internalOnly = await open();
+    internalOnly.db.run("INSERT INTO category_groups (id, plan_id, name, internal) VALUES ('int-grp', 'p', 'Internal Master Category', 1)");
+    internalOnly.db.run("INSERT INTO categories (id, plan_id, category_group_id, name, internal) VALUES ('int-rta', 'p', 'int-grp', 'Inflow: Ready to Assign', 1)");
+    expect((await importSnapshot(internalOnly, exported)).status).toBe(201);
+  });
+
+  test("a user category group or a payee makes the plan non-empty; a fresh plan is accepted", async () => {
+    const snapshot = transferSnapshot();
+
+    const withGroup = await open();
+    const group = await withGroup.request("/v1/plans/p/category_groups", { method: "POST", body: { category_group: { id: "grp-empty", name: "Someday" } } });
+    expect(group.status).toBe(201);
+    const refusedGroup = await importSnapshot(withGroup, snapshot);
+    expect(refusedGroup.status).toBe(409);
+    expect((await refusedGroup.json()).error.name).toBe("plan_not_empty");
+    expect(count(withGroup.db, "SELECT COUNT(*) AS n FROM accounts WHERE plan_id = 'p'")).toBe(0);
+
+    const withPayee = await open();
+    expect((await withPayee.request("/v1/plans/p/payees", { method: "POST", body: { payee: { name: "Grocer" } } })).status).toBeLessThan(300);
+    const refusedPayee = await importSnapshot(withPayee, snapshot);
+    expect(refusedPayee.status).toBe(409);
+    expect((await refusedPayee.json()).error.name).toBe("plan_not_empty");
+    expect(count(withPayee.db, "SELECT COUNT(*) AS n FROM accounts WHERE plan_id = 'p'")).toBe(0);
+
+    const fresh = await open();
+    expect(tableCounts(fresh)).toEqual(Object.fromEntries(LEDGER_TABLES.map((table) => [table, 0])));
+    expect((await importSnapshot(fresh, snapshot)).status).toBe(201);
+  });
+
+  test("plain and split transfers round-trip; a broken link is 400 and writes nothing", async () => {
+    const target = await open();
+    const bad = transferSnapshot();
+    bad.transactions[1].amount = 999;
+    const refused = await importSnapshot(target, bad, "bad-transfer-1");
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error.detail).toContain("counterpart t-in has amount 999; it must be 1000");
+    expect(tableCounts(target)).toEqual(Object.fromEntries(LEDGER_TABLES.map((table) => [table, 0])));
+
+    expect((await importSnapshot(target, transferSnapshot())).status).toBe(201);
+    const exported = await exportSnapshot(target);
+    const byId = Object.fromEntries(exported.transactions.map((row: any) => [row.id, row]));
+    expect(byId["t-out"]).toMatchObject({ account_id: "a", amount: -1000, transfer_account_id: "b", transfer_transaction_id: "t-in" });
+    expect(byId["t-in"]).toMatchObject({ account_id: "b", amount: 1000, transfer_account_id: "a", transfer_transaction_id: "t-out" });
+    expect(byId["t-split"].subtransactions[1]).toMatchObject({ id: "s-move", amount: -500, transfer_account_id: "b", transfer_transaction_id: "t-split-in" });
+    expect(byId["t-split-in"]).toMatchObject({ account_id: "b", amount: 500, transfer_account_id: "a", transfer_transaction_id: "s-move" });
+
+    const again = await open();
+    expect((await importSnapshot(again, exported)).status).toBe(201);
+    expect(await exportSnapshot(again)).toEqual(exported);
+  });
+
+  test("refuses a YNAB-mirror plan with 409 ynab_mirror_plan and writes nothing", async () => {
+    const source = await open();
+    await seedLedger(source);
+    const exported = await exportSnapshot(source);
+    const mirror = await open();
+    markYnabMirror(mirror.db);
+    const before = tableCounts(mirror);
+    const refused = await importSnapshot(mirror, exported);
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).error.name).toBe("ynab_mirror_plan");
+    expect(tableCounts(mirror)).toEqual(before);
+  });
+
+  test("an id owned by another plan aborts the whole import", async () => {
+    const source = await open();
+    await seedLedger(source);
+    const exported = await exportSnapshot(source);
+    const target = await open();
+    target.db.run("INSERT INTO accounts (id, plan_id, name) VALUES ('other-acct', 'q', 'Theirs')");
+    target.db.run("INSERT INTO transactions (id, plan_id, account_id, date, amount_milli) VALUES ('t-split', 'q', 'other-acct', '2026-01-01', -1)");
+    const knowledge = target.db.query("SELECT server_knowledge FROM plans WHERE id = 'p'").get();
+    const refused = await importSnapshot(target, exported);
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).error.name).toBe("conflict");
+    expect(tableCounts(target)).toEqual(Object.fromEntries(LEDGER_TABLES.map((table) => [table, 0])));
+    expect(target.db.query("SELECT server_knowledge FROM plans WHERE id = 'p'").get()).toEqual(knowledge);
+    expect(target.db.query("SELECT plan_id, amount_milli FROM transactions WHERE id = 't-split'").get()).toEqual({ plan_id: "q", amount_milli: -1 });
+  });
+
+  test("invalid snapshots are 400 and change nothing", async () => {
+    const target = await open();
+    const bad = await importSnapshot(target, { format: SNAPSHOT_FORMAT, version: 1, accounts: [{ id: "a", name: "A" }], transactions: [{ id: "t", account_id: "missing", date: "2026-01-01", amount: -1 }] });
+    expect(bad.status).toBe(400);
+    expect((await target.request("/v1/plans/p/import_snapshot", { method: "POST", body: { snapshot: { format: SNAPSHOT_FORMAT, version: 1 } } })).status).toBe(400);
+    expect((await target.request("/v1/plans/p/import_snapshot", { method: "POST", key: "no-snapshot-1", body: {} })).status).toBe(400);
+    expect(tableCounts(target)).toEqual(Object.fromEntries(LEDGER_TABLES.map((table) => [table, 0])));
+  });
+
+  test("import is owner-only and export excludes viewers", async () => {
+    const source = await open();
+    await seedLedger(source);
+    const editor = sessionFor(source.db, "editor");
+    const viewer = sessionFor(source.db, "viewer");
+    expect((await source.request("/v1/plans/p/export_snapshot", { token: editor })).status).toBe(200);
+    expect((await source.request("/v1/plans/p/export_snapshot", { token: viewer })).status).toBe(403);
+    const target = await open();
+    const exported = await exportSnapshot(source);
+    const editorImport = await target.request("/v1/plans/p/import_snapshot", { method: "POST", key: "editor-import-1", token: sessionFor(target.db, "editor"), body: { snapshot: exported } });
+    expect(editorImport.status).toBe(403);
+    const ownerImport = await target.request("/v1/plans/p/import_snapshot", { method: "POST", key: "owner-import-1", token: sessionFor(target.db, "owner"), body: { snapshot: exported } });
+    expect(ownerImport.status).toBe(201);
+  });
+});
 
 /**
  * Every user-visible column set to a non-default value. The free-text payees
@@ -437,49 +435,47 @@ async function expectSameRecords(source: NativeHarness, target: NativeHarness, e
   expect(await clientView(target)).toEqual(await clientView(source));
 }
 
-for (const backend of BACKENDS) {
-  describe(`${backend} snapshots keep every column`, () => {
-    test("export, import, export is lossless and reads the same", async () => {
-      const source = await open(backend);
-      await seedEveryColumn(source);
-      const exported = await exportSnapshot(source);
-      const byId = Object.fromEntries(exported.transactions.map((row: any) => [row.id, row]));
-      expect(byId["t-typed"]).toMatchObject({ payee_id: null, payee_name: "Street stall" });
-      expect(byId["t-full"].payee_name).toBeNull();
-      expect(byId["t-split"].subtransactions.find((sub: any) => sub.id === "s-b-typed")).toMatchObject({ payee_id: null, payee_name: "Market" });
+describe(`snapshots keep every column`, () => {
+  test("export, import, export is lossless and reads the same", async () => {
+    const source = await open();
+    await seedEveryColumn(source);
+    const exported = await exportSnapshot(source);
+    const byId = Object.fromEntries(exported.transactions.map((row: any) => [row.id, row]));
+    expect(byId["t-typed"]).toMatchObject({ payee_id: null, payee_name: "Street stall" });
+    expect(byId["t-full"].payee_name).toBeNull();
+    expect(byId["t-split"].subtransactions.find((sub: any) => sub.id === "s-b-typed")).toMatchObject({ payee_id: null, payee_name: "Market" });
 
-      const target = await open(backend);
-      expect((await importSnapshot(target, exported)).status).toBe(201);
-      expect(await exportSnapshot(target)).toEqual(exported);
-      await expectSameRecords(source, target, exported);
-      const typed = (await readEach(target, "transactions", ["t-typed"]))[0] as any;
-      expect(typed).toMatchObject({ payee_id: null, payee_name: "Street stall", memo: "typed" });
-      const car = (await readEach(target, "accounts", ["acct-car"]))[0] as any;
-      expect(car).toMatchObject({ icon: "🚗", closed: true, on_budget: false, balance: 9000000 });
-    });
-
-    test("payee_name is ignored when payee_id is set, and length-checked", async () => {
-      const rows = parsePlanSnapshot({
-        format: SNAPSHOT_FORMAT, version: 1,
-        payees: [{ id: "pay", name: "Grocer" }],
-        accounts: [{ id: "a", name: "A" }],
-        transactions: [
-          { id: "t1", account_id: "a", date: "2026-01-01", amount: -1, payee_id: "pay", payee_name: "Stale" },
-          { id: "t2", account_id: "a", date: "2026-01-01", amount: -1, payee_name: "Typed" },
-        ],
-      }, "p");
-      expect(rows.transactions.map((row) => row.payee_name_snapshot)).toEqual(["Grocer", "Typed"]);
-      expect(() => parsePlanSnapshot({
-        format: SNAPSHOT_FORMAT, version: 1, accounts: [{ id: "a", name: "A" }],
-        transactions: [{ id: "t", account_id: "a", date: "2026-01-01", amount: -1, payee_name: "x".repeat(501) }],
-      }, "p")).toThrow("transactions[0].payee_name must be a string of at most 500 characters");
-    });
+    const target = await open();
+    expect((await importSnapshot(target, exported)).status).toBe(201);
+    expect(await exportSnapshot(target)).toEqual(exported);
+    await expectSameRecords(source, target, exported);
+    const typed = (await readEach(target, "transactions", ["t-typed"]))[0] as any;
+    expect(typed).toMatchObject({ payee_id: null, payee_name: "Street stall", memo: "typed" });
+    const car = (await readEach(target, "accounts", ["acct-car"]))[0] as any;
+    expect(car).toMatchObject({ icon: "🚗", closed: true, on_budget: false, balance: 9000000 });
   });
-}
+
+  test("payee_name is ignored when payee_id is set, and length-checked", async () => {
+    const rows = parsePlanSnapshot({
+      format: SNAPSHOT_FORMAT, version: 1,
+      payees: [{ id: "pay", name: "Grocer" }],
+      accounts: [{ id: "a", name: "A" }],
+      transactions: [
+        { id: "t1", account_id: "a", date: "2026-01-01", amount: -1, payee_id: "pay", payee_name: "Stale" },
+        { id: "t2", account_id: "a", date: "2026-01-01", amount: -1, payee_name: "Typed" },
+      ],
+    }, "p");
+    expect(rows.transactions.map((row) => row.payee_name_snapshot)).toEqual(["Grocer", "Typed"]);
+    expect(() => parsePlanSnapshot({
+      format: SNAPSHOT_FORMAT, version: 1, accounts: [{ id: "a", name: "A" }],
+      transactions: [{ id: "t", account_id: "a", date: "2026-01-01", amount: -1, payee_name: "x".repeat(501) }],
+    }, "p")).toThrow("transactions[0].payee_name must be a string of at most 500 characters");
+  });
+});
 
 describe("snapshot request size", () => {
   test("bodies over 8 MiB are 413 and write nothing", async () => {
-    const target = await open("SQLite");
+    const target = await open();
     const oversized = JSON.stringify({ snapshot: { format: SNAPSHOT_FORMAT, version: 1, padding: "x".repeat(MAX_SNAPSHOT_BYTES) } });
     expect(MAX_SNAPSHOT_BYTES).toBe(8 * 1024 * 1024);
     const response = await target.request("/v1/plans/p/import_snapshot", { method: "POST", key: "too-big-1", body: oversized });
@@ -492,7 +488,7 @@ describe("snapshot request size", () => {
   // D1's 2,000,000-byte limit on a single bound value. D1 then fails the
   // batch with a generic error rather than a 400 naming the field.
   test("a schedule memo too long for one stored value is a 400 naming it, and writes nothing", async () => {
-    const target = await open("SQLite");
+    const target = await open();
     const memo = "m".repeat(2_100_000);
     const snapshot = {
       format: SNAPSHOT_FORMAT,
@@ -519,39 +515,12 @@ describe("snapshot request size", () => {
   });
 });
 
-describe("snapshots cross backends", () => {
-  test("a SQLite export imports into D1 and exports identically, and back again", async () => {
-    const sqlite = await open("SQLite");
-    await seedLedger(sqlite);
-    const fromSqlite = await exportSnapshot(sqlite);
-    const d1 = await open("D1");
-    expect((await importSnapshot(d1, fromSqlite)).status).toBe(201);
-    expect(await exportSnapshot(d1)).toEqual(fromSqlite);
-    const sqliteAgain = await open("SQLite");
-    expect((await importSnapshot(sqliteAgain, await exportSnapshot(d1))).status).toBe(201);
-    expect(await exportSnapshot(sqliteAgain)).toEqual(fromSqlite);
-    expect(await clientView(sqliteAgain)).toEqual(await clientView(d1));
-  });
-
-  test("every column survives SQLite to D1 and back", async () => {
-    const sqlite = await open("SQLite");
-    await seedEveryColumn(sqlite);
-    const fromSqlite = await exportSnapshot(sqlite);
-    const d1 = await open("D1");
-    expect((await importSnapshot(d1, fromSqlite)).status).toBe(201);
-    expect(await exportSnapshot(d1)).toEqual(fromSqlite);
-    await expectSameRecords(sqlite, d1, fromSqlite);
-    const sqliteAgain = await open("SQLite");
-    expect((await importSnapshot(sqliteAgain, await exportSnapshot(d1))).status).toBe(201);
-    expect(await exportSnapshot(sqliteAgain)).toEqual(fromSqlite);
-    await expectSameRecords(sqlite, sqliteAgain, fromSqlite);
-  });
-
+describe("snapshots move between plans", () => {
   test("Rewards cards and settings move with the ledger", async () => {
-    const sqlite = await open("SQLite");
-    await seedLedger(sqlite);
+    const source = await open();
+    await seedLedger(source);
     const send = async (path: string, method: string, body: unknown) => {
-      const response = await sqlite.request(path, { method, body });
+      const response = await source.request(path, { method, body });
       if (response.status >= 300) throw new Error(`${path} ${response.status} ${await response.text()}`);
       return (await response.json()).data;
     };
@@ -571,21 +540,17 @@ describe("snapshots cross backends", () => {
         report: await read("/api/reports/rewards?plan_id=p&from=2026-01-01&to=2026-01-31"),
       };
     };
-    const source = await rewardsView(sqlite);
-    expect(source.cards[0].ruleHistory.length).toBeGreaterThan(0);
+    const view = await rewardsView(source);
+    expect(view.cards[0].ruleHistory.length).toBeGreaterThan(0);
 
-    const d1 = await open("D1");
-    expect((await importSnapshot(d1, await exportSnapshot(sqlite))).status).toBe(201);
-    expect(await rewardsView(d1)).toEqual(source);
-    const sqliteAgain = await open("SQLite");
-    expect((await importSnapshot(sqliteAgain, await exportSnapshot(d1))).status).toBe(201);
-    expect(await rewardsView(sqliteAgain)).toEqual(source);
-  });
-});
+    const target = await open();
+    expect((await importSnapshot(target, await exportSnapshot(source))).status).toBe(201);
+    expect(await rewardsView(target)).toEqual(view);
+  });});
 
 describe("D1 snapshot import is one atomic batch", () => {
   test("a large ledger lands in a single guarded write", async () => {
-    const target = await open("D1");
+    const target = await open();
     const transactions = Array.from({ length: 3000 }, (_, index) => ({
       id: `txn-${String(index).padStart(5, "0")}`,
       account_id: "acct",
@@ -615,7 +580,7 @@ describe("D1 snapshot import is one atomic batch", () => {
   });
 
   test("a plan that fills up after the preflight aborts the batch", async () => {
-    const target = await open("D1");
+    const target = await open();
     const racing = target.repo as any;
     const requireEmpty = racing.requireEmptyPlan.bind(racing);
     let raced = false;
@@ -637,7 +602,7 @@ describe("D1 snapshot import is one atomic batch", () => {
       "INSERT INTO payees (id, plan_id, name) VALUES ('late', 'p', 'Late')",
       "INSERT INTO category_groups (id, plan_id, name) VALUES ('late', 'p', 'Late')",
     ]) {
-      const target = await open("D1");
+      const target = await open();
       const racing = target.repo as any;
       const requireEmpty = racing.requireEmptyPlan.bind(racing);
       let raced = false;

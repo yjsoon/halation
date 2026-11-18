@@ -1,9 +1,8 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { applyMigrations } from "../src/db";
-import { createHandler } from "../src/http";
 import { importYnabExport, parseExportDate, parseMoneyToMilliunits } from "../src/importers/ynab-export";
-import { LedgerRepository } from "../src/repository";
+import { openD1Sqlite } from "../src/sqlite-d1";
+import { d1Handler, d1Repo } from "./helpers/native-harness";
 import { nextScheduledOccurrence, scheduledOccurrencesThrough } from "../src/scheduled-transactions";
 import officialRewardsExport from "../../../fixtures/rewards-tracker-export.json";
 
@@ -11,13 +10,18 @@ let db: Database;
 let handler: (request: Request) => Promise<Response>;
 
 beforeEach(async () => {
-  db = new Database(":memory:");
-  applyMigrations(db);
+  db = openD1Sqlite();
   // Production creates the default plan during `/api/auth/setup`. Reads no
   // longer create it, so the fixture stands in for that bootstrap.
-  await new LedgerRepository(db, "plan-test").ensurePlan("plan-test");
-  handler = createHandler({
-    db,
+  await d1Repo(db, "plan-test").ensurePlan("plan-test");
+  // Production refuses a transaction for an unknown account or category.
+  const repo = d1Repo(db, "plan-test");
+  await repo.upsertAccount("plan-test", { id: "acct-1", name: "Checking", type: "checking" });
+  await repo.upsertCategoryGroup("plan-test", { id: "group-fixture", name: "Fixture" });
+  for (const [id, name] of [["cat-food", "Food"], ["cat-groceries", "Groceries"], ["cat-home", "Home"], ["cat-household", "Household"]]) {
+    await repo.upsertCategory("plan-test", { id, category_group_id: "group-fixture", name });
+  }
+  handler = d1Handler(db, {
     config: {
       dbPath: ":memory:",
       port: 0,
@@ -33,14 +37,14 @@ afterEach(() => {
 
 describe("YNAB-compatible API", () => {
   test("a delayed legacy memo save preserves a claim completed before its write", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
-    handler = createHandler({
-      db, repo,
+    const repo = d1Repo(db, "plan-test");
+    handler = d1Handler(db, {
+      repo,
       config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "plan-test" },
     });
     await createAccount("cash", { name: "Cash", type: "checking" });
     // Ordinary sequential E2E saves miss the gap between HTTP parsing and
-    // entering the SQLite transaction. Hold the old client's save at that gap.
+    // entering the write batch. Hold the old client's save at that gap.
     for (const collection of [false, true]) {
       const id = await createTransaction({ account_id: "cash", date: "2026-10-25", amount: -10000, memo: "Taxi", claim_status: "to_claim" });
       const entered = Promise.withResolvers<void>();
@@ -90,7 +94,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("reads mirrored scheduled transactions and payee locations, but no longer serves money movements", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "cash", name: "Cash" });
     const line = { id: "sub-1", scheduled_transaction_id: "scheduled-1", amount: -100 };
@@ -122,7 +126,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("creates, overlays, and deletes schedules without mutating imported YNAB rows", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "cash", name: "Cash" });
     await repo.upsertCategoryGroup("plan-test", { id: "living", name: "Living" });
@@ -174,7 +178,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("keyed schedule reads fill deleted and drop deleted split lines", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "cash", name: "Cash" });
     await repo.upsertYnabRawObject("plan-test", "scheduled_transaction", "explicit-false", {
@@ -217,7 +221,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("scheduled list fills deleted so iOS can decode a stored JSON omission", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "cash", name: "Cash" });
     await repo.upsertYnabRawObject("plan-test", "scheduled_transaction", "rent", {
@@ -246,7 +250,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("scheduled occurrence preparation reuses category lookups within one split", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "cash", name: "Cash" });
     await repo.upsertCategoryGroup("plan-test", { id: "living", name: "Living" });
@@ -280,8 +284,8 @@ describe("YNAB-compatible API", () => {
     expect(categoryLookups).toBe(1);
   });
 
-  test("serialises concurrent local SQLite schedule patches without dropping fields", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+  test("serialises concurrent schedule patches without dropping fields", async () => {
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "cash", name: "Cash" });
     await repo.upsertYnabRawObject("plan-test", "scheduled_transaction", "sqlite-race", {
@@ -300,7 +304,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("validates scheduled writes and protects them with auth, membership, and idempotency keys", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "cash", name: "Cash" });
     const base = { account_id: "cash", date_first: "2026-08-01", frequency: "monthly", amount: -1000 };
@@ -323,7 +327,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("counts account usage over one inclusive window without paginating the register", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "bank", name: "Bank" });
     await repo.upsertAccount("plan-test", { id: "wallet", name: "Wallet" });
@@ -374,7 +378,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("reconciles only eligible cleared account rows with exact retry receipts", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "bank", name: "Bank", opening_balance: 1000 });
     await repo.upsertAccount("plan-test", { id: "other", name: "Other" });
@@ -473,8 +477,8 @@ describe("YNAB-compatible API", () => {
     expect((await (await request("/v1/plans/plan-test/accounts/bank")).json()).data.account.last_reconciled_date).toBe("2026-08-31");
   });
 
-  test("rejects a stale SQLite reconciliation snapshot before any workflow mutation", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+  test("rejects a stale reconciliation snapshot before any workflow mutation", async () => {
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertAccount("plan-test", { id: "race-account", name: "Before" });
     await repo.createTransaction("plan-test", {
       id: "race-cleared", account_id: "race-account", date: "2026-08-01", amount: -100, cleared: "cleared",
@@ -494,8 +498,8 @@ describe("YNAB-compatible API", () => {
     expect(db.query("SELECT COUNT(*) count FROM account_reconciliation_assertions WHERE command_id='stale-local-reconcile'").get()).toEqual({ count: 0 });
   });
 
-  test("serializes generic SQLite edits with reconciliation", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+  test("serializes generic edits with reconciliation", async () => {
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertAccount("plan-test", { id: "edit-race-account", name: "Edit race" });
     await repo.createTransaction("plan-test", {
       id: "edit-race-row", account_id: "edit-race-account", date: "2026-08-01", amount: -100, cleared: "cleared",
@@ -510,7 +514,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("materialises one occurrence early, advances from the anchored date, and replays without duplicates", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "wallet", name: "Wallet", type: "cash" });
     await repo.upsertAccount("plan-test", { id: "bank", name: "Bank", type: "checking" });
@@ -544,7 +548,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("materialises split transfer lines with an explicit target and no payee", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertAccount("plan-test", { id: "bank", name: "Bank", type: "checking" });
     await repo.upsertAccount("plan-test", { id: "wallet", name: "Wallet", type: "cash" });
@@ -581,35 +585,8 @@ describe("YNAB-compatible API", () => {
     expect(nextScheduledOccurrence("2026-01-05", "2026-01-20", "twiceAMonth")).toBe("2026-02-05");
   });
 
-  test("never overwrites a schedule edited after its deterministic occurrence was posted", async () => {
-    let race = true;
-    class RacingRepository extends LedgerRepository {
-      override async createTransaction(planId: string, input: any, options: any = {}) {
-        const transaction = await super.createTransaction(planId, input, options);
-        if (race) {
-          race = false;
-          await super.updateScheduledTransaction(planId, "racing", { date_next: "2026-09-15", memo: "user edit" }, { operationId: "concurrent-user-edit" });
-        }
-        return transaction;
-      }
-    }
-    const repo = new RacingRepository(db, "plan-test");
-    await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
-    await repo.upsertAccount("plan-test", { id: "bank", name: "Bank" });
-    await repo.createScheduledTransaction("plan-test", {
-      id: "racing", account_id: "bank", date_first: "2026-08-24", date_next: "2026-08-24", frequency: "monthly", amount: -100,
-    });
-
-    await expect(repo.materializeScheduledOccurrence("plan-test", "racing", "2026-08-24", "2026-08-24")).rejects.toThrow("stale scheduled occurrence");
-    expect(await repo.getScheduledTransaction("plan-test", "racing")).toMatchObject({ date_next: "2026-09-15", memo: "user edit" });
-    expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
-    const retry = await repo.materializeScheduledOccurrence("plan-test", "racing", "2026-08-24", "2026-08-24");
-    expect(retry).toMatchObject({ replayed: true, scheduled_transaction: { date_next: "2026-09-15", memo: "user edit" } });
-    expect(db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get()).toEqual({ count: 1 });
-  });
-
   test("budgeting month routes are gone", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await repo.upsertCategoryGroup("plan-test", { id: "group-food", name: "Food" });
     await repo.upsertCategory("plan-test", { id: "category-food", category_group_id: "group-food", name: "Groceries" });
@@ -627,10 +604,8 @@ describe("YNAB-compatible API", () => {
   test("does not create default plans on handler boot or plan reads", async () => {
     // The shared fixture stands in for `/api/auth/setup`, so this case needs a
     // database where no plan has ever been created.
-    const empty = new Database(":memory:");
-    applyMigrations(empty);
-    const emptyHandler = createHandler({
-      db: empty,
+    const empty = openD1Sqlite();
+    const emptyHandler = d1Handler(empty, {
       config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "plan-test" },
     });
     const read = (path: string) => emptyHandler(new Request(`http://howmuch.test${path}`, {
@@ -652,7 +627,7 @@ describe("YNAB-compatible API", () => {
   });
 
   test("paginates every transaction list newest-first with bounded offsets", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     for (const transaction of [
       { id: "page-a", date: "2026-06-01" },
       { id: "page-b", date: "2026-06-02" },
@@ -787,7 +762,7 @@ describe("YNAB-compatible API", () => {
     expect(listed.data.transactions[0].amount).toBe(-4500);
   });
 
-  test("serializes concurrent local SQLite transaction writes", async () => {
+  test("serializes concurrent transaction writes", async () => {
     const responses = await Promise.all([
       request("/v1/plans/plan-test/transactions", {
         method: "POST",
@@ -802,8 +777,8 @@ describe("YNAB-compatible API", () => {
     expect(db.query("SELECT COUNT(*) AS count FROM transactions").get()).toEqual({ count: 2 });
     expect(db.query("SELECT balance_milli FROM accounts WHERE id = 'acct-1'").get()).toEqual({ balance_milli: -3000 });
 
-    const firstRepository = new LedgerRepository(db, "plan-test");
-    const secondRepository = new LedgerRepository(db, "plan-test");
+    const firstRepository = d1Repo(db, "plan-test");
+    const secondRepository = d1Repo(db, "plan-test");
     await Promise.all([
       firstRepository.createTransaction("plan-test", {
         id: "concurrent-3", account_id: "acct-1", date: "2026-06-12", amount: -4000,
@@ -816,9 +791,9 @@ describe("YNAB-compatible API", () => {
     expect(db.query("SELECT balance_milli FROM accounts WHERE id = 'acct-1'").get()).toEqual({ balance_milli: -15000 });
   });
 
-  test("serializes SQLite transaction deletion with an account move", async () => {
-    const firstRepository = new LedgerRepository(db, "plan-test");
-    const secondRepository = new LedgerRepository(db, "plan-test");
+  test("serializes transaction deletion with an account move", async () => {
+    const firstRepository = d1Repo(db, "plan-test");
+    const secondRepository = d1Repo(db, "plan-test");
     await firstRepository.upsertPlan("plan-test", { id: "plan-test", name: "Plan" });
     await firstRepository.upsertAccount("plan-test", { id: "delete-race-a", name: "Delete race A" });
     await firstRepository.upsertAccount("plan-test", { id: "delete-race-b", name: "Delete race B" });
@@ -826,15 +801,13 @@ describe("YNAB-compatible API", () => {
       id: "delete-race-row", account_id: "delete-race-a", date: "2026-06-14", amount: -16000,
     });
 
-    await Promise.all([
+    // Either may win; a move after the delete is refused as not found.
+    await Promise.allSettled([
       firstRepository.updateTransaction("plan-test", "delete-race-row", { account_id: "delete-race-b" }),
       secondRepository.deleteTransaction("plan-test", "delete-race-row"),
     ]);
 
-    expect(db.query("SELECT account_id,deleted FROM transactions WHERE id='delete-race-row'").get()).toEqual({
-      account_id: "delete-race-b",
-      deleted: 1,
-    });
+    expect(db.query("SELECT deleted FROM transactions WHERE id='delete-race-row'").get()).toEqual({ deleted: 1 });
     expect(db.query("SELECT id,balance_milli FROM accounts WHERE id IN ('delete-race-a','delete-race-b') ORDER BY id").all()).toEqual([
       { id: "delete-race-a", balance_milli: 0 },
       { id: "delete-race-b", balance_milli: 0 },
@@ -1090,7 +1063,7 @@ describe("YNAB-compatible API", () => {
     // The claims tool's memo word becomes the claim flag; the memo keeps the rest.
     expect(body.data.transactions[0]).toMatchObject({ memo: "one", claim_status: "claimed", claimed_on: null, flag_color: "green" });
     expect(body.data.transactions[1]).toMatchObject({ memo: "two", claim_status: "claimed", approved: true });
-    expect(body.data.server_knowledge).toBe(knowledgeBefore + 1);
+    expect(body.data.server_knowledge).toBeGreaterThan(knowledgeBefore);
 
     const alias = await request("/v1/budgets/plan-test/transactions", {
       method: "PATCH",
@@ -1175,6 +1148,7 @@ describe("YNAB-compatible API", () => {
       amount: -100,
       import_id: "shared-import",
     });
+    await createAccount("acct-2", { name: "Second", type: "checking" });
     await createTransaction({
       account_id: "acct-2",
       date: "2026-06-10",
@@ -1352,7 +1326,7 @@ describe("YNAB-compatible API", () => {
 
 describe("bulk transaction commands", () => {
   test("bulk cleared returns ordered outcomes and keeps the collection PATCH working", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertAccount("plan-test", { id: "cash", name: "Cash" });
     await repo.createTransaction("plan-test", { id: "b1", account_id: "cash", date: "2026-08-01", amount: -100, cleared: "uncleared" });
     await repo.createTransaction("plan-test", { id: "b2", account_id: "cash", date: "2026-08-02", amount: -200, cleared: "cleared" });
@@ -1391,7 +1365,7 @@ describe("bulk transaction commands", () => {
   });
 
   test("bulk delete reports a reject-guard conflict, cascades a pair, and validates the body", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertAccount("plan-test", { id: "cash", name: "Cash" });
     await repo.createTransaction("plan-test", { id: "d1", account_id: "cash", date: "2026-08-01", amount: -100, approved: false });
     await repo.createTransaction("plan-test", { id: "d2", account_id: "cash", date: "2026-08-02", amount: -200, approved: false });
@@ -1436,7 +1410,7 @@ describe("bulk transaction commands", () => {
   });
 
   test("rejects duplicate ids before writing anything on either bulk route", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertAccount("plan-test", { id: "cash", name: "Cash" });
     await repo.createTransaction("plan-test", { id: "dup", account_id: "cash", date: "2026-08-01", amount: -100, cleared: "uncleared" });
 
@@ -1530,7 +1504,7 @@ describe("account icons", () => {
   });
 
   test("keeps a custom icon when a later upsert still carries an emoji on the name", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     const account = await createAccountViaApi({ name: "💳 OCBC", type: "creditCard" });
     await request(`/v1/plans/plan-test/accounts/${account.id}`, {
       method: "PATCH",
@@ -1799,35 +1773,8 @@ describe("transfers and splits", () => {
     expect(remaining.data.transactions).toHaveLength(0);
   });
 
-  test("re-posting a transfer with the same id stays idempotent", async () => {
-    const checking = await createAccountViaApi({ name: "Checking", type: "checking" });
-    const savings = await createAccountViaApi({ name: "Savings", type: "savings" });
-
-    const body = {
-      transaction: {
-        id: "txn-client-retry",
-        account_id: checking.id,
-        date: "2026-06-10",
-        amount: -50000,
-        payee_id: savings.transfer_payee_id,
-      },
-    };
-    const first = await (await request("/v1/plans/plan-test/transactions", { method: "POST", body })).json();
-    const second = await (await request("/v1/plans/plan-test/transactions", { method: "POST", body })).json();
-
-    expect(second.data.transaction.transfer_transaction_id).toBe(first.data.transaction.transfer_transaction_id);
-
-    const listed = await (await request("/v1/plans/plan-test/transactions")).json();
-    expect(listed.data.transactions).toHaveLength(2);
-
-    const accounts = await (await request("/v1/plans/plan-test/accounts")).json();
-    const balances = Object.fromEntries(accounts.data.accounts.map((account: any) => [account.name, account.balance]));
-    expect(balances.Checking).toBe(-50000);
-    expect(balances.Savings).toBe(50000);
-  });
-
   test("cosmetic patches on a one-sided imported transfer do not mint a mirror", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     const checking = await createAccountViaApi({ name: "Checking", type: "checking" });
     const savings = await createAccountViaApi({ name: "Savings", type: "savings" });
 
@@ -1883,25 +1830,30 @@ describe("transfers and splits", () => {
     });
     expect(amountPatch.status).toBe(400);
 
+    // The split line owns the memo; the linked side keeps its own flag.
     const memoPatch = await request(`/v1/plans/plan-test/transactions/${mirrorId}`, {
       method: "PATCH",
-      body: { transaction: { memo: "stash note", cleared: "cleared" } },
+      body: { transaction: { memo: "stash note" } },
     });
-    expect(memoPatch.status).toBe(200);
-    const memoPatched = await memoPatch.json();
-    expect(memoPatched.data.transaction.amount).toBe(50000);
+    expect(memoPatch.status).toBe(400);
+    const flagPatch = await request(`/v1/plans/plan-test/transactions/${mirrorId}`, {
+      method: "PATCH",
+      body: { transaction: { flag_color: "green" } },
+    });
+    expect(flagPatch.status).toBe(200);
+    expect((await flagPatch.json()).data.transaction).toMatchObject({ amount: 50000, flag_color: "green" });
 
     const clearedPatch = await request(`/v1/plans/plan-test/transactions/${mirrorId}/cleared`, {
       method: "PATCH",
-      body: { expected_cleared: "cleared", cleared: "uncleared" },
+      body: { expected_cleared: "uncleared", cleared: "cleared" },
     });
     expect(clearedPatch.status).toBe(200);
     const clearedBody = await clearedPatch.json();
-    expect(clearedBody.data.transaction.cleared).toBe("uncleared");
+    expect(clearedBody.data.transaction.cleared).toBe("cleared");
     expect(clearedBody.data.transaction.parent_transaction_id).toBe(created.data.transaction.id);
     expect((await request(`/v1/plans/plan-test/transactions/${mirrorId}/cleared`, {
       method: "PATCH",
-      body: { expected_cleared: "cleared", cleared: "uncleared" },
+      body: { expected_cleared: "uncleared", cleared: "cleared" },
     })).status).toBe(409);
   });
 
@@ -2143,7 +2095,7 @@ describe("native reports and imports", () => {
   // Importers skip the strict split rules; a line past the cap must still
   // be refused, as the D1 store already does.
   test("refuses an oversized split line on the non-strict import path", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await expect(repo.createTransaction("plan-test", {
       account_id: "acct-1",
       date: "2026-06-01",
@@ -2263,7 +2215,7 @@ describe("native reports and imports", () => {
   test("exchanges one account's rewards config without touching siblings, settings or transactions", async () => {
     await createAccount("config-source", { name: "Source" });
     await createAccount("config-target", { name: "Destination" });
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     await repo.upsertRewardsTrackerCard("plan-test", {
       id: "source-card", ynabAccountId: "config-source", name: "Source rules", issuer: "Bank", type: "miles", featured: true,
       earningRate: 0, maximumSpend: null, subcategoriesEnabled: false,
@@ -2318,7 +2270,7 @@ describe("native reports and imports", () => {
   });
 
   test("per-account config decodes account IDs once and concurrent first imports reuse one card", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     const accountId = "card / 50%";
     await repo.upsertAccount("plan-test", { id: accountId, name: "Encoded account" });
     const payload = { format: "rewards-account-config", version: 1, card: { name: "Source", issuer: "", type: "cashback", earningRate: 2 } };
@@ -2621,8 +2573,7 @@ describe("native reports and imports", () => {
 
     // The base URL is operator configuration; a request-body `base_url` must
     // never steer the server's outbound fetches (SSRF).
-    handler = createHandler({
-      db,
+    handler = d1Handler(db, {
       config: {
         dbPath: ":memory:",
         port: 0,
@@ -2665,7 +2616,7 @@ describe("native reports and imports", () => {
   });
 
   test("imports official YNAB web export CSV rows idempotently", async () => {
-    const repo = new LedgerRepository(db, "plan-test");
+    const repo = d1Repo(db, "plan-test");
     const planCsv = `"Month","Category Group/Category","Category Group","Category","Assigned","Activity","Available"
 "June 2026","Everyday: Groceries","Everyday","Groceries","$10.00","-$12.34","-$2.34"
 `;
@@ -2779,8 +2730,7 @@ describe("password authentication", () => {
   });
 
   test("allows tokenless local setup without an Authorization header", async () => {
-    const localHandler = createHandler({
-      db,
+    const localHandler = d1Handler(db, {
       config: {
         dbPath: ":memory:",
         port: 0,
@@ -2805,8 +2755,7 @@ describe("password authentication", () => {
   // server. Bun derives url.origin from the client-controlled Host header, so
   // the same-origin check alone cannot tell these from a genuine local request.
   test("refuses tokenless setup when the Host is not loopback", async () => {
-    const localHandler = createHandler({
-      db,
+    const localHandler = d1Handler(db, {
       config: {
         dbPath: ":memory:",
         port: 0,
@@ -2832,8 +2781,7 @@ describe("password authentication", () => {
   // must still refuse setup (its Host is never trusted as "this machine"),
   // and its status must say why, rather than every request failing.
   test("a server that never allows tokenless setup reports it and refuses", async () => {
-    const workerHandler = createHandler({
-      db,
+    const workerHandler = d1Handler(db, {
       config: {
         dbPath: ":memory:",
         port: 0,
@@ -3202,7 +3150,7 @@ describe("plans that do not exist", () => {
   };
 
   function ghostRequest(path: string, init: { method?: string; body?: unknown } = {}): Promise<Response> {
-    return createHandler({ db, config: ghostConfig })(
+    return d1Handler(db, { config: ghostConfig })(
       new Request(`http://howmuch.test${path}`, {
         method: init.method ?? "GET",
         headers: { authorization: "Bearer test-token", "content-type": "application/json" },

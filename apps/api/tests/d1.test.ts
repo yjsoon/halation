@@ -6,7 +6,6 @@ import { runDailyScheduledMaterialization, scheduledLocalDate, scheduledMaterial
 import { D1TransactionRepository } from "../src/d1-transaction-repository";
 import { D1MetadataRepository } from "../src/d1-metadata-repository";
 import { D1LedgerRepository } from "../src/d1-ledger-repository";
-import { LedgerRepository } from "../src/repository";
 import { D1AuthStore } from "../src/auth-store";
 import { createHandler } from "../src/http";
 import { CountingD1Database, fakeD1Binding } from "./helpers/counting-d1";
@@ -980,64 +979,62 @@ describe("D1 foundation", () => {
     expect(db.query("SELECT COUNT(*) AS n FROM transactions").get()).toEqual({ n: 0 });
   });
 
-  for (const backend of ["SQLite", "D1"] as const) {
-    test(`${backend} config import can restore a deleted card on the same account`, async () => {
-      const db = await ledgerSqlite();
-      const repo = backend === "D1" ? new D1LedgerRepository(new D1Database(fakeD1(db)), "p") : new LedgerRepository(db, "p");
-      const card = await importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig);
-      await repo.deleteRewardsTrackerCard("p", card.id);
-      expect((await importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig)).id).toBe(card.id);
-      expect((await repo.getRewardsTrackerSnapshot("p")).cards).toEqual([card]);
-    });
+  test(`config import can restore a deleted card on the same account`, async () => {
+    const db = await ledgerSqlite();
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    const card = await importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig);
+    await repo.deleteRewardsTrackerCard("p", card.id);
+    expect((await importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig)).id).toBe(card.id);
+    expect((await repo.getRewardsTrackerSnapshot("p")).cards).toEqual([card]);
+  });
 
-    test(`${backend} config import cannot overwrite a card remapped to a sibling`, async () => {
+  test(`config import cannot overwrite a card remapped to a sibling`, async () => {
+    const db = await ledgerSqlite();
+    db.run("INSERT INTO accounts(id,plan_id,name) VALUES('b','p','Sibling')");
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    const card = await importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig);
+    await repo.upsertRewardsTrackerCard("p", { ...card, ynabAccountId: "b", name: "B rules", earningRate: 9 });
+    const before = await repo.getRewardsTrackerSnapshot("p");
+    await expect(importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig)).rejects.toThrow("account mapping");
+    expect(await repo.getRewardsTrackerSnapshot("p")).toEqual(before);
+  });
+
+  test(`config import atomically rejects account remaps after preflight`, async () => {
+    for (const moveDestinationAway of [true, false]) {
       const db = await ledgerSqlite();
       db.run("INSERT INTO accounts(id,plan_id,name) VALUES('b','p','Sibling')");
-      const repo = backend === "D1" ? new D1LedgerRepository(new D1Database(fakeD1(db)), "p") : new LedgerRepository(db, "p");
-      const card = await importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig);
-      await repo.upsertRewardsTrackerCard("p", { ...card, ynabAccountId: "b", name: "B rules", earningRate: 9 });
-      const before = await repo.getRewardsTrackerSnapshot("p");
-      await expect(importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig)).rejects.toThrow("account mapping");
-      expect(await repo.getRewardsTrackerSnapshot("p")).toEqual(before);
-    });
-
-    test(`${backend} config import atomically rejects account remaps after preflight`, async () => {
-      for (const moveDestinationAway of [true, false]) {
-        const db = await ledgerSqlite();
-        db.run("INSERT INTO accounts(id,plan_id,name) VALUES('b','p','Sibling')");
-        const repo = backend === "D1" ? new D1LedgerRepository(new D1Database(fakeD1(db)), "p") : new LedgerRepository(db, "p");
-        const card = await importRewardsAccountConfig(repo, "p", moveDestinationAway ? "a" : "b", rewardsAccountConfig);
-        const getSnapshot = repo.getRewardsTrackerSnapshot.bind(repo);
-        const remapped = { ...card, ynabAccountId: moveDestinationAway ? "b" : "a", name: "Remapped rules", earningRate: 9 };
-        repo.getRewardsTrackerSnapshot = async (planId) => {
-          const result = await getSnapshot(planId);
-          await repo.upsertRewardsTrackerCard(planId, remapped);
-          return result;
-        };
-        await expect(importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig)).rejects.toThrow("account mapping");
-        expect((await getSnapshot("p")).cards).toEqual([remapped]);
-      }
-    });
-
-    test(`${backend} config import leaves concurrently saved global settings untouched`, async () => {
-      const db = await ledgerSqlite();
-      const makeRepo = () => backend === "D1" ? new D1LedgerRepository(new D1Database(fakeD1(db)), "p") : new LedgerRepository(db, "p");
-      const repo = makeRepo();
-      const other = makeRepo();
-      await repo.patchRewardsTrackerSettings("p", { milesValuation: 0.01 });
+      const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+      const card = await importRewardsAccountConfig(repo, "p", moveDestinationAway ? "a" : "b", rewardsAccountConfig);
       const getSnapshot = repo.getRewardsTrackerSnapshot.bind(repo);
+      const remapped = { ...card, ynabAccountId: moveDestinationAway ? "b" : "a", name: "Remapped rules", earningRate: 9 };
       repo.getRewardsTrackerSnapshot = async (planId) => {
         const result = await getSnapshot(planId);
-        await other.patchRewardsTrackerSettings(planId, { milesValuation: 0.03 });
+        await repo.upsertRewardsTrackerCard(planId, remapped);
         return result;
       };
-      const before = db.query("SELECT payload_json FROM rewards_tracker_snapshots").get() as { payload_json: string };
-      await importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig);
-      const after = db.query("SELECT payload_json FROM rewards_tracker_snapshots").get() as { payload_json: string };
-      expect(JSON.parse(after.payload_json)).toEqual({ ...JSON.parse(before.payload_json), settings: { milesValuation: 0.03 } });
-      expect((await getSnapshot("p")).cards).toHaveLength(1);
-    });
-  }
+      await expect(importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig)).rejects.toThrow("account mapping");
+      expect((await getSnapshot("p")).cards).toEqual([remapped]);
+    }
+  });
+
+  test(`config import leaves concurrently saved global settings untouched`, async () => {
+    const db = await ledgerSqlite();
+    const makeRepo = () => new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    const repo = makeRepo();
+    const other = makeRepo();
+    await repo.patchRewardsTrackerSettings("p", { milesValuation: 0.01 });
+    const getSnapshot = repo.getRewardsTrackerSnapshot.bind(repo);
+    repo.getRewardsTrackerSnapshot = async (planId) => {
+      const result = await getSnapshot(planId);
+      await other.patchRewardsTrackerSettings(planId, { milesValuation: 0.03 });
+      return result;
+    };
+    const before = db.query("SELECT payload_json FROM rewards_tracker_snapshots").get() as { payload_json: string };
+    await importRewardsAccountConfig(repo, "p", "a", rewardsAccountConfig);
+    const after = db.query("SELECT payload_json FROM rewards_tracker_snapshots").get() as { payload_json: string };
+    expect(JSON.parse(after.payload_json)).toEqual({ ...JSON.parse(before.payload_json), settings: { milesValuation: 0.03 } });
+    expect((await getSnapshot("p")).cards).toHaveLength(1);
+  });
 
   test("D1 and SQLite rewards retain history before a cut-in range and reset monthly caps", async () => {
     const db = await ledgerSqlite();
@@ -1142,7 +1139,7 @@ describe("D1 foundation", () => {
   test("a retried legacy memo save preserves a concurrently completed claim", async () => {
     for (const collection of [false, true]) {
       const db = await ledgerSqlite();
-      const seed = new LedgerRepository(db, "p");
+      const seed = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
       await seed.createTransaction("p", { id: "claim-race", account_id: "a", date: "2026-10-25", amount: -10000, memo: "Taxi", claim_status: "to_claim" });
       // Force a write-version conflict after planning, which sequential E2E
       // misses. A retry must reinterpret the original memo against the new row,
@@ -1649,45 +1646,41 @@ describe("D1 foundation", () => {
   });
 });
 
-describe("nullable approval parity", () => {
-  for (const engine of ["SQLite", "D1"] as const) {
-    for (const mode of ["single", "batch"] as const) {
-      test(`${engine} ${mode} preserves omitted approval and clears explicit null`, async () => {
-        const db = await ledgerSqlite();
-        provisionTransferPayee(db, "a");
-        const repo = engine === "D1"
-          ? new D1LedgerRepository(new D1Database(fakeD1(db)), "p")
-          : new LedgerRepository(db, "p");
-        const update = async (id: string, patch: { approved?: boolean | null; memo?: string }) => {
-          if (mode === "single") await repo.updateTransaction("p", id, patch);
-          else await repo.updateTransactions("p", [{ lookup: { kind: "id", id }, patch }]);
-        };
-        await repo.createTransaction("p", {
-          id: "nullable", account_id: "a", date: "2026-07-01", amount: -300, approved: true,
-        });
-        await update("nullable", { memo: "approval omitted" });
-        expect((await repo.getTransaction("p", "nullable")).approved).toBe(true);
-        await update("nullable", { approved: null, memo: "explicit null" });
-        expect(await repo.getTransaction("p", "nullable")).toMatchObject({ approved: false, memo: "explicit null" });
-        await update("nullable", { approved: true });
-        await update("nullable", { approved: null });
-        expect((await repo.getTransaction("p", "nullable")).approved).toBe(false);
-
-        await repo.upsertAccount("p", { id: "b", name: "Savings" });
-        const split = await repo.createTransaction("p", {
-          id: "split-nullable", account_id: "a", date: "2026-07-01", amount: -300, approved: true,
-          subtransactions: [{ amount: -100, transfer_account_id: "b" }, { amount: -200 }],
-        });
-        const mirrorId = split.subtransactions.find((sub: { amount: number }) => sub.amount === -100).transfer_transaction_id;
-        expect(mirrorId).toBeString();
-        await update(mirrorId, { approved: null });
-        expect((await repo.getTransaction("p", split.id)).approved).toBe(false);
-        expect((await repo.getTransaction("p", mirrorId)).approved).toBe(false);
-        await update(mirrorId, { approved: true });
-        expect((await repo.getTransaction("p", split.id)).approved).toBe(true);
-        expect((await repo.getTransaction("p", mirrorId)).approved).toBe(true);
+describe("nullable approval", () => {
+  for (const mode of ["single", "batch"] as const) {
+    test(`${mode} preserves omitted approval and clears explicit null`, async () => {
+      const db = await ledgerSqlite();
+      provisionTransferPayee(db, "a");
+      const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+      const update = async (id: string, patch: { approved?: boolean | null; memo?: string }) => {
+        if (mode === "single") await repo.updateTransaction("p", id, patch);
+        else await repo.updateTransactions("p", [{ lookup: { kind: "id", id }, patch }]);
+      };
+      await repo.createTransaction("p", {
+        id: "nullable", account_id: "a", date: "2026-07-01", amount: -300, approved: true,
       });
-    }
+      await update("nullable", { memo: "approval omitted" });
+      expect((await repo.getTransaction("p", "nullable")).approved).toBe(true);
+      await update("nullable", { approved: null, memo: "explicit null" });
+      expect(await repo.getTransaction("p", "nullable")).toMatchObject({ approved: false, memo: "explicit null" });
+      await update("nullable", { approved: true });
+      await update("nullable", { approved: null });
+      expect((await repo.getTransaction("p", "nullable")).approved).toBe(false);
+
+      await repo.upsertAccount("p", { id: "b", name: "Savings" });
+      const split = await repo.createTransaction("p", {
+        id: "split-nullable", account_id: "a", date: "2026-07-01", amount: -300, approved: true,
+        subtransactions: [{ amount: -100, transfer_account_id: "b" }, { amount: -200 }],
+      });
+      const mirrorId = split.subtransactions.find((sub: { amount: number }) => sub.amount === -100).transfer_transaction_id;
+      expect(mirrorId).toBeString();
+      await update(mirrorId, { approved: null });
+      expect((await repo.getTransaction("p", split.id)).approved).toBe(false);
+      expect((await repo.getTransaction("p", mirrorId)).approved).toBe(false);
+      await update(mirrorId, { approved: true });
+      expect((await repo.getTransaction("p", split.id)).approved).toBe(true);
+      expect((await repo.getTransaction("p", mirrorId)).approved).toBe(true);
+    });
   }
 });
 

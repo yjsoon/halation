@@ -3,8 +3,7 @@ import { API_TOKEN, count, markYnabMirror, nativeHarness, type NativeHarness } f
 import { seedStarterCategories, starterCategoriesPending } from "./starter-categories";
 
 // Failure modes the browser flow does not reliably show, run against the real
-// API handler on the SQLite backend (the fake D1 binding cannot take the
-// helper's concurrent creates, so D1 has no isolated coverage here):
+// API handler and D1 stores over a local binding:
 // - A create that fails part-way (network drop, 5xx) must not mark the plan
 //   done, or this browser never finishes the set.
 // - A retry after a partial run must fill the gaps without a second copy of
@@ -32,7 +31,7 @@ beforeEach(async () => {
     removeItem: (key: string) => void store.delete(key),
   };
   failWhen = () => false;
-  harness = await nativeHarness("SQLite");
+  harness = await nativeHarness();
   globalThis.fetch = (async (input: string, init: RequestInit = {}) => {
     const path = String(input);
     if (init.method === "POST" && failWhen(path)) throw new TypeError("Failed to fetch");

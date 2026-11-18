@@ -265,12 +265,21 @@ export class D1TransactionRepository {
     const touched = new Set<string>([input.id!]);
     const accounts = new Set<string>([input.account_id]);
     if (snapshot.transaction) accounts.add(snapshot.transaction.account_id);
-    if (snapshot.transaction) body.push(assertion(stable.commandId, snapshot.subs.length || snapshot.transaction.transfer_transaction_id ? "graph_update_target" : "update_target", input.id!, planId));
+    // An import upsert may land on a tombstone: keep it deleted or restore it.
+    if (snapshot.transaction) body.push(assertion(stable.commandId, snapshot.transaction.deleted ? "graph_transaction" : snapshot.subs.length || snapshot.transaction.transfer_transaction_id || snapshot.transaction.transfer_account_id ? "graph_update_target" : "update_target", input.id!, planId));
+    // YNAB can import one side of a transfer without its mirror. An edit that
+    // keeps the payee and target leaves it one-sided instead of minting one.
+    const existing = snapshot.transaction;
+    if (existing?.transfer_account_id && !existing.transfer_transaction_id && !payeeChanged
+      && (input.transfer_account_id ?? existing.transfer_account_id) === existing.transfer_account_id) autoLink = false;
     for (const row of snapshot.mirrors) { body.push(assertion(stable.commandId, "graph_transaction", row.id, planId)); accounts.add(row.account_id); }
     for (const sub of snapshot.subs) body.push(assertion(stable.commandId, "graph_subtransaction", sub.id, planId));
 
     let transferAccount = (autoLink ? payee?.transfer_account_id : null) ?? input.transfer_account_id ?? null;
-    let transferId = input.transfer_transaction_id ?? snapshot.transaction?.transfer_transaction_id ?? null;
+    // An import (no auto-link) clears the link with an explicit null; an app
+    // edit's null still means the existing mirror.
+    let transferId = !autoLink && input.transfer_transaction_id === null
+      ? null : input.transfer_transaction_id ?? snapshot.transaction?.transfer_transaction_id ?? null;
     // Replacing a transfer payee with an ordinary payee breaks the pair.
     if (autoLink && snapshot.transaction?.transfer_transaction_id && payeeChanged && !payee?.transfer_account_id) {
       body.push(statement("UPDATE transactions SET deleted=1, updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=?", [snapshot.transaction.transfer_transaction_id, planId]));

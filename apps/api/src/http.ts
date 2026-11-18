@@ -55,7 +55,7 @@ import { buildPlanExport, transactionsCsv } from "./plan-export";
 import { parseSeedCurrencyFormat, parseSeedDateFormat } from "./plan-settings-seed";
 import { isIsoDate, localDate } from "./card-payments";
 
-type HandlerOptions = {
+export type HandlerOptions = {
   db?: Database;
   repo?: LedgerStore;
   reports?: ReportStore;

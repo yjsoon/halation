@@ -172,6 +172,13 @@ export async function importYnabExport(
       });
       await upsertRowCategory(prepared.row);
     }
+    // A "Transfer : X" payee can name an account with no rows in the export.
+    for (const prepared of preparedTransactions) {
+      const target = prepared.input.transfer_account_id;
+      if (!target || accountIds.has(target)) continue;
+      await repo.upsertAccount(options.planId, { id: target, name: transferPayeeTarget(prepared.input.payee_name), external_ynab_id: target });
+      accountIds.add(target);
+    }
 
     for (const prepared of preparedTransactions) {
       try {

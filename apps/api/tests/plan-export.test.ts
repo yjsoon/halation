@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { BACKENDS, nativeHarness, type NativeHarness } from "./helpers/native-harness";
+import { nativeHarness, type NativeHarness } from "./helpers/native-harness";
 
 // The archive promises no credentials, but Rewards cards and the stored
 // tracker snapshot keep whatever extra keys an older Rewards Tracker import
@@ -14,9 +14,9 @@ afterEach(() => { for (const harness of harnesses.splice(0)) harness.close(); })
 
 const MARKER = "synthetic-secret-marker";
 
-describe.each(BACKENDS)("export everything on %s", (backend) => {
+describe("export everything", () => {
   test("strips credentials carried by imported Rewards data from both copies", async () => {
-    const harness = await nativeHarness(backend);
+    const harness = await nativeHarness();
     harnesses.push(harness);
     const payload = {
       cards: [{

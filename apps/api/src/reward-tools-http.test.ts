@@ -1,11 +1,11 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { expect, test } from "bun:test";
-import { applyMigrations } from "./db";
-import { createHandler } from "./http";
+import { openD1Sqlite } from "./sqlite-d1";
+import { d1Handler, d1Repo } from "../tests/helpers/native-harness";
 
 test("native tools require authentication, same-origin CSRF, and plan permission before parsing", async () => {
-  const db = new Database(":memory:"); applyMigrations(db);
-  const handler = createHandler({ db, config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "test-plan" } });
+  const db = openD1Sqlite();
+  const handler = d1Handler(db, { config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "test-plan" } });
   try {
     for (const route of ["reward-terms", "statement-formatter"]) {
       const request = (headers: Record<string, string>, plan = "test-plan") => handler(new Request(`https://howmuch.test/api/tools/${route}?plan_id=${plan}`, { method: "POST", headers, body: "not JSON" }));

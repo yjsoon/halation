@@ -1,21 +1,24 @@
-import { Database } from "bun:sqlite";
+import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
-import { applyMigrations } from "../db";
-import { LedgerRepository } from "../repository";
 import { buildRewardsReport } from "../rewards/build";
 import { SimpleRewardsCalculator } from "../rewards/engine/simple-calculator";
 import { parseCreditCards } from "../rewards/parse";
 import { importRewardsTrackerExport, parseRewardsTrackerExport } from "./rewards-tracker";
 import officialExport from "../../../../fixtures/rewards-tracker-export.json";
 import fatExport from "../../../../fixtures/rewards-tracker-export-with-cache.json";
+import type { D1LedgerRepository } from "../d1-ledger-repository";
+import { openD1Sqlite } from "../sqlite-d1";
+import { d1Handler, d1Repo } from "../../tests/helpers/native-harness";
 
 let db: Database;
-let repo: LedgerRepository;
+let repo: D1LedgerRepository;
 
-beforeEach(() => {
-  db = new Database(":memory:");
-  applyMigrations(db);
-  repo = new LedgerRepository(db, "plan-test");
+beforeEach(async () => {
+  db = openD1Sqlite();
+  repo = d1Repo(db, "plan-test");
+  await repo.ensurePlan("plan-test");
+  // Production refuses a transaction for an unknown account.
+  await repo.upsertAccount("plan-test", { id: "a", name: "Everyday" });
 });
 
 afterEach(() => {
@@ -153,6 +156,8 @@ describe("importRewardsTrackerExport", () => {
     expect(["ambiguous-1", "ambiguous-2"]).not.toContain(generated);
     await load([{ ...base, id: "another-txn", amount: 4000, category_name: "Dining" }]);
     expect((await repo.getTransaction("plan-test", "another-txn")).category_id).toBe(generated);
+    await repo.ensurePlan("other-plan");
+    await repo.upsertAccount("other-plan", { id: "b", name: "Other" });
     await load([{ ...base, account_id: "b", id: "other-plan-txn", amount: 5000, category_name: "Dining" }], "other-plan");
     expect((await repo.getTransaction("other-plan", "other-plan-txn")).category_id).not.toBe(generated);
     await load([{ ...base, id: "matched", amount: 1000, category_name: null }]);
@@ -166,6 +171,7 @@ describe("importRewardsTrackerExport", () => {
   });
 
   test("retains refund categories, preserves omissions, and clears explicit null metadata", async () => {
+    await repo.upsertAccount("plan-test", { id: "other", name: "Other" });
     const transaction = { id: "refund", account_id: "a", date: "2026-01-02", amount: 5000, category_id: "dining", category_name: "Dining", memo: "refund", flag_color: "red", flag_name: "Dining", payee_name: "Merchant", transfer_account_id: "other", transfer_transaction_id: "other-txn", cleared: "reconciled", approved: true };
     const load = (txn: object) => importRewardsTrackerExport(repo, "plan-test", { cards: [], cachedData: { transactions: [txn] } });
     await load(transaction);

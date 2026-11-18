@@ -1,8 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { openDatabase } from "../../apps/api/src/db";
-import { LedgerRepository } from "../../apps/api/src/repository";
+import type { LedgerStore } from "../../apps/api/src/storage";
 
 type DemoFixture = {
   plan: {
@@ -27,42 +26,29 @@ function loadDemoFixture(path = defaultFixturePath): DemoFixture {
   return JSON.parse(readFileSync(path, "utf8")) as DemoFixture;
 }
 
-export async function seedDemoLedger(options?: {
-  dbPath?: string;
+/** Seeds the fixture straight into a ledger store, such as an in-process D1 one. */
+export async function seedDemoLedger(repo: LedgerStore, options?: {
   fixturePath?: string;
   planId?: string;
-}): Promise<{ dbPath: string; fixturePath: string; planId: string }> {
+}): Promise<{ fixturePath: string; planId: string }> {
   const fixturePath = resolveFixturePath(options?.fixturePath);
   const fixture = loadDemoFixture(fixturePath);
-  const dbPath = options?.dbPath ?? "data/howmuch.sqlite";
   const planId = options?.planId ?? fixture.plan.id;
 
-  const db = openDatabase(dbPath);
-  const repo = new LedgerRepository(db, planId);
-
-  try {
-    await repo.ensurePlan(planId, fixture.plan.name);
-
-    for (const account of fixture.accounts) {
-      await repo.upsertAccount(planId, account);
-    }
-
-    for (const group of fixture.category_groups) {
-      await repo.upsertCategoryGroup(planId, group);
-    }
-
-    for (const category of fixture.categories) {
-      await repo.upsertCategory(planId, category, category.group_id);
-    }
-
-    for (const transaction of fixture.transactions) {
-      await repo.createTransaction(planId, transaction as any);
-    }
-  } finally {
-    db.close();
+  await repo.ensurePlan(planId, fixture.plan.name);
+  for (const account of fixture.accounts) {
+    await repo.upsertAccount(planId, account);
   }
-
-  return { dbPath, fixturePath, planId };
+  for (const group of fixture.category_groups) {
+    await repo.upsertCategoryGroup(planId, group);
+  }
+  for (const category of fixture.categories) {
+    await repo.upsertCategory(planId, category, category.group_id);
+  }
+  for (const transaction of fixture.transactions) {
+    await repo.createTransaction(planId, transaction as any);
+  }
+  return { fixturePath, planId };
 }
 
 /**

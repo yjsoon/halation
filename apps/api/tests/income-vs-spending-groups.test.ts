@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { BACKENDS, nativeHarness, type NativeHarness } from "./helpers/native-harness";
+import { nativeHarness, type NativeHarness } from "./helpers/native-harness";
 
 const PLAN = "p";
 const JUNE = { from: "2026-06-01", to: "2026-06-30" };
@@ -89,106 +89,104 @@ async function seedJuneLedger(harness: NativeHarness): Promise<void> {
 }
 
 describe("income vs spending groups", () => {
-  for (const backend of BACKENDS) {
-    test(`${backend}: groups reconcile to incomeVsSpending and keep quiet / transfer rules`, async () => {
-      const harness = await nativeHarness(backend);
-      harnesses.push(harness);
-      await seedJuneLedger(harness);
+  test(`groups reconcile to incomeVsSpending and keep quiet / transfer rules`, async () => {
+    const harness = await nativeHarness();
+    harnesses.push(harness);
+    await seedJuneLedger(harness);
 
-      const periods = await harness.request(
-        `/api/reports/income-vs-spending?plan_id=${PLAN}&from=${JUNE.from}&to=${JUNE.to}`,
-      ).then((response) => response.json());
-      const groups = await harness.request(
-        `/api/reports/income-vs-spending-groups?plan_id=${PLAN}&from=${JUNE.from}&to=${JUNE.to}`,
-      ).then((response) => response.json());
+    const periods = await harness.request(
+      `/api/reports/income-vs-spending?plan_id=${PLAN}&from=${JUNE.from}&to=${JUNE.to}`,
+    ).then((response) => response.json());
+    const groups = await harness.request(
+      `/api/reports/income-vs-spending-groups?plan_id=${PLAN}&from=${JUNE.from}&to=${JUNE.to}`,
+    ).then((response) => response.json());
 
-      expect(periods.data.periods).toHaveLength(1);
-      expect(periods.data.periods[0].period).toBe("2026-06");
-      // Independent expected totals: income 2_125_000, spending 650_000.
-      // Plain 100_000 transfer is excluded; categorised 40_000 transfer is in.
-      // Quiet-group Hidden fees 20_000 stays in. Split lines count as lines.
-      expect(periods.data.periods[0].income).toBe(2_125_000);
-      expect(periods.data.periods[0].spending).toBe(650_000);
-      expect(groups.data.income).toBe(2_125_000);
-      expect(groups.data.spending).toBe(650_000);
-      expect(groups.data.net).toBe(1_475_000);
+    expect(periods.data.periods).toHaveLength(1);
+    expect(periods.data.periods[0].period).toBe("2026-06");
+    // Independent expected totals: income 2_125_000, spending 650_000.
+    // Plain 100_000 transfer is excluded; categorised 40_000 transfer is in.
+    // Quiet-group Hidden fees 20_000 stays in. Split lines count as lines.
+    expect(periods.data.periods[0].income).toBe(2_125_000);
+    expect(periods.data.periods[0].spending).toBe(650_000);
+    expect(groups.data.income).toBe(2_125_000);
+    expect(groups.data.spending).toBe(650_000);
+    expect(groups.data.net).toBe(1_475_000);
 
-      const spendingNames = groups.data.spending_by_category.map((row: { category_name: string }) => row.category_name);
-      expect(spendingNames).toEqual(["Groceries", "Dining", "Hidden fees", "Uncategorised"]);
-      expect(groups.data.spending_by_category[0]).toMatchObject({
-        category_id: "groceries", amount: 390_000, transaction_count: 3, share: 390_000 / 650_000,
-      });
-      expect(groups.data.spending_by_category[1]).toMatchObject({
-        category_id: "dining", amount: 230_000, transaction_count: 3, share: 230_000 / 650_000,
-      });
-      expect(groups.data.spending_by_category[2]).toMatchObject({
-        category_id: "hidden-fees", amount: 20_000, transaction_count: 1,
-      });
-      expect(groups.data.spending_by_category[3]).toMatchObject({
-        category_id: "uncategorised", amount: 10_000, transaction_count: 1,
-      });
-
-      const payees = groups.data.income_by_payee;
-      expect(payees.map((row: { payee_name: string }) => row.payee_name)).toEqual(["Acme Corp", "No payee", "FairPrice"]);
-      expect(payees[0]).toMatchObject({
-        payee_id: "acme",
-        amount: 2_020_000,
-        transaction_count: 2,
-        category_name: "Multiple categories",
-        category_id: null,
-        category_count: 2,
-      });
-      expect(payees[1]).toMatchObject({
-        payee_id: null,
-        payee_name: "No payee",
-        amount: 100_000,
-        transaction_count: 1,
-        category_name: "Salary",
-        category_id: "salary",
-      });
-      expect(payees[2]).toMatchObject({
-        payee_id: "fairprice",
-        amount: 5_000,
-        transaction_count: 1,
-        category_name: "Groceries",
-      });
-
-      const incomeCategories = groups.data.income_by_category;
-      expect(incomeCategories.map((row: { category_name: string }) => row.category_name)).toEqual(["Salary", "Groceries"]);
-      expect(incomeCategories[0]).toMatchObject({ category_id: "salary", amount: 2_100_000, transaction_count: 2 });
-      expect(incomeCategories[1]).toMatchObject({ category_id: "groceries", amount: 25_000, transaction_count: 2 });
+    const spendingNames = groups.data.spending_by_category.map((row: { category_name: string }) => row.category_name);
+    expect(spendingNames).toEqual(["Groceries", "Dining", "Hidden fees", "Uncategorised"]);
+    expect(groups.data.spending_by_category[0]).toMatchObject({
+      category_id: "groceries", amount: 390_000, transaction_count: 3, share: 390_000 / 650_000,
+    });
+    expect(groups.data.spending_by_category[1]).toMatchObject({
+      category_id: "dining", amount: 230_000, transaction_count: 3, share: 230_000 / 650_000,
+    });
+    expect(groups.data.spending_by_category[2]).toMatchObject({
+      category_id: "hidden-fees", amount: 20_000, transaction_count: 1,
+    });
+    expect(groups.data.spending_by_category[3]).toMatchObject({
+      category_id: "uncategorised", amount: 10_000, transaction_count: 1,
     });
 
-    test(`${backend}: empty months, weeks and years return no period rows, and groups stay zero`, async () => {
-      const harness = await nativeHarness(backend);
-      harnesses.push(harness);
-      await seedJuneLedger(harness);
-
-      const emptyMonth = await harness.request(
-        `/api/reports/income-vs-spending?plan_id=${PLAN}&from=2026-07-01&to=2026-07-31&interval=month`,
-      ).then((response) => response.json());
-      const emptyWeek = await harness.request(
-        `/api/reports/income-vs-spending?plan_id=${PLAN}&from=2026-07-06&to=2026-07-12&interval=week`,
-      ).then((response) => response.json());
-      const emptyYear = await harness.request(
-        `/api/reports/income-vs-spending?plan_id=${PLAN}&from=2025-01-01&to=2025-12-31&interval=year`,
-      ).then((response) => response.json());
-      const emptyGroups = await harness.request(
-        `/api/reports/income-vs-spending-groups?plan_id=${PLAN}&from=2026-07-01&to=2026-07-31`,
-      ).then((response) => response.json());
-
-      expect(emptyMonth.data.periods).toEqual([]);
-      expect(emptyWeek.data.periods).toEqual([]);
-      expect(emptyYear.data.periods).toEqual([]);
-      expect(emptyGroups.data).toEqual({
-        income: 0,
-        spending: 0,
-        net: 0,
-        income_by_payee: [],
-        income_by_category: [],
-        spending_by_category: [],
-      });
+    const payees = groups.data.income_by_payee;
+    expect(payees.map((row: { payee_name: string }) => row.payee_name)).toEqual(["Acme Corp", "No payee", "FairPrice"]);
+    expect(payees[0]).toMatchObject({
+      payee_id: "acme",
+      amount: 2_020_000,
+      transaction_count: 2,
+      category_name: "Multiple categories",
+      category_id: null,
+      category_count: 2,
     });
-  }
+    expect(payees[1]).toMatchObject({
+      payee_id: null,
+      payee_name: "No payee",
+      amount: 100_000,
+      transaction_count: 1,
+      category_name: "Salary",
+      category_id: "salary",
+    });
+    expect(payees[2]).toMatchObject({
+      payee_id: "fairprice",
+      amount: 5_000,
+      transaction_count: 1,
+      category_name: "Groceries",
+    });
+
+    const incomeCategories = groups.data.income_by_category;
+    expect(incomeCategories.map((row: { category_name: string }) => row.category_name)).toEqual(["Salary", "Groceries"]);
+    expect(incomeCategories[0]).toMatchObject({ category_id: "salary", amount: 2_100_000, transaction_count: 2 });
+    expect(incomeCategories[1]).toMatchObject({ category_id: "groceries", amount: 25_000, transaction_count: 2 });
+  });
+
+  test(`empty months, weeks and years return no period rows, and groups stay zero`, async () => {
+    const harness = await nativeHarness();
+    harnesses.push(harness);
+    await seedJuneLedger(harness);
+
+    const emptyMonth = await harness.request(
+      `/api/reports/income-vs-spending?plan_id=${PLAN}&from=2026-07-01&to=2026-07-31&interval=month`,
+    ).then((response) => response.json());
+    const emptyWeek = await harness.request(
+      `/api/reports/income-vs-spending?plan_id=${PLAN}&from=2026-07-06&to=2026-07-12&interval=week`,
+    ).then((response) => response.json());
+    const emptyYear = await harness.request(
+      `/api/reports/income-vs-spending?plan_id=${PLAN}&from=2025-01-01&to=2025-12-31&interval=year`,
+    ).then((response) => response.json());
+    const emptyGroups = await harness.request(
+      `/api/reports/income-vs-spending-groups?plan_id=${PLAN}&from=2026-07-01&to=2026-07-31`,
+    ).then((response) => response.json());
+
+    expect(emptyMonth.data.periods).toEqual([]);
+    expect(emptyWeek.data.periods).toEqual([]);
+    expect(emptyYear.data.periods).toEqual([]);
+    expect(emptyGroups.data).toEqual({
+      income: 0,
+      spending: 0,
+      net: 0,
+      income_by_payee: [],
+      income_by_category: [],
+      spending_by_category: [],
+    });
+  });
 
 });
