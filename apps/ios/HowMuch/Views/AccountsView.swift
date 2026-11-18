@@ -489,6 +489,7 @@ struct AccountsView: View {
 
   private var usesColumnShortcuts: Bool {
     dynamicTypeSize < .xxLarge
+      && (shortcutsWidth == 0 || shortcutsWidth >= 3 * (roomyShortcutTileWidth - 12) + 24)
   }
 
   private func accountGroupSection(_ group: AccountListGroup, balances: [String: Int]) -> some View {
