@@ -979,6 +979,8 @@ struct TransactionFormView: View {
           }
           .padding(.horizontal, Theme.FormRow.horizontalPadding)
           .padding(.vertical, 10)
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         if index < draft.subtransactions.count - 1 {
@@ -992,9 +994,11 @@ struct TransactionFormView: View {
       } label: {
         Label("Add Split Line", systemImage: "plus")
           .frame(maxWidth: .infinity, alignment: .leading)
+          .padding(.horizontal, Theme.FormRow.horizontalPadding)
+          .padding(.vertical, 11)
+          .frame(minHeight: 44)
+          .contentShape(Rectangle())
       }
-      .padding(.horizontal, Theme.FormRow.horizontalPadding)
-      .padding(.vertical, 11)
       CardDivider()
       VStack(alignment: .leading, spacing: 4) {
         Text("Split total: \(MoneyCodec.displayString(for: draft.signedMilliunits, currencyFormat: model.currencyFormat))")
