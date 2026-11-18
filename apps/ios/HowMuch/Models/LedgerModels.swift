@@ -829,7 +829,8 @@ struct ScheduledOccurrenceRequest: Encodable {
 
 struct AccountReconciliationPayload: Decodable {
   let account: Account
-  let reconciledTransactionIDs: [String]
+  // Spelt `Ids`, not `IDs`: `convertFromSnakeCase` turns `reconciled_transaction_ids` into exactly this.
+  let reconciledTransactionIds: [String]
   let reconciledTransactionCount: Int
   let statementDate: String
   let statementBalance: Int
@@ -846,7 +847,8 @@ struct AccountReconciliationPreview: Decodable {
   let statementDate: String
   let currentReconciledBalance: Int
   let projectedReconciledBalance: Int
-  let candidateTransactionIDs: [String]
+  // Spelt `Ids`, not `IDs`: `convertFromSnakeCase` turns `candidate_transaction_ids` into exactly this.
+  let candidateTransactionIds: [String]
   let candidateTransactionCount: Int
 }
 
