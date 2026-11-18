@@ -154,3 +154,34 @@ Sign in, Scheduled's list, Quick entry, the Ledger with Filters open, Spending, 
 - Observed: the keypad shows the digits, a decimal point and delete, and no minus key. With the first run this covers all three fields on the unchanged code: Scheduled's Amount, Reconcile's Statement balance and New account's Current balance.
 - The page under test was the web app on the disposable stack through the orb's HTTPS portal, not a bare test page.
 - b1c5fe6a is one of two possible fixes and waits for YJ's choice.
+
+## LEAD-03, the fix YJ chose: a control for the sign
+
+YJ chose fix (b). The full-keyboard commit (b1c5fe6a) was dropped with a rebase, so the commits after it have new SHAs: SF-01 is 3f534247 (was fc10cf93) and SF-02 is 006584b9 (was 38819d1d). The sections above keep the SHAs they were written with.
+
+- Revision: eb65cf3d (the fix) on 45aca056 (the shared control). Disposable stack, user `verifier`, plan `local-plan`.
+- What changed: Scheduled's Amount and each of its split lines take the size of the amount, with Outflow or Inflow beside them. Reconcile's Statement balance and New account's Current balance have a Below zero tick. Every one of these fields keeps `inputMode="decimal"`.
+
+### Chromium, 1440 and 390, read back from the API
+
+- Outflow schedule: Amount 18.50 with Outflow (the default), memo "L3 outflow", Add schedule. Read back `amount: -18500`.
+- Inflow schedule: Amount 250, Inflow, memo "L3 inflow". Read back `amount: 250000`.
+- Typed signs: typing "+250" leaves "250" with Inflow pressed; typing "-12" leaves "12" with Outflow pressed.
+- Mixed split: Amount 30, Split this schedule, line 2 set to 5 and Inflow. The total reads "The schedule total is −$25.00.", the Amount field shows 25 with Outflow, both disabled. Read back `amount: -25000`, lines `[5000, -30000]`.
+- Editing: the −$15.00 schedule opens as 15 with Outflow; saving it untouched reads back `-15000`; Inflow reads back `15000`; Outflow again reads back `-15000`. The mixed split opens as "5 Inflow" and "30 Outflow" and saves untouched as `[5000, -30000]`. The inflow schedule opens as 250 with Inflow.
+- Card payment: with payment terms on Travel Card (statement day 15, pay from Everyday Account), Schedule… opens "Schedule Travel Card payment" with Amount 64830.8 and Outflow. Schedule payment read back `amount: -64830800, account_id: acct-everyday, transfer_account_id: acct-credit, frequency: never`.
+- Reconcile on Travel Card: Below zero starts ticked (cleared balance −$64,000.00). 64000 and Enter: the review reads "Statement balance −$64,000.00, Difference $0.00". Unticking clears the review; reviewing again reads "+$64,000.00, Difference +$128,000.00" and cannot be confirmed. Typing "-64000" leaves "64000" and ticks Below zero. Confirming with the tick read back `last_reconciled_date: 2026-11-18`.
+- New account: typing "-20" leaves "20" and ticks Below zero; Credit card shows "Amount owed" and no tick; Current account with 20 and the tick, Create account, read back `type: checking, balance: -20000`, with focus on the new register's heading.
+- Layout: no horizontal overflow at 390, 721, 1000 or 1440; no select in a split line is clipped. Light and dark looked at 390.
+
+### Safari in the iOS Simulator, Mac satellite
+
+- The same iPhone 17 Pro simulator as the earlier runs, hardware keyboard disconnected, the web app through the orb's HTTPS portal. Signed in by tapping the on-screen keys.
+- Scheduled, Add schedule, tap Amount: the number keypad (digits, decimal point, delete), with Outflow and Inflow beside the field. Typed 7 . 2 5 on the keypad; Inflow and Outflow each take a tap. Add schedule with Outflow read back `amount: -7250, account_id: acct-everyday, frequency: monthly`.
+- New account: Name "Safari", tap Current balance: the number keypad. Typed 2 0, ticked Below zero, Create account. Read back `type: checking, balance: -20000`.
+- Reconcile on Travel Card: Below zero is ticked on opening. Tap Statement balance: the number keypad. Typed 64000, Review reconciliation: "Statement balance −$64,000.00, Difference $0.00".
+- Seen and not changed: Add schedule and Reconcile put focus on the Account select, and Safari then opens that select's list on its own. One tap closes it.
+
+### Checks
+
+`scripts/check.sh` at eb65cf3d: `check: pass`, exit 0 (`bun test` 821 pass and 0 fail, the web and worker typechecks, "All measured text-entry controls are at least 16px."). No tests were added or changed; the existing `lib/new-account.test.ts` cases for a typed "-20" still pass.
