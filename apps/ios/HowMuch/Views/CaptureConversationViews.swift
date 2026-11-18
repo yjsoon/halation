@@ -780,7 +780,7 @@ struct CaptureComposerDock: View {
       .padding(10)
       .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
-    .padding(.horizontal, 12)
+    .padding(.horizontal, 16)
     .padding(.vertical, 8)
     .background(Theme.canvas)
   }
