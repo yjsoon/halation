@@ -114,3 +114,35 @@ Text record of the checks the lead thread ran in a browser while integrating the
 - T-07 (6acd9872). Save card with flag 1's Reward value empty: "Could not update this card. Reward value is required." in that row, focus in "Flag 1 reward value" with `aria-invalid="true"` and `aria-describedby="flag-1-error"`, in view. Nothing was saved.
 - T-05 (d022fbda). A stored card shows no Colour names box and its flag note reads "These are the same colour tags as the ledger. None is Unflagged spend."
 - T-09 (24068028) rests on the worker's record; the lead read the diff only.
+
+## iPhone Safari check (LEAD-03, SF-01, SF-02)
+
+- Revision: 97ec1d70 for the "before" observations, 38819d1d for the "after" ones. Disposable stack, user `verifier`, plan `local-plan`.
+- Device: Safari in the iOS Simulator on an Amp Mac satellite (macos-27 image, Xcode 27.3), iPhone 17 Pro, iOS 26.5, 402 by 874 points, hardware keyboard disconnected. The page was the orb's Vite server through its HTTPS portal; over plain `http://localhost` Safari drops the session cookie, which is marked `Secure`.
+- Driven with `xcrun simctl openurl` and `axe tap` on the on-screen keys. A simulator, not phone hardware.
+
+### LEAD-03: amounts that need a minus sign
+
+- Before: Scheduled, Add schedule, tap Amount: the keypad shows the digits, a decimal point and delete, and no minus key. New account, tap Current balance: the same keypad, under the note "If it is below zero, start with a minus sign, such as -20."
+- After: the same two fields and Reconcile's Statement balance open the full keyboard, whose "123" layer has a "-" key. Typing - 1 2 . 5 0 on that keyboard into Scheduled's Amount and choosing Add schedule added a schedule; `GET /v1/plans/local-plan/scheduled_transactions` read back `amount: -12500, frequency: "monthly", date_next: "2026-11-18"` and the header count went from 2 to 3.
+- New account in Chromium at 390: Current balance has `inputMode="text"`; with Type set to Credit card the field is "Amount owed" with `inputMode="decimal"` and the note "Enter what you owe today."
+- Cost: the full keyboard opens on letters, so every amount in these fields takes one more tap ("123") on a phone.
+
+### SF-01: full-width date fields ran past the form's right edge
+
+- Before: Reconcile's Statement date and Scheduled's First date and Next date were wider than the form, with their right border off screen and the date centred.
+- After: each is as wide as the fields around it with the date at the left; tapping Statement date still opens Safari's calendar. The reward card editor's empty Anchor date, Promotional start and Promotional end keep the height of the other fields.
+- Chromium at 1440 on the reward card editor: date fields measure 45 by 232 before and after, and the two screenshots differ by 0 pixels.
+
+### SF-02: the row editor's fields were system blue
+
+- Before: on the Ledger at phone width, the row editor's Date, Account and Category read in Safari's blue.
+- After: they read in the ink colour. Chromium computed colours for the row's date, select and text fields: `rgb(35, 29, 31)` in light and `rgb(243, 234, 236)` in dark, each equal to `--ink`.
+
+### Also looked at in Safari, no fault seen
+
+Sign in, Scheduled's list, Quick entry, the Ledger with Filters open, Spending, Income, Net worth and Rewards, each at the top and one screen down, light mode only.
+
+### Checks
+
+`scripts/check.sh` on the tree committed as 38819d1d: `check: pass`, exit 0 (`bun test` 821 pass and 0 fail, the typechecks, the iOS focus zoom check).
