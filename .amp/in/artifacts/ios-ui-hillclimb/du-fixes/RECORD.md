@@ -274,3 +274,145 @@ Not fixed: the card's legend still truncates to "Spen..." on the closed display 
 - Dark, except the closed display at the largest size.
 - iPad: only the Payments due frames were read at the largest size (`[20, 141, 246, 126]`, count under the title); the Insights cards were not reached and nothing was seen in a capture.
 - `83dafcc2` and `17d99cc4` were not built on their own; only `8da1debd` was built and tested.
+
+## Third round: 2DU-01, 2DU-02, 2DU-03, 2DU-05 and 2DU-06
+
+Five faults from GPT-6 Astra's round 2 audit of the combined branch on the iPhone Duo, and one check with no fix (2DU-04).
+
+### Revision and setup
+
+- Base: `7fb53016` (the lead's bundle `hc-integrated-r2`). Branch `ios-ui-hillclimb-du3`, local only, not pushed.
+- Code under test: `8a091f0b`. The commit that adds this section changes no code.
+- Setup as above: the same disposable stack and seed on the orb, on a new Mac satellite (`macos-27`, `mac.large`) with the API port forwarded. iPhone Duo and iPhone 18 Pro simulators on iOS 27.3.
+- Three builds were compared: `2258ef81` (for 2DU-04 and one probe), `7fb53016` ("before") and the fixed build ("after"). The fixed build was made from the five uncommitted edits, which were then committed unchanged, one file per commit.
+- Frames are `[x, y, width, height]` in points from `ui.sh`. "Largest size" is `accessibility-extra-extra-extra-large`. Captures are in `.amp/in/artifacts/ios-ui-hillclimb/du-fixes3/f4/` (`before/`, `after/`, `probe/`, `du04/`, `pairs/`), not in git.
+- All five faults reproduced on `7fb53016` before any edit, in light. Astra saw them in dark.
+
+| Finding | Commit | File |
+| --- | --- | --- |
+| 2DU-01 | `ff88ead2` | `Payments/CardPaymentScheduleSheet.swift` |
+| 2DU-02 | `6b79973e` | `Views/ReflectDetails.swift` |
+| 2DU-03 | `7a9e2785` | `Views/CaptureConversationViews.swift` |
+| 2DU-05 | `92fe4bff` | `Views/RegisterView.swift` |
+| 2DU-06 | `8a091f0b` | `Views/RewardsImportView.swift` |
+
+### 2DU-01: Schedule payment broke its titles and amounts
+
+Fix: at accessibility sizes the amount sits under its title, on one line.
+
+Steps: set the text size, launch, Accounts, "Schedule payment for Platinum Cashback Card", scroll to Minimum.
+
+Expected: no title breaks inside the word and no amount inside the figure; the whole row still selects.
+
+| State | Before (`7fb53016`) | After |
+| --- | --- | --- |
+| Closed, portrait, light, largest size | Statement row 358 x 217; title 118 x 125, "State / ment"; amount `[253, 594, 109, 187]`, "$1,6 / 59.5 / 6" | Statement row `[24, -2, 358, 158]`, title `[114, 13, 232, 63]`, amount `[114, 78, 248, 63]`; Minimum row `[24, 155, 358, 159]`, title `[114, 170, 209, 63]`, amount `[114, 236, 174, 63]` |
+| Closed, portrait, dark, largest size | not captured | seen in a capture: one line each |
+| iPhone 18 Pro, light, largest size | not captured | Statement row `[16, 228, 370, 159]`, title `[106, 243, 232, 63]` |
+| Closed, `extra-extra-extra-large` | not captured | side by side as before: row `[24, 234, 358, 59]`, title `[79, 250, 103, 28]` |
+
+Tap: with Statement selected, a tap at (370, 304), the blank bottom corner of the Minimum row `[24, 159, 358, 159]`, selected Minimum.
+
+### 2DU-02: the Net Worth report broke Assets and Debts
+
+Fix: the two figures stay side by side while both fit on one line and go one under the other when they do not; each stays on one line.
+
+Steps: set the text size, launch, Insights, Net Worth.
+
+Expected: no figure breaks inside the number and the minus stays with its figure.
+
+| State | Before (`7fb53016`) | After |
+| --- | --- | --- |
+| Open, portrait, light, largest size | Assets `[33, 522, 274, 117]`, last digit on a second line; Debts `[331, 522, 305, 117]`, minus above the figure | Assets `[182, 522, 305, 59]` under its label `[272, 468, 125, 51]`; Debts `[171, 642, 327, 59]` under its label `[280, 588, 110, 51]` |
+| Closed, portrait, dark, largest size | not captured | `[38, 746, 305, 59]` and `[32, 866, 317, 57]`, one line each |
+| iPhone 18 Pro, light, largest size | not captured | `[49, 784, 305, 59]` and `[38, 904, 327, 59]` |
+| Closed, `extra-extra-extra-large` | not captured | side by side: `[44, 346, 131, 25]` and `[198, 346, 140, 25]` |
+
+### 2DU-03: the Conversation dock ran behind the title and the keyboard
+
+Fix: at accessibility sizes Add manually sits under the account button, which has the dock's width and stays on one line. `Views/AddTransactionsView.swift` was not changed.
+
+Steps: set the text size, launch, Assistant, New conversation (the field takes focus and the keyboard comes up), then type a draft.
+
+Expected: the account's label does not break inside its words or reach the title, and Send and the attachment button are above the keyboard.
+
+| State | Before (`7fb53016`) | After |
+| --- | --- | --- |
+| Closed, portrait, light, largest size, empty | Account button `[16, 76, 171, 250]`, behind the title; Add manually `[195, 31, 171, 105]`; Send `[312, 379, 44, 44]` and attachment `[26, 379, 44, 44]` behind the keyboard, whose top is at about y 374 | Account `[16, 161, 350, 44]`, Add manually `[111, 205, 255, 53]`, field `[78, 276, 226, 80]`, attachment `[26, 312, 44, 44]`, Send `[312, 312, 44, 44]` |
+| The same with a draft typed | not captured | Account at y 121, field `[78, 236, 226, 120]`, Send `[312, 312, 44, 44]` |
+| Closed, portrait, dark, largest size | not captured | seen in a capture: the same layout |
+| Open, landscape, light, largest size | not captured | Account `[16, 178, 835, 59]`, Add manually `[596, 236, 255, 53]`, field `[78, 307, 711, 80]`, Send `[797, 343, 44, 44]`, first key row at y 454 |
+| Opened, draft typed, then folded shut | not captured | Account `[16, 121, 350, 44]`, field `[78, 236, 226, 120]`, Send `[312, 312, 44, 44]`; the draft is kept |
+| iPhone 18 Pro, light, largest size, draft typed | not captured | Account `[16, 586, 370, 45]`, Add manually `[131, 631, 255, 53]`, Send `[332, 778, 44, 44]` |
+| Closed, `extra-extra-extra-large` | not captured | side by side as before: Account `[16, 219, 228, 44]`, Add manually `[252, 220, 114, 44]` |
+
+Taps at the largest size on the closed display: a tap 10pt inside the right end of the account button opened the Account picker, and a tap 6pt inside the left edge of Add manually, at (117, 231), opened Add Transaction.
+
+Costs: the field still stops at 120pt, so only the last two lines of a longer draft show at the largest size. The iPhone 18 Pro simulator showed no software keyboard in these captures, so "above the keyboard" was proved on the Duo only.
+
+Seen in passing and not fixed: on the closed display, after going to the Account picker and back, the keyboard returns but the dock stays at the bottom of the screen behind it (Account `[16, 517, 260, 44]`, Send `[312, 582, 44, 44]`, first key row at y 425, default size, `7fb53016`). It is the same at `2258ef81` (Account `[12, 517, 268, 44]`, Send `[316, 582, 44, 44]`) and on the fixed build, at the default and the largest size, and it did not correct itself after a few seconds.
+
+### 2DU-05: a register row put the minus above its figure
+
+Fix: beside the payee the amount keeps its own width on one line, so the payee is the text that shortens. Astra suggested stacking the row at this size; that changes every row's layout at a size where most rows fit, so the smaller change was made instead.
+
+Steps: book pose in landscape, `extra-extra-extra-large`, Accounts, Travel Card.
+
+Expected: "-$1,284.50" on one line; rows that fitted before keep their frames.
+
+| Row (book pose, landscape, light, `extra-extra-extra-large`) | Before (`7fb53016`) | After |
+| --- | --- | --- |
+| Singapore Airlines, row | `[528, 444, 247, 104]` | `[528, 444, 247, 104]` |
+| Singapore Airlines, payee | `[528, 444, 111, 28]`, "Singapor..." | `[528, 444, 103, 28]`, "Singapo..." |
+| Singapore Airlines, amount | `[673, 470, 102, 51]`, minus on its own line | `[664, 484, 111, 25]` |
+| Uniqlo, row, payee, amount | `[528, 333, 247, 54]`, `[528, 333, 67, 28]`, `[695, 348, 80, 25]` | identical |
+| MUJI, row, payee, amount | `[528, 605, 247, 80]`, `[528, 605, 55, 28]`, `[682, 632, 93, 25]` | identical |
+
+Closed, portrait, light, `extra-extra-extra-large`: the first screen of the Travel Card register has no frame that differs between the two builds (Singapore Airlines payee `[32, 388, 123, 28]`, amount `[199, 427, 111, 25]`). The second screen was captured at a scroll offset 10 to 11pt apart, and every element differs by that offset alone, with the same x, width and height.
+
+Cost: the payee gives up 8pt in the row that had the fault.
+
+### 2DU-06: the Import & Export row symbol overlapped its title
+
+Fix: at accessibility sizes the symbol sits above the title. The screen is reached by Settings, "Rewards import & export".
+
+Steps: set the text size, launch, Insights, More, Settings, "Rewards import & export".
+
+Expected: the symbol does not touch the title.
+
+| State | Before (`7fb53016`) | After |
+| --- | --- | --- |
+| Closed, portrait, light, largest size | symbol `[24, 187, 61, 44]` over the title, which starts at x 78 | symbol `[51, 185, 61, 44]`, title `[44, 238, 253, 187]` below it |
+| Closed, portrait, dark, largest size | not captured | seen in a capture: the same layout |
+| iPhone 18 Pro, light, largest size | not captured | symbol `[43, 235, 61, 44]`, title `[36, 288, 253, 187]` |
+| Closed, `extra-extra-extra-large` | not captured | side by side as before: symbol `[42, 149, 27, 19]`, title `[78, 145, 242, 28]` |
+
+Costs: the second row is 66pt taller on the closed display at the largest size (486 to 552), and the symbol's frame starts 7pt to the right of the title's on both devices. In the captures the glyph's edge is within about 3pt of the title's.
+
+### Default text size
+
+Closed Duo and iPhone 18 Pro, light, default size, `7fb53016` against the fixed build: nine captures per device (Schedule payment x 2, Import & Export x 2, the Net Worth report, the Travel Card register x 2, Conversation empty and with a draft). Every element frame is identical. The one line that differed was a keyboard suggestion word. Pixels differ only in the clock and the bars' glass.
+
+### 2DU-04: opening the phone closes New Account (check only, no change)
+
+On a build of `2258ef81`, closed, light, default size: New Account, type "Fold Draft 731" (field `[93, 111, 257, 22]`), open to 180 degrees. The sheet was dismissed. New Account opened again with an empty field showing its placeholder at `[234, 111, 536, 22]`. So the same happens at `2258ef81`; it is older than the hillclimb. It was not run again on `7fb53016`, where Astra reported it.
+
+### Tests
+
+`SIMULATOR_UDID=<iPhone 18 Pro> scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests` at `8a091f0b`, simulator at the default text size, light, the app terminated first. Every run reported `runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-18 23:47:35 +0000)`.
+
+1. First full run: `Executed 822 tests, with 1 test skipped and 9 failures (0 unexpected) in 172.603 (172.958) seconds`. The nine failures were in four `CaptureSnapshotTests` cases (`testAddAndEditTransactionFormRowsShareHeightAndOrder`, `testAddManuallySavesOnceAndCancelPreservesConversation`, `testAddTransactionDatePickerDoesNotResizeSheet`, `testAddTransactionMemoFocusHidesCalculatorKeypad`), each reporting an empty accessibility snapshot (`[]`).
+2. `-only-testing:HowMuchTests/CaptureSnapshotTests` alone, same products: `Executed 30 tests, with 0 failures (0 unexpected) in 99.510 (99.527) seconds`.
+3. Second full run, same products: `Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 179.602 (179.955) seconds`.
+
+The first run's failures did not recur and their cause was not found. The suite was not run at `7fb53016` in this session, so whether that head fails the same way now and then is not known.
+
+### Not checked
+
+- The tabletop pose and the closed display in landscape, for all five.
+- The book pose for 2DU-01, 2DU-02, 2DU-03 and 2DU-06; the open display for 2DU-01 and 2DU-06.
+- Dark, except the closed display at the largest size.
+- iPad.
+- The iPhone 18 Pro with the software keyboard up (2DU-03).
+- 2DU-04 on `7fb53016`.
+- The five commits were not built one at a time; only the head with all five was built and tested.
