@@ -532,6 +532,7 @@ struct AccountsView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
           }
           .padding(.horizontal, 4)
+          .frame(minHeight: 44)
           .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
