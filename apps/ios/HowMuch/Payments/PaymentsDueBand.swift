@@ -86,22 +86,33 @@ struct PaymentsDueBand: View {
   }
 
   private var remindersOffRow: some View {
-    HStack(spacing: 8) {
+    let stacks = dynamicTypeSize >= .xxLarge
+    let layout = stacks
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+      : AnyLayout(HStackLayout(spacing: 8))
+    return layout {
       Image(systemName: "bell.slash")
         .foregroundStyle(Theme.uncategorised)
         .accessibilityHidden(true)
       Text("Reminders are off in Settings.")
         .font(.subheadline)
         .foregroundStyle(Theme.textPrimary)
-      Spacer()
-      Button("Open Settings") {
+      if !stacks { Spacer() }
+      Button {
         if let url = URL(string: UIApplication.openNotificationSettingsURLString) {
           UIApplication.shared.open(url)
         }
+      } label: {
+        Text("Open Settings")
+          .multilineTextAlignment(.leading)
+          .padding(.vertical, 13)
+          .contentShape(Rectangle())
       }
       .font(.subheadline.weight(.semibold))
       .tint(Theme.accent)
+      .padding(.vertical, -13)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
   }
