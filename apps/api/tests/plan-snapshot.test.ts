@@ -546,6 +546,41 @@ describe("snapshots cross backends", () => {
     expect(await exportSnapshot(sqliteAgain)).toEqual(fromSqlite);
     await expectSameRecords(sqlite, sqliteAgain, fromSqlite);
   });
+
+  test("Rewards cards and settings move with the ledger", async () => {
+    const sqlite = await open("SQLite");
+    await seedLedger(sqlite);
+    const send = async (path: string, method: string, body: unknown) => {
+      const response = await sqlite.request(path, { method, body });
+      if (response.status >= 300) throw new Error(`${path} ${response.status} ${await response.text()}`);
+      return (await response.json()).data;
+    };
+    const { card } = await send("/api/rewards/cards?plan_id=p", "POST", {
+      card: { name: "Miles card", issuer: "Fake Bank", type: "miles", ynabAccountId: "acct-card", earningRate: 1.2, flagNames: { red: "Dining" } },
+    });
+    // A rule change from a later period gives the card a rule history.
+    await send(`/api/rewards/cards/${card.id}?plan_id=p`, "PATCH", { card: { earningRate: 4 }, applies_from: "2026-01-05" });
+    await send("/api/rewards/settings?plan_id=p", "PATCH", { milesValuation: 0.017 });
+
+    const rewardsView = async (harness: NativeHarness) => {
+      const read = async (path: string) => (await (await harness.request(path)).json()).data;
+      const stored = await read("/api/import/rewards-tracker?plan_id=p");
+      return {
+        cards: stored.cards,
+        settings: stored.snapshot?.settings ?? null,
+        report: await read("/api/reports/rewards?plan_id=p&from=2026-01-01&to=2026-01-31"),
+      };
+    };
+    const source = await rewardsView(sqlite);
+    expect(source.cards[0].ruleHistory.length).toBeGreaterThan(0);
+
+    const d1 = await open("D1");
+    expect((await importSnapshot(d1, await exportSnapshot(sqlite))).status).toBe(201);
+    expect(await rewardsView(d1)).toEqual(source);
+    const sqliteAgain = await open("SQLite");
+    expect((await importSnapshot(sqliteAgain, await exportSnapshot(d1))).status).toBe(201);
+    expect(await rewardsView(sqliteAgain)).toEqual(source);
+  });
 });
 
 describe("D1 snapshot import is one atomic batch", () => {

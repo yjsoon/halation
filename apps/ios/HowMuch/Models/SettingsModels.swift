@@ -882,6 +882,18 @@ struct ScopedViewPrefsStore: Codable, Equatable {
     save()
   }
 
+  /// Gives `scope` the arrangement `source` holds, unless `scope` already has
+  /// one. A ledger moving to a server keeps its account order, groups and
+  /// favourites; the first refresh then uploads them, or applies the server's
+  /// own when it already has some.
+  mutating func carryOver(from source: String, to scope: String) {
+    guard scopes[scope] == nil, let preferences = scopes[source] else {
+      return
+    }
+    scopes[scope] = preferences
+    save()
+  }
+
   mutating func markAccountPreferencesSynced(_ snapshot: SyncedAccountPreferences, for scope: String) {
     syncedAccountPreferences[scope] = snapshot
     save()

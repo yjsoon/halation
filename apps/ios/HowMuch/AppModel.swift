@@ -1953,6 +1953,9 @@ final class AppModel {
     guard settings.isLocal, !server.isLocal, server.isAuthenticated else {
       return
     }
+    if let localScope = settings.viewPrefsScopeKey, let serverScope = server.viewPrefsScopeKey {
+      scopedViewPrefsStore.carryOver(from: localScope, to: serverScope)
+    }
     let adoption = ConnectionSwitch.adoptServer(server, leaving: settings, databaseURL: LocalEngine.shared.databaseURL)
     isShowingSettings = false
     await applySettings(adoption.settings)

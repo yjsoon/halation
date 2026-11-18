@@ -1,0 +1,11 @@
+snapshot.rewards.cards: [ "Fake Miles Card" ]
+snapshot.rewards.settings: {"milesValuation":0.02}
+server import counts: {"category_groups":0,"categories":0,"payees":1,"accounts":1,"transactions":1,"subtransactions":0,"scheduled_transactions":0,"card_payment_terms":0,"rewards_cards":1}
+server cards: [{"id":"card_e1beb31c-366a-473c-b67f-7b712f5f62d6","name":"Fake Miles Card","earningRate":1.4,"account":"acct-e2e-card"}]
+server settings: {"milesValuation":0.02}
+local report: [{"account":"acct-e2e-card","earned":62.99999999999999,"type":"miles"}]
+server report: [{"account":"acct-e2e-card","earned":62.99999999999999,"type":"miles"}]
+RESULT: PASS
+run exit=0
+rewards_tracker_cards: [{"plan_id":"e2e-server","id":"card_e1beb31c-366a-473c-b67f-7b712f5f62d6","account_id":"acct-e2e-card","name":"Fake Miles Card","type":"miles","deleted":0}]
+rewards_tracker_snapshots: [{"plan_id":"e2e-server","settings":"{\"milesValuation\":0.02}"}]

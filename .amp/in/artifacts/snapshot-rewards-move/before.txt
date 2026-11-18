@@ -1,0 +1,11 @@
+snapshot.rewards.cards: undefined
+snapshot.rewards.settings: undefined
+server import counts: {"category_groups":0,"categories":0,"payees":1,"accounts":1,"transactions":1,"subtransactions":0,"scheduled_transactions":0,"card_payment_terms":0,"rewards_cards":0}
+server cards: []
+server settings: undefined
+local report: [{"account":"acct-e2e-card","earned":62.99999999999999,"type":"miles"}]
+server report: []
+RESULT: FAIL
+run exit=1
+rewards_tracker_cards: []
+rewards_tracker_snapshots: []

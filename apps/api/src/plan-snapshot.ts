@@ -154,7 +154,15 @@ export type PlanSnapshot = {
    * predates it.
    */
   card_payment_terms?: CardPaymentTerms[];
+  /**
+   * The Rewards cards and settings. Export omits the key when the plan has
+   * neither, for the same reason as `card_payment_terms`.
+   */
+  rewards?: SnapshotRewards;
 };
+
+/** Cards keep every field they were stored with, minus credential-like keys. */
+export type SnapshotRewards = { cards: Row[]; settings: Row };
 
 export type SnapshotCounts = {
   category_groups: number;
@@ -165,6 +173,7 @@ export type SnapshotCounts = {
   subtransactions: number;
   scheduled_transactions: number;
   card_payment_terms: number;
+  rewards_cards: number;
 };
 
 /** Database-ready rows, keyed by column name, in insertion order. */
@@ -178,13 +187,15 @@ type SnapshotRows = {
   scheduled_transactions: Row[];
   scheduled_subtransactions: Row[];
   card_payment_terms: Row[];
+  rewards_cards: Row[];
+  rewards_settings: Row[];
   counts: SnapshotCounts;
 };
 
 const TOP_LEVEL_KEYS = new Set([
   "format", "version", "exported_at",
   "category_groups", "categories", "payees", "accounts", "transactions", "scheduled_transactions",
-  "card_payment_terms",
+  "card_payment_terms", "rewards",
 ]);
 const CLEARED = new Set(["cleared", "uncleared", "reconciled"]);
 
@@ -536,6 +547,43 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
     cardTerms.push({ ...terms, enabled: terms.enabled ? 1 : 0, created_at: createdAt });
   }
 
+  const rewardsCards: Row[] = [];
+  const rewardsSettings: Row[] = [];
+  if (snapshot.rewards !== undefined && snapshot.rewards !== null) {
+    const rewards = object(snapshot.rewards, "rewards");
+    const cardIds = new Set<string>();
+    const cardAccounts = new Set<string>();
+    const cards: Row[] = [];
+    for (const [index, item] of list(rewards.cards, "rewards.cards").entries()) {
+      const path = `rewards.cards[${index}]`;
+      const card = withoutCredentials(object(item, path));
+      const id = id_(card.id, `${path}.id`);
+      if (cardIds.has(id)) throw new SnapshotValidationError(`${path}.id is duplicated`);
+      cardIds.add(id);
+      const accountId = accountRef(card.ynabAccountId, `${path}.ynabAccountId`);
+      if (!accountId) throw new SnapshotValidationError(`${path}.ynabAccountId is required`);
+      if (cardAccounts.has(accountId)) throw new SnapshotValidationError(`${path}: account ${accountId} already has a Rewards card`);
+      cardAccounts.add(accountId);
+      const cardName = name(card.name, `${path}.name`);
+      if (card.issuer !== undefined && typeof card.issuer !== "string") throw new SnapshotValidationError(`${path}.issuer must be a string`);
+      if (card.type !== undefined && card.type !== "cashback" && card.type !== "miles") throw new SnapshotValidationError(`${path}.type must be cashback or miles`);
+      cards.push(card);
+      rewardsCards.push({
+        id, account_id: accountId, name: cardName, issuer: card.issuer ?? "", type: card.type ?? "cashback", payload_json: JSON.stringify(card),
+      });
+    }
+    const settings = rewards.settings === undefined || rewards.settings === null
+      ? {}
+      : withoutCredentials(object(rewards.settings, "rewards.settings"));
+    // The stored envelope the Rewards routes read and extend.
+    rewardsSettings.push({
+      payload_json: JSON.stringify({
+        ynab: { trackedAccountIds: [...cardAccounts] },
+        cards, rules: [], tagMappings: [], calculations: [], themeGroups: [], hiddenCards: [], settings,
+      }),
+    });
+  }
+
   const rows = {
     category_groups: [...groups.values()],
     categories: [...categories.values()],
@@ -546,6 +594,8 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
     scheduled_transactions: scheduled,
     scheduled_subtransactions: scheduledSubs,
     card_payment_terms: cardTerms,
+    rewards_cards: rewardsCards,
+    rewards_settings: rewardsSettings,
   };
   return {
     ...rows,
@@ -558,11 +608,13 @@ export function parsePlanSnapshot(value: unknown, planId: string): SnapshotRows 
       subtransactions: rows.subtransactions.length,
       scheduled_transactions: rows.scheduled_transactions.length,
       card_payment_terms: rows.card_payment_terms.length,
+      rewards_cards: rows.rewards_cards.length,
     },
   };
 }
 
-type TablePlan = { table: string; columns: Array<[column: string, expression?: string]> };
+/** `conflict` is an upsert clause, for a table a freshly created plan may already hold a row in. */
+type TablePlan = { table: string; columns: Array<[column: string, expression?: string]>; conflict?: string };
 
 /**
  * Column lists per table, in dependency order: payees precede accounts
@@ -596,6 +648,12 @@ const TABLES: Array<[keyof Omit<SnapshotRows, "counts">, TablePlan]> = [
     ["default_amount_rule"], ["default_amount_milli"], ["minimum_floor_milli"], ["minimum_rate_bp"], ["pay_days_before_due"],
     ["lead_days"], ["delivery_hour"], ["enabled"], ["created_at", "COALESCE(json_extract(value, '$.created_at'), CURRENT_TIMESTAMP)"],
   ] }],
+  ["rewards_cards", { table: "rewards_tracker_cards", columns: [
+    ["plan_id", "?"], ["id"], ["account_id"], ["name"], ["issuer"], ["type"], ["payload_json"],
+  ] }],
+  // Changing Rewards settings creates this row, even in a plan with no ledger yet.
+  ["rewards_settings", { table: "rewards_tracker_snapshots", columns: [["plan_id", "?"], ["payload_json"]],
+    conflict: "ON CONFLICT(plan_id) DO UPDATE SET payload_json = excluded.payload_json, updated_at = CURRENT_TIMESTAMP" }],
 ];
 
 function insertSql(plan: TablePlan): { sql: string; bindsPlan: boolean } {
@@ -608,7 +666,7 @@ function insertSql(plan: TablePlan): { sql: string; bindsPlan: boolean } {
   });
   return {
     sql: `INSERT INTO ${plan.table} (${plan.columns.map(([column]) => column).join(", ")})
-      SELECT ${expressions.join(", ")} FROM json_each(?) ORDER BY CAST(key AS INTEGER)`,
+      SELECT ${expressions.join(", ")} FROM json_each(?) WHERE true ORDER BY CAST(key AS INTEGER)${plan.conflict ? ` ${plan.conflict}` : ""}`,
     bindsPlan,
   };
 }
@@ -691,6 +749,9 @@ type SnapshotSource = {
   subtransactions: Row[];
   scheduledTransactions: Row[];
   cardPaymentTerms?: Row[];
+  /** Live cards whose account is live, as stored. */
+  rewardsCards?: Row[];
+  rewardsSettings?: Row | null;
 };
 
 /** Projects stored rows into the snapshot format the importer reads. */
@@ -791,7 +852,25 @@ export function projectPlanSnapshot(source: SnapshotSource): PlanSnapshot {
     ...(source.cardPaymentTerms && source.cardPaymentTerms.length > 0
       ? { card_payment_terms: source.cardPaymentTerms.map(termsFromRow) }
       : {}),
+    ...rewardsSection(source.rewardsCards ?? [], source.rewardsSettings ?? null),
   };
+}
+
+function rewardsSection(cards: Row[], settings: Row | null): { rewards?: SnapshotRewards } {
+  const cleanSettings = withoutCredentials(settings ?? {});
+  if (cards.length === 0 && Object.keys(cleanSettings).length === 0) return {};
+  return { rewards: { cards: cards.map((card) => withoutCredentials(card)), settings: cleanSettings } };
+}
+
+/**
+ * Rewards cards and the stored tracker import keep every extra key an older
+ * Rewards Tracker file carried, so credential-like keys are dropped at any
+ * depth, as the web's portable Rewards export does. Cached YNAB data goes too:
+ * the ledger is already in the snapshot.
+ */
+export function withoutCredentials<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value, (key, entry) =>
+    /token|secret|password|mnemonic|credential|api.?key|private.?key|cloud.?sync|^pat$|^authorization$|^cachedData$/i.test(key) ? undefined : entry)) as T;
 }
 
 /**

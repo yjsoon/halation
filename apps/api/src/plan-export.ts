@@ -9,7 +9,7 @@
  * file itself can be posted to restore the ledger into an empty plan.
  */
 
-import type { PlanSnapshot } from "./plan-snapshot";
+import { withoutCredentials, type PlanSnapshot } from "./plan-snapshot";
 import type { LedgerStore } from "./storage";
 
 const EXPORT_FORMAT = "howmuch-export";
@@ -57,17 +57,6 @@ export async function buildPlanExport(repo: LedgerStore, planId: string, userId:
       updated_at: rewards.updated_at,
     },
   };
-}
-
-/**
- * Rewards cards and the stored tracker import keep every extra key an older
- * Rewards Tracker file carried, so credential-like keys are dropped at any
- * depth, as the web's portable Rewards export does. Cached YNAB data goes too:
- * the ledger is already in the snapshot.
- */
-function withoutCredentials<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value, (key, entry) =>
-    /token|secret|password|mnemonic|credential|api.?key|private.?key|cloud.?sync|^pat$|^authorization$|^cachedData$/i.test(key) ? undefined : entry)) as T;
 }
 
 const CSV_COLUMNS = [

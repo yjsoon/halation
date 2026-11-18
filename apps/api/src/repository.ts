@@ -1047,7 +1047,7 @@ export class LedgerRepository {
 
   /** The plan's ledger in `howmuch-plan-snapshot` form, read in one consistent batch. */
   async exportPlanSnapshot(planId: string): Promise<{ snapshot: PlanSnapshot; server_knowledge: number }> {
-    const [groups, categories, payees, accounts, transactions, subtransactions, editRows, editSubRows, cardTermRows, knowledge] = await this.db.batchRead([
+    const [groups, categories, payees, accounts, transactions, subtransactions, editRows, editSubRows, cardTermRows, rewardsCardRows, rewardsSettingsRows, knowledge] = await this.db.batchRead([
       { sql: "SELECT id, name, hidden, internal, deleted FROM category_groups WHERE plan_id = ? ORDER BY id", values: [planId] },
       { sql: "SELECT id, category_group_id, name, hidden, internal, deleted FROM categories WHERE plan_id = ? ORDER BY id", values: [planId] },
       { sql: "SELECT id, name, transfer_account_id, deleted FROM payees WHERE plan_id = ? ORDER BY id", values: [planId] },
@@ -1086,6 +1086,19 @@ export class LedgerRepository {
               WHERE t.plan_id = ? ORDER BY t.account_id`,
         values: [planId],
       },
+      {
+        // A card on a deleted account has nothing to attach to in the snapshot.
+        sql: `SELECT c.payload_json FROM rewards_tracker_cards c
+              JOIN accounts a ON a.id = c.account_id AND a.plan_id = c.plan_id AND a.deleted = 0
+              WHERE c.plan_id = ? AND c.deleted = 0 ORDER BY c.id`,
+        values: [planId],
+      },
+      {
+        sql: `SELECT CASE WHEN json_valid(payload_json) AND json_type(payload_json, '$.settings') = 'object'
+                THEN json_extract(payload_json, '$.settings') END AS settings_json
+              FROM rewards_tracker_snapshots WHERE plan_id = ?`,
+        values: [planId],
+      },
       { sql: SERVER_KNOWLEDGE_SQL, values: [planId] },
     ]);
     return {
@@ -1098,6 +1111,8 @@ export class LedgerRepository {
         subtransactions: subtransactions ?? [],
         scheduledTransactions: assembleScheduledTransactions(editRows ?? [], editSubRows ?? []),
         cardPaymentTerms: cardTermRows ?? [],
+        rewardsCards: (rewardsCardRows ?? []).map((row) => JSON.parse(String(row.payload_json))),
+        rewardsSettings: rewardsSettingsRows?.[0]?.settings_json == null ? null : JSON.parse(String(rewardsSettingsRows[0].settings_json)),
       }),
       server_knowledge: knowledgeFrom(knowledge),
     };
