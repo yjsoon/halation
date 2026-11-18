@@ -428,6 +428,9 @@ struct RegisterView: View {
             }
             .foregroundStyle(Theme.textPrimary)
           }
+          // The bar's own button style keeps the label at its full width, so a long name ran under
+          // Back and Search; plain lets the bar squeeze it and the name truncate.
+          .buttonStyle(.plain)
           .accessibilityLabel("\(account.displayIcon) \(account.name)")
           .accessibilityHint("Opens the account editor")
         }
