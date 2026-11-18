@@ -176,3 +176,101 @@ No unit tests were added.
 ## Files touched
 
 `Payments/RemindersSettingsSection.swift`, `Payments/CardPaymentTermsSheet.swift`, `Views/RewardsView.swift`, `Views/RegisterView.swift` (the sunrise header only), `Views/ReflectDetails.swift` (the category row, and one line near L469 that reads the text size for it), `Views/IncomeVsSpendingPeriodDetailView.swift`. Nothing outside the assigned list.
+
+## Second round: R-D9, R-D10 and R-D11
+
+Three faults seen in passing during the Duo review of the integrated round 1 fixes, all on the closed display at `accessibility-extra-extra-extra-large`.
+
+### Revision and setup
+
+- Base: `7c421f52` (the lead's bundle `hc-integrated-r1c`). Branch `ios-ui-hillclimb-du2`, local only, not pushed.
+- Code under test: `8da1debd`. The commit that adds this section changes no code.
+- Setup as above: the same disposable stack, seed and simulators. Three builds were compared: `2258ef81` ("base"), `7c421f52` ("before") and the fixed build ("after").
+- The R-D10 and R-D11 captures come from a build whose `ReflectView.swift` is identical to `8da1debd` but whose Payments due heading was an earlier draft. Every R-D9 capture and both default-size Accounts comparisons were retaken on the final build.
+- Frames are `[x, y, width, height]` in points from `ui.sh`. Captures are in `.amp/in/artifacts/ios-ui-hillclimb/du-fixes2/f3/` (`base/`, `before/`, `after/`, `lead/`, `pairs/`), not in git.
+
+| Finding | Commit | Older than this round? |
+| --- | --- | --- |
+| R-D9 | `83dafcc2` | No. At `2258ef81` the title read "Payments / due" with no word broken, because the Accounts content was wider than its column (DU-01). Once the content was kept inside the column, the title had too little width. Which commit caused it was inferred, not bisected. |
+| R-D10 | `17d99cc4` | Yes. `2258ef81` breaks the same figures in the same way. |
+| R-D11 | `8da1debd` | Yes. The title's frame is the same at `2258ef81`. |
+
+### R-D9: the Payments due heading broke inside the word
+
+Fix: at accessibility sizes the icon, the title and the count stack (`Payments/PaymentsDueBand.swift`, the heading only).
+
+Steps: set the text size, launch, open Accounts.
+
+Expected: "Payments" is never hyphenated.
+
+| State | Before (`7c421f52`) | After |
+| --- | --- | --- |
+| Closed, portrait, light, largest size | `[97, 82, 159, 187]`, "Pay- / ments / due" | `[20, 137, 336, 63]`, one line, count under it at `[20, 204, 44, 55]` |
+| Closed, portrait, dark, largest size | not captured | same frames as light |
+| Open, landscape, light, largest size | `[97, 82, 156, 187]`, three lines (on `79e3f937`, same file) | `[20, 137, 246, 125]`, "Payments / due" |
+| Book pose, landscape, light, largest size | not captured | `[20, 137, 336, 63]`, one line |
+| iPhone 18 Pro, light, largest size | not captured | `[20, 244, 336, 63]`, one line |
+| Closed, `extra-extra-extra-large` | `[58, 82, 148, 28]` (on `79e3f937`) | `[58, 82, 148, 28]` |
+| Closed Duo and iPhone 18 Pro, default | `[50, 82, 113, 20]` and `[50, 168, 113, 20]` | identical frames; no pixel differs outside the clock |
+
+At `2258ef81` the closed display gave `[67, 82, 246, 125]`, "Payments / due".
+
+A first draft kept the icon beside the title. It fixed the closed display but still gave "Pay- / ments / due" in the open display's 340pt Accounts column, so the icon went above the title as well.
+
+### R-D10: the Net Worth card broke its figures
+
+Fix: at accessibility sizes Assets and Debts sit under their labels, and the total and both figures stay on one line, shrinking to fit only when they must (`Views/ReflectView.swift`, `netWorthContent`).
+
+Steps: set the text size, launch, open Insights, scroll to Net Worth.
+
+Expected: no figure breaks inside the number.
+
+| Figure, closed, portrait, light, largest size | Before | After |
+| --- | --- | --- |
+| Total | 317 x 137, "$295,004.4 / 9" | 317 x 62, one line, about 10% smaller than its full size |
+| Assets | 161 x 117 beside the label, two lines | 291 x 59 under the label, one line, full size |
+| Debts | 161 x 175 beside the label, three lines | 313 x 59 under the label, one line, full size |
+
+Also seen after the fix: closed dark at the largest size (same layout); open landscape at the largest size (total 353 x 69 at full size); iPhone 18 Pro at the largest size (total 337 x 66). At `extra-extra-extra-large` on the closed display the frames equal those on `79e3f937` (figures 125 x 25 and 134 x 25, beside their labels). At the default size on the closed Duo and the iPhone 18 Pro the frames are identical and no pixel differs outside the clock.
+
+### R-D11: "Income vs Spending" broke as "Spend- / ing"
+
+Fix: at accessibility sizes the card's icon sits above its title, so the title has the card's width (`Views/ReflectView.swift`, `ReflectCard`). This applies to all four Insights cards.
+
+Steps: set the text size, launch, open Insights, scroll to Income vs Spending.
+
+Expected: "Spending" is never hyphenated.
+
+| Card title, closed, portrait, light, largest size | Before | After |
+| --- | --- | --- |
+| Income vs Spending | 233 x 233, "Income / vs / Spend- / ing" | 233 x 117, "Income vs / Spending" |
+| Net Worth | 203 x 117, two lines | 224 x 59, one line |
+| Month to Date | 220 x 117, two lines | 158 x 117, two lines |
+| Age of Money | 214 x 117, two lines | 153 x 117, two lines |
+
+Cost: Month to Date and Age of Money keep two title lines and gain the icon's row, so each header is about 55pt taller. Income vs Spending's header is about 60pt shorter and Net Worth's is unchanged.
+
+Also seen after the fix: closed dark, open landscape and iPhone 18 Pro at the largest size, each reading "Income vs / Spending". At the default size on the closed Duo and the iPhone 18 Pro the title frames are identical (168 x 18), and no pixel differs outside the clock on the Insights and Net Worth captures. The Income vs Spending capture was taken at a different scroll offset, so it was compared by frames only.
+
+Not fixed: the card's legend still truncates to "Spen..." on the closed display at the largest size. It is the same at `2258ef81`.
+
+### The lead's two corrections on the Duo
+
+- `414e6de7`, closed, portrait, light, largest size, Everyday Account register, the Vanguard row (row `[32, 197, 278, 289]`, texts ending at x 260, status control `[314, 320, 44, 44]`). Taps in the blank space at (300, 217), (300, 466) and (302, 281) each opened the transaction. A tap on the status control changed it from "Mark Vanguard uncleared" to "Mark Vanguard cleared" without opening the form, and a second tap changed it back.
+- `0440ddf3`, light, default. Open flat the Accounts column is 340pt and the register starts at x 356; in the book pose 456pt and x 512. The bar buttons sit at New Account `[160, 28, 40, 40]`, More `[216, 28, 40, 40]` and Hide Sidebar `[276, 28, 40, 40]` open, and at x 276, 332 and 392 in the book pose; Search is `[889, 130, 27, 36]`. `79e3f937`, `7c421f52` and the fixed build gave the same frames at each step of: launch open, close, open, book pose, open.
+- In that session the Accounts title was the small inline one (`[20, 38, 75, 21]`) on every build, `2258ef81` included, where an earlier capture of `79e3f937` showed the large title. The cause was not found; it does not differ between builds.
+
+### Tests
+
+`SIMULATOR_UDID=<iPhone 18 Pro> scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests` at `8da1debd`, simulator at the default text size, light:
+
+- `runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-18 20:21:27 +0000)`
+- `Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 184.005 (184.367) seconds`
+
+### Not checked
+
+- The tabletop pose and the closed display in landscape.
+- R-D10 and R-D11 in the book pose.
+- Dark, except the closed display at the largest size.
+- iPad: only the Payments due frames were read at the largest size (`[20, 141, 246, 126]`, count under the title); the Insights cards were not reached and nothing was seen in a capture.
+- `83dafcc2` and `17d99cc4` were not built on their own; only `8da1debd` was built and tested.
