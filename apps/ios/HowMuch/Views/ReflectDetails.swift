@@ -466,6 +466,7 @@ struct CategoryScopePicker: View {
 
 struct SpendingBreakdownDetailView: View {
   @Environment(AppModel.self) private var model
+  @ScaledMetric(relativeTo: .caption) private var percentageColumnWidth = 44.0
   @State private var range = ReportRange()
   @State private var scope = ReportScope()
   @State private var report: SpendingBreakdownReport?
@@ -586,20 +587,28 @@ struct SpendingBreakdownDetailView: View {
 
   private func groupSection(_ section: SpendingGroupSection, total: Int, maxAmount: Int) -> some View {
     VStack(alignment: .leading, spacing: 8) {
-      HStack {
+      let layout = dynamicTypeSize.isAccessibilitySize
+        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+        : AnyLayout(HStackLayout())
+      layout {
         Text(section.name)
           .font(.subheadline.weight(.semibold))
           .foregroundStyle(Theme.textPrimary)
-        Spacer()
-        Text(MoneyCodec.displayString(for: section.amount, currencyFormat: model.currencyFormat))
-          .font(.subheadline.weight(.semibold))
-          .monospacedDigit()
-          .foregroundStyle(Theme.textPrimary)
-          .rollingNumber(section.amount)
-        Text(total > 0 ? shareLabel(Double(section.amount) / Double(total)) : "—")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .frame(width: 44, alignment: .trailing)
+        if !dynamicTypeSize.isAccessibilitySize { Spacer() }
+        HStack {
+          Text(MoneyCodec.displayString(for: section.amount, currencyFormat: model.currencyFormat))
+            .font(.subheadline.weight(.semibold))
+            .monospacedDigit()
+            .foregroundStyle(Theme.textPrimary)
+            .rollingNumber(section.amount)
+            .lineLimit(dynamicTypeSize.isAccessibilitySize ? 1 : nil)
+            .minimumScaleFactor(dynamicTypeSize.isAccessibilitySize ? 0.5 : 1)
+          Text(total > 0 ? shareLabel(Double(section.amount) / Double(total)) : "—")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .frame(width: percentageColumnWidth, alignment: .trailing)
+        }
       }
       .padding(.horizontal, 4)
 
