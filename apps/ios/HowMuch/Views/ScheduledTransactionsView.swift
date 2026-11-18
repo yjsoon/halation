@@ -108,34 +108,44 @@ struct ScheduledTransactionRow: View {
   let schedule: ScheduledTransaction
   var showsAccount: Bool = true
   var showsNextDate: Bool = false
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   var body: some View {
+    // Accessibility sizes put the amount under the payee so neither is cut.
+    let stacks = dynamicTypeSize.isAccessibilitySize
+    let layout = stacks
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+      : AnyLayout(HStackLayout(alignment: .center, spacing: 10))
     HStack(alignment: .center, spacing: 4) {
-      HStack(alignment: .center, spacing: 10) {
+      layout {
         VStack(alignment: .leading, spacing: 3) {
           Text(payeeLabel)
             .font(.body.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
-            .lineLimit(1)
+            .lineLimit(stacks ? nil : 1)
           Text(detailLine)
             .font(.footnote)
             .foregroundStyle(.secondary)
-            .lineLimit(1)
         }
 
-        Spacer(minLength: 8)
+        if !stacks {
+          Spacer(minLength: 8)
+        }
 
-        VStack(alignment: .trailing, spacing: 2) {
+        VStack(alignment: stacks ? .leading : .trailing, spacing: 2) {
           Text(MoneyCodec.signedDisplayString(for: schedule.amount, currencyFormat: model.currencyFormat))
             .font(.subheadline.weight(.medium))
             .monospacedDigit()
             .foregroundStyle(Theme.registerAmountColour(schedule.amount))
+            .lineLimit(stacks ? 1 : nil)
+            .minimumScaleFactor(stacks ? 0.5 : 1)
           Text(schedule.recurrenceLabel)
             .font(.caption)
             .foregroundStyle(.secondary)
-            .lineLimit(1)
+            .multilineTextAlignment(stacks ? .leading : .trailing)
         }
       }
+      .frame(maxWidth: .infinity, alignment: .leading)
 
       Image(systemName: "calendar")
         .font(.title3)
