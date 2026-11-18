@@ -710,7 +710,9 @@ struct AccountsView: View {
       .monospacedDigit()
       .foregroundStyle(balance == 0 ? .secondary : Theme.amountColour(balance))
       .rollingNumber(balance)
-      .fixedSize(horizontal: true, vertical: false)
+      .lineLimit(1)
+      .minimumScaleFactor(0.5)
+      .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: false)
   }
 
   private func groupSortBinding(_ groupID: String) -> Binding<AccountGroupSort> {
