@@ -277,6 +277,8 @@ struct ReflectView: View {
             .monospacedDigit()
             .foregroundStyle(Theme.textPrimary)
             .rollingNumber(latest.netWorth)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
           if let previous, let change {
             Text("\(MoneyCodec.signedDisplayString(for: change, currencyFormat: model.currencyFormat)) since \(LedgerDate.shortDateString(fromISO: previous.endDate))")
               .font(.caption)
@@ -286,22 +288,32 @@ struct ReflectView: View {
           }
         }
 
-        HStack {
+        // Accessibility sizes put each figure under its label, and a figure
+        // that is still too wide shrinks instead of breaking inside the number.
+        let stacks = dynamicTypeSize.isAccessibilitySize
+        let figureRow = stacks
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+          : AnyLayout(HStackLayout())
+        figureRow {
           Text("Assets")
             .foregroundStyle(Theme.accent)
-          Spacer()
+          if !stacks { Spacer() }
           Text(MoneyCodec.displayString(for: assets, currencyFormat: model.currencyFormat))
             .monospacedDigit()
             .foregroundStyle(Theme.textPrimary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
         }
         .font(.subheadline)
-        HStack {
+        figureRow {
           Text("Debts")
             .foregroundStyle(Theme.outflow)
-          Spacer()
+          if !stacks { Spacer() }
           Text(MoneyCodec.displayString(for: debts, currencyFormat: model.currencyFormat))
             .monospacedDigit()
             .foregroundStyle(Theme.textPrimary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.5)
         }
         .font(.subheadline)
 
