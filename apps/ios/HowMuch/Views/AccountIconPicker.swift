@@ -98,6 +98,8 @@ struct AccountIconPicker: View {
                 isVisible ? Theme.accent.opacity(0.15) : Color.clear,
                 in: Capsule()
               )
+              .padding(.vertical, 5)
+              .contentShape(Rectangle())
           }
           .buttonStyle(.plain)
           .accessibilityLabel(category.labelText)
@@ -106,6 +108,7 @@ struct AccountIconPicker: View {
       }
       .padding(.horizontal, 16)
     }
+    .padding(.vertical, -5)
   }
 
   private var displayedCategories: [EmojiCategory] {
