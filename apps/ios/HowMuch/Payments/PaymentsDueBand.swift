@@ -128,23 +128,31 @@ struct PaymentsDueBand: View {
         onOpenAccount(row.account.id)
       } label: {
         VStack(alignment: .leading, spacing: 4) {
-          let headingLayout = dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
-            : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
-          headingLayout {
-            Text(row.account.name)
-              .font(.subheadline.weight(.semibold))
-              .foregroundStyle(Theme.textPrimary)
-              .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
-            if !dynamicTypeSize.isAccessibilitySize { Spacer(minLength: 8) }
-            if let cycle = row.cycle, cycle.hasAmountDue {
-              Text(money(cycle.statementBalance))
+          let heading = { (stacks: Bool) in
+            let headingLayout = stacks
+              ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+              : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+            return headingLayout {
+              Text(row.account.name)
                 .font(.subheadline.weight(.semibold))
-                .monospacedDigit()
                 .foregroundStyle(Theme.textPrimary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.5)
+                .lineLimit(stacks ? nil : 1)
+                .fixedSize(horizontal: !stacks, vertical: true)
+              if !stacks { Spacer(minLength: 8) }
+              if let cycle = row.cycle, cycle.hasAmountDue {
+                Text(money(cycle.statementBalance))
+                  .font(.subheadline.weight(.semibold))
+                  .monospacedDigit()
+                  .foregroundStyle(Theme.textPrimary)
+                  .lineLimit(1)
+                  .minimumScaleFactor(0.5)
+                  .fixedSize(horizontal: !stacks, vertical: false)
+              }
             }
+          }
+          ViewThatFits(in: .horizontal) {
+            heading(false)
+            heading(true)
           }
           Text(row.primaryLine(money: money))
             .font(.caption)

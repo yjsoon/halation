@@ -679,7 +679,7 @@ struct AccountsView: View {
           .accessibilityHidden(true)
 
         Group {
-          if dynamicTypeSize.isAccessibilitySize {
+          if dynamicTypeSize >= .xxLarge {
             VStack(alignment: .leading, spacing: 4) {
               Text(account.name)
                 .font(selected ? .body.weight(.semibold) : .body)
@@ -747,7 +747,7 @@ struct AccountsView: View {
       .rollingNumber(balance)
       .lineLimit(1)
       .minimumScaleFactor(0.5)
-      .fixedSize(horizontal: !dynamicTypeSize.isAccessibilitySize, vertical: false)
+      .fixedSize(horizontal: dynamicTypeSize < .xxLarge, vertical: false)
   }
 
   private func groupSortBinding(_ groupID: String) -> Binding<AccountGroupSort> {
