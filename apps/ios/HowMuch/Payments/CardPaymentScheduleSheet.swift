@@ -6,6 +6,7 @@ import SwiftUI
 struct CardPaymentScheduleSheet: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   let accountID: String
   let statementDate: String
 
@@ -218,14 +219,25 @@ struct CardPaymentScheduleSheet: View {
         Image(systemName: amountChoice == rule ? "checkmark.circle.fill" : "circle")
           .foregroundStyle(amountChoice == rule ? Theme.accent : Color.secondary)
           .accessibilityHidden(true)
-        Text(title)
-          .foregroundStyle(Theme.textPrimary)
-        Spacer()
-        if let value {
-          Text(money(value))
-            .monospacedDigit()
+        // Accessibility sizes put the amount under its title, so neither
+        // breaks inside a word or a figure.
+        let stacks = dynamicTypeSize.isAccessibilitySize
+        let choice = stacks
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+          : AnyLayout(HStackLayout())
+        choice {
+          Text(title)
             .foregroundStyle(Theme.textPrimary)
+          if !stacks { Spacer() }
+          if let value {
+            Text(money(value))
+              .monospacedDigit()
+              .foregroundStyle(Theme.textPrimary)
+              .lineLimit(1)
+              .minimumScaleFactor(0.5)
+          }
         }
+        if stacks { Spacer(minLength: 0) }
       }
       .contentShape(Rectangle())
     }
