@@ -1476,6 +1476,9 @@ struct RegisterView: View {
               systemImage: "tray",
               description: Text("Transactions you add will appear here.")
             )
+            // The title's long word shrinks a little at accessibility sizes
+            // rather than truncate; other sizes keep the system layout.
+            .minimumScaleFactor(mastheadTypeSize.isAccessibilitySize ? 0.7 : 1)
           }
         }
         .listRowBackground(Color.clear)
