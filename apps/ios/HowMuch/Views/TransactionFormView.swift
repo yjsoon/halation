@@ -730,7 +730,7 @@ struct TransactionFormView: View {
         DisclosureValueRow(
           icon: "calendar",
           caption: "Date",
-          value: draft.date.formatted(date: .long, time: .omitted),
+          value: LedgerDate.friendlyString(fromISO: draft.date.isoDateString),
           placeholder: "Date",
           rowIdentifier: TransactionFormRowID.date,
           valueColor: Theme.rowSecondary

@@ -320,7 +320,7 @@ final class CaptureSnapshotTests: XCTestCase {
       var draft = TransactionDraft()
       draft.amountMagnitudeMilli = item.amount
       draft.accountID = "acct-everyday"
-      let dateLabel = draft.date.formatted(date: .long, time: .omitted)
+      let dateLabel = LedgerDate.friendlyString(fromISO: draft.date.isoDateString)
       let harness = SnapshotHarness.make()
       let chrome = RootChromeState()
       let request = CaptureRequest(
