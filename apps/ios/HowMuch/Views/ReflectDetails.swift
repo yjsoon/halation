@@ -951,26 +951,40 @@ struct NetWorthDetailView: View {
           .foregroundStyle(Theme.signedReportColour(change))
           .rollingNumber(change)
       }
-      HStack(spacing: 24) {
-        VStack(spacing: 2) {
-          Text("Assets")
-            .font(.caption)
-            .foregroundStyle(Theme.accent)
-          Text(MoneyCodec.displayString(for: assets, currencyFormat: model.currencyFormat))
-            .font(.subheadline.weight(.semibold))
-            .monospacedDigit()
-            .foregroundStyle(Theme.textPrimary)
-            .rollingNumber(assets)
+      let assetsFigure = VStack(spacing: 2) {
+        Text("Assets")
+          .font(.caption)
+          .foregroundStyle(Theme.accent)
+        Text(MoneyCodec.displayString(for: assets, currencyFormat: model.currencyFormat))
+          .font(.subheadline.weight(.semibold))
+          .monospacedDigit()
+          .foregroundStyle(Theme.textPrimary)
+          .rollingNumber(assets)
+          .lineLimit(1)
+          .minimumScaleFactor(0.5)
+      }
+      let debtsFigure = VStack(spacing: 2) {
+        Text("Debts")
+          .font(.caption)
+          .foregroundStyle(Theme.outflow)
+        Text(MoneyCodec.displayString(for: debts, currencyFormat: model.currencyFormat))
+          .font(.subheadline.weight(.semibold))
+          .monospacedDigit()
+          .foregroundStyle(Theme.textPrimary)
+          .rollingNumber(debts)
+          .lineLimit(1)
+          .minimumScaleFactor(0.5)
+      }
+      // Side by side while both figures fit on one line; otherwise Debts
+      // goes under Assets, so no figure breaks inside the number.
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 24) {
+          assetsFigure
+          debtsFigure
         }
-        VStack(spacing: 2) {
-          Text("Debts")
-            .font(.caption)
-            .foregroundStyle(Theme.outflow)
-          Text(MoneyCodec.displayString(for: debts, currencyFormat: model.currencyFormat))
-            .font(.subheadline.weight(.semibold))
-            .monospacedDigit()
-            .foregroundStyle(Theme.textPrimary)
-            .rollingNumber(debts)
+        VStack(spacing: 8) {
+          assetsFigure
+          debtsFigure
         }
       }
       // How much of what is held is owed: the two figures as one bar.
