@@ -405,11 +405,26 @@
   }
 
   .transaction-editor-split-line {
-    grid-template-columns: minmax(72px, 0.65fr) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .transaction-editor-split-line > label:last-child {
-    grid-column: span 2;
+  /* Phones stretch every segmented control; this one keeps to its two words, as in Quick entry. */
+  .transaction-editor-split-line > .segmented,
+  .amount-with-direction > .segmented {
+    width: auto;
+    justify-self: start;
+  }
+
+  .transaction-editor-split-line > .schedule-line-memo {
+    grid-column: 1 / -1;
+  }
+
+  .transaction-editor-split-line > .text-button {
+    justify-self: start;
+  }
+
+  .signed-balance > .transaction-editor-checkbox {
+    min-height: 38px;
   }
 
   .filter-rail,

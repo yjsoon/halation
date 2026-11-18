@@ -51,6 +51,18 @@ export function parseMilliunitsKeeping(value: string, stored: number | null | un
   return parseMilliunits(value);
 }
 
+/**
+ * A sign typed at the start of an amount, apart from the rest. A phone's
+ * decimal keypad has no minus key, so a field whose amount can be negative
+ * sets its sign with a control beside it; this lets a typed "-" or "+" move
+ * that control instead of sitting in the text.
+ */
+export function splitTypedSign(text: string): { negative: boolean | null; rest: string } {
+  const match = /^\s*([-−+])\s*/.exec(text);
+  if (!match) return { negative: null, rest: text };
+  return { negative: match[1] !== "+", rest: text.slice(match[0].length) };
+}
+
 /** Milliunits in the plan currency's smallest unit: 10 for cents, 1,000 for yen. */
 export function minorUnitMilliunits(): number {
   return 10 ** (3 - Math.min(amountFormat.decimalDigits, 3));

@@ -28,7 +28,7 @@ import { splitCategoryGroups, UNCATEGORISED_CATEGORY_ID } from "../lib/categorie
 import { appliedReviewItems, reviewRows, suggestionRequestItems, suggestionTargets, type SuggestionReviewRow } from "../lib/category-suggestions";
 import { formatDate, todayIso, trailingMonthsRange } from "../lib/dates";
 import { stableHash } from "../lib/hash";
-import { amountPlaceholder, currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
+import { amountPlaceholder, currentCurrencyFormat, formatMoney, parseMilliunits, splitTypedSign } from "../lib/money";
 import {
   approveAllLabel,
   approvedToast,
@@ -122,11 +122,19 @@ type ReconcileDraft = {
   accountId: string;
   statementDate: string;
   statementBalance: string;
+  // The balance is typed without a sign: a phone's decimal keypad has no minus key.
+  statementBelowZero: boolean;
   operationSeed: string;
   reviewReady: boolean;
   confirmationChecked: boolean;
   mismatch: ReconciliationMismatchDetail | null;
 };
+
+function statementBalanceOf(draft: ReconcileDraft): number | null {
+  const entered = parseMilliunits(draft.statementBalance);
+  if (entered === null || entered === 0) return entered;
+  return draft.statementBelowZero ? -Math.abs(entered) : entered;
+}
 
 type ReportLine = Pick<Subtransaction, "amount" | "category_id" | "transfer_account_id" | "transfer_transaction_id">;
 
@@ -1215,6 +1223,8 @@ export function TransactionsPage() {
       accountId: selectedAccount?.id ?? "",
       statementDate: todayIso(),
       statementBalance: "",
+      // A card's statement is below zero here, so it starts the way the account's cleared balance points.
+      statementBelowZero: (selectedAccount?.cleared_balance ?? 0) < 0,
       operationSeed: crypto.randomUUID(),
       reviewReady: false,
       confirmationChecked: false,
@@ -1242,7 +1252,7 @@ export function TransactionsPage() {
 
   const reviewReconciliation = () => {
     if (!reconcileDraft) return;
-    const statementBalance = parseMilliunits(reconcileDraft.statementBalance);
+    const statementBalance = statementBalanceOf(reconcileDraft);
     if (!reconcileDraft.accountId) {
       setMutationError("Choose the account you want to reconcile.");
       return;
@@ -1263,7 +1273,7 @@ export function TransactionsPage() {
 
   const submitReconciliation = async () => {
     if (!reconcileDraft) return;
-    const statementBalance = parseMilliunits(reconcileDraft.statementBalance);
+    const statementBalance = statementBalanceOf(reconcileDraft);
     if (statementBalance === null) {
       setMutationError("Enter the exact statement balance, with no more decimal places than the currency uses.");
       return;
@@ -1931,7 +1941,7 @@ export function TransactionsPage() {
           ? "Closed: kept under Closed with all its transactions. Reopen it to record new ones."
           : "Try widening the date range, clearing filters, or shortening the search term.";
   const reconciliationBusy = mutationBusy;
-  const reviewedStatementBalance = reconcileDraft ? parseMilliunits(reconcileDraft.statementBalance) : null;
+  const reviewedStatementBalance = reconcileDraft ? statementBalanceOf(reconcileDraft) : null;
   const reconciliationPreviewData = reconciliationPreview.data
     && reconcileDraft
     && reconciliationPreview.data.account.id === reconcileDraft.accountId
@@ -2274,7 +2284,10 @@ export function TransactionsPage() {
                 <select
                   ref={reconcileFirstFieldRef}
                   value={reconcileDraft.accountId}
-                  onChange={(event) => updateReconcile({ accountId: event.target.value })}
+                  onChange={(event) => updateReconcile({
+                    accountId: event.target.value,
+                    statementBelowZero: (accounts.find((account) => account.id === event.target.value)?.cleared_balance ?? 0) < 0,
+                  })}
                   disabled={reconciliationBusy}
                   required
                 >
@@ -2297,19 +2310,37 @@ export function TransactionsPage() {
                   required
                 />
               </label>
-              <label className="field">
-                <span className="field-label">Statement balance</span>
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder={amountPlaceholder()}
-                  value={reconcileDraft.statementBalance}
-                  onChange={(event) => updateReconcile({ statementBalance: event.target.value })}
-                  disabled={reconciliationBusy}
-                  required
-                />
-                <span className="field-note">Enter the exact balance shown on the statement.</span>
-              </label>
+              <div className="signed-balance">
+                <label className="field">
+                  <span className="field-label">Statement balance</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    placeholder={amountPlaceholder()}
+                    value={reconcileDraft.statementBalance}
+                    onChange={(event) => {
+                      const typed = splitTypedSign(event.target.value);
+                      updateReconcile({
+                        statementBalance: typed.rest,
+                        ...(typed.negative !== null ? { statementBelowZero: typed.negative } : {}),
+                      });
+                    }}
+                    aria-describedby="reconcile-balance-note"
+                    disabled={reconciliationBusy}
+                    required
+                  />
+                </label>
+                <label className="transaction-editor-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={reconcileDraft.statementBelowZero}
+                    onChange={(event) => updateReconcile({ statementBelowZero: event.target.checked })}
+                    disabled={reconciliationBusy}
+                  />
+                  Below zero
+                </label>
+                <span id="reconcile-balance-note" className="field-note">Enter the exact balance shown on the statement.</span>
+              </div>
             </div>
 
             <p className="diagnostic-note">

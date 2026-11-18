@@ -1746,9 +1746,53 @@ a.page-eyebrow:hover {
   margin: 0 0 8px;
 }
 
+/* An amount and the Outflow or Inflow choice that gives it its sign. */
+.amount-with-direction {
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.amount-with-direction > .field {
+  min-width: 0;
+}
+
+.amount-with-direction > .segmented {
+  flex: 0 0 auto;
+  margin-bottom: 14px;
+}
+
+.amount-with-direction .segment {
+  min-height: 41px;
+}
+
+.transaction-editor-split-line .segment {
+  min-height: 36px;
+}
+
+/* A balance and the Below zero choice that gives it its sign, with the field's note under both. */
+.signed-balance {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 12px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.signed-balance > .field,
+.signed-balance > .transaction-editor-checkbox {
+  margin-bottom: 0;
+}
+
+.signed-balance > .field-note {
+  grid-column: 1 / -1;
+}
+
 .transaction-editor-split-line {
   display: grid;
-  grid-template-columns: minmax(74px, 0.6fr) minmax(0, 1fr) minmax(0, 1.2fr) minmax(0, 1.2fr);
+  grid-template-columns: minmax(96px, 0.5fr) auto minmax(0, 1.15fr) minmax(0, 1.1fr) minmax(0, 1.2fr);
   gap: 8px;
   align-items: center;
   padding: 6px 0;
@@ -1766,6 +1810,11 @@ a.page-eyebrow:hover {
   color: var(--ink);
   font: inherit;
   font-size: 16px;
+}
+
+/* The memo takes the row under the controls, leaving the last column for Remove. */
+.transaction-editor-split-line > .schedule-line-memo {
+  grid-column: 1 / span 4;
 }
 
 .transaction-editor-split-line input[type="number"] {

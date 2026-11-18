@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { StatusPanel } from "../components/StatusPanel";
-import { amountFormatHint, amountPlaceholder, parseMilliunits } from "../lib/money";
+import { amountFormatHint, amountPlaceholder, parseMilliunits, splitTypedSign } from "../lib/money";
 import { ACCOUNT_KIND_GROUPS, accountKindGroup, newAccountRequest, storesLiability, type NewAccountKind } from "../lib/new-account";
 import { usePlan } from "../state/plan";
 
@@ -14,6 +14,8 @@ export function NewAccountPage() {
   const [name, setName] = useState("");
   const [kind, setKind] = useState<NewAccountKind>("checking");
   const [balance, setBalance] = useState("");
+  // Chosen, not typed: a phone's decimal keypad has no minus key.
+  const [belowZero, setBelowZero] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +23,7 @@ export function NewAccountPage() {
     document.title = "New account · Halation";
   }, []);
 
-  const request = newAccountRequest({ name, kind, balance });
+  const request = newAccountRequest({ name, kind, balance, belowZero });
   const liability = storesLiability(kind);
   // Judged on its own, so a bad amount shows before a name is typed.
   const balanceInvalid = balance.trim() !== "" && parseMilliunits(balance) === null;
@@ -87,26 +89,38 @@ export function NewAccountPage() {
           </select>
           <span id="new-account-type-note" className="field-note">{accountKindGroup(kind)?.note}</span>
         </label>
-        <label className="field">
-          <span className="field-label">{liability ? "Amount owed" : "Current balance"}</span>
-          <input
-            value={balance}
-            onChange={(event) => setBalance(event.target.value)}
-            placeholder={amountPlaceholder()}
-            inputMode="decimal"
-            autoComplete="off"
-            aria-invalid={balanceInvalid || undefined}
-            aria-describedby="new-account-balance-note"
-            disabled={saving}
-          />
+        <div className="signed-balance">
+          <label className="field">
+            <span className="field-label">{liability ? "Amount owed" : "Current balance"}</span>
+            <input
+              value={balance}
+              onChange={(event) => {
+                const typed = splitTypedSign(event.target.value);
+                if (typed.negative !== null) setBelowZero(typed.negative);
+                setBalance(typed.rest);
+              }}
+              placeholder={amountPlaceholder()}
+              inputMode="decimal"
+              autoComplete="off"
+              aria-invalid={balanceInvalid || undefined}
+              aria-describedby="new-account-balance-note"
+              disabled={saving}
+            />
+          </label>
+          {!liability && (
+            <label className="transaction-editor-checkbox">
+              <input type="checkbox" checked={belowZero} onChange={(event) => setBelowZero(event.target.checked)} disabled={saving} />
+              Below zero
+            </label>
+          )}
           <span id="new-account-balance-note" className={balanceInvalid ? "field-note field-note-error" : "field-note"}>
             {balanceInvalid
               ? amountFormatHint()
               : liability
                 ? "Enter what you owe today."
-                : "Today’s balance. If it is below zero, start with a minus sign, such as -20."}
+                : "Today’s balance."}
           </span>
-        </label>
+        </div>
         <button type="submit" className="save-button" disabled={!request.ok || saving || provisional}>
           {saving ? "Creating…" : "Create account"}
         </button>

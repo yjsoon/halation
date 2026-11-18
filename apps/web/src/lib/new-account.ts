@@ -48,7 +48,8 @@ export function storesLiability(kind: NewAccountKind): boolean {
   return LIABILITY_KINDS.has(kind);
 }
 
-type NewAccountDraft = { name: string; kind: NewAccountKind; balance: string };
+// `belowZero` is the form's Below zero choice for an account that is not a liability.
+type NewAccountDraft = { name: string; kind: NewAccountKind; balance: string; belowZero?: boolean };
 
 export type NewAccountBody = { name: string; type: NewAccountKind; balance: number };
 
@@ -64,6 +65,6 @@ export function newAccountRequest(
   if (entered === null) return { ok: false, error: "balance" };
   // The server stores the balance as sent, so the sign is settled here, as
   // the iOS sheet does: whatever is typed for a debt is owed.
-  const balance = storesLiability(draft.kind) ? -Math.abs(entered) : entered;
+  const balance = entered === 0 ? 0 : storesLiability(draft.kind) || draft.belowZero ? -Math.abs(entered) : entered;
   return { ok: true, body: { name, type: draft.kind, balance } };
 }
