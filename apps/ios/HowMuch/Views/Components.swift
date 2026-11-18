@@ -416,6 +416,10 @@ struct MonthStepper: View {
       Text(monthAnchor.monthYearLabel)
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(Theme.accent)
+        // Between the arrows at the largest sizes the month shrinks before
+        // it breaks inside the word.
+        .lineLimit(2)
+        .minimumScaleFactor(0.6)
         .contentTransition(.numericText(countsDown: steppedBack))
         .animation(Theme.Motion.standard, value: monthAnchor)
       Spacer()
