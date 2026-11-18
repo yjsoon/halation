@@ -217,8 +217,10 @@ struct RewardsView: View {
       skyScroll.offset = offset
     }
     .background {
+      // Sideways too: the iPhone Duo's outer display keeps its bars in a
+      // column beside the board, and the sky stopped at it in a straight edge.
       RewardsSky(scroll: skyScroll)
-        .ignoresSafeArea(edges: .top)
+        .ignoresSafeArea(edges: [.top, .horizontal])
     }
     .contentMargins(.bottom, bottomRoom, for: .scrollContent)
     .background(Theme.canvas)

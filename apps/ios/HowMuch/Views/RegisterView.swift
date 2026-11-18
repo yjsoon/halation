@@ -396,6 +396,10 @@ struct RegisterView: View {
         RegisterMastheadSky(
           metrics: mastheadMetrics, exposure: masthead.exposure,
           key: "\(model.settings.planID)|masthead|\(masthead.projection.cardID)")
+          // Continues the scene under the iPhone Duo's bar column without
+          // widening it. Before the safe-area change: after it, the copy made
+          // for the top edge lay over the sky.
+          .backgroundExtensionEffect()
           .ignoresSafeArea(edges: .top)
       }
     }
