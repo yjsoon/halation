@@ -329,8 +329,11 @@ struct ScheduledTransactionEditorView: View {
                 Text(direction.title).tag(direction)
               }
             }
-            TextField("Amount", text: $draft.amountText)
-              .keyboardType(.decimalPad)
+            LabeledContent("Amount") {
+              TextField("Amount", text: $draft.amountText)
+                .keyboardType(.decimalPad)
+                .multilineTextAlignment(.trailing)
+            }
           } else {
             HStack {
               Text("Scheduled total")
