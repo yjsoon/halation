@@ -2991,8 +2991,12 @@ struct TransactionRow: View {
                 .font(.subheadline.weight(.medium))
                 .monospacedDigit()
                 .foregroundStyle(Theme.registerAmountColour(transaction.amount))
-                .lineLimit(stacks ? 1 : nil)
+                // Beside the payee the amount keeps its own width, so a
+                // narrow row shortens the payee and never parts the minus
+                // from its figure.
+                .lineLimit(1)
                 .minimumScaleFactor(stacks ? 0.5 : 1)
+                .fixedSize(horizontal: !stacks, vertical: false)
             }
           }
         }
