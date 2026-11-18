@@ -441,6 +441,7 @@ struct ReflectCard<Destination: View, Content: View>: View {
   let title: String
   @ViewBuilder let destination: () -> Destination
   @ViewBuilder let content: () -> Content
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   var body: some View {
     NavigationLink {
@@ -448,12 +449,23 @@ struct ReflectCard<Destination: View, Content: View>: View {
     } label: {
       VStack(alignment: .leading, spacing: 12) {
         HStack {
-          Label {
-            Text(title)
-              .font(.subheadline.weight(.semibold))
-          } icon: {
-            Image(systemName: icon)
-              .font(.subheadline)
+          let titleText = Text(title)
+            .font(.subheadline.weight(.semibold))
+          let iconImage = Image(systemName: icon)
+            .font(.subheadline)
+          if dynamicTypeSize.isAccessibilitySize {
+            // Under the icon, so a long word such as "Spending" has the card's width.
+            VStack(alignment: .leading, spacing: 4) {
+              iconImage
+                .accessibilityHidden(true)
+              titleText
+            }
+          } else {
+            Label {
+              titleText
+            } icon: {
+              iconImage
+            }
           }
           Spacer()
           Image(systemName: "chevron.forward")
