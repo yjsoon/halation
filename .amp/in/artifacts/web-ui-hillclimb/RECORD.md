@@ -146,3 +146,11 @@ Sign in, Scheduled's list, Quick entry, the Ledger with Filters open, Spending, 
 ### Checks
 
 `scripts/check.sh` on the tree committed as 38819d1d: `check: pass`, exit 0 (`bun test` 821 pass and 0 fail, the typechecks, the iOS focus zoom check).
+
+### LEAD-03, Reconcile on the unchanged code
+
+- A second run on a new Mac satellite, same device (iPhone 17 Pro, iOS 26.5, hardware keyboard disconnected), with `pages/Transactions.tsx`, `pages/ScheduledTransactions.tsx` and `pages/NewAccount.tsx` put back to 97ec1d70 in the worktree for the run and restored to 09aa9f09 afterwards.
+- Steps: Travel Card's register, Reconcile, tap Statement balance.
+- Observed: the keypad shows the digits, a decimal point and delete, and no minus key. With the first run this covers all three fields on the unchanged code: Scheduled's Amount, Reconcile's Statement balance and New account's Current balance.
+- The page under test was the web app on the disposable stack through the orb's HTTPS portal, not a bare test page.
+- b1c5fe6a is one of two possible fixes and waits for YJ's choice.
