@@ -23,6 +23,7 @@ struct AddTransactionsView: View {
   @State private var photoItems: [PhotosPickerItem] = []
   @State private var cameraUnavailableMessage: String?
   @State private var isComposerFocused = false
+  @State private var composerRoom = CGFloat.infinity
   @State private var claimComposerFocus = false
   @State private var didConsumeEntryFocus = false
   @State private var isShowingPlus = false
@@ -108,6 +109,7 @@ struct AddTransactionsView: View {
             canOpenPlus: !session.isSaving,
             pending: session.attachments,
             ingestError: errorMessage,
+            room: composerRoom,
             onAccount: { if !session.isBusy && !session.isSaving { editingDraftID = nil; showingAccountPicker = true } },
             onPlus: { if !session.isSaving { isShowingPlus = true } },
             onSend: send,
@@ -117,6 +119,16 @@ struct AddTransactionsView: View {
             onRetry: { retryReadingImage($0) },
             onAddManually: beginManualEntry
           )
+        }
+        // The height between the bars and the keyboard, which the dock's
+        // layout for a short screen has to fit. The frame takes the height
+        // it is offered even when the dock is taller than that, so the
+        // reading does not depend on the dock's own layout.
+        .frame(minHeight: 0, maxHeight: .infinity)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+          proxy.size.height
+        } action: { height in
+          composerRoom = height
         }
       .navigationDestination(isPresented: Binding(
         get: { editingDraftID != nil },
@@ -1481,8 +1493,10 @@ enum CaptureComposerMetrics {
     UIFont.preferredFont(forTextStyle: .body)
   }
 
-  static func textContainerInset(for font: UIFont) -> UIEdgeInsets {
-    let vertical = max(8, ((minHeight - font.lineHeight) / 2).rounded())
+  /// `compact` is for a dock with no height to spare: the line keeps 2pt
+  /// above and below instead of 8pt.
+  static func textContainerInset(for font: UIFont, compact: Bool = false) -> UIEdgeInsets {
+    let vertical = max(compact ? 2 : 8, ((minHeight - font.lineHeight) / 2).rounded())
     return UIEdgeInsets(top: vertical, left: horizontalInset, bottom: vertical, right: horizontalInset)
   }
 
@@ -1497,6 +1511,7 @@ struct CaptureComposerField: UIViewRepresentable {
   @Binding var text: String
   @Binding var isComposerFocused: Bool
   var claimFocus: Bool = false
+  var compact: Bool = false
   var onImages: ([UIImage]) -> Void
 
   func makeCoordinator() -> Coordinator {
@@ -1559,20 +1574,29 @@ struct CaptureComposerField: UIViewRepresentable {
     )
     uiView.layoutManager.ensureLayout(for: uiView.textContainer)
     let used = uiView.layoutManager.usedRect(for: uiView.textContainer).height
+    let fitted = CaptureComposerMetrics.fittedHeight(
+      usedRectHeight: used,
+      font: font,
+      inset: uiView.textContainerInset
+    )
+    // A short dock, such as above the keyboard on a phone on its side,
+    // offers less than the draft's height. The field then takes what it is
+    // offered, down to one line, and the draft scrolls inside it.
+    let oneLine = CaptureComposerMetrics.fittedHeight(
+      usedRectHeight: 0,
+      font: font,
+      inset: uiView.textContainerInset
+    )
     return CGSize(
       width: width,
-      height: CaptureComposerMetrics.fittedHeight(
-        usedRectHeight: used,
-        font: font,
-        inset: uiView.textContainerInset
-      )
+      height: max(oneLine, min(fitted, proposal.height ?? fitted))
     )
   }
 
   private func applyComposerChrome(_ uiView: UITextView) {
     let font = uiView.font ?? CaptureComposerMetrics.bodyFont()
     uiView.textContainer.lineFragmentPadding = 0
-    let inset = CaptureComposerMetrics.textContainerInset(for: font)
+    let inset = CaptureComposerMetrics.textContainerInset(for: font, compact: compact)
     if uiView.textContainerInset != inset {
       uiView.textContainerInset = inset
     }

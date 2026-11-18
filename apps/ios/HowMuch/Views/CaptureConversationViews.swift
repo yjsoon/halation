@@ -667,6 +667,8 @@ struct CaptureComposerDock: View {
   var canOpenPlus: Bool
   var pending: [CaptureAttachment]
   var ingestError: String?
+  /// The height between the bars and the keyboard that the dock may fill.
+  var room: CGFloat = .infinity
   var onAccount: () -> Void
   var onPlus: () -> Void
   var onSend: () -> Void
@@ -676,16 +678,34 @@ struct CaptureComposerDock: View {
   var onRetry: (UUID) -> Void
   var onAddManually: () -> Void
   @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+  @Environment(\.verticalSizeClass) private var verticalSizeClass
   @Environment(\.displayScale) private var displayScale
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(alignment: .firstTextBaseline, spacing: 8) {
+    // Accessibility sizes put Add manually under the account, which then
+    // has the dock's width and stays on one line, so the dock fits above
+    // the keyboard. A short screen has room for one row only, so there the
+    // two stay side by side, the account shrinks to fit, and the dock
+    // gives up most of its padding. Where even that is taller than the room
+    // above the keyboard, as on a phone on its side, the dock is two 44pt
+    // rows with no padding to spare, and its text stops growing at the
+    // second accessibility size, the largest whose line fits such a row.
+    let large = dynamicTypeSize.isAccessibilitySize
+    let short = large && verticalSizeClass == .compact
+    let stacks = large && !short
+    let tight = short && room < Self.shortHeight
+    return VStack(alignment: .leading, spacing: short ? 2 : 8) {
+      let header = stacks
+        ? AnyLayout(VStackLayout(alignment: .trailing, spacing: 0))
+        : AnyLayout(HStackLayout(alignment: tight ? .center : .firstTextBaseline, spacing: 8))
+      header {
         Button(action: onAccount) {
           HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text("Account: \(accountLabel)")
               .font(.subheadline)
               .foregroundStyle(.secondary)
+              .lineLimit(large ? 1 : nil)
+              .minimumScaleFactor(large ? 0.5 : 1)
               .fixedSize(horizontal: false, vertical: true)
             Image(systemName: "chevron.down")
               .font(.caption.weight(.semibold))
@@ -702,7 +722,7 @@ struct CaptureComposerDock: View {
             .font(.footnote)
             .foregroundStyle(Theme.accent)
             .multilineTextAlignment(.trailing)
-            .fixedSize(horizontal: false, vertical: true)
+            .fixedSize(horizontal: short, vertical: true)
             .frame(minWidth: 44, minHeight: 44, alignment: .trailing)
             .contentShape(Rectangle())
         }
@@ -752,7 +772,7 @@ struct CaptureComposerDock: View {
           .tint(Theme.accent)
           .disabled(!canOpenPlus)
           .accessibilityLabel("Add a photo or paste")
-          CaptureComposerField(text: $text, isComposerFocused: $isFocused, claimFocus: claimFocus, onImages: onImages)
+          CaptureComposerField(text: $text, isComposerFocused: $isFocused, claimFocus: claimFocus, compact: tight, onImages: onImages)
             .accessibilityLabel("Transaction description")
             .accessibilityHint("Describe a spend or ask a recorded-spending question. System dictation works here.")
           if isBusy {
@@ -777,12 +797,26 @@ struct CaptureComposerDock: View {
           }
         }
       }
-      .padding(10)
+      .padding(.horizontal, 10)
+      .padding(.vertical, tight ? 0 : short ? 4 : 10)
       .background(Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
     .padding(.horizontal, 16)
-    .padding(.vertical, 8)
+    .padding(.vertical, tight ? 1 : short ? 2 : 8)
     .background(Theme.canvas)
+    .dynamicTypeSize(...(tight ? DynamicTypeSize.accessibility2 : .accessibility5))
+  }
+
+  /// The least the short layout needs at the reader's text size: a 44pt
+  /// header row, the field at one line, and the padding around them.
+  private static var shortHeight: CGFloat {
+    let font = CaptureComposerMetrics.bodyFont()
+    let field = CaptureComposerMetrics.fittedHeight(
+      usedRectHeight: 0,
+      font: font,
+      inset: CaptureComposerMetrics.textContainerInset(for: font)
+    )
+    return 44 + 2 + 4 + field + 4 + 2 + 2
   }
 
   @ViewBuilder
