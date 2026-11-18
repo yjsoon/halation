@@ -339,7 +339,7 @@ struct SettingsView: View {
   private var assistantSection: some View {
     Section {
       NavigationLink {
-        CaptureAISettingsView(settings: model.captureAI)
+        CaptureAISettingsView(settings: model.captureAI, showsCancel: false)
           .onDisappear { model.publishShareContext() }
       } label: {
         LabeledContent {

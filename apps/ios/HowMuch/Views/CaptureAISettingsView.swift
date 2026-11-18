@@ -3,13 +3,15 @@ import SwiftUI
 struct CaptureAISettingsView: View {
   @Environment(\.dismiss) private var dismiss
   let settings: CaptureAISettings
+  let showsCancel: Bool
   @State private var draft: CaptureAISelection
   @State private var apiKey = ""
   @State private var removeKey = false
   @State private var error: String?
 
-  init(settings: CaptureAISettings) {
+  init(settings: CaptureAISettings, showsCancel: Bool = true) {
     self.settings = settings
+    self.showsCancel = showsCancel
     _draft = State(initialValue: settings.selection)
   }
 
@@ -87,8 +89,10 @@ struct CaptureAISettingsView: View {
     .navigationTitle("AI provider")
     .navigationBarTitleDisplayMode(.inline)
     .toolbar {
-      ToolbarItem(placement: .cancellationAction) {
-        Button("Cancel") { dismiss() }
+      if showsCancel {
+        ToolbarItem(placement: .cancellationAction) {
+          Button("Cancel") { dismiss() }
+        }
       }
       ToolbarItem(placement: .confirmationAction) {
         Button("Save") {
