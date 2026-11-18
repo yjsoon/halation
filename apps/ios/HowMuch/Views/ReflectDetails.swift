@@ -466,6 +466,7 @@ struct CategoryScopePicker: View {
 
 struct SpendingBreakdownDetailView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @ScaledMetric(relativeTo: .caption) private var percentageColumnWidth = 44.0
   @State private var range = ReportRange()
   @State private var scope = ReportScope()
@@ -637,33 +638,58 @@ struct SpendingBreakdownDetailView: View {
   private func categoryRow(_ group: SpendingBreakdownGroup, total: Int, maxAmount: Int) -> some View {
     let amount = abs(group.amount)
     let share = total > 0 ? Double(amount) / Double(total) : 0
-    return HStack(alignment: .top, spacing: 12) {
-      VStack(alignment: .leading, spacing: 6) {
-        Text(group.categoryName)
-          .font(.subheadline)
-          .foregroundStyle(Theme.textPrimary)
+    let name = Text(group.categoryName)
+      .font(.subheadline)
+      .foregroundStyle(Theme.textPrimary)
+    let figure = Text(MoneyCodec.displayString(for: amount, currencyFormat: model.currencyFormat))
+      .font(.subheadline)
+      .monospacedDigit()
+      .foregroundStyle(Theme.textPrimary)
+      .rollingNumber(amount)
+    let meter = ShareMeter(fraction: Double(amount) / Double(max(maxAmount, 1)))
+      .frame(width: 120, height: 6)
+    let shareAndCount = HStack(spacing: 8) {
+      Text(shareLabel(share))
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .fixedSize()
+      Text("· \(group.transactionCount) txn\(group.transactionCount == 1 ? "" : "s")")
+        .font(.caption)
+        .foregroundStyle(.tertiary)
+        .fixedSize()
+    }
+    return VStack(alignment: .leading, spacing: 6) {
+      HStack(alignment: .top, spacing: 12) {
+        if dynamicTypeSize.isAccessibilitySize {
+          VStack(alignment: .leading, spacing: 2) {
+            name
+            figure
+          }
+          Spacer(minLength: 12)
+        } else {
+          name
+          Spacer(minLength: 12)
+          figure
+            .layoutPriority(1)
+        }
+        Image(systemName: "chevron.forward")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(.tertiary)
+          .accessibilityHidden(true)
+      }
+      // Under the name and the amount, not beside the amount: sharing the
+      // amount's line left the share and count too little room on a narrow
+      // card, and they wrapped a character at a time at larger text sizes.
+      ViewThatFits(in: .horizontal) {
         HStack(spacing: 8) {
-          ShareMeter(fraction: Double(amount) / Double(max(maxAmount, 1)))
-            .frame(width: 120, height: 6)
-          Text(shareLabel(share))
-            .font(.caption)
-            .foregroundStyle(.secondary)
-          Text("· \(group.transactionCount) txn\(group.transactionCount == 1 ? "" : "s")")
-            .font(.caption)
-            .foregroundStyle(.tertiary)
+          meter
+          shareAndCount
+        }
+        VStack(alignment: .leading, spacing: 4) {
+          meter
+          shareAndCount
         }
       }
-      Spacer(minLength: 12)
-      Text(MoneyCodec.displayString(for: amount, currencyFormat: model.currencyFormat))
-        .font(.subheadline)
-        .monospacedDigit()
-        .foregroundStyle(Theme.textPrimary)
-        .rollingNumber(amount)
-        .layoutPriority(1)
-      Image(systemName: "chevron.forward")
-        .font(.footnote.weight(.semibold))
-        .foregroundStyle(.tertiary)
-        .accessibilityHidden(true)
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 11)
