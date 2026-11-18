@@ -2484,8 +2484,11 @@ private struct AccountReconciliationSheet: View {
               statementBalanceText = value
             }
           }))
-            .keyboardType(.decimalPad)
+            // The balance must equal the projected one, which is negative for a card that is
+            // owed on, and the decimal pad has no minus key on iPhone.
+            .keyboardType(.numbersAndPunctuation)
             .textInputAutocapitalization(.never)
+            .autocorrectionDisabled()
           Text("Enter the exact currency balance shown on your statement, for example 123.45.")
             .font(.footnote)
             .foregroundStyle(.secondary)
