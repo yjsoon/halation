@@ -250,6 +250,7 @@ struct TransactionFormView: View {
   var body: some View {
     wrappedForm {
       VStack(spacing: 0) {
+        ScrollViewReader { proxy in
         ScrollView {
           VStack(spacing: 14) {
             amountHeader
@@ -291,6 +292,14 @@ struct TransactionFormView: View {
           LinearGradient(colors: [Theme.canvas.opacity(0), Theme.canvas], startPoint: .top, endPoint: .bottom)
             .frame(height: 16)
             .allowsHitTesting(false)
+        }
+        // In landscape the keypad leaves a short form, so keep the typed
+        // amount in view whenever the keypad is up and the form resizes.
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
+          if isKeypadVisible {
+            proxy.scrollTo(amountScrollID, anchor: .bottom)
+          }
+        }
         }
 
         if isKeypadVisible {
@@ -537,6 +546,8 @@ struct TransactionFormView: View {
     draft.payeeID != nil || !draft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
   }
 
+  private let amountScrollID = "amount"
+
   /// Amount tap resigns memo focus and shows CalculatorKeypad again.
   private var amountHeader: some View {
     VStack(spacing: 10) {
@@ -564,6 +575,7 @@ struct TransactionFormView: View {
           // every keypad tap, so typed input must update instantly.
       }
       .buttonStyle(.plain)
+      .id(amountScrollID)
       .accessibilityLabel("Amount")
       .accessibilityValue(amountDisplay)
       // A split's total is not typed here, so it reads as text, not a button.
