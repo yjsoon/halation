@@ -117,6 +117,21 @@
   width: 100%;
 }
 
+/* iPhone Safari draws a native date field wider than its box, so a full-width
+   one runs past the edge of the form. Without the native appearance it fits,
+   and its date starts at the left like every other field; the picker still
+   opens. An empty one would then collapse, so the value keeps a line of height. */
+.field input[type="date"] {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.field input[type="date"]::-webkit-date-and-time-value {
+  min-height: 1.3em;
+  min-height: 1lh;
+  text-align: left;
+}
+
 .field input:focus,
 .field select:focus {
   outline: none;
