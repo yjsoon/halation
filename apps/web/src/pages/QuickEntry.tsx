@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useSearchParams } from "react-router-do
 import { api, useApi } from "../api/client";
 import type { QuickEntrySplitLine, Transaction } from "../api/types";
 import { CategorySelect } from "../components/CategorySelect";
+import { DirectionToggle } from "../components/DirectionToggle";
 import { splitCategoryGroups } from "../lib/categories";
 import { formatDate, todayIso, yesterdayIso } from "../lib/dates";
 import { amountPlaceholder, amountStep, currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
@@ -384,10 +385,12 @@ export function QuickEntryPage() {
                       onChange={(event) => updateSplitLine(line.key, { amount: event.target.value })}
                     />
                   </label>
-                  <div className="segmented split-line-direction" role="group" aria-label={`Split line ${index + 1} direction`}>
-                    <button type="button" className={line.direction === "spend" ? "segment segment-active" : "segment"} aria-pressed={line.direction === "spend"} onClick={() => updateSplitLine(line.key, { direction: "spend" })}>Outflow</button>
-                    <button type="button" className={line.direction === "income" ? "segment segment-active" : "segment"} aria-pressed={line.direction === "income"} onClick={() => updateSplitLine(line.key, { direction: "income" })}>Inflow</button>
-                  </div>
+                  <DirectionToggle
+                    className="split-line-direction"
+                    label={`Split line ${index + 1} direction`}
+                    value={line.direction}
+                    onChange={(direction) => updateSplitLine(line.key, { direction })}
+                  />
                   <details className="split-line-memo">
                     <summary>Payee / memo</summary>
                     <label className="field">

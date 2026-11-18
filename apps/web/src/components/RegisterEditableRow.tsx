@@ -26,6 +26,7 @@ import {
 } from "../lib/register-row-edit";
 import { memoForDisplay, savedClaim, type ClaimStatus } from "../lib/follow-up";
 import { CategorySelect } from "./CategorySelect";
+import { DirectionToggle } from "./DirectionToggle";
 import { FlagPicker } from "./FlagTag";
 import { ClaimGlyph, EstimateMark, FollowUpChips, claimedLabel } from "./FollowUpChips";
 import { PayeeCombobox } from "./PayeeCombobox";
@@ -734,10 +735,13 @@ function SplitEditor({ id, lines, categoryId, total, amountText, remainder, paye
                   onChange={(event) => update(line.key, { amount: event.target.value })}
                 />
               </label>
-              <div className="segmented split-line-direction" role="group" aria-label={`Split line ${index + 1} direction`}>
-                <button type="button" className={line.direction === "spend" ? "segment segment-active" : "segment"} aria-pressed={line.direction === "spend"} disabled={disabled} onClick={() => update(line.key, { direction: "spend" })}>Outflow</button>
-                <button type="button" className={line.direction === "income" ? "segment segment-active" : "segment"} aria-pressed={line.direction === "income"} disabled={disabled} onClick={() => update(line.key, { direction: "income" })}>Inflow</button>
-              </div>
+              <DirectionToggle
+                className="split-line-direction"
+                label={`Split line ${index + 1} direction`}
+                value={line.direction}
+                onChange={(direction) => update(line.key, { direction })}
+                disabled={disabled}
+              />
               <details className="split-line-memo" open={Boolean(line.payeeName || line.memo) || undefined}>
                 <summary>Payee / memo</summary>
                 {/* A details element's children are not its grid items, so this div holds the two columns. */}
