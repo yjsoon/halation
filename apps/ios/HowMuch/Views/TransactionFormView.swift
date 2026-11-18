@@ -621,6 +621,8 @@ struct TransactionFormView: View {
       draft.direction == .inflow ? Theme.limeDeep : Theme.surfaceMuted,
       in: Capsule()
     )
+    // Larger sizes would break "Outflow" over two lines in half the width.
+    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     .padding(.horizontal, 32)
   }
 
@@ -633,6 +635,8 @@ struct TransactionFormView: View {
     } label: {
       Text(direction.title)
         .font(.subheadline.weight(.semibold))
+        .lineLimit(1)
+        .minimumScaleFactor(0.5)
         .foregroundStyle(Theme.textPrimary)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 8)
@@ -1486,6 +1490,8 @@ struct CalculatorKeypad: View {
     } label: {
       Text(primaryAction.title)
         .font(.headline)
+        .lineLimit(1)
+        .minimumScaleFactor(0.5)
         .foregroundStyle(.white)
         .contentTransition(.interpolate)
         .frame(maxWidth: .infinity)
