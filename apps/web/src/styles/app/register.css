@@ -1200,6 +1200,8 @@ a.page-eyebrow:hover {
   border: 1px solid var(--rule);
   border-radius: 8px;
   background: var(--paper-raised);
+  /* iPhone Safari draws a select or date field with no colour set in system blue. */
+  color: var(--ink);
   box-sizing: border-box;
   font: inherit;
   line-height: 26px;
