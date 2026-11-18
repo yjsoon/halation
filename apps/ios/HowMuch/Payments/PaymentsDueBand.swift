@@ -20,7 +20,13 @@ struct PaymentsDueBand: View {
     if !view.terms.isEmpty {
       let waiting = rows.filter(\.needsAction).count
       VStack(alignment: .leading, spacing: 10) {
-        HStack(spacing: 8) {
+        // Accessibility sizes stack the icon, title and count, so "Payments"
+        // has the band's width even in a narrow Accounts column.
+        let stacksHeading = dynamicTypeSize.isAccessibilitySize
+        let bandHeading = stacksHeading
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+          : AnyLayout(HStackLayout(spacing: 8))
+        bandHeading {
           Image(systemName: "creditcard")
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(Theme.accent)
@@ -38,7 +44,7 @@ struct PaymentsDueBand: View {
               .background(Theme.accent.opacity(0.14), in: Capsule())
               .accessibilityLabel("\(waiting) to pay")
           }
-          Spacer()
+          if !stacksHeading { Spacer() }
         }
         .padding(.horizontal, 4)
 
