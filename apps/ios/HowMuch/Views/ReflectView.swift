@@ -181,46 +181,69 @@ struct ReflectView: View {
       VStack(alignment: .leading, spacing: 12) {
         StackedShareBar(segments: ReflectMaths.shareSegments(rows, limit: 5))
 
-        HStack {
+        // Accessibility sizes put the amount under the name so neither is cut.
+        let stacks = dynamicTypeSize.isAccessibilitySize
+        let layout = stacks
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+          : AnyLayout(HStackLayout(spacing: 8))
+
+        layout {
           Text("Top Categories")
-          Spacer()
+          if !stacks {
+            Spacer()
+          }
           Text("Spent")
         }
         .font(.caption.weight(.semibold))
         .foregroundStyle(.secondary)
         .accessibilityHidden(true)
-
-        VStack(spacing: 8) {
+        VStack(alignment: .leading, spacing: 8) {
           ForEach(rows.prefix(5).enumerated(), id: \.element.id) { index, group in
-            HStack(spacing: 8) {
-              Circle()
-                .fill(Theme.chartColour(index))
-                .frame(width: 8, height: 8)
-              Text(group.categoryName)
-                .font(.subheadline)
-                .foregroundStyle(Theme.textPrimary)
-                .lineLimit(1)
-              Spacer()
+            layout {
+              HStack(spacing: 8) {
+                Circle()
+                  .fill(Theme.chartColour(index))
+                  .frame(width: 8, height: 8)
+                Text(group.categoryName)
+                  .font(.subheadline)
+                  .foregroundStyle(Theme.textPrimary)
+                  .lineLimit(stacks ? nil : 1)
+              }
+              if !stacks {
+                Spacer()
+              }
               Text(MoneyCodec.displayString(for: abs(group.amount), currencyFormat: model.currencyFormat))
                 .font(.subheadline)
                 .monospacedDigit()
                 .foregroundStyle(Theme.textPrimary)
+                .lineLimit(stacks ? 1 : nil)
+                .minimumScaleFactor(stacks ? 0.5 : 1)
+                // Under the name, past the colour dot.
+                .padding(.leading, stacks ? 16 : 0)
             }
           }
           if rows.count > 5 {
             let remainder = rows.dropFirst(5).map { abs($0.amount) }.saturatingSum()
-            HStack(spacing: 8) {
-              Circle()
-                .fill(Color.secondary.opacity(0.4))
-                .frame(width: 8, height: 8)
-              Text("All Others")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-              Spacer()
+            layout {
+              HStack(spacing: 8) {
+                Circle()
+                  .fill(Color.secondary.opacity(0.4))
+                  .frame(width: 8, height: 8)
+                Text("All Others")
+                  .font(.subheadline)
+                  .foregroundStyle(.secondary)
+              }
+              if !stacks {
+                Spacer()
+              }
               Text(MoneyCodec.displayString(for: remainder, currencyFormat: model.currencyFormat))
                 .font(.subheadline)
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
+                .lineLimit(stacks ? 1 : nil)
+                .minimumScaleFactor(stacks ? 0.5 : 1)
+                // Under the name, past the colour dot.
+                .padding(.leading, stacks ? 16 : 0)
             }
           }
         }
