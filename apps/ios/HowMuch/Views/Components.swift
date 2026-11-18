@@ -342,9 +342,15 @@ struct WrappingHStack: Layout {
     for (subview, origin) in zip(subviews, origins) {
       subview.place(
         at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
-        proposal: .unspecified
+        proposal: childProposal(for: subview, in: bounds.width)
       )
     }
+  }
+
+  private func childProposal(for subview: LayoutSubview, in width: CGFloat) -> ProposedViewSize {
+    width > 0 && subview.sizeThatFits(.unspecified).width > width
+      ? ProposedViewSize(width: width, height: nil)
+      : .unspecified
   }
 
   private func arrange(in width: CGFloat, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
@@ -355,7 +361,7 @@ struct WrappingHStack: Layout {
     var usedWidth: CGFloat = 0
 
     for subview in subviews {
-      let size = subview.sizeThatFits(.unspecified)
+      let size = subview.sizeThatFits(childProposal(for: subview, in: width))
       if width > 0, x > 0, x + size.width > width {
         x = 0
         y += rowHeight + lineSpacing
