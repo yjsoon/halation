@@ -122,7 +122,9 @@ struct ScheduledTransactionRow: View {
           Text(payeeLabel)
             .font(.body.weight(.semibold))
             .foregroundStyle(Theme.textPrimary)
-            .lineLimit(stacks ? nil : 1)
+            // From extra-extra-large up a payee that does not fit beside its
+            // amount wraps, as the detail line under it already does.
+            .lineLimit(dynamicTypeSize >= .xxLarge ? nil : 1)
           Text(detailLine)
             .font(.footnote)
             .foregroundStyle(.secondary)
