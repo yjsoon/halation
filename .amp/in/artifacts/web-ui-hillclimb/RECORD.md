@@ -185,3 +185,16 @@ YJ chose fix (b). The full-keyboard commit (b1c5fe6a) was dropped with a rebase,
 ### Checks
 
 `scripts/check.sh` at eb65cf3d: `check: pass`, exit 0 (`bun test` 821 pass and 0 fail, the web and worker typechecks, "All measured text-entry controls are at least 16px."). No tests were added or changed; the existing `lib/new-account.test.ts` cases for a typed "-20" still pass.
+
+## Landing on main
+
+YJ approved landing. `origin/main` had moved 89 commits (to 6fb00967) since the branch was cut at b29e5d69, nearly all of them iOS. The 121 commits were rebased onto 6fb00967 with no conflicts, and the rebased tree is the same tree a trial merge gave (f87eb084). Nothing under `apps/web/src` differs from the head the checks above ran on (d2eb00d7).
+
+The rebase gave every commit a new SHA, so the SHAs in the sections above are the ones before landing. The ones this record names most:
+
+- The shared Outflow or Inflow control: 5148c25d (was 45aca056).
+- LEAD-03, the sign control: e675b6e8 (was eb65cf3d).
+- SF-01, date fields in Safari: 0e03a7df (was 3f534247).
+- SF-02, the row editor's text colour in Safari: 2f864226 (was 006584b9).
+
+`scripts/check.sh` on the rebased head f7d06a1f, base 6fb00967: `check: pass`, exit 0 (`bun test` 822 pass and 0 fail, the web and worker typechecks, "All measured text-entry controls are at least 16px."). The extra test against 821 came from `origin/main`.
