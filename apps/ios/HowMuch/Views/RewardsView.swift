@@ -830,7 +830,7 @@ struct RewardsView: View {
     if !rows.isEmpty {
       Section(title) {
         ForEach(rows, id: \.cardID) { row in
-          Toggle(isOn: Binding(
+          let isShown = Binding(
             get: { !preferences.hiddenCardIDs.contains(row.cardID) },
             set: { visible in
               updatePreferences {
@@ -841,15 +841,27 @@ struct RewardsView: View {
                 }
               }
             }
-          )) {
-            HStack(spacing: 6) {
-              if let icon = icon(for: row.accountID) {
-                Text(icon).accessibilityHidden(true)
-              }
-              Text(row.title)
+          )
+          let name = HStack(spacing: 6) {
+            if let icon = icon(for: row.accountID) {
+              Text(icon).accessibilityHidden(true)
             }
+            Text(row.title)
           }
-          .accessibilityLabel("Show \(row.title)")
+          // At accessibility sizes the switch goes under the name, and the icon
+          // runs inline in the name's text, so the name has the row's width and
+          // breaks between its words instead of inside them.
+          if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 8) {
+              Text([icon(for: row.accountID), row.title].compactMap { $0 }.joined(separator: " "))
+                .accessibilityLabel(row.title)
+              Toggle("Show \(row.title)", isOn: isShown)
+                .labelsHidden()
+            }
+          } else {
+            Toggle(isOn: isShown) { name }
+              .accessibilityLabel("Show \(row.title)")
+          }
         }
         .onMove { offsets, destination in
           var ids = rows.map(\.cardID)
