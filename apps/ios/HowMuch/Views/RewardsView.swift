@@ -2224,6 +2224,8 @@ struct RewardsReportScreen: View {
           Text(scopeDescription)
             .font(.footnote)
             .foregroundStyle(.secondary)
+            // Clear of the section's rounded corner, which clipped the first letter.
+            .padding(.leading, 4)
           RewardGroupMenu(group: $group)
         }
       }
