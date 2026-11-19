@@ -1042,20 +1042,26 @@ struct NetWorthDetailView: View {
     case .debts: Theme.outflow
     case .empty: .secondary
     }
-    return HStack {
+    let stacks = dynamicTypeSize.isAccessibilitySize
+    let layout = stacks
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+      : AnyLayout(HStackLayout())
+    return layout {
       Text(group.title)
         .foregroundStyle(colour)
-      Spacer()
+      if !stacks { Spacer() }
       if group.kind != .empty {
         Text(MoneyCodec.displayString(for: group.total, currencyFormat: model.currencyFormat))
           .monospacedDigit()
           .foregroundStyle(Theme.textPrimary)
+          .lineLimit(1)
+          .minimumScaleFactor(0.5)
       }
     }
     .font(.footnote.weight(.semibold))
     .padding(.horizontal, 16)
     .padding(.vertical, 8)
-    .frame(maxWidth: .infinity)
+    .frame(maxWidth: .infinity, alignment: stacks ? .leading : .center)
     .background(Theme.surfaceMuted.opacity(0.6))
     .accessibilityElement(children: .combine)
   }
@@ -1083,10 +1089,13 @@ struct NetWorthDetailView: View {
       .font(.subheadline)
       .monospacedDigit()
       .foregroundStyle(account.balance == 0 ? .secondary : Theme.amountColour(account.balance))
+      .lineLimit(1)
+      .minimumScaleFactor(0.5)
     let name = VStack(alignment: .leading, spacing: 6) {
       Text(account.accountName)
         .font(.subheadline)
         .foregroundStyle(Theme.textPrimary)
+        .fixedSize(horizontal: false, vertical: dynamicTypeSize.isAccessibilitySize)
       if account.balance != 0 {
         ShareMeter(
           fraction: NetWorthMaths.meterFraction(account.balance, largest: largest),
