@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Range selection shared by the Reflect detail screens: a single month with
-/// stepper arrows, one of YNAB's presets, or a custom from/to pair — the same
+/// stepper arrows, a named preset, or a custom from/to pair — the same
 /// choices as the web filter rail.
 struct ReportRange: Equatable {
   enum Mode: String, CaseIterable, Identifiable {
@@ -1589,7 +1589,7 @@ struct AgeOfMoneyDetailView: View {
           let unmatchedTotal = report.periods.map(\.unmatchedSpending).saturatingSum()
 
           VStack(spacing: 10) {
-            Text("Age of Money")
+            Text("Money Age")
               .font(.subheadline)
               .foregroundStyle(.secondary)
             if let latest {
@@ -1617,7 +1617,7 @@ struct AgeOfMoneyDetailView: View {
             if measured.count > 1 {
               Sparkline(
                 values: measured.compactMap(\.ageOfMoneyDays),
-                voice: .days("Age of money", periods: measured.map(\.period)),
+                voice: .days("Money age", periods: measured.map(\.period)),
                 colour: Theme.inflow,
                 height: 80
               )
@@ -1658,7 +1658,7 @@ struct AgeOfMoneyDetailView: View {
       .padding(.bottom, 24)
     }
     .background(Theme.canvas)
-    .navigationTitle("Age of Money")
+    .navigationTitle("Money Age")
     .navigationBarTitleDisplayMode(.inline)
     .task(id: scope.key + "|" + interval.rawValue) {
       await fetch()

@@ -170,8 +170,8 @@ struct AgeOfMoneyPeriod: Codable, Identifiable {
   let unmatchedSpending: Int
 }
 
-/// Date ranges for Reflect's "Preset" mode, matching YNAB's presets plus the
-/// web app's "All" range.
+/// Date ranges for Reflect's "Preset" mode, the same named ranges as the web
+/// app's filter rail.
 enum ReportPreset: String, CaseIterable, Identifiable {
   case thisMonth
   case lastMonth

@@ -1,5 +1,9 @@
 # YNAB Migration
 
+> We are not affiliated, associated, or in any way officially connected with YNAB or any of its subsidiaries or affiliates. The official YNAB website can be found at [ynab.com](https://www.ynab.com). The names YNAB and You Need A Budget, as well as related names, tradenames, marks, trademarks, emblems, and images are registered trademarks of YNAB.
+>
+> The YNAB API importer (`bun run import:ynab` and `POST /api/import/ynab`) is not officially supported by YNAB in any way. YNAB, through its official support channels, will not be able to troubleshoot or fix problems it causes. Use it at your own risk.
+
 Preferred migration source: the YNAB API with a personal access token.
 
 Why this path:

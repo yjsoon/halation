@@ -1,6 +1,6 @@
 import { ValidationError } from "../repository";
 import { parseCardFlagNames } from "./flag-names";
-import { UNFLAGGED_FLAG, YNAB_FLAG_COLORS, type YnabFlagColor } from "./flags";
+import { UNFLAGGED_FLAG, FLAG_COLORS, type FlagColor } from "./flags";
 import type { CardRules, CardRuleVersion } from "@howmuch/contract";
 import { cardRules } from "./versions";
 import type {
@@ -15,7 +15,7 @@ import type {
 
 const FLAG_COLOURS = new Set<string>([
   UNFLAGGED_FLAG.value,
-  ...YNAB_FLAG_COLORS.map((flag) => flag.value),
+  ...FLAG_COLORS.map((flag) => flag.value),
 ]);
 
 export function parseRewardGroupBy(value: string | null | undefined): RewardGroupBy {
@@ -307,11 +307,11 @@ function parseSpendingTier(value: unknown, index: number): CardSpendingTier {
   return tier;
 }
 
-function parseFlagColour(value: unknown, field: string): YnabFlagColor {
+function parseFlagColour(value: unknown, field: string): FlagColor {
   if (typeof value !== "string" || !FLAG_COLOURS.has(value)) {
     throw new ValidationError(`${field} is not recognised`);
   }
-  return value as YnabFlagColor;
+  return value as FlagColor;
 }
 
 function requiredFiniteNumber(value: unknown, field: string, nonnegative = true): number {

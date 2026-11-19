@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { NotFoundError, ValidationError } from "../repository";
 import type { LedgerStore } from "../storage";
-import { UNFLAGGED_FLAG, YNAB_FLAG_COLORS } from "./flags";
+import { UNFLAGGED_FLAG, FLAG_COLORS } from "./flags";
 import { parseCreditCardWrite } from "./parse";
 import type { CreditCard } from "./types";
 
@@ -34,7 +34,7 @@ export function parseRewardsAccountConfig(value: unknown): RewardsAccountConfig 
   }
   if (raw.flagNames !== undefined) {
     const names = object(raw.flagNames);
-    const colours = [UNFLAGGED_FLAG.value, ...YNAB_FLAG_COLORS.map((flag) => flag.value)] as string[];
+    const colours = [UNFLAGGED_FLAG.value, ...FLAG_COLORS.map((flag) => flag.value)] as string[];
     for (const [colour, name] of Object.entries(names)) {
       if (!colours.includes(colour) || typeof name !== "string") throw new ValidationError("flagNames must map supported flag colours to strings");
     }

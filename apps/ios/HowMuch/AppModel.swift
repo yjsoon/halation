@@ -1854,7 +1854,7 @@ final class AppModel {
   }
 
   /// True when both ids resolve to on-budget accounts; such transfers carry
-  /// no category (YNAB semantics).
+  /// no category: moving money between two on-budget accounts is not spending.
   func accountsBothOnBudget(_ firstAccountID: String?, _ secondAccountID: String?) -> Bool {
     guard
       let firstAccountID,

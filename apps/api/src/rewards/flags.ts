@@ -1,4 +1,4 @@
-export const YNAB_FLAG_COLORS = [
+export const FLAG_COLORS = [
   { value: "red", label: "Red", color: "#ef4444" },
   { value: "orange", label: "Orange", color: "#f97316" },
   { value: "yellow", label: "Yellow", color: "#eab308" },
@@ -13,4 +13,4 @@ export const UNFLAGGED_FLAG = {
   color: "#6b7280",
 } as const;
 
-export type YnabFlagColor = (typeof YNAB_FLAG_COLORS)[number]["value"] | typeof UNFLAGGED_FLAG["value"];
+export type FlagColor = (typeof FLAG_COLORS)[number]["value"] | typeof UNFLAGGED_FLAG["value"];

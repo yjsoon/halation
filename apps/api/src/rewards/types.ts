@@ -1,4 +1,4 @@
-import type { YnabFlagColor } from "./flags";
+import type { FlagColor } from "./flags";
 
 export type {
   CardRewardPeriod,
@@ -41,7 +41,7 @@ export type RewardQualificationStatus = "not_required" | "met" | "pending" | "fa
 export interface SubcategoryBreakdown {
   subcategoryId: string;
   name: string;
-  flagColor: YnabFlagColor;
+  flagColor: FlagColor;
   totalSpend: number;
   countedSpend?: number;
   eligibleSpend: number;

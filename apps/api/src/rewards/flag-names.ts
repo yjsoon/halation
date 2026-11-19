@@ -1,9 +1,9 @@
-import { UNFLAGGED_FLAG, YNAB_FLAG_COLORS } from "./flags";
+import { UNFLAGGED_FLAG, FLAG_COLORS } from "./flags";
 import type { CreditCard } from "./types";
 
 const FLAG_NAME_COLOURS = new Set<string>([
   UNFLAGGED_FLAG.value,
-  ...YNAB_FLAG_COLORS.map((flag) => flag.value),
+  ...FLAG_COLORS.map((flag) => flag.value),
 ]);
 
 export function parseCardFlagNames(value: unknown): Record<string, string> | undefined {

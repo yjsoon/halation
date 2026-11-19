@@ -35,7 +35,7 @@ Preconditions:
 - A clipped window (This month, leftover spending dates) makes the age look empty or distorted. The page defaults to all history on purpose.
 - Category filters are ignored. The page does not show a category control.
 - Unmatched spending is income-less outflow from before the first inflow. A diagnostic note appears only when that total is above zero.
-- Heading, nav link and document title all read `Money age`; the route is still `/age-of-money` and the History column still says `Age of money`. iOS still says Age of Money under Insights.
+- Heading, nav link and document title all read `Money age`; the route is still `/age-of-money` and the History column still says `Age of money`. iOS says Money Age under Insights.
 - On a viewport ≤720px the filter rail sits behind **Filters ▾**. Open it before choosing `This month` or `All`.
 - At 320px, the wrapped Period/Age of money/Spending matched headers and values fit; Unmatched spending continues to the right. Focus **Money age history** and use ArrowRight to reach it while Period stays fixed. Check the header stays above scrolling headings, not just that row dates remain pinned.
 - Switch a populated range to a null-only month and back with presets, then resize 320→1440: the chart remounts at the measured width, with readable axes and distinct monthly labels. Capture both themes and keep exact fixture/query, API figures and results under `.amp/in/artifacts/`.

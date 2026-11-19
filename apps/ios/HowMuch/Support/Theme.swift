@@ -78,7 +78,8 @@ enum Theme {
     chartPalette[index % chartPalette.count]
   }
 
-  /// Register amounts: inflows green, outflows in body text like YNAB.
+  /// Register amounts: inflows green, outflows in body text so a long register
+  /// is not a wall of red.
   static func registerAmountColour(_ milliunits: Int) -> Color {
     milliunits > 0 ? inflow : textPrimary
   }

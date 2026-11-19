@@ -1,24 +1,24 @@
 import type { CardSubcategory, CreditCard } from '../../types';
-import { UNFLAGGED_FLAG, YNAB_FLAG_COLORS, type YnabFlagColor } from '../../flags';
+import { UNFLAGGED_FLAG, FLAG_COLORS, type FlagColor } from '../../flags';
 
 interface SubcategoryContext {
   enabled: boolean;
   activeSubcategories: CardSubcategory[];
-  map: Map<YnabFlagColor, CardSubcategory>;
+  map: Map<FlagColor, CardSubcategory>;
   fallback?: CardSubcategory;
 }
 
-const FLAG_COLOUR_SET: Set<YnabFlagColor> = new Set([
+const FLAG_COLOUR_SET: Set<FlagColor> = new Set([
   UNFLAGGED_FLAG.value,
-  ...YNAB_FLAG_COLORS.map((flag) => flag.value),
+  ...FLAG_COLORS.map((flag) => flag.value),
 ]);
 
-export function normaliseFlagColor(flagColor?: string | null): YnabFlagColor {
+export function normaliseFlagColor(flagColor?: string | null): FlagColor {
   if (!flagColor) {
     return UNFLAGGED_FLAG.value;
   }
 
-  const lowered = flagColor.toLowerCase() as YnabFlagColor;
+  const lowered = flagColor.toLowerCase() as FlagColor;
   return FLAG_COLOUR_SET.has(lowered) ? lowered : UNFLAGGED_FLAG.value;
 }
 
@@ -31,7 +31,7 @@ export function createSubcategoryContext(card: CreditCard): SubcategoryContext {
         .sort((a, b) => a.priority - b.priority)
     : [];
 
-  const map = new Map<YnabFlagColor, CardSubcategory>();
+  const map = new Map<FlagColor, CardSubcategory>();
   for (const subcategory of activeSubcategories) {
     map.set(subcategory.flagColor, subcategory);
   }
@@ -48,7 +48,7 @@ export function createSubcategoryContext(card: CreditCard): SubcategoryContext {
 
 export function resolveSubcategory(
   context: SubcategoryContext,
-  flagColor: YnabFlagColor
+  flagColor: FlagColor
 ): CardSubcategory | undefined {
   if (!context.enabled) {
     return undefined;

@@ -153,7 +153,7 @@ struct PayeePicker: View {
   }
 
   /// Other open accounts; picking one records a transfer and the API creates
-  /// the mirrored side (YNAB behaviour).
+  /// the mirrored side.
   private func filteredTransferAccounts(query: String) -> [Account] {
     model.openAccounts
       .filter { $0.id != accountID && (query.isEmpty || transferTitle($0).localizedStandardContains(query)) }

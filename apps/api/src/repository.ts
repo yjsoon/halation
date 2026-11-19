@@ -130,7 +130,7 @@ type AccountReconciliationSnapshot = {
 export type TransactionWriteOptions = {
   /**
    * When true (the default for API writes), a payee that points at another
-   * account creates the linked side of the transfer, YNAB-style. Importers
+   * account creates the linked side of the transfer. Importers
    * pass false because their data already carries both sides.
    */
   autoLink?: boolean;
@@ -1897,7 +1897,7 @@ export class LedgerRepository {
       const removeIds = new Set<string>([transactionId]);
       const accountIds = new Set<string>([existing.account_id]);
 
-      // Deleting one side of a transfer deletes the other (YNAB behaviour)...
+      // Deleting one side of a transfer deletes the other...
       if (existing.transfer_transaction_id) {
         const linked = await this.getTransactionRow(planId, existing.transfer_transaction_id);
         if (linked) {
@@ -3498,7 +3498,7 @@ export class LedgerRepository {
       payee_id: row.payee_id,
       payee_name: row.payee_name ?? row.payee_name_snapshot,
       category_id: row.category_id,
-      // Split parents report the YNAB-style synthetic category label.
+      // Split parents report the synthetic "Split" category label of the /v1 contract.
       category_name: subtransactions.length > 0 ? "Split" : (row.category_name ?? row.category_name_snapshot),
       transfer_account_id: row.transfer_account_id,
       transfer_transaction_id: row.transfer_transaction_id,

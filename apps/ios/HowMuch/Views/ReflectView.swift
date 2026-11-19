@@ -113,7 +113,7 @@ struct ReflectView: View {
   }
 
   private var ageCard: some View {
-    ReflectCard(icon: "clock.fill", title: "Age of Money") {
+    ReflectCard(icon: "clock.fill", title: "Money Age") {
       AgeOfMoneyDetailView()
     } content: {
       ageContent
@@ -419,7 +419,7 @@ struct ReflectView: View {
         if ages.count > 1 {
           Sparkline(
             values: ages,
-            voice: .days("Age of money", periods: measured.map(\.period)),
+            voice: .days("Money age", periods: measured.map(\.period)),
             colour: Theme.inflow
           )
         }

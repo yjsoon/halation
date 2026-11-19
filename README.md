@@ -92,6 +92,6 @@ The product name is Halation; `howmuch` remains its compatibility identity. The 
 
 Halation is MIT-licensed. See [LICENSE](LICENSE).
 
-Halation is not affiliated with or endorsed by YNAB.
+We are not affiliated, associated, or in any way officially connected with YNAB or any of its subsidiaries or affiliates. The official YNAB website can be found at [ynab.com](https://www.ynab.com). The names YNAB and You Need A Budget, as well as related names, tradenames, marks, trademarks, emblems, and images are registered trademarks of YNAB.
 
 The bundled web fonts (Instrument Serif, IBM Plex Sans and IBM Plex Mono, via `@fontsource`) are licensed under the SIL Open Font License 1.1.

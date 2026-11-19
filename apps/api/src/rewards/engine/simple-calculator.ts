@@ -15,7 +15,7 @@ import {
   isMaximumSpendExceeded,
   isMinimumSpendMet,
 } from './utils/minimum-spend';
-import { UNFLAGGED_FLAG, type YnabFlagColor } from '../flags';
+import { UNFLAGGED_FLAG, type FlagColor } from '../flags';
 import {
   calculateCardPeriod,
   getRewardPeriodMonths,
@@ -34,7 +34,7 @@ import { rewardsToday } from './date-utils';
 export interface SubcategoryCalculation {
   id: string;
   name: string;
-  flagColor: YnabFlagColor;
+  flagColor: FlagColor;
   totalSpend: number;
   countedSpend: number;
   eligibleSpendBeforeBlocks: number;
@@ -361,7 +361,7 @@ export class SimpleRewardsCalculator {
 
     let totalSpend = 0;
     let spendByFlag: Map<
-      YnabFlagColor,
+      FlagColor,
       { total: number; transactions: Array<{ transaction: Transaction; spend: number }> }
     > | undefined;
     if (configuredContext.enabled && configuredContext.activeSubcategories.length > 0) {
@@ -423,7 +423,7 @@ export class SimpleRewardsCalculator {
 
     if (context.enabled && context.activeSubcategories.length > 0) {
       const subcategorySpends = spendByFlag ?? new Map<
-        YnabFlagColor,
+        FlagColor,
         { total: number; transactions: Array<{ transaction: Transaction; spend: number }> }
       >();
       const hasCardCap = typeof maximumSpend === 'number' && maximumSpend !== null && maximumSpend > 0;
