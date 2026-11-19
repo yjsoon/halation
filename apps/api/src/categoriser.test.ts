@@ -6,7 +6,7 @@ import { api } from "../../web/src/api/client";
 import { openD1Sqlite } from "./sqlite-d1";
 import { d1Handler, d1Repo } from "../tests/helpers/native-harness";
 
-const config = { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "test-plan" };
+const config = { apiToken: "test-token", defaultPlanId: "test-plan" };
 
 async function seeded() {
   const db = openD1Sqlite();

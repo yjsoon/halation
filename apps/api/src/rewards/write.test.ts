@@ -1,6 +1,6 @@
 import type { Database } from "bun:sqlite";
 import { afterEach, beforeEach, describe, expect, setSystemTime, test } from "bun:test";
-import { NotFoundError, ValidationError } from "../repository";
+import { NotFoundError, ValidationError } from "../errors";
 import { parseCreditCardWrite } from "./parse";
 import type { D1LedgerRepository } from "../d1-ledger-repository";
 import { openD1Sqlite } from "../sqlite-d1";

@@ -25,7 +25,7 @@ The aesthetic is a broadsheet ledger: ink on paper, hairline rules, controlled d
 - Vite + React 19 + TypeScript, as the `apps/web` workspace (Bun workspaces at the repo root).
 - `react-router-dom` for routing; filters live in the URL search string so every report view is linkable and refresh-safe.
 - No state library and no fetch library: a small typed API client (`src/api/client.ts`) plus a `useApi` hook with in-flight de-duplication.
-- Dev server proxies `/api` and `/v1` to the Bun API on `:8787` (`vite.config.ts`), so there is no CORS story. Production build is a static bundle the API (or any static server) can host.
+- Dev server proxies `/api` and `/v1` to the local Worker (`wrangler dev`) on `:8787` (`vite.config.ts`), so there is no CORS story. Production build is a static bundle the API (or any static server) can host.
 
 ## Information Architecture
 

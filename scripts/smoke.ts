@@ -17,7 +17,7 @@ const handler = createHandler({
   repo,
   reports: new AsyncReportService(d1),
   auth: new D1AuthStore(d1),
-  config: { dbPath: ":memory:", port: 0, apiToken: token, defaultPlanId: planId },
+  config: { apiToken: token, defaultPlanId: planId },
 });
 const headers = {
   authorization: `Bearer ${token}`,

@@ -38,7 +38,7 @@ Preconditions:
 ## Gotchas
 
 - iOS never stores the bootstrap token. Creating the owner via Connection is not a path.
-- HTTP is only for this device or this LAN. The self-hosted API listens on `127.0.0.1` by default; reaching it from a physical device on the LAN needs `HOWMUCH_HOST=0.0.0.0` plus `HOWMUCH_API_TOKEN` (the server refuses to start otherwise). `http://127.0.0.1:{port}` is valid in Simulator. A public http host is refused.
+- HTTP is only for this device or this LAN. The local Worker from `scripts/local-worker.sh` binds `127.0.0.1`, so a physical device on the LAN cannot reach it as started. `http://127.0.0.1:{port}` is valid in Simulator. A public http host is refused.
 - New installs start with an empty Server. An install that saved a former default may still read production; signing in there with `verifier` will fail or, worse, hit the real site. Always set Server from `control-howmuch state`.
 - A leftover production Keychain token from a previous Simulator run is not this stack. Sign out, then sign in to `{api_url}`.
 - Do not use a Debug launch-environment connection bootstrap. That path is production-only.

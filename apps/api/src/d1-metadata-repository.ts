@@ -65,7 +65,7 @@ export class D1MetadataRepository {
     const date = JSON.stringify(settings?.date_format ?? { format: "DD/MM/YYYY" });
     const currency = JSON.stringify(settings?.currency_format ?? { iso_code: "SGD", example_format: "$123,456.78", decimal_digits: 2, decimal_separator: ".", symbol_first: true, group_separator: ",", currency_symbol: "$", display_symbol: true });
     const flags = JSON.stringify(settings?.display?.flag_names ?? {});
-    // On conflict, an absent block keeps what the plan has (as the SQLite store does);
+    // On conflict, an absent block keeps what the plan has;
     // the defaults above apply only when the row is first created.
     const keep = (value: unknown) => (value === undefined || value === null ? null : JSON.stringify(value));
     await this.run("metadata.plan.upsert", planId, planId, payload, context, [

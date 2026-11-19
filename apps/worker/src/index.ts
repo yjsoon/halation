@@ -78,8 +78,6 @@ export default {
 
 function workerConfig(env: Env): ApiConfig & { timeZone: string } {
   return {
-    dbPath: "",
-    port: 0,
     // Optional so a Worker deployed without the secret can still say so on
     // its setup page. Setup without it is always refused here.
     apiToken: optional(env.HOWMUCH_API_TOKEN),

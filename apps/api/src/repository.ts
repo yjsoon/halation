@@ -1,29 +1,20 @@
-import { isStorableMilliunits, sumMilliunits } from "@howmuch/money";
-import type { Database } from "bun:sqlite";
-import { createId } from "./ids";
-import { ownedRecordStatements } from "./ynab-owned-records";
 import type { SeedCurrencyFormat, SeedDateFormat } from "./plan-settings-seed";
-import { SqliteRepositoryDatabase, type RepositoryDatabase } from "./repository-db";
+import type { RepositoryDatabase } from "./repository-db";
 import {
   DEFAULT_TRANSACTION_PAGE_SIZE,
   MAX_TRANSACTION_PAGE_SIZE,
-  type ClearedState,
   type TransactionFilters,
   type TransactionInput,
   type ScheduledTransactionInput,
   type ScheduledMaterializationResult,
   type ScheduledCronMaterializationResult,
   type ScheduledOccurrenceResult,
-  type AccountReconciliationOptions,
-  type AccountReconciliationPreview,
-  type AccountReconciliationResult,
   type AccountPreferences,
   type AccountPreferencesSnapshot,
   type ScheduledWriteOptions,
   type TransactionPage,
   type UnapprovedCount,
   type TransactionBatchResult,
-  type TransactionBatchUpdate,
   type TransactionBulkOutcome,
   type TransactionBulkResult,
   type TransactionBulkStatus,
@@ -35,11 +26,10 @@ import {
   scheduledOccurrencesThrough,
   scheduledTransactionMutation,
   nextScheduledOccurrence,
-  newLinkedSideCleared,
   type EffectiveScheduledTransaction,
 } from "./scheduled-transactions";
-import { parseAccountIcon, resolveAccountPresentation, splitLegacyAccountName } from "./account-icon";
-import { ACCOUNT_IN_USE_MESSAGE, accountDeletionSql, applyAccountUpdate, type AccountUpdatePatch } from "./account-kind";
+import { resolveAccountPresentation, splitLegacyAccountName } from "./account-icon";
+import { ACCOUNT_IN_USE_MESSAGE } from "./account-kind";
 import { parseRegisterQuery, transactionSearchSql } from "@howmuch/register-query";
 import {
   CATEGORY_IN_USE_CONDITION,
@@ -47,12 +37,10 @@ import {
   EntityConflictError,
   YNAB_SOURCED_SQL,
   YnabMirrorPlanError,
-  categoryCommandStatements,
   categoryInUseValues,
   createCategoryCommand,
   createCategoryGroupCommand,
   deleteCategoryCommand,
-  isUniqueViolation,
   updateCategoryCommand,
   updateCategoryGroupCommand,
   type CategoryCommand,
@@ -64,18 +52,16 @@ import {
   type CategoryRow,
   type PlannedSql,
 } from "./category-management";
-import { canonicalJson, requestHash, sha256Hex } from "./canonical-json";
+import { canonicalJson, sha256Hex } from "./canonical-json";
 import { cardFlagNames, flagNameForColour } from "./rewards/flag-names";
-import { CLAIM_CONFLICT_SQL, CLAIM_INSERT_SQL, CLAIMED_TYPE, TO_CLAIM_TYPE, claimParams, nextClaim, normaliseFollowUpEdit, normaliseFollowUpWords, transferClaim, type TransferClaim } from "./transaction-claim";
-import { CLEARED_CONFIRMS_SQL, NEEDS_CONFIRMATION_CONFLICT_SQL, NEEDS_CONFIRMATION_INSERT_SQL, NEEDS_CONFIRMATION_TYPE, needsConfirmationParam, nextNeedsConfirmation } from "./transaction-confirmation";
+import { CLAIMED_TYPE, TO_CLAIM_TYPE, normaliseFollowUpWords } from "./transaction-claim";
+import { NEEDS_CONFIRMATION_TYPE } from "./transaction-confirmation";
 import type { CreditCard } from "./rewards/types";
 import {
   PLAN_NOT_EMPTY_CONDITION,
   PlanNotEmptyError,
-  parsePlanSnapshot,
   planNotEmptyValues,
   projectPlanSnapshot,
-  snapshotImportStatements,
   type PlanSnapshot,
   type SnapshotCounts,
 } from "./plan-snapshot";
@@ -95,6 +81,8 @@ import {
   type HolidayList,
 } from "./card-payments";
 
+import { NotFoundError, PlanNotFoundError, ValidationError, AccountPreferencesConflictError, TransactionStateConflictError } from "./errors";
+
 type Row = Record<string, any>;
 
 export type CardPaymentTermsWriteOptions = { operationId?: string };
@@ -104,28 +92,11 @@ export type SnapshotImportResult = { imported: SnapshotCounts; replayed: boolean
 
 export type CategoryWriteOptions = { operationId?: string };
 
-/** Stable across retries when the client sends an Idempotency-Key but no id. */
-function derivedEntityId(prefix: string, planId: string, operationId?: string): string {
-  return operationId
-    ? `${prefix}_${sha256Hex(`${planId}:${operationId}`).slice(0, 24)}`
-    : createId(prefix);
-}
-
-function categoryRequestHash(action: string, planId: string, resourceId: string, request: unknown): string {
-  return requestHash({ action, planId, resourceId, request });
-}
-
 function displayAccountName(value: unknown): string | null {
   if (value == null) return null;
   return splitLegacyAccountName(String(value)).name;
 }
 
-type AccountReconciliationSnapshot = {
-  account: Row;
-  currentReconciledBalance: number;
-  projectedReconciledBalance: number;
-  candidateIds: string[];
-};
 
 export type TransactionWriteOptions = {
   /**
@@ -180,38 +151,27 @@ function rewardsTrackerCardId(entry: unknown): string | null {
   return typeof id === "string" && id.trim() ? id.trim() : null;
 }
 
-export class LedgerRepository {
-  private readonly db: RepositoryDatabase;
+/**
+ * The ledger's reads, plus a few writes that run as plain statements rather
+ * than guarded batches: account preferences, the Rewards Tracker snapshot,
+ * cards and settings, and YNAB transfer relinking with its mutation plan and
+ * account recalculation. `D1LedgerRepository` is the only implementation and
+ * supplies every other write, including the hooks declared here.
+ */
+export abstract class LedgerRepository {
+  constructor(private readonly db: RepositoryDatabase, private readonly defaultPlanId: string) {}
 
-  constructor(db: Database | RepositoryDatabase, private readonly defaultPlanId: string) {
-    this.db = "inTransaction" in db ? new SqliteRepositoryDatabase(db as Database) : db;
-  }
+  abstract ensurePlan(planId?: string, name?: string): Promise<void>;
+  abstract createTransaction(planId: string, input: TransactionInput, options?: TransactionWriteOptions): Promise<any>;
+  abstract updateScheduledTransaction(planId: string, id: string, patch: Partial<ScheduledTransactionInput>, options?: ScheduledWriteOptions): Promise<any>;
+  abstract deleteScheduledTransaction(planId: string, id: string, options?: ScheduledWriteOptions): Promise<any>;
+  protected abstract writeAccountDeletion(planId: string, accountId: string): Promise<void>;
+  protected abstract applyTransactionUpdate(planId: string, id: string, patch: Partial<TransactionInput>): Promise<void>;
+  protected abstract applyTransactionCleared(planId: string, id: string, expectedCleared: "uncleared" | "cleared", cleared: "uncleared" | "cleared"): Promise<void>;
+  protected abstract applyTransactionDelete(planId: string, id: string, expectedApproved?: boolean): Promise<void>;
 
   getDefaultPlanId(): string {
     return this.defaultPlanId;
-  }
-
-  async ensurePlan(planId = this.defaultPlanId, name = "HowMuch"): Promise<void> {
-    await this.db
-      .query(
-        `INSERT INTO plans (id, name, external_ynab_id, first_month, last_month)
-         VALUES (?, ?, ?, strftime('%Y-%m', 'now'), strftime('%Y-%m', 'now'))
-         ON CONFLICT(id) DO NOTHING`,
-      )
-      .run(planId, name, planId);
-  }
-
-  async touchPlan(planId: string): Promise<number> {
-    await this.ensurePlan(planId);
-    const row = await this.db
-      .query(
-        `UPDATE plans
-         SET server_knowledge = server_knowledge + 1, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?
-         RETURNING server_knowledge`,
-      )
-      .get(planId) as Row;
-    return Number(row.server_knowledge);
   }
 
   async getServerKnowledge(planId: string): Promise<number> {
@@ -228,61 +188,6 @@ export class LedgerRepository {
     const row = await this.db.query("SELECT * FROM plans WHERE id = ?").get(planId) as Row | null;
     if (!row) throw new PlanNotFoundError();
     return formatPlan(row);
-  }
-
-  async upsertPlan(planId: string, plan: any, settings?: any): Promise<void> {
-    await this.ensurePlan(planId, plan.name ?? "HowMuch");
-    const existing = await this.db.query("SELECT * FROM plans WHERE id = ?").get(planId) as Row;
-
-    await this.db
-      .query(
-        `UPDATE plans
-         SET name = ?,
-             first_month = ?,
-             last_month = ?,
-             date_format_json = COALESCE(?, date_format_json),
-             currency_format_json = COALESCE(?, currency_format_json),
-             flag_names_json = ?,
-             external_ynab_id = ?,
-             deleted = ?,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-      )
-      .run(
-        plan.name ?? existing.name,
-        plan.first_month ?? existing.first_month,
-        plan.last_month ?? existing.last_month,
-        settings?.date_format == null ? null : JSON.stringify(settings.date_format),
-        settings?.currency_format == null ? null : JSON.stringify(settings.currency_format),
-        JSON.stringify(settings?.display?.flag_names ?? JSON.parse(existing.flag_names_json)),
-        plan.id ?? existing.external_ynab_id ?? planId,
-        bool(plan.deleted),
-        planId,
-      );
-  }
-
-  /**
-   * Changes only the currency and/or date format. `server_knowledge` moves so
-   * clients that validate cached plan data against it refetch. Stored amounts
-   * are milliunits and are not rewritten: this changes how they are shown.
-   */
-  async updatePlanFormats(planId: string, formats: PlanFormatsPatch): Promise<void> {
-    const updated = await this.db
-      .query(
-        `UPDATE plans
-         SET currency_format_json = COALESCE(?, currency_format_json),
-             date_format_json = COALESCE(?, date_format_json),
-             server_knowledge = server_knowledge + 1,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = ? AND deleted = 0
-         RETURNING id`,
-      )
-      .get(
-        formats.currency_format ? JSON.stringify(formats.currency_format) : null,
-        formats.date_format ? JSON.stringify(formats.date_format) : null,
-        planId,
-      );
-    if (!updated) throw new PlanNotFoundError();
   }
 
   async getSettings(planId: string): Promise<any> {
@@ -334,205 +239,6 @@ export class LedgerRepository {
     return { account_preferences: preferences, account_preferences_revision: expectedRevision + 1 };
   }
 
-  async ensureAccount(planId: string, accountId: string, name?: string): Promise<void> {
-    await this.ensurePlan(planId);
-    await this.assertAccountIdNotInOtherPlan(planId, accountId, "Account not found");
-    await this.db
-      .query(
-        `INSERT INTO accounts (id, plan_id, name, external_ynab_id)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(id) DO NOTHING`,
-      )
-      .run(accountId, planId, name ?? `Imported account ${accountId.slice(0, 8)}`, accountId);
-    await this.ensureTransferPayee(planId, accountId);
-  }
-
-  /**
-   * Account ids are unique across plans while the writes below match on id
-   * alone, so an id owned by another plan must be refused before any write
-   * touches that plan's row.
-   */
-  private async assertAccountIdNotInOtherPlan(planId: string, accountId: string, message: string): Promise<void> {
-    if (await this.db.query("SELECT 1 FROM accounts WHERE id = ? AND plan_id <> ?").get(accountId, planId)) {
-      throw new ValidationError(message);
-    }
-  }
-
-  async createAccount(planId: string, account: any): Promise<any> {
-    const accountId = account.id ?? createId("acct");
-    await this.upsertAccount(planId, account.id ? account : withOpeningBalance({ ...account, id: accountId }));
-    await this.touchPlan(planId);
-    return this.getAccount(planId, accountId);
-  }
-
-  /**
-   * Every account owns a "Transfer : <name>" payee (YNAB parity) so clients
-   * can record transfers by picking a payee. Provisions the payee when
-   * missing and keeps its label in step with account renames.
-   */
-  async ensureTransferPayee(planId: string, accountId: string): Promise<{ id: string; name: string } | null> {
-    const account = await this.db
-      .query("SELECT * FROM accounts WHERE id = ? AND plan_id = ?")
-      .get(accountId, planId) as Row | null;
-    if (!account || toBoolean(account.deleted)) {
-      return null;
-    }
-
-    let payee = await this.db
-      .query("SELECT * FROM payees WHERE plan_id = ? AND transfer_account_id = ? AND deleted = 0")
-      .get(planId, accountId) as Row | null;
-
-    if (!payee && account.transfer_payee_id) {
-      const byId = await this.db.query("SELECT * FROM payees WHERE id = ?").get(account.transfer_payee_id) as Row | null;
-      if (!byId) {
-        // Mid-import: the account references a payee that arrives later
-        // (YNAB imports write accounts before payees). Leave it alone.
-        return null;
-      }
-      if (byId.plan_id !== planId) throw new ValidationError("Transfer payee belongs to another plan");
-      if (byId.transfer_account_id == null) {
-        await this.db
-          .query("UPDATE payees SET transfer_account_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?")
-          .run(accountId, byId.id, planId);
-        byId.transfer_account_id = accountId;
-      }
-      payee = byId;
-    }
-
-    const expectedName = `Transfer : ${account.name}`;
-    if (!payee) {
-      const payeeId = createId("payee");
-      await this.db
-        .query("INSERT INTO payees (id, plan_id, name, transfer_account_id, external_ynab_id) VALUES (?, ?, ?, ?, ?)")
-        .run(payeeId, planId, expectedName, accountId, payeeId);
-      payee = await this.db.query("SELECT * FROM payees WHERE id = ?").get(payeeId) as Row;
-    } else if (payee.name !== expectedName && String(payee.name ?? "").startsWith("Transfer : ")) {
-      await this.db
-        .query("UPDATE payees SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?")
-        .run(expectedName, payee.id, planId);
-      payee.name = expectedName;
-    }
-
-    if (account.transfer_payee_id !== payee.id) {
-      await this.db
-        .query("UPDATE accounts SET transfer_payee_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-        .run(payee.id, accountId);
-    }
-    return { id: payee.id, name: payee.name };
-  }
-
-  async upsertAccount(planId: string, account: any): Promise<void> {
-    await this.ensurePlan(planId);
-    await this.assertAccountIdNotInOtherPlan(planId, account.id, "Account belongs to another plan");
-    if (account.transfer_payee_id && await this.db.query("SELECT 1 FROM payees WHERE id = ? AND plan_id <> ?").get(account.transfer_payee_id, planId)) {
-      throw new ValidationError("Transfer payee belongs to another plan");
-    }
-    const existing = await this.db.query("SELECT icon FROM accounts WHERE id = ?").get(account.id) as Row | null;
-    const presentation = resolveAccountPresentation({
-      name: account.name ?? `Account ${account.id}`,
-      icon: account.icon,
-      type: account.type ?? "checking",
-      existingIcon: existing?.icon,
-    });
-    await this.db
-      .query(
-        `INSERT INTO accounts (
-           id, plan_id, name, icon, type, on_budget, closed, opening_balance_milli,
-           balance_milli, cleared_balance_milli, uncleared_balance_milli,
-           transfer_payee_id, direct_import_linked, direct_import_in_error,
-           external_ynab_id, deleted, updated_at
-         )
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(id) DO UPDATE SET
-           name = excluded.name,
-           icon = excluded.icon,
-           type = excluded.type,
-           on_budget = excluded.on_budget,
-           closed = excluded.closed,
-           opening_balance_milli = excluded.opening_balance_milli,
-           balance_milli = excluded.balance_milli,
-           cleared_balance_milli = excluded.cleared_balance_milli,
-           uncleared_balance_milli = excluded.uncleared_balance_milli,
-           transfer_payee_id = COALESCE(excluded.transfer_payee_id, accounts.transfer_payee_id),
-           direct_import_linked = excluded.direct_import_linked,
-           direct_import_in_error = excluded.direct_import_in_error,
-           external_ynab_id = excluded.external_ynab_id,
-           deleted = excluded.deleted,
-           updated_at = CURRENT_TIMESTAMP`,
-      )
-      .run(
-        account.id,
-        planId,
-        presentation.name,
-        presentation.icon,
-        account.type ?? "checking",
-        bool(account.on_budget, true),
-        bool(account.closed),
-        account.opening_balance ?? 0,
-        account.balance ?? 0,
-        account.cleared_balance ?? account.balance ?? 0,
-        account.uncleared_balance ?? 0,
-        account.transfer_payee_id ?? null,
-        bool(account.direct_import_linked),
-        bool(account.direct_import_in_error),
-        account.external_ynab_id ?? account.id,
-        bool(account.deleted),
-      );
-    await this.ensureTransferPayee(planId, account.id);
-    // An importer renaming, closing or deleting an account changes what every
-    // client shows. Clients validate cached accounts against `server_knowledge`
-    // (#175), so a delta import carrying only account changes has to move it.
-    await this.touchPlan(planId);
-  }
-
-  async updateAccount(planId: string, accountId: string, patch: AccountUpdatePatch): Promise<any> {
-    const nextIcon = patch.icon === undefined ? undefined : parseAccountIcon(patch.icon);
-    if (nextIcon === null) throw new ValidationError("icon must be a single emoji");
-    const nextName = patch.name === undefined ? undefined : String(patch.name).trim();
-    if (patch.name !== undefined && !nextName) throw new ValidationError("account.name is required");
-    if (nextIcon === undefined && nextName === undefined && patch.kind === undefined && patch.closed === undefined) {
-      throw new ValidationError("account.icon, account.name, account.type, or account.closed is required");
-    }
-    const row = await this.db
-      .query("SELECT name, icon, type FROM accounts WHERE id = ? AND plan_id = ? AND deleted = 0")
-      .get(accountId, planId) as Row | null;
-    if (!row) throw new NotFoundError("Account not found");
-    const fields = applyAccountUpdate(
-      { name: String(row.name ?? ""), icon: row.icon, type: row.type },
-      { ...(nextIcon !== undefined ? { icon: nextIcon } : {}), ...(nextName !== undefined ? { name: nextName } : {}), ...(patch.kind ? { kind: patch.kind } : {}), ...(patch.closed !== undefined ? { closed: patch.closed } : {}) },
-    );
-    const assignments: string[] = [];
-    const values: unknown[] = [];
-    if (fields.name !== undefined) {
-      assignments.push("name = ?");
-      values.push(fields.name);
-    }
-    if (fields.icon !== undefined) {
-      assignments.push("icon = ?");
-      values.push(fields.icon);
-    }
-    if (fields.type !== undefined) {
-      assignments.push("type = ?");
-      values.push(fields.type);
-      assignments.push("on_budget = ?");
-      values.push(bool(fields.on_budget));
-    }
-    if (fields.closed !== undefined) {
-      assignments.push("closed = ?");
-      values.push(bool(fields.closed));
-    }
-    await this.db.transaction(async () => {
-      await this.db
-        .query(`UPDATE accounts SET ${assignments.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?`)
-        .run(...values, accountId, planId);
-      if (fields.name !== undefined) {
-        await this.ensureTransferPayee(planId, accountId);
-      }
-      await this.touchPlan(planId);
-    })();
-    return this.getAccount(planId, accountId);
-  }
-
   /**
    * Deletes an account that never held anything. One with transactions,
    * transfers or schedules is refused rather than cascaded: deleting it would
@@ -558,13 +264,6 @@ export class LedgerRepository {
       .all(planId, accountId) as Row[];
     for (const card of cards) await this.deleteRewardsTrackerCard(planId, String(card.id));
     return { ...account, deleted: true };
-  }
-
-  protected async writeAccountDeletion(planId: string, accountId: string): Promise<void> {
-    await this.db.transaction(async () => {
-      for (const { sql, values } of accountDeletionSql(planId, accountId)) await this.db.query(sql).run(...values);
-      await this.touchPlan(planId);
-    })();
   }
 
   async listAccounts(planId: string): Promise<any[]> {
@@ -640,173 +339,6 @@ export class LedgerRepository {
     return formatAccount(row);
   }
 
-  async getAccountReconciliation(planId: string, accountId: string, statementDate: string): Promise<AccountReconciliationPreview> {
-    const date = normaliseReconciliationDate(statementDate);
-    const snapshot = await this.accountReconciliationSnapshot(planId, accountId, date);
-    return {
-      account: formatAccount(snapshot.account),
-      statement_date: date,
-      current_reconciled_balance: snapshot.currentReconciledBalance,
-      projected_reconciled_balance: snapshot.projectedReconciledBalance,
-      candidate_transaction_ids: snapshot.candidateIds,
-      candidate_transaction_count: snapshot.candidateIds.length,
-      server_knowledge: await this.getServerKnowledge(planId),
-    };
-  }
-
-  async reconcileAccount(
-    planId: string,
-    accountId: string,
-    statementDate: string,
-    statementBalance: number,
-    options: AccountReconciliationOptions,
-  ): Promise<AccountReconciliationResult> {
-    const date = normaliseReconciliationDate(statementDate);
-    if (!isStorableMilliunits(statementBalance)) throw new ValidationError("statement_balance must be integer milliunits within ±1e15");
-    if (!accountId || typeof accountId !== "string") throw new ValidationError("account_id is required");
-    if (!options?.operationId) throw new ValidationError("operationId is required");
-    const requestHash = scheduleMutationFingerprint("account.reconcile", planId, accountId, { statement_date: date, statement_balance: statementBalance });
-    const auditId = `audit_reconcile_${sha256Hex(options.operationId).slice(0, 20)}`;
-    let result: Omit<AccountReconciliationResult, "account" | "replayed" | "server_knowledge"> | null = null;
-    let replayed = false;
-
-    await this.db.transaction(async () => {
-      const receipt = await this.db.query("SELECT action,plan_id,resource_id,metadata_json FROM audit_events WHERE id=?").get(auditId) as Row | null;
-      if (receipt) {
-        const metadata = JSON.parse(String(receipt.metadata_json));
-        if (receipt.action !== "account.reconcile" || receipt.plan_id !== planId || receipt.resource_id !== accountId || metadata.request_hash !== requestHash) {
-          throw new Error("idempotency-key reuse");
-        }
-        result = metadata.result;
-        replayed = true;
-        return;
-      }
-      const snapshot = await this.accountReconciliationSnapshot(planId, accountId, date);
-      const prior = snapshot.currentReconciledBalance;
-      const projected = snapshot.projectedReconciledBalance;
-      if (projected !== statementBalance) throw new ReconciliationMismatchError(prior, projected, statementBalance);
-      const ids = snapshot.candidateIds;
-      await this.db.query(
-        `INSERT INTO account_reconciliation_assertions
-          (command_id,plan_id,account_id,statement_date,prior_reconciled_balance_milli,projected_reconciled_balance_milli,candidate_ids_json)
-         VALUES (?,?,?,?,?,?,?)`,
-      ).run(auditId, planId, accountId, date, prior, projected, JSON.stringify(ids));
-      await this.db.query(
-        "UPDATE transactions SET cleared='reconciled',needs_confirmation=0,updated_at=CURRENT_TIMESTAMP WHERE plan_id=? AND account_id=? AND deleted=0 AND cleared='cleared' AND date<=?",
-      ).run(planId, accountId, date);
-      await this.recalculateAccount(accountId);
-      await this.db.query("UPDATE plans SET server_knowledge=server_knowledge+1,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(planId);
-      for (const id of ids) {
-        await this.db.query(
-          "UPDATE transactions SET server_knowledge=(SELECT server_knowledge FROM plans WHERE id=?),updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=?",
-        ).run(planId, id, planId);
-      }
-      result = {
-        reconciled_transaction_ids: ids,
-        reconciled_transaction_count: ids.length,
-        statement_date: date,
-        statement_balance: statementBalance,
-        prior_reconciled_balance: prior,
-        final_reconciled_balance: projected,
-      };
-      await this.db.query(
-        "INSERT INTO audit_events(id,plan_id,action,resource_type,resource_id,source,metadata_json) VALUES (?,?,'account.reconcile','account',?,'howmuch-local',?)",
-      ).run(auditId, planId, accountId, JSON.stringify({ request_hash: requestHash, result }));
-    })();
-
-    const completedResult = result as Omit<AccountReconciliationResult, "account" | "replayed" | "server_knowledge"> | null;
-    if (!completedResult) throw new Error("Reconciliation result is missing");
-    const reconciledAccount = await this.findAccount(planId, accountId);
-    if (!reconciledAccount) throw new NotFoundError("Account not found");
-    return {
-      ...completedResult,
-      account: reconciledAccount,
-      replayed,
-      server_knowledge: await this.getServerKnowledge(planId),
-    };
-  }
-
-  private async accountReconciliationSnapshot(planId: string, accountId: string, statementDate: string): Promise<AccountReconciliationSnapshot> {
-    const account = await this.db.query(`${ACCOUNT_SELECT_SQL} WHERE id=? AND plan_id=? AND deleted=0`).get(accountId, planId) as Row | null;
-    if (!account) throw new NotFoundError("Account not found");
-    const balances = await this.db.query(
-      `SELECT
-         ? + COALESCE(SUM(CASE WHEN deleted=0 AND cleared='reconciled' THEN amount_milli ELSE 0 END),0) current_reconciled,
-         ? + COALESCE(SUM(CASE WHEN deleted=0 AND (cleared='reconciled' OR (cleared='cleared' AND date<=?)) THEN amount_milli ELSE 0 END),0) projected_reconciled
-       FROM transactions WHERE plan_id=? AND account_id=?`,
-    ).get(account.opening_balance_milli, account.opening_balance_milli, statementDate, planId, accountId) as Row;
-    const candidates = await this.db.query(
-      "SELECT id FROM transactions WHERE plan_id=? AND account_id=? AND deleted=0 AND cleared='cleared' AND date<=? ORDER BY id",
-    ).all(planId, accountId, statementDate) as Row[];
-    return {
-      account,
-      currentReconciledBalance: Number(balances.current_reconciled),
-      projectedReconciledBalance: Number(balances.projected_reconciled),
-      candidateIds: candidates.map((row) => String(row.id)),
-    };
-  }
-
-  async createPayee(planId: string, name: string, id = createId("payee")): Promise<any> {
-    await this.ensurePlan(planId);
-    const existing = await this.db
-      .query("SELECT * FROM payees WHERE plan_id = ? AND lower(name) = lower(?) AND deleted = 0")
-      .get(planId, name) as Row | null;
-
-    if (existing) {
-      return formatPayee(existing);
-    }
-
-    await this.db
-      .query("INSERT INTO payees (id, plan_id, name, external_ynab_id) VALUES (?, ?, ?, ?)")
-      .run(id, planId, name, id);
-    await this.touchPlan(planId);
-    return formatPayee(await this.db.query("SELECT * FROM payees WHERE id = ?").get(id) as Row);
-  }
-
-  async ensurePayee(planId: string, payeeId: string, name?: string): Promise<void> {
-    await this.ensurePlan(planId);
-    await this.db
-      .query(
-        `INSERT INTO payees (id, plan_id, name, external_ynab_id)
-         VALUES (?, ?, ?, ?)
-         ON CONFLICT(id) DO NOTHING`,
-      )
-      .run(payeeId, planId, name ?? `Imported payee ${payeeId.slice(0, 8)}`, payeeId);
-    // As ensureCategory: another plan's payee must not be linked from this one.
-    if (await this.db.query("SELECT 1 FROM payees WHERE id = ? AND plan_id <> ?").get(payeeId, planId)) {
-      throw new ValidationError("Payee not found");
-    }
-  }
-
-  async upsertPayee(planId: string, payee: any): Promise<void> {
-    await this.ensurePlan(planId);
-    const saved = await this.db
-      .query(
-        `INSERT INTO payees (id, plan_id, name, transfer_account_id, external_ynab_id, deleted, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(id) DO UPDATE SET
-           name = excluded.name,
-           transfer_account_id = excluded.transfer_account_id,
-           external_ynab_id = excluded.external_ynab_id,
-           deleted = excluded.deleted,
-           updated_at = CURRENT_TIMESTAMP
-         WHERE payees.plan_id = excluded.plan_id
-         RETURNING id`,
-      )
-      .get(
-        payee.id,
-        planId,
-        payee.name ?? `Payee ${payee.id}`,
-        payee.transfer_account_id ?? null,
-        payee.external_ynab_id ?? payee.id,
-        bool(payee.deleted),
-      );
-    if (!saved) throw new ValidationError("Payee belongs to another plan");
-    // Same reason as `upsertAccount`: a renamed or deleted payee must not be
-    // servable from a client cache that thinks knowledge has not moved.
-    await this.touchPlan(planId);
-  }
-
   async listPayees(planId: string): Promise<any[]> {
     return (await this.db.query(LIST_PAYEES_SQL).all(planId)).map(formatPayee);
   }
@@ -842,86 +374,6 @@ export class LedgerRepository {
     return { payees: (rows ?? []).map(formatPayee), server_knowledge: knowledgeFrom(knowledgeRows) };
   }
 
-  async ensureCategory(planId: string, categoryId: string, name?: string, groupId?: string | null): Promise<void> {
-    await this.ensurePlan(planId);
-
-    // Transaction reference resolution commonly reaches an imported category
-    // without its group ID.  Do not manufacture the fallback group before
-    // discovering that the category is already present.
-    const existing = await this.db
-      .query("SELECT plan_id FROM categories WHERE id = ?")
-      .get(categoryId) as Row | null;
-    if (existing) {
-      if (existing.plan_id !== planId) throw new ValidationError("Category belongs to a different plan");
-      return;
-    }
-
-    const resolvedGroupId = groupId ?? "uncategorized-group";
-    await this.db
-      .query(
-        `INSERT INTO category_groups (id, plan_id, name)
-         VALUES (?, ?, ?)
-         ON CONFLICT(id) DO NOTHING`,
-      )
-      .run(resolvedGroupId, planId, resolvedGroupId === "uncategorized-group" ? "Uncategorised" : "Imported");
-
-    await this.db
-      .query(
-        `INSERT INTO categories (id, plan_id, category_group_id, name, external_ynab_id)
-         VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO NOTHING`,
-      )
-      .run(categoryId, planId, resolvedGroupId, name ?? `Imported category ${categoryId.slice(0, 8)}`, categoryId);
-  }
-
-  async upsertCategoryGroup(planId: string, group: any): Promise<void> {
-    await this.ensurePlan(planId);
-    const saved = await this.db
-      .query(
-        `INSERT INTO category_groups (id, plan_id, name, hidden, internal, external_ynab_id, deleted, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-         ON CONFLICT(id) DO UPDATE SET
-           name = excluded.name,
-           hidden = excluded.hidden,
-           internal = excluded.internal,
-           external_ynab_id = excluded.external_ynab_id,
-           deleted = excluded.deleted,
-           updated_at = CURRENT_TIMESTAMP
-         WHERE category_groups.plan_id = excluded.plan_id
-         RETURNING id`,
-      )
-      .get(
-        group.id,
-        planId,
-        group.name ?? `Group ${group.id}`,
-        bool(group.hidden),
-        bool(group.internal),
-        group.external_ynab_id ?? group.id,
-        bool(group.deleted),
-      );
-    if (!saved) throw new ValidationError("Category group belongs to another plan");
-  }
-
-  async upsertCategory(planId: string, category: any, groupId?: string | null): Promise<void> {
-    await this.ensureCategory(planId, category.id, category.name, groupId);
-    await this.db
-      .query(
-        `UPDATE categories
-         SET name = ?, category_group_id = ?, hidden = ?, internal = ?, external_ynab_id = ?, deleted = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE id = ? AND plan_id = ?`,
-      )
-      .run(
-        category.name ?? `Category ${category.id}`,
-        groupId ?? null,
-        bool(category.hidden),
-        bool(category.internal),
-        category.external_ynab_id ?? category.id,
-        bool(category.deleted),
-        category.id,
-        planId,
-      );
-  }
-
   async listCategoryGroups(planId: string): Promise<any[]> {
     const [groups, categories] = await Promise.all([
       this.db.query(LIST_CATEGORY_GROUPS_SQL).all(planId) as Promise<Row[]>,
@@ -950,59 +402,6 @@ export class LedgerRepository {
 
   protected async requireNativePlan(planId: string): Promise<void> {
     if (!(await this.isNativePlan(planId))) throw new YnabMirrorPlanError();
-  }
-
-  async createCategoryGroup(planId: string, input: CategoryGroupCreate, options: CategoryWriteOptions = {}): Promise<any> {
-    const id = input.id ?? derivedEntityId("category_group", planId, options.operationId);
-    return this.applyCategoryCommand(planId, "category_group.create", id, input, options,
-      () => this.planCreateCategoryGroup(planId, id, input), () => this.readCategoryGroupResponse(planId, id));
-  }
-
-  async updateCategoryGroup(planId: string, groupId: string, patch: CategoryGroupPatch, options: CategoryWriteOptions = {}): Promise<any> {
-    return this.applyCategoryCommand(planId, "category_group.update", groupId, patch, options,
-      () => this.planUpdateCategoryGroup(planId, groupId, patch), () => this.readCategoryGroupResponse(planId, groupId));
-  }
-
-  async createCategory(planId: string, input: CategoryCreate, options: CategoryWriteOptions = {}): Promise<any> {
-    const id = input.id ?? derivedEntityId("category", planId, options.operationId);
-    return this.applyCategoryCommand(planId, "category.create", id, input, options,
-      () => this.planCreateCategory(planId, id, input), () => this.readCategoryResponse(planId, id));
-  }
-
-  async updateCategory(planId: string, categoryId: string, patch: CategoryPatch, options: CategoryWriteOptions = {}): Promise<any> {
-    return this.applyCategoryCommand(planId, "category.update", categoryId, patch, options,
-      () => this.planUpdateCategory(planId, categoryId, patch), () => this.readCategoryResponse(planId, categoryId));
-  }
-
-  /** Soft delete, refused while any live transaction or schedule names the category. */
-  async deleteCategory(planId: string, categoryId: string, options: CategoryWriteOptions = {}): Promise<any> {
-    return this.applyCategoryCommand(planId, "category.delete", categoryId, {}, options,
-      () => this.planDeleteCategory(planId, categoryId), () => this.readCategoryResponse(planId, categoryId));
-  }
-
-  /**
-   * SQLite runner: replay check, planning reads and the write share one
-   * BEGIN IMMEDIATE, so the checks cannot go stale before the write lands.
-   */
-  protected async applyCategoryCommand(
-    planId: string,
-    action: CategoryCommand["action"],
-    resourceId: string,
-    request: unknown,
-    options: CategoryWriteOptions,
-    plan: () => Promise<CategoryCommand>,
-    read: () => Promise<any>,
-  ): Promise<any> {
-    const hash = categoryRequestHash(action, planId, resourceId, request);
-    return this.db.transaction(async () => {
-      if (await this.replayedScheduleMutation(planId, resourceId, action, options.operationId, hash)) return read();
-      const command = await plan();
-      const auditId = options.operationId ? `audit_${sha256Hex(options.operationId).slice(0, 24)}` : createId("audit");
-      for (const planned of categoryCommandStatements(command, planId, auditId, hash)) {
-        await this.db.query(planned.sql).run(...planned.values);
-      }
-      return read();
-    })();
   }
 
   protected async planCreateCategoryGroup(planId: string, id: string, input: CategoryGroupCreate): Promise<CategoryCommand> {
@@ -1140,394 +539,14 @@ export class LedgerRepository {
     };
   }
 
-  /**
-   * Loads a whole snapshot into an empty native plan as one atomic write.
-   * An exact retry with the same Idempotency-Key replays; the plan is never
-   * left partly imported.
-   */
-  async importPlanSnapshot(planId: string, input: unknown, options: { operationId: string }): Promise<SnapshotImportResult> {
-    const rows = parsePlanSnapshot(input, planId);
-    const hash = requestHash({ action: "plan.snapshot.import", planId, snapshot: input });
-    const replayed = await this.db.transaction(async () => {
-      if (await this.replayedScheduleMutation(planId, planId, "plan.snapshot.import", options.operationId, hash)) return true;
-      await this.requireNativePlan(planId);
-      await this.requireEmptyPlan(planId);
-      const auditId = `audit_${sha256Hex(options.operationId).slice(0, 24)}`;
-      try {
-        for (const planned of snapshotImportStatements(planId, rows, auditId, hash)) {
-          await this.db.query(planned.sql).run(...planned.values);
-        }
-      } catch (error) {
-        if (isUniqueViolation(error)) throw new EntityConflictError("The snapshot reuses ids that already exist on this server");
-        throw error;
-      }
-      return false;
-    })();
-    return { imported: rows.counts, replayed, server_knowledge: await this.getServerKnowledge(planId) };
-  }
-
   protected async requireEmptyPlan(planId: string): Promise<void> {
     const row = await this.db.query(`SELECT ${PLAN_NOT_EMPTY_CONDITION} AS not_empty`).get(...planNotEmptyValues(planId)) as Row | null;
     if (toBoolean(row?.not_empty)) throw new PlanNotEmptyError();
   }
 
-  async createTransaction(planId: string, input: TransactionInput, options: TransactionWriteOptions = {}): Promise<any> {
-    await this.ensurePlan(planId);
-    const autoLink = options.autoLink ?? true;
-    validateTransactionInput(input, autoLink);
-    const transactionId = input.id ?? createId("txn");
-    const requestHash = scheduleMutationFingerprint("transaction.create", planId, transactionId, { input, autoLink });
-    const auditId = options.operationId ? `audit_txn_${sha256Hex(options.operationId).slice(0, 20)}` : null;
-    const plan = newTransactionMutationPlan();
-    await this.db.transaction(async () => {
-      if (auditId) {
-        const receipt = await this.db.query("SELECT action,plan_id,resource_id,metadata_json FROM audit_events WHERE id=?").get(auditId) as Row | null;
-        if (receipt) {
-          const metadata = JSON.parse(String(receipt.metadata_json));
-          if (receipt.action !== "transaction.create" || receipt.plan_id !== planId || receipt.resource_id !== transactionId || metadata.request_hash !== requestHash) {
-            throw new Error("idempotency-key reuse");
-          }
-          return;
-        }
-        const collision = await this.db.query("SELECT 1 FROM transactions WHERE id=?").get(transactionId);
-        if (collision) throw new ValidationError("Transaction already exists");
-      }
-      await this.executeTransactionWrite(planId, { ...input, id: transactionId }, autoLink, plan);
-      await this.executeMutationPlan(planId, plan);
-      if (auditId) {
-        await this.db.query(
-          "INSERT INTO audit_events(id,plan_id,action,resource_type,resource_id,source,metadata_json) VALUES (?,?,'transaction.create','transaction',?,'scheduled-materializer',?)",
-        ).run(auditId, planId, transactionId, JSON.stringify({ request_hash: requestHash, operation_id: options.operationId }));
-      }
-    })();
-    return this.getTransaction(planId, transactionId, bool(input.deleted) === 1);
-  }
-
-  /** Executes the transaction graph body inside the caller's single transaction. */
-  private async executeTransactionWrite(
-    planId: string,
-    input: TransactionInput,
-    autoLink: boolean,
-    plan: TransactionMutationPlan,
-  ): Promise<void> {
-      const transactionId = input.id!;
-      await this.ensureAccount(planId, input.account_id);
-      // The upsert path must respect what the row already carries, or a
-      // retried create would mint a second linked side and strand the first.
-      const existingRow = await this.db
-        .query("SELECT * FROM transactions WHERE id = ? AND plan_id = ?")
-        .get(transactionId, planId) as Row | null;
-      // The upsert below matches on id alone, so a write naming another plan's
-      // transaction id moved that row into this plan's account, as on D1 refused.
-      if (!existingRow && await this.db.query("SELECT 1 FROM transactions WHERE id = ? AND plan_id <> ?").get(transactionId, planId)) {
-        throw new NotFoundError("Transaction belongs to another plan");
-      }
-      const refs = await this.resolveTransactionRefs(planId, input);
-
-      let payeeId = refs.payeeId;
-      let payeeName = refs.payeeName;
-      let categoryId = refs.categoryId;
-      let categoryName = refs.categoryName;
-      let transferAccountId = input.transfer_account_id ?? null;
-      const transferTransactionId =
-        input.transfer_transaction_id !== undefined
-          ? input.transfer_transaction_id
-          : (existingRow?.transfer_transaction_id ?? null);
-      if (transferTransactionId && !transferAccountId) {
-        transferAccountId = existingRow?.transfer_account_id ?? null;
-      }
-
-      // A payee that points at another account marks a transfer. The linked
-      // side is created below once this row exists; rows that already carry a
-      // link keep it, and an unchanged payee on an unlinked row (one-sided
-      // imports) must not start minting mirrors on unrelated edits.
-      let createLinkedSide = false;
-      let linkedCleared: ClearedState = "uncleared";
-      if (autoLink && !transferTransactionId) {
-        const targetAccountId = (payeeId ? await this.payeeTransferTarget(planId, payeeId) : null) ?? transferAccountId;
-        const payeeUnchanged = existingRow != null && existingRow.payee_id === payeeId;
-        if (targetAccountId && !payeeUnchanged) {
-          if (input.subtransactions?.length) {
-            throw new ValidationError(
-              "A split transaction cannot itself be a transfer; use a transfer subtransaction instead",
-            );
-          }
-          const target = await this.requireTransferTarget(planId, input.account_id, targetAccountId);
-          transferAccountId = target.id;
-          linkedCleared = newLinkedSideCleared(input.source_kind, target.type);
-          const targetPayee = await this.ensureTransferPayee(planId, target.id);
-          if (targetPayee) {
-            payeeId = targetPayee.id;
-            payeeName = targetPayee.name;
-          }
-          createLinkedSide = true;
-        }
-      }
-      // Moving a linked row into the account it transfers to made both sides
-      // land in that account, and the source lost its side of the money.
-      if (autoLink && transferTransactionId && transferAccountId === input.account_id) {
-        throw new ValidationError("Transfer target must be a different account");
-      }
-      if (autoLink && transferAccountId && await this.accountsBothOnBudget(planId, input.account_id, transferAccountId)) {
-        // Transfers between two budget accounts carry no category in YNAB;
-        // only transfers to tracking accounts count as categorised spending.
-        categoryId = null;
-        categoryName = null;
-      }
-      if (input.subtransactions?.length) {
-        // Split parents carry no category of their own.
-        categoryId = null;
-        categoryName = null;
-      }
-
-      const claim = claimParams(input);
-      await this.db
-        .query(
-          `INSERT INTO transactions (
-             id, plan_id, account_id, date, amount_milli, memo, cleared, approved,
-             flag_color, flag_name, payee_id, payee_name_snapshot, category_id,
-             category_name_snapshot, transfer_account_id, transfer_transaction_id,
-             matched_transaction_id, import_id, import_payee_name, import_payee_name_original,
-             source_kind, source_ref, external_ynab_id, deleted, needs_confirmation, claim_status, claimed_on, updated_at
-           )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ${NEEDS_CONFIRMATION_INSERT_SQL}, ${CLAIM_INSERT_SQL}, CURRENT_TIMESTAMP)
-           ON CONFLICT(id) DO UPDATE SET
-             account_id = excluded.account_id,
-             date = excluded.date,
-             amount_milli = excluded.amount_milli,
-             memo = excluded.memo,
-             cleared = excluded.cleared,
-             approved = excluded.approved,
-             flag_color = excluded.flag_color,
-             flag_name = excluded.flag_name,
-             payee_id = excluded.payee_id,
-             payee_name_snapshot = excluded.payee_name_snapshot,
-             category_id = excluded.category_id,
-             category_name_snapshot = excluded.category_name_snapshot,
-             transfer_account_id = excluded.transfer_account_id,
-             transfer_transaction_id = excluded.transfer_transaction_id,
-             matched_transaction_id = excluded.matched_transaction_id,
-             import_id = excluded.import_id,
-             import_payee_name = excluded.import_payee_name,
-             import_payee_name_original = excluded.import_payee_name_original,
-             source_kind = excluded.source_kind,
-             source_ref = excluded.source_ref,
-             external_ynab_id = excluded.external_ynab_id,
-             deleted = excluded.deleted,
-             ${NEEDS_CONFIRMATION_CONFLICT_SQL},
-             ${CLAIM_CONFLICT_SQL},
-             updated_at = CURRENT_TIMESTAMP`,
-        )
-        .run(
-          transactionId,
-          planId,
-          input.account_id,
-          input.date,
-          input.amount,
-          input.memo ?? null,
-          input.cleared ?? "uncleared",
-          bool(input.approved),
-          input.flag_color ?? null,
-          input.flag_name ?? null,
-          payeeId,
-          payeeName,
-          categoryId,
-          categoryName,
-          transferAccountId,
-          transferTransactionId,
-          input.matched_transaction_id ?? null,
-          input.import_id ?? null,
-          input.import_payee_name ?? null,
-          input.import_payee_name_original ?? null,
-          input.source_kind ?? null,
-          input.source_ref ?? null,
-          input.external_ynab_id ?? input.id ?? null,
-          bool(input.deleted),
-          needsConfirmationParam(input.needs_confirmation),
-          claim[1],
-          claim[2],
-          needsConfirmationParam(input.needs_confirmation),
-          claim[0],
-          claim[0],
-        );
-
-      const previousSubs = await this.db
-        .query("SELECT id, transfer_transaction_id FROM subtransactions WHERE transaction_id = ?")
-        .all(transactionId) as Row[];
-      await this.db.query("DELETE FROM subtransactions WHERE transaction_id = ?").run(transactionId);
-      const keptLinkIds = new Set<string>();
-      for (const sub of input.subtransactions ?? []) {
-        const subId = sub.id ?? createId("sub");
-        const subRefs = await this.resolveTransactionRefs(planId, {
-          account_id: input.account_id,
-          date: input.date,
-          amount: sub.amount,
-          payee_id: sub.payee_id,
-          payee_name: sub.payee_name,
-          category_id: sub.category_id,
-          memo: sub.memo,
-        });
-
-        let subPayeeId = subRefs.payeeId;
-        let subPayeeName = subRefs.payeeName;
-        let subCategoryId = subRefs.categoryId;
-        let subCategoryName = subRefs.categoryName;
-        let subTransferAccountId = sub.transfer_account_id ?? null;
-        let subTransferTransactionId = sub.transfer_transaction_id ?? null;
-
-        if (autoLink && subTransferTransactionId) {
-          if (subTransferAccountId === input.account_id) {
-            throw new ValidationError("Transfer target must be a different account");
-          }
-          // The split line already owns a linked side: keep it in step.
-          await this.syncLinkedTransaction(planId, subTransferTransactionId, {
-            date: input.date,
-            amount: -sub.amount,
-            memo: sub.memo ?? null,
-            approved: input.approved,
-            sourceAccountId: input.account_id,
-            accountId: subTransferAccountId ?? undefined,
-          }, plan);
-        } else if (autoLink) {
-          const targetAccountId =
-            (subPayeeId ? await this.payeeTransferTarget(planId, subPayeeId) : null) ?? subTransferAccountId;
-          if (targetAccountId) {
-            const target = await this.requireTransferTarget(planId, input.account_id, targetAccountId);
-            subTransferAccountId = target.id;
-            const targetPayee = await this.ensureTransferPayee(planId, target.id);
-            if (targetPayee) {
-              subPayeeId = targetPayee.id;
-              subPayeeName = targetPayee.name;
-            }
-            if (await this.accountsBothOnBudget(planId, input.account_id, target.id)) {
-              subCategoryId = null;
-              subCategoryName = null;
-            }
-            subTransferTransactionId = await this.insertLinkedTransaction(planId, {
-              accountId: target.id,
-              date: input.date,
-              amount: -sub.amount,
-              memo: sub.memo ?? null,
-              approved: input.approved,
-              sourceAccountId: input.account_id,
-              linkId: subId,
-              cleared: newLinkedSideCleared(input.source_kind, target.type),
-            }, plan);
-          }
-        }
-
-        if (subTransferTransactionId) {
-          keptLinkIds.add(subTransferTransactionId);
-        }
-
-        await this.db
-          .query(
-            `INSERT INTO subtransactions (
-               id, transaction_id, amount_milli, memo, payee_id, payee_name_snapshot,
-               category_id, category_name_snapshot, transfer_account_id,
-               transfer_transaction_id, external_ynab_id, deleted, updated_at
-             )
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP)`,
-          )
-          .run(
-            subId,
-            transactionId,
-            sub.amount,
-            sub.memo ?? null,
-            subPayeeId,
-            subPayeeName,
-            subCategoryId,
-            subCategoryName,
-            subTransferAccountId,
-            subTransferTransactionId,
-            sub.external_ynab_id ?? sub.id ?? null,
-          );
-      }
-
-      // A linked side no line still cites goes: the line disappeared, stopped
-      // being a transfer, or kept its id but was given a new linked side. A
-      // line that was merely re-keyed keeps the linked side it still cites.
-      for (const previous of previousSubs) {
-        if (
-          previous.transfer_transaction_id &&
-          !keptLinkIds.has(previous.transfer_transaction_id)
-        ) {
-          await this.softDeleteLinkedTransaction(planId, previous.transfer_transaction_id, plan);
-        }
-      }
-
-      if (input.source_kind || input.source_ref) {
-        await this.db
-          .query(
-            `INSERT INTO source_events (id, plan_id, transaction_id, source_kind, source_ref, payload_json)
-             VALUES (?, ?, ?, ?, ?, ?)`,
-          )
-          .run(createId("src"), planId, transactionId, input.source_kind ?? "api", input.source_ref ?? null, JSON.stringify(input));
-      }
-
-      if (createLinkedSide && transferAccountId) {
-        const linkedId = await this.insertLinkedTransaction(planId, {
-          accountId: transferAccountId,
-          date: input.date,
-          amount: -input.amount,
-          memo: input.memo ?? null,
-          approved: input.approved,
-          sourceAccountId: input.account_id,
-          linkId: transactionId,
-          cleared: linkedCleared,
-          claim: transferClaim(input),
-        }, plan);
-        await this.db
-          .query("UPDATE transactions SET transfer_transaction_id = ? WHERE id = ?")
-          .run(linkedId, transactionId);
-      } else if (autoLink && transferTransactionId && !input.subtransactions?.length) {
-        // A re-created or edited row that already owns a linked side keeps
-        // that side in step instead of minting a new one.
-        await this.syncLinkedTransaction(planId, transferTransactionId, {
-          date: input.date,
-          amount: -input.amount,
-          memo: input.memo ?? null,
-          approved: input.approved,
-          sourceAccountId: input.account_id,
-          accountId: transferAccountId ?? undefined,
-          claim: transferClaim(input),
-        }, plan);
-      }
-
-      plan.accountIdsToRecalculate.add(input.account_id);
-      if (existingRow && existingRow.account_id !== input.account_id) {
-        plan.accountIdsToRecalculate.add(existingRow.account_id);
-      }
-      plan.touchedTransactionIds.add(transactionId);
-  }
-
   async updateTransaction(planId: string, transactionId: string, patch: Partial<TransactionInput>): Promise<any> {
     await this.applyTransactionUpdate(planId, transactionId, patch);
     return this.getTransaction(planId, transactionId);
-  }
-
-  /**
-   * The write half of a transaction update, without the response hydration.
-   * Storage engines that can return the committed row themselves override this
-   * so bulk callers do not pay a discarded per-item read.
-   */
-  protected async applyTransactionUpdate(planId: string, transactionId: string, patch: Partial<TransactionInput>): Promise<void> {
-    const plan = newTransactionMutationPlan();
-    if (patch.approved !== undefined && Object.keys(patch).length === 1) {
-      let linkedSplit = false;
-      await this.db.transaction(async () => {
-        linkedSplit = await this.applyLinkedSplitApproval(planId, transactionId, patch.approved ?? false, plan);
-        if (linkedSplit) await this.executeMutationPlan(planId, plan);
-      })();
-      if (linkedSplit) {
-        return;
-      }
-    }
-    await this.db.transaction(async () => {
-      const prepared = await this.prepareTransactionUpdate(planId, transactionId, patch);
-      await this.applyResolvedPatch(planId, prepared.existing, prepared.next, patch, plan);
-      await this.executeMutationPlan(planId, plan);
-    })();
   }
 
   async updateTransactionCleared(
@@ -1538,27 +557,6 @@ export class LedgerRepository {
   ): Promise<any> {
     await this.applyTransactionCleared(planId, transactionId, expectedCleared, cleared);
     return this.getTransaction(planId, transactionId);
-  }
-
-  /** Write half of the dedicated cleared toggle; see `applyTransactionUpdate`. */
-  protected async applyTransactionCleared(
-    planId: string,
-    transactionId: string,
-    expectedCleared: "uncleared" | "cleared",
-    cleared: "uncleared" | "cleared",
-  ): Promise<void> {
-    const plan = newTransactionMutationPlan();
-    await this.db.transaction(async () => {
-      const existing = await this.getTransactionRow(planId, transactionId);
-      if (!existing) throw new NotFoundError("Transaction not found");
-      if (existing.cleared !== expectedCleared) throw new TransactionStateConflictError();
-      await this.db.query(
-        `UPDATE transactions SET cleared=?,${CLEARED_CONFIRMS_SQL},updated_at=CURRENT_TIMESTAMP WHERE id=? AND plan_id=? AND deleted=0 AND cleared=?`,
-      ).run(cleared, expectedCleared, cleared, transactionId, planId, expectedCleared);
-      plan.accountIdsToRecalculate.add(String(existing.account_id));
-      plan.touchedTransactionIds.add(transactionId);
-      await this.executeMutationPlan(planId, plan);
-    })();
   }
 
   /**
@@ -1643,102 +641,6 @@ export class LedgerRepository {
     };
   }
 
-  async updateTransactions(planId: string, edits: TransactionBatchUpdate[]): Promise<TransactionBatchResult> {
-    const resolved: Array<{ id: string; patch: Partial<TransactionInput> }> = [];
-    const seen = new Set<string>();
-    for (const edit of edits) {
-      const id = await this.resolveTransactionLookup(planId, edit.lookup);
-      if (seen.has(id)) throw new ValidationError("Duplicate transaction in batch");
-      seen.add(id);
-      resolved.push({ id, patch: edit.patch });
-    }
-    const plan = newTransactionMutationPlan();
-    await this.db.transaction(async () => {
-      for (const item of resolved) {
-        if (
-          item.patch.approved !== undefined &&
-          Object.keys(item.patch).length === 1 &&
-          await this.applyLinkedSplitApproval(planId, item.id, item.patch.approved ?? false, plan)
-        ) {
-          continue;
-        }
-        const prepared = await this.prepareTransactionUpdate(planId, item.id, item.patch);
-        await this.applyResolvedPatch(planId, prepared.existing, prepared.next, item.patch, plan);
-      }
-      await this.executeMutationPlan(planId, plan);
-    })();
-    return this.loadTransactionSaveResult(planId, resolved.map((item) => item.id), []);
-  }
-
-  private async applyLinkedSplitApproval(
-    planId: string,
-    transactionId: string,
-    approved: boolean,
-    plan: TransactionMutationPlan,
-  ): Promise<boolean> {
-    const linkedSub = await this.db
-      .query(
-        `SELECT s.transaction_id
-         FROM transactions t
-         JOIN subtransactions s ON s.id = t.transfer_transaction_id AND s.deleted = 0
-         WHERE t.id = ? AND t.plan_id = ? AND t.deleted = 0`,
-      )
-      .get(transactionId, planId) as Row | null;
-    if (!linkedSub) return false;
-    const rows = await this.db
-      .query(
-        `SELECT id FROM transactions
-         WHERE plan_id = ? AND deleted = 0 AND (
-           id = ? OR id IN (
-             SELECT transfer_transaction_id FROM subtransactions
-             WHERE transaction_id = ? AND deleted = 0 AND transfer_transaction_id IS NOT NULL
-           )
-         )`,
-      )
-      .all(planId, linkedSub.transaction_id, linkedSub.transaction_id) as Row[];
-    await this.db
-      .query(
-        `UPDATE transactions SET approved = ?, updated_at = CURRENT_TIMESTAMP
-         WHERE plan_id = ? AND deleted = 0 AND (
-           id = ? OR id IN (
-             SELECT transfer_transaction_id FROM subtransactions
-             WHERE transaction_id = ? AND deleted = 0 AND transfer_transaction_id IS NOT NULL
-           )
-         )`,
-      )
-      .run(bool(approved), planId, linkedSub.transaction_id, linkedSub.transaction_id);
-    for (const row of rows) plan.touchedTransactionIds.add(row.id);
-    return true;
-  }
-
-  async createTransactions(planId: string, inputs: TransactionInput[]): Promise<TransactionBatchResult> {
-    const explicitIds = inputs.map((input) => input.id).filter((id): id is string => Boolean(id));
-    if (new Set(explicitIds).size !== explicitIds.length) {
-      throw new ValidationError("Duplicate transaction id in batch");
-    }
-    const transactionIds: string[] = [];
-    const duplicateImportIds: string[] = [];
-    const plan = newTransactionMutationPlan();
-    await this.db.transaction(async () => {
-      for (const input of inputs) {
-        if (input.import_id && input.account_id) {
-          const existing = await this.findTransactionByImportId(planId, input.import_id, input.account_id);
-          if (existing) {
-            duplicateImportIds.push(input.import_id);
-            transactionIds.push(existing.id);
-            continue;
-          }
-        }
-        validateTransactionInput(input, true);
-        const transactionId = input.id ?? createId("txn");
-        await this.executeTransactionWrite(planId, { ...input, id: transactionId }, true, plan);
-        transactionIds.push(transactionId);
-      }
-      await this.executeMutationPlan(planId, plan);
-    })();
-    return this.loadTransactionSaveResult(planId, transactionIds, duplicateImportIds);
-  }
-
   async loadTransactionSaveResult(
     planId: string,
     transactionIds: string[],
@@ -1770,215 +672,9 @@ export class LedgerRepository {
     return matches[0].id;
   }
 
-  private async prepareTransactionUpdate(
-    planId: string,
-    transactionId: string,
-    patch: Partial<TransactionInput>,
-  ): Promise<{ existing: Row; next: TransactionInput }> {
-    const existing = await this.getTransactionRow(planId, transactionId);
-    if (!existing) {
-      throw new NotFoundError("Transaction not found");
-    }
-    patch = normaliseFollowUpEdit(existing, patch);
-    const existingTransaction = await this.getTransaction(planId, transactionId);
-
-    if (existing.cleared === "reconciled" && patch.cleared !== undefined && patch.cleared !== "reconciled") {
-      throw new TransactionStateConflictError("Reconciled transactions cannot be changed to another cleared state");
-    }
-
-    if (existing.transfer_transaction_id && !await this.getTransactionRow(planId, existing.transfer_transaction_id)) {
-      const linkedSub = await this.db
-        .query("SELECT id FROM subtransactions WHERE id = ? AND deleted = 0")
-        .get(existing.transfer_transaction_id) as Row | null;
-      if (linkedSub) {
-        const lockedFields = ["amount", "date", "account_id", "payee_id", "subtransactions"].filter(
-          (field) => (patch as Record<string, unknown>)[field] !== undefined,
-        );
-        if (lockedFields.length > 0) {
-          throw new ValidationError(
-            `This transaction is the linked side of a split line; edit the split to change ${lockedFields.join(", ")}`,
-          );
-        }
-      }
-    }
-
-    const next: TransactionInput = {
-      id: transactionId,
-      account_id: patch.account_id ?? existing.account_id,
-      date: patch.date ?? existing.date,
-      amount: patch.amount ?? existing.amount_milli,
-      payee_id: patch.payee_id === undefined ? existing.payee_id : patch.payee_id,
-      payee_name: patch.payee_name === undefined ? existing.payee_name_snapshot : patch.payee_name,
-      category_id: patch.category_id === undefined ? existing.category_id : patch.category_id,
-      memo: patch.memo === undefined ? existing.memo : patch.memo,
-      cleared: (patch.cleared === undefined ? existing.cleared : patch.cleared) as ClearedState,
-      approved: patch.approved === undefined ? toBoolean(existing.approved) : patch.approved,
-      flag_color: patch.flag_color === undefined ? existing.flag_color : patch.flag_color,
-      flag_name: patch.flag_name === undefined ? existing.flag_name : patch.flag_name,
-      needs_confirmation: nextNeedsConfirmation(existing, patch),
-      ...nextClaim(existing, patch),
-      transfer_account_id: patch.transfer_account_id === undefined ? existing.transfer_account_id : patch.transfer_account_id,
-      transfer_transaction_id:
-        patch.transfer_transaction_id === undefined ? existing.transfer_transaction_id : patch.transfer_transaction_id,
-      matched_transaction_id:
-        patch.matched_transaction_id === undefined ? existing.matched_transaction_id : patch.matched_transaction_id,
-      import_id: existing.import_id,
-      import_payee_name: patch.import_payee_name === undefined ? existing.import_payee_name : patch.import_payee_name,
-      import_payee_name_original:
-        patch.import_payee_name_original === undefined
-          ? existing.import_payee_name_original
-          : patch.import_payee_name_original,
-      source_kind: patch.source_kind === undefined ? existing.source_kind : patch.source_kind,
-      source_ref: patch.source_ref === undefined ? existing.source_ref : patch.source_ref,
-      external_ynab_id: existing.external_ynab_id,
-      subtransactions:
-        patch.subtransactions === undefined
-          ? existingTransaction.subtransactions.map((sub: any) => ({
-              id: sub.id,
-              amount: sub.amount,
-              payee_id: sub.payee_id,
-              payee_name: sub.payee_name,
-              category_id: sub.category_id,
-              memo: sub.memo,
-              transfer_account_id: sub.transfer_account_id,
-              transfer_transaction_id: sub.transfer_transaction_id,
-            }))
-          : patch.subtransactions,
-    };
-
-    validateTransactionInput(next, true);
-    return { existing, next };
-  }
-
-  private async applyResolvedPatch(
-    planId: string,
-    existing: Row,
-    next: TransactionInput,
-    patch: Partial<TransactionInput>,
-    plan: ReturnType<typeof newTransactionMutationPlan>,
-  ): Promise<void> {
-    const linkedRow = existing.transfer_transaction_id
-      ? await this.getTransactionRow(planId, existing.transfer_transaction_id)
-      : null;
-    if (linkedRow && patch.payee_id !== undefined) {
-      const nextTarget = patch.payee_id ? await this.payeeTransferTarget(planId, patch.payee_id) : null;
-      if (!nextTarget || nextTarget === next.account_id) {
-        await this.softDeleteLinkedTransaction(planId, linkedRow.id, plan);
-        next.transfer_account_id = null;
-        next.transfer_transaction_id = null;
-      } else {
-        next.transfer_account_id = nextTarget;
-      }
-    }
-
-    await this.executeTransactionWrite(planId, next, true, plan);
-    if (existing.account_id !== next.account_id) {
-      plan.accountIdsToRecalculate.add(existing.account_id);
-    }
-  }
-
   async deleteTransaction(planId: string, transactionId: string, expectedApproved?: boolean): Promise<any> {
     await this.applyTransactionDelete(planId, transactionId, expectedApproved);
     return this.getTransaction(planId, transactionId, true);
-  }
-
-  /** Write half of the tombstone; see `applyTransactionUpdate`. */
-  protected async applyTransactionDelete(planId: string, transactionId: string, expectedApproved?: boolean): Promise<void> {
-    const plan = newTransactionMutationPlan();
-    await this.db.transaction(async () => {
-      const existing = await this.getTransactionRow(planId, transactionId);
-      if (!existing) {
-        throw new NotFoundError("Transaction not found");
-      }
-      if (expectedApproved !== undefined && Boolean(existing.approved) !== expectedApproved) {
-        throw new TransactionStateConflictError("Transaction approval state changed");
-      }
-
-      const removeIds = new Set<string>([transactionId]);
-      const accountIds = new Set<string>([existing.account_id]);
-
-      // Deleting one side of a transfer deletes the other...
-      if (existing.transfer_transaction_id) {
-        const linked = await this.getTransactionRow(planId, existing.transfer_transaction_id);
-        if (linked) {
-          removeIds.add(linked.id);
-          accountIds.add(linked.account_id);
-        } else {
-          // ...unless the link points at a split line on the other side:
-          // that line stays and simply forgets the link.
-          const sub = await this.db
-            .query("SELECT id, transaction_id FROM subtransactions WHERE id = ?")
-            .get(existing.transfer_transaction_id) as Row | null;
-          if (sub) {
-            await this.db
-              .query(
-                `UPDATE subtransactions
-                 SET transfer_account_id = NULL, transfer_transaction_id = NULL, updated_at = CURRENT_TIMESTAMP
-                 WHERE id = ?`,
-              )
-              .run(sub.id);
-            plan.touchedTransactionIds.add(sub.transaction_id);
-          }
-        }
-      }
-
-      // Linked sides born from this row's own split lines go too.
-      const subLinks = await this.db
-        .query(
-          "SELECT transfer_transaction_id FROM subtransactions WHERE transaction_id = ? AND deleted = 0 AND transfer_transaction_id IS NOT NULL",
-        )
-        .all(transactionId) as Row[];
-      for (const link of subLinks) {
-        const linked = await this.getTransactionRow(planId, link.transfer_transaction_id);
-        if (linked) {
-          removeIds.add(linked.id);
-          accountIds.add(linked.account_id);
-        }
-      }
-
-      for (const id of removeIds) {
-        await this.db
-          .query("UPDATE transactions SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?")
-          .run(id, planId);
-        plan.touchedTransactionIds.add(id);
-      }
-      for (const accountId of accountIds) {
-        plan.accountIdsToRecalculate.add(accountId);
-      }
-      await this.executeMutationPlan(planId, plan);
-    })();
-  }
-
-  async importTransactions(planId: string, inputs: TransactionInput[]): Promise<{
-    transaction_ids: string[];
-    duplicate_import_ids: string[];
-    duplicate_transaction_ids: string[];
-    server_knowledge: number;
-  }> {
-    const transactionIds: string[] = [];
-    const duplicateImportIds = new Set<string>();
-    const duplicateTransactionIds = new Set<string>();
-
-    for (const input of inputs) {
-      const duplicate = await this.findDuplicateTransaction(planId, input);
-      if (duplicate) {
-        if (input.import_id) {
-          duplicateImportIds.add(input.import_id);
-        }
-        duplicateTransactionIds.add(duplicate.id);
-        continue;
-      }
-
-      const created = await this.createTransaction(planId, input);
-      transactionIds.push(created.id);
-    }
-
-    return {
-      transaction_ids: transactionIds,
-      duplicate_import_ids: [...duplicateImportIds],
-      duplicate_transaction_ids: [...duplicateTransactionIds],
-      server_knowledge: await this.getServerKnowledge(planId),
-    };
   }
 
   async listTransactions(planId: string, filters: TransactionFilters = {}): Promise<any[]> {
@@ -2163,59 +859,6 @@ export class LedgerRepository {
     return this.formatTransaction(row);
   }
 
-  async createImportSession(planId: string | null, source: string): Promise<string> {
-    const id = createId("imp");
-    if (planId) {
-      await this.ensurePlan(planId);
-    }
-    await this.db
-      .query("INSERT INTO import_sessions (id, plan_id, source) VALUES (?, ?, ?)")
-      .run(id, planId, source);
-    return id;
-  }
-
-  async finishImportSession(id: string, status: string, summary: unknown): Promise<void> {
-    await this.db
-      .query("UPDATE import_sessions SET status = ?, finished_at = CURRENT_TIMESTAMP, summary_json = ? WHERE id = ?")
-      .run(status, JSON.stringify(summary), id);
-  }
-
-  /**
-   * Stores an exact source object from YNAB.  The normalised ledger remains
-   * the write model; this mirror keeps fields that HowMuch does not yet model
-   * (targets, notes, scheduling metadata, locations, and future API fields).
-   * Objects HowMuch serves (schedules with their `ownedLines`, the plan
-   * marker) are also written to its own tables, see `ynab-owned-records.ts`.
-   */
-  async upsertYnabRawObject(
-    planId: string,
-    objectType: string,
-    objectId: string,
-    payload: unknown,
-    serverKnowledge?: number,
-    ownedLines: readonly unknown[] = [],
-  ): Promise<void> {
-    await this.ensurePlan(planId);
-    const json = JSON.stringify(payload);
-    if (json === undefined) throw new ValidationError("YNAB raw object payload must be JSON serialisable");
-    const deleted = Boolean((payload as Record<string, unknown> | null)?.deleted) ? 1 : 0;
-    const owned = ownedRecordStatements(planId, objectType, objectId, json, deleted, ownedLines);
-    await this.db.transaction(async () => {
-      await this.db
-        .query(
-          `INSERT INTO ynab_raw_objects(plan_id, object_type, object_id, payload_json, deleted, server_knowledge, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-           ON CONFLICT(plan_id, object_type, object_id) DO UPDATE SET
-             payload_json = excluded.payload_json,
-             deleted = excluded.deleted,
-             server_knowledge = excluded.server_knowledge,
-             updated_at = CURRENT_TIMESTAMP`,
-        )
-        .run(planId, objectType, objectId, json, deleted, serverKnowledge ?? null);
-      for (const statement of owned) await this.db.query(statement.sql).run(...(statement.values as any[]));
-    })();
-  }
-
   async listYnabRawObjects(planId: string, objectType: string): Promise<any[]> {
     const rows = await this.db
       .query("SELECT payload_json FROM ynab_raw_objects WHERE plan_id = ? AND object_type = ? ORDER BY object_id")
@@ -2259,76 +902,6 @@ export class LedgerRepository {
       record.subtransactions.filter((subtransaction) => !subtransaction.deleted),
       record.payload.deleted,
     );
-  }
-
-  async createScheduledTransaction(
-    planId: string,
-    input: ScheduledTransactionInput,
-    options: ScheduledWriteOptions = {},
-  ): Promise<any> {
-    await this.ensurePlan(planId);
-    const id = input.id ?? (options.operationId ? `scheduled_${sha256Hex(`${planId}:${options.operationId}`).slice(0, 24)}` : createId("scheduled"));
-    const fingerprint = scheduleMutationFingerprint("create", planId, id, input);
-    if (await this.replayedScheduleMutation(planId, id, "scheduled_transaction.create", options.operationId, fingerprint)) {
-      return projectScheduledRead(await this.readScheduledTransaction(planId, id, true));
-    }
-    const collision = await this.db.query("SELECT 1 FROM scheduled_transaction_edits WHERE plan_id=? AND id=?").get(planId, id);
-    if (collision) throw new ValidationError("Scheduled transaction already exists");
-    const transaction = scheduledTransactionMutation(id, input as Record<string, unknown>, null, [], options.operationId);
-    await this.validateScheduledReferences(planId, transaction);
-    await this.persistScheduledTransaction(planId, transaction, "howmuch-local", "scheduled_transaction.create", options.operationId, fingerprint);
-    return projectScheduledRead(await this.readScheduledTransaction(planId, id, true));
-  }
-
-  async updateScheduledTransaction(
-    planId: string,
-    scheduledTransactionId: string,
-    patch: Partial<ScheduledTransactionInput>,
-    options: ScheduledWriteOptions = {},
-  ): Promise<any> {
-    // SQLite serialises this read/merge/write unit with BEGIN IMMEDIATE.  A
-    // patch must merge against the most recent schedule, not a stale copy
-    // read before another writer's transaction begins.
-    return this.db.transaction(async () => {
-      const fingerprint = scheduleMutationFingerprint("update", planId, scheduledTransactionId, patch);
-      if (await this.replayedScheduleMutation(planId, scheduledTransactionId, "scheduled_transaction.update", options.operationId, fingerprint)) {
-        return projectScheduledRead(await this.readScheduledTransaction(planId, scheduledTransactionId, true));
-      }
-      const current = await this.readScheduledTransaction(planId, scheduledTransactionId);
-      assertExpectedSchedule(current.payload, options.expected);
-      const transaction = scheduledTransactionMutation(
-        scheduledTransactionId,
-        patch as Record<string, unknown>,
-        current.payload,
-        current.subtransactions,
-        options.operationId,
-      );
-      await this.validateScheduledReferences(planId, transaction);
-      await this.persistScheduledTransaction(planId, transaction, current.origin, "scheduled_transaction.update", options.operationId, fingerprint, true);
-      return projectScheduledRead(await this.readScheduledTransaction(planId, scheduledTransactionId, true));
-    })();
-  }
-
-  async deleteScheduledTransaction(
-    planId: string,
-    scheduledTransactionId: string,
-    options: ScheduledWriteOptions = {},
-  ): Promise<any> {
-    return this.db.transaction(async () => {
-      const fingerprint = scheduleMutationFingerprint("delete", planId, scheduledTransactionId, {});
-      if (await this.replayedScheduleMutation(planId, scheduledTransactionId, "scheduled_transaction.delete", options.operationId, fingerprint)) {
-        return projectScheduledRead(await this.readScheduledTransaction(planId, scheduledTransactionId, true));
-      }
-      const current = await this.readScheduledTransaction(planId, scheduledTransactionId);
-      assertExpectedSchedule(current.payload, options.expected);
-      const transaction = {
-        ...current.payload,
-        deleted: true,
-        subtransactions: current.subtransactions,
-      } as unknown as EffectiveScheduledTransaction;
-      await this.persistScheduledTransaction(planId, transaction, current.origin, "scheduled_transaction.delete", options.operationId, fingerprint, true);
-      return projectScheduledRead(await this.readScheduledTransaction(planId, scheduledTransactionId, true));
-    })();
   }
 
   /** Enters one named occurrence and advances the schedule from its fixed cadence. */
@@ -2630,81 +1203,6 @@ export class LedgerRepository {
     throw new NotFoundError("Scheduled transaction not found");
   }
 
-  private async validateScheduledReferences(planId: string, transaction: EffectiveScheduledTransaction): Promise<void> {
-    const requireReference = async (table: "accounts" | "payees" | "categories", id: unknown, label: string) => {
-      if (id == null) return;
-      const row = await this.db.query(`SELECT ${table === "payees" ? "name,transfer_account_id" : "name"} FROM ${table} WHERE id=? AND plan_id=? AND deleted=0`).get(id, planId) as Row | null;
-      if (!row) throw new ValidationError(`${label} not found`);
-      if (table === "payees" && row.transfer_account_id != null && row.transfer_account_id === transaction.account_id) {
-        throw new ValidationError(`${label} is a transfer to the scheduled transaction's own account`);
-      }
-      return row;
-    };
-    const account = await requireReference("accounts", transaction.account_id, "Account");
-    transaction.account_name = account?.name ?? transaction.account_name ?? null;
-    const payee = await requireReference("payees", transaction.payee_id, "Payee");
-    if (payee) transaction.payee_name = payee.name;
-    const category = await requireReference("categories", transaction.category_id, "Category");
-    if (category) transaction.category_name = category.name;
-    await requireReference("accounts", transaction.transfer_account_id, "Transfer account");
-    for (const subtransaction of transaction.subtransactions) {
-      const subPayee = await requireReference("payees", subtransaction.payee_id, "Subtransaction payee");
-      if (subPayee) subtransaction.payee_name = subPayee.name;
-      const subCategory = await requireReference("categories", subtransaction.category_id, "Subtransaction category");
-      if (subCategory) subtransaction.category_name = subCategory.name;
-      await requireReference("accounts", subtransaction.transfer_account_id, "Subtransaction transfer account");
-    }
-  }
-
-  private async persistScheduledTransaction(
-    planId: string,
-    transaction: EffectiveScheduledTransaction,
-    origin: "howmuch-local" | "ynab-overlay",
-    action: string,
-    operationId: string | undefined,
-    requestHash: string,
-    withinTransaction = false,
-  ): Promise<void> {
-    const { subtransactions, ...parent } = transaction;
-    const auditId = operationId ? `audit_${sha256Hex(operationId).slice(0, 24)}` : createId("audit");
-    const persist = async () => {
-      await this.db.query(
-        `INSERT INTO scheduled_transaction_edits
-          (plan_id,id,origin,payload_json,account_id,date_first,date_next,frequency,amount_milli,payee_id,category_id,transfer_account_id,deleted,updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)
-         ON CONFLICT(plan_id,id) DO UPDATE SET origin=excluded.origin,payload_json=excluded.payload_json,account_id=excluded.account_id,
-           date_first=excluded.date_first,date_next=excluded.date_next,frequency=excluded.frequency,amount_milli=excluded.amount_milli,
-           payee_id=excluded.payee_id,category_id=excluded.category_id,transfer_account_id=excluded.transfer_account_id,
-           deleted=excluded.deleted,updated_at=CURRENT_TIMESTAMP`,
-      ).run(planId, transaction.id, origin, JSON.stringify(parent), transaction.account_id, transaction.date_first, transaction.date_next, transaction.frequency, transaction.amount, transaction.payee_id ?? null, transaction.category_id ?? null, transaction.transfer_account_id ?? null, transaction.deleted ? 1 : 0);
-      await this.db.query("DELETE FROM scheduled_subtransaction_edits WHERE plan_id=? AND scheduled_transaction_id=?").run(planId, transaction.id);
-      for (const subtransaction of subtransactions) {
-        await this.db.query(
-          `INSERT INTO scheduled_subtransaction_edits
-            (plan_id,id,scheduled_transaction_id,payload_json,amount_milli,payee_id,category_id,transfer_account_id)
-           VALUES (?,?,?,?,?,?,?,?)`,
-        ).run(planId, subtransaction.id, transaction.id, JSON.stringify(subtransaction), subtransaction.amount, subtransaction.payee_id ?? null, subtransaction.category_id ?? null, subtransaction.transfer_account_id ?? null);
-      }
-      await this.db.query("UPDATE plans SET server_knowledge=server_knowledge+1,updated_at=CURRENT_TIMESTAMP WHERE id=?").run(planId);
-      await this.db.query(
-        "INSERT INTO audit_events(id,plan_id,action,resource_type,resource_id,source,metadata_json) VALUES (?,?,?,?,?,'howmuch-local',?)",
-      ).run(auditId, planId, action, "scheduled_transaction", transaction.id, JSON.stringify({ request_hash: requestHash, origin, deleted: Boolean(transaction.deleted) }));
-    };
-    if (withinTransaction) return persist();
-    await this.db.transaction(persist)();
-  }
-
-  private async replayedScheduleMutation(planId: string, id: string, action: string, operationId: string | undefined, requestHash: string): Promise<boolean> {
-    if (!operationId) return false;
-    const row = await this.db.query("SELECT action,plan_id,resource_id,metadata_json FROM audit_events WHERE id=?").get(`audit_${sha256Hex(operationId).slice(0, 24)}`) as Row | null;
-    if (!row) return false;
-    const metadata = JSON.parse(String(row.metadata_json));
-    if (row.action !== action || row.plan_id !== planId || row.resource_id !== id || metadata.request_hash !== requestHash) {
-      throw new Error("idempotency-key reuse");
-    }
-    return true;
-  }
-
   // ---- Card payment terms -------------------------------------------------
 
   async listCardPaymentTerms(planId: string): Promise<{ card_payment_terms: CardPaymentTerms[]; server_knowledge: number }> {
@@ -2757,38 +1255,6 @@ export class LedgerRepository {
     if (!row) return null;
     const terms = JSON.parse(String(row.metadata_json)).terms;
     return terms ? terms as CardPaymentTerms : null;
-  }
-
-  async putCardPaymentTerms(planId: string, accountId: string, input: unknown, options: CardPaymentTermsWriteOptions = {}): Promise<CardPaymentTerms> {
-    const hash = requestHash({ action: "card_payment_terms.put", planId, accountId, request: input });
-    return this.db.transaction(async () => {
-      if (await this.replayedScheduleMutation(planId, accountId, "card_payment_terms.put", options.operationId, hash)) {
-        return this.getCardPaymentTerms(planId, accountId);
-      }
-      const terms = await this.planCardPaymentTerms(planId, accountId, input);
-      const auditId = options.operationId ? `audit_${sha256Hex(options.operationId).slice(0, 24)}` : createId("audit");
-      for (const planned of cardPaymentTermsPutStatements(planId, terms, auditId, hash)) {
-        await this.db.query(planned.sql).run(...planned.values);
-      }
-      return this.getCardPaymentTerms(planId, accountId);
-    })();
-  }
-
-  async deleteCardPaymentTerms(planId: string, accountId: string, options: CardPaymentTermsWriteOptions = {}): Promise<CardPaymentTerms> {
-    const hash = requestHash({ action: "card_payment_terms.delete", planId, accountId });
-    return this.db.transaction(async () => {
-      const auditId = options.operationId ? `audit_${sha256Hex(options.operationId).slice(0, 24)}` : createId("audit");
-      if (await this.replayedScheduleMutation(planId, accountId, "card_payment_terms.delete", options.operationId, hash)) {
-        const receipt = await this.readCardPaymentTermsReceipt(auditId);
-        if (!receipt) throw new Error("Card payment terms receipt is missing");
-        return receipt;
-      }
-      const terms = await this.getCardPaymentTerms(planId, accountId);
-      for (const planned of cardPaymentTermsDeleteStatements(planId, terms, auditId, hash)) {
-        await this.db.query(planned.sql).run(...planned.values);
-      }
-      return terms;
-    })();
   }
 
   /**
@@ -3056,165 +1522,6 @@ export class LedgerRepository {
     return result.changes === 1 ? id : null;
   }
 
-  async recordImportRow(sessionId: string, rowIndex: number, status: string, payload: unknown, error?: string, transactionId?: string): Promise<void> {
-    await this.db
-      .query(
-        `INSERT INTO import_rows (id, import_session_id, row_index, status, payload_json, error, transaction_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(createId("row"), sessionId, rowIndex, status, JSON.stringify(payload), error ?? null, transactionId ?? null);
-  }
-
-  private async payeeTransferTarget(planId: string, payeeId: string): Promise<string | null> {
-    const row = await this.db
-      .query("SELECT transfer_account_id FROM payees WHERE id = ? AND plan_id = ? AND deleted = 0")
-      .get(payeeId, planId) as Row | null;
-    return row?.transfer_account_id ?? null;
-  }
-
-  private async requireTransferTarget(planId: string, sourceAccountId: string, targetAccountId: string): Promise<Row> {
-    if (targetAccountId === sourceAccountId) {
-      throw new ValidationError("Transfer target must be a different account");
-    }
-    const target = await this.db
-      .query("SELECT * FROM accounts WHERE id = ? AND plan_id = ? AND deleted = 0")
-      .get(targetAccountId, planId) as Row | null;
-    if (!target) {
-      throw new ValidationError("Transfer target account not found");
-    }
-    return target;
-  }
-
-  private async accountsBothOnBudget(planId: string, firstAccountId: string, secondAccountId: string): Promise<boolean> {
-    const row = await this.db
-      .query(
-        `SELECT COUNT(*) AS on_budget_count FROM accounts
-         WHERE plan_id = ? AND id IN (?, ?) AND on_budget = 1`,
-      )
-      .get(planId, firstAccountId, secondAccountId) as Row;
-    return Number(row.on_budget_count) === 2;
-  }
-
-  /** Creates the other side of a transfer and returns its id. */
-  private async insertLinkedTransaction(
-    planId: string,
-    opts: {
-      accountId: string;
-      date: string;
-      amount: number;
-      memo: string | null;
-      approved?: boolean | null;
-      cleared?: ClearedState;
-      sourceAccountId: string;
-      linkId: string;
-      claim?: TransferClaim;
-    },
-    plan: TransactionMutationPlan,
-  ): Promise<string> {
-    await this.ensureAccount(planId, opts.accountId);
-    const payee = await this.ensureTransferPayee(planId, opts.sourceAccountId);
-    const id = createId("txn");
-    await this.db
-      .query(
-        `INSERT INTO transactions (
-           id, plan_id, account_id, date, amount_milli, memo, cleared, approved,
-           payee_id, payee_name_snapshot, transfer_account_id, transfer_transaction_id, updated_at
-         )
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-      )
-      .run(
-        id,
-        planId,
-        opts.accountId,
-        opts.date,
-        opts.amount,
-        opts.memo,
-        opts.cleared ?? "uncleared",
-        bool(opts.approved),
-        payee?.id ?? null,
-        payee?.name ?? null,
-        opts.sourceAccountId,
-        opts.linkId,
-      );
-    if (opts.claim) await this.writeTransferClaim(planId, id, opts.claim);
-    plan.accountIdsToRecalculate.add(opts.accountId);
-    plan.touchedTransactionIds.add(id);
-    return id;
-  }
-
-  /** Keeps the other side of a transfer in step after an edit. */
-  private async syncLinkedTransaction(
-    planId: string,
-    linkedTransactionId: string,
-    opts: {
-      date: string;
-      amount: number;
-      memo: string | null;
-      approved?: boolean | null;
-      sourceAccountId: string;
-      accountId?: string;
-      claim?: TransferClaim;
-    },
-    plan: TransactionMutationPlan,
-  ): Promise<void> {
-    const linked = await this.getTransactionRow(planId, linkedTransactionId);
-    if (!linked) {
-      return;
-    }
-    const nextAccountId = opts.accountId ?? linked.account_id;
-    await this.requireTransferTarget(planId, opts.sourceAccountId, nextAccountId);
-    const payee = await this.ensureTransferPayee(planId, opts.sourceAccountId);
-    await this.db
-      .query(
-        `UPDATE transactions
-         SET account_id = ?, date = ?, amount_milli = ?, memo = ?,
-             approved = ?, payee_id = ?, payee_name_snapshot = ?, transfer_account_id = ?,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = ? AND plan_id = ?`,
-      )
-      .run(
-        nextAccountId,
-        opts.date,
-        opts.amount,
-        opts.memo,
-        bool(opts.approved),
-        payee?.id ?? linked.payee_id,
-        payee?.name ?? linked.payee_name_snapshot,
-        opts.sourceAccountId,
-        linkedTransactionId,
-        planId,
-      );
-    if (opts.claim) await this.writeTransferClaim(planId, linkedTransactionId, opts.claim);
-    plan.accountIdsToRecalculate.add(linked.account_id);
-    if (nextAccountId !== linked.account_id) {
-      plan.accountIdsToRecalculate.add(nextAccountId);
-    }
-    plan.touchedTransactionIds.add(linkedTransactionId);
-  }
-
-  /** The claim is the pair's, like the memo: both sides of a transfer hold it. */
-  private async writeTransferClaim(planId: string, id: string, claim: TransferClaim): Promise<void> {
-    await this.db
-      .query("UPDATE transactions SET claim_status = ?, claimed_on = ? WHERE id = ? AND plan_id = ?")
-      .run(claim.claim_status, claim.claimed_on, id, planId);
-  }
-
-  private async softDeleteLinkedTransaction(
-    planId: string,
-    linkedTransactionId: string,
-    plan: TransactionMutationPlan,
-  ): Promise<void> {
-    const linked = await this.getTransactionRow(planId, linkedTransactionId);
-    if (!linked) {
-      return;
-    }
-    await this.db
-      .query("UPDATE transactions SET deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND plan_id = ?")
-      .run(linkedTransactionId, planId);
-    plan.accountIdsToRecalculate.add(linked.account_id);
-    plan.touchedTransactionIds.add(linkedTransactionId);
-  }
-
   /** Executes operation-local final mutations; each item can become a D1 batch statement. */
   private async executeMutationPlan(planId: string, plan: TransactionMutationPlan): Promise<void> {
     for (const accountId of plan.accountIdsToRecalculate) {
@@ -3239,33 +1546,6 @@ export class LedgerRepository {
         )
         .run(planId, id, planId);
     }
-  }
-
-  private async resolveTransactionRefs(planId: string, input: TransactionInput): Promise<{
-    payeeId: string | null;
-    payeeName: string | null;
-    categoryId: string | null;
-    categoryName: string | null;
-  }> {
-    let payeeId = input.payee_id ?? null;
-    let payeeName = input.payee_name ?? null;
-    if (payeeId) {
-      await this.ensurePayee(planId, payeeId, payeeName ?? undefined);
-      const row = await this.db.query("SELECT name FROM payees WHERE id = ?").get(payeeId) as Row;
-      payeeName = row?.name ?? payeeName;
-    } else if (payeeName) {
-      payeeId = (await this.createPayee(planId, payeeName)).id;
-    }
-
-    let categoryName: string | null = null;
-    const categoryId = input.category_id ?? null;
-    if (categoryId) {
-      await this.ensureCategory(planId, categoryId);
-      const row = await this.db.query("SELECT name FROM categories WHERE id = ?").get(categoryId) as Row;
-      categoryName = row?.name ?? null;
-    }
-
-    return { payeeId, payeeName, categoryId, categoryName };
   }
 
   async findYnabImportTarget(
@@ -3589,10 +1869,6 @@ function projectScheduledRead(transaction: { payload: Record<string, any>; subtr
   };
 }
 
-function scheduleMutationFingerprint(action: string, planId: string, id: string, payload: unknown): string {
-  return sha256Hex(canonicalJson({ action, planId, id, payload }));
-}
-
 function scheduledCronOccurrenceOperationId(runOperationId: string, scheduleId: string, occurrenceDate: string): string {
   return `cron_occurrence_${sha256Hex(`${runOperationId}:${scheduleId}:${occurrenceDate}`).slice(0, 32)}`;
 }
@@ -3613,18 +1889,11 @@ function scheduledOccurrenceSnapshotHash(schedule: EffectiveScheduledTransaction
   return sha256Hex(canonicalJson(Object.fromEntries(fields.map((field) => [field, schedule[field] ?? null])))).slice(0, 24);
 }
 
-function assertExpectedSchedule(payload: Record<string, any>, expected: ScheduledWriteOptions["expected"]): void {
-  if (!expected) return;
-  if (payload.date_first !== expected.date_first || payload.date_next !== expected.date_next || payload.frequency !== expected.frequency) {
-    throw new Error("stale scheduled occurrence");
-  }
-}
-
 const CARD_PAYMENT_TERMS_LIST_SQL = "SELECT * FROM card_payment_terms WHERE plan_id = ? ORDER BY account_id";
 
 /**
- * Every statement a card terms PUT writes, shared by SQLite and D1 so both
- * store the same row, move `server_knowledge` and keep the same receipt.
+ * Every statement a card terms PUT writes: the row, the `server_knowledge`
+ * move and the receipt.
  */
 export function cardPaymentTermsPutStatements(planId: string, terms: CardPaymentTermsFields, auditId: string, requestHash: string): PlannedSql[] {
   return [
@@ -3667,96 +1936,6 @@ export function cardPaymentTermsDeleteStatements(planId: string, terms: CardPaym
   ];
 }
 
-export class NotFoundError extends Error {}
-
-/**
- * Reads no longer create the plan they are asked about, so a caller can name
- * one that does not exist. This inherits the 404 `resource_not_found` mapping
- * in `http.ts` while staying greppable.
- */
-export class PlanNotFoundError extends NotFoundError {
-  constructor(message = "Plan not found") {
-    super(message);
-  }
-}
-
-export class ValidationError extends Error {}
-
-export class AccountPreferencesConflictError extends Error {}
-
-export class TransactionStateConflictError extends Error {
-  constructor(message = "Transaction cleared status changed; refresh and try again") {
-    super(message);
-  }
-}
-
-export class ReconciliationMismatchError extends Error {
-  readonly difference: number;
-
-  constructor(
-    readonly currentReconciledBalance: number,
-    readonly projectedReconciledBalance: number,
-    readonly statementBalance: number,
-  ) {
-    super("Statement balance does not match the projected reconciled balance");
-    this.difference = statementBalance - projectedReconciledBalance;
-  }
-}
-
-function normaliseReconciliationDate(value: unknown): string {
-  if (typeof value !== "string" || !/^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(value)) {
-    throw new ValidationError("statement_date must be an ISO date (YYYY-MM-DD)");
-  }
-  const date = new Date(`${value}T00:00:00Z`);
-  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw new ValidationError("statement_date must be a valid calendar date");
-  return value;
-}
-
-const CLEARED_STATES = new Set(["cleared", "uncleared", "reconciled"]);
-
-function isCalendarDate(value: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
-  const parsed = new Date(`${value}T00:00:00Z`);
-  return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
-}
-
-function validateTransactionInput(input: TransactionInput, strict: boolean): void {
-  if (!input.account_id || typeof input.account_id !== "string") {
-    throw new ValidationError("account_id is required");
-  }
-  if (!input.date || (strict && !isCalendarDate(String(input.date)))) {
-    // Importers (strict=false) keep accepting the loose date spellings they
-    // always stored verbatim; API writes must be ISO.
-    throw new ValidationError("date must be an ISO date (YYYY-MM-DD)");
-  }
-  if (!isStorableMilliunits(input.amount)) {
-    throw new ValidationError("amount must be integer milliunits within ±1e15");
-  }
-  if (input.cleared != null && !CLEARED_STATES.has(input.cleared)) {
-    throw new ValidationError("cleared must be one of cleared, uncleared, reconciled");
-  }
-
-  const subtransactions = input.subtransactions ?? [];
-  // Importers (strict=false) keep their looser split shapes, but every line
-  // is stored, so every line must fit storage.
-  for (const sub of subtransactions) {
-    if (!isStorableMilliunits(sub.amount)) {
-      throw new ValidationError("subtransaction amounts must be integer milliunits within ±1e15");
-    }
-  }
-  if (strict && subtransactions.length > 0) {
-    if (subtransactions.length < 2) {
-      throw new ValidationError("split transactions need at least two subtransactions");
-    }
-    const total = sumMilliunits(subtransactions.map((sub) => sub.amount));
-    if (total !== input.amount) {
-      throw new ValidationError(
-        `subtransactions must sum to the transaction amount (lines total ${total}, transaction is ${input.amount})`,
-      );
-    }
-  }
-}
-
 function formatPlan(row: Row): any {
   return {
     id: row.id,
@@ -3767,23 +1946,6 @@ function formatPlan(row: Row): any {
     date_format: JSON.parse(row.date_format_json),
     currency_format: JSON.parse(row.currency_format_json),
     server_knowledge: Number(row.server_knowledge),
-  };
-}
-
-/**
- * YNAB's create-account body carries the starting balance in `balance`. Only
- * applied when the server mints the id: a body naming its own id is a reseed,
- * where `balance` is a transient snapshot owned by transaction recalculation
- * and folding it in would double-count ledgers that POST accounts and then
- * import their starting-balance transactions.
- */
-function withOpeningBalance(account: any): any {
-  const openingBalance = account.opening_balance ?? account.balance ?? 0;
-  return {
-    ...account,
-    opening_balance: openingBalance,
-    balance: account.balance ?? openingBalance,
-    cleared_balance: account.cleared_balance ?? account.balance ?? openingBalance,
   };
 }
 
@@ -4027,13 +2189,6 @@ function formatCategory(row: Row): any {
     goal_percentage_complete: null,
     deleted: toBoolean(row.deleted),
   };
-}
-
-function bool(value: unknown, fallback = false): number {
-  if (value === undefined || value === null) {
-    return fallback ? 1 : 0;
-  }
-  return value === true || value === 1 ? 1 : 0;
 }
 
 function toBoolean(value: unknown): boolean {

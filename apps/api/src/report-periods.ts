@@ -1,4 +1,4 @@
-import { ValidationError } from "./repository";
+import { ValidationError } from "./errors";
 
 const MAX_REPORT_PERIODS = 3660;
 
@@ -18,7 +18,7 @@ export function implicitReportStart(earliest: string, to: string, interval: stri
   return new Date(`${earliest}T00:00:00Z`) < floor ? floor.toISOString().slice(0, 10) : earliest;
 }
 
-/** Bound calendar expansion identically for the SQLite and D1 reports. */
+/** Bound calendar expansion for every report. */
 export function validateReportPeriods(from: string, to: string, interval: string): void {
   const dates = [from, to].map((value) => {
     const date = new Date(`${value}T00:00:00Z`);

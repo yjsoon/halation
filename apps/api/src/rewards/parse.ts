@@ -1,4 +1,4 @@
-import { ValidationError } from "../repository";
+import { ValidationError } from "../errors";
 import { parseCardFlagNames } from "./flag-names";
 import { UNFLAGGED_FLAG, FLAG_COLORS, type FlagColor } from "./flags";
 import type { CardRules, CardRuleVersion } from "@howmuch/contract";

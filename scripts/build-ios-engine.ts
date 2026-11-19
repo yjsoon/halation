@@ -22,7 +22,6 @@ const shims: import("bun").BunPlugin = {
   name: "howmuch-jsc-shims",
   setup(build) {
     build.onResolve({ filter: /^(node:)?crypto$/ }, () => ({ path: join(engineSource, "shims/node-crypto.js") }));
-    build.onResolve({ filter: /^bun:sqlite$/ }, () => ({ path: join(engineSource, "shims/bun-sqlite.js") }));
     build.onResolve({ filter: /^@howmuch\/register-query$/ }, () => ({ path: join(root, "packages/register-query/src/index.ts") }));
     build.onResolve({ filter: /^@howmuch\/money$/ }, () => ({ path: join(root, "packages/money/src/index.ts") }));
   },

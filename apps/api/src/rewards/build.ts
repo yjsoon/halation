@@ -2,7 +2,7 @@ import { SimpleRewardsCalculator, type CalculationPeriod, type SimplifiedCalcula
 import { resolveCardSpendingTier } from "./engine/utils/spending-tiers";
 import { parseYnabDate, rewardsToday } from "./engine/date-utils";
 import { cardForPeriod } from "./versions";
-import { ValidationError } from "../repository";
+import { ValidationError } from "../errors";
 import type {
   AppSettings,
   CreditCard,

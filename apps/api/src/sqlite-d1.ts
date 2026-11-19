@@ -16,7 +16,7 @@ export function openD1Sqlite(path = ":memory:"): Database {
   const db = new Database(path, { create: true, strict: true });
   if (db.query("SELECT 1 FROM sqlite_master WHERE name = 'schema_migrations'").get()) {
     db.close();
-    throw new Error(`${path} is a ledger from the old local SQLite server, not a D1 database`);
+    throw new Error(`${path} is a ledger from the retired local SQLite server, not a D1 database`);
   }
   applyD1Migrations(db);
   // D1 enforces foreign keys. Turned on after the migrations, whose table

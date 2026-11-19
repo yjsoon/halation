@@ -1,5 +1,5 @@
 import { createId } from "../ids";
-import { NotFoundError, ValidationError } from "../repository";
+import { NotFoundError, ValidationError } from "../errors";
 import { sanitizeSettings } from "../importers/rewards-tracker";
 import type { LedgerStore } from "../storage";
 import { cardFlagNames, flagNameForColour } from "./flag-names";

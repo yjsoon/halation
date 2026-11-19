@@ -5,7 +5,7 @@ import { d1Handler, d1Repo } from "../tests/helpers/native-harness";
 
 test("native tools require authentication, same-origin CSRF, and plan permission before parsing", async () => {
   const db = openD1Sqlite();
-  const handler = d1Handler(db, { config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "test-plan" } });
+  const handler = d1Handler(db, { config: { apiToken: "test-token", defaultPlanId: "test-plan" } });
   try {
     for (const route of ["reward-terms", "statement-formatter"]) {
       const request = (headers: Record<string, string>, plan = "test-plan") => handler(new Request(`https://howmuch.test/api/tools/${route}?plan_id=${plan}`, { method: "POST", headers, body: "not JSON" }));

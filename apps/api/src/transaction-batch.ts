@@ -1,5 +1,5 @@
 import { isStorableMilliunits } from "@howmuch/money";
-import { ValidationError } from "./repository";
+import { ValidationError } from "./errors";
 import { isClaimDay } from "./transaction-claim";
 import {
   MAX_TRANSACTION_WRITE_BATCH,

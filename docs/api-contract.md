@@ -186,7 +186,7 @@ The caller must be an owner or editor; the default-plan API token is also accept
 
 Response data contains `account`, ordered `reconciled_transaction_ids`, `reconciled_transaction_count`, `statement_date`, `statement_balance`, `prior_reconciled_balance`, `final_reconciled_balance`, `replayed`, and `server_knowledge`. An exact idempotent retry replays its receipt without changing knowledge or adding another audit event. Reusing the key for another request returns `409 conflict`.
 
-A statement mismatch returns `409 reconciliation_mismatch` with `current_reconciled_balance`, `projected_reconciled_balance`, `statement_balance`, and `difference` (`statement_balance - projected_reconciled_balance`). SQLite performs calculation and mutation in one immediate transaction. D1 verifies the exact preview snapshot inside the guarded write batch, so a concurrent clearing change returns `409 conflict` without a partial reconciliation.
+A statement mismatch returns `409 reconciliation_mismatch` with `current_reconciled_balance`, `projected_reconciled_balance`, `statement_balance`, and `difference` (`statement_balance - projected_reconciled_balance`). The write verifies the exact preview snapshot inside the guarded write batch, so a concurrent clearing change returns `409 conflict` without a partial reconciliation.
 
 Account fields to return:
 
@@ -266,7 +266,7 @@ Rules:
 - `DELETE` is a soft delete (`deleted: true`). It returns `409 category_in_use` while a live transaction, split line, schedule or schedule split still names the category.
 - Send an `Idempotency-Key` (the Idempotency-Key rules above apply). An exact retry replays the result; reusing the key for a different request returns `409 conflict`.
 
-SQLite checks and writes in one immediate transaction. D1 repeats every check inside the guarded write batch, so a concurrent change aborts the whole write.
+The write repeats every check inside the guarded write batch, so a concurrent change aborts the whole write.
 
 ### Budgeting (removed)
 
@@ -282,7 +282,7 @@ The YNAB importer still mirrors months, month categories and money movements int
 
 `GET /v1/plans/{plan_id}/scheduled_subtransactions`
 
-Every schedule, imported or created here, is a row in `scheduled_transaction_edits` (with its lines in `scheduled_subtransaction_edits`), and the collection reads only those tables. An imported schedule is stored with `origin = ynab-overlay` and its payload exactly as YNAB sent it; a delete hides it with a tombstone. The importer adds a schedule only when none with that ID exists, so a later import never overwrites a local change. Migration `0019` (SQLite `022`) copied the schedules imported before that. The source rows in `ynab_raw_objects` are not read or changed by schedule requests.
+Every schedule, imported or created here, is a row in `scheduled_transaction_edits` (with its lines in `scheduled_subtransaction_edits`), and the collection reads only those tables. An imported schedule is stored with `origin = ynab-overlay` and its payload exactly as YNAB sent it; a delete hides it with a tombstone. The importer adds a schedule only when none with that ID exists, so a later import never overwrites a local change. Migration `0019` copied the schedules imported before that. The source rows in `ynab_raw_objects` are not read or changed by schedule requests.
 
 Create, replace, update, or delete an effective schedule with:
 
@@ -356,7 +356,7 @@ Responses also carry `created_at`, when the card's terms were first saved (ISO 8
 
 PUT replaces the whole row: an omitted field takes its default, not its stored value. `account_id` may be sent and must match the path. Unknown fields, a missing or deleted card (`404`), a non-card account, or a funding account outside the plan return `400`. Send an `Idempotency-Key` (the schedule rules above apply): an exact retry replays, and reusing the key for a different request returns `409 conflict`. Every write moves `server_knowledge`. D1 writes are guarded batches that re-check the card and funding account inside the batch.
 
-`GET /v1/plans/{plan_id}/card_payments?as_of=2026-10-18` returns the derived view. `as_of` is optional and defaults to today in the plan's time zone (`HOWMUCH_TIME_ZONE` on the Worker and the Bun server, falling back to the host's zone on Bun; the configured zone in local mode). Viewers may read it. Nothing is stored; every number is computed by `apps/api/src/card-payments.ts`.
+`GET /v1/plans/{plan_id}/card_payments?as_of=2026-10-18` returns the derived view. `as_of` is optional and defaults to today in the plan's time zone (`HOWMUCH_TIME_ZONE` on the Worker; the configured zone in local mode). Viewers may read it. Nothing is stored; every number is computed by `apps/api/src/card-payments.ts`.
 
 ```json
 {
@@ -555,9 +555,8 @@ lookup and `import_id` is ignored. `import_id` never changes the stored import
 id. Collection PATCH ignores `deleted`. Use `DELETE` to tombstone a row. A live
 `import_id` that matches more than one row is `400`. The array may contain at
 most 100 items. An empty array is `400`. A missing target is `404`
-and SQLite applies none of the batch. The response is `200` with
-`transaction_ids`, `transactions`, and `server_knowledge`. SQLite bumps
-knowledge once for the batch.
+and none of the batch is applied. The response is `200` with
+`transaction_ids`, `transactions`, and `server_knowledge`.
 
 Bulk cleared and bulk delete:
 
@@ -877,7 +876,7 @@ Import rules:
 - An id that already exists anywhere on the server returns `409 conflict`, and nothing is imported.
 - The request body is limited to 8 MiB (`413 payload_too_large`). Imports are meant for device-sized ledgers. A very large ledger (tens of thousands of transactions) should be loaded with the offline bootstrap procedure in [Restoring or bulk-loading D1 data](deployment.md#restoring-or-bulk-loading-d1-data) instead.
 
-The import is one atomic write. Each table's rows are bound as JSON chunks of at most 512 KiB and expanded in SQL with `json_each`, so the statement count grows with the snapshot's size in bytes, not its row count. On SQLite the whole import runs in one immediate transaction; on D1 it is one guarded batch that re-checks emptiness and the native-plan rule inside the batch. A failure leaves the plan exactly as it was, never partly imported.
+The import is one atomic write. Each table's rows are bound as JSON chunks of at most 512 KiB and expanded in SQL with `json_each`, so the statement count grows with the snapshot's size in bytes, not its row count. It is one guarded batch that re-checks emptiness and the native-plan rule inside the batch. A failure leaves the plan exactly as it was, never partly imported.
 
 ## Native Endpoints
 

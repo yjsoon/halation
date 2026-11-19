@@ -5,9 +5,6 @@ import { D1AuthStore } from "../src/auth-store";
 import { D1LedgerRepository } from "../src/d1-ledger-repository";
 import { createHandler } from "../src/http";
 import { newSession, passwordCredential } from "../src/password-auth";
-import { LedgerRepository } from "../src/repository";
-import type { RepositoryDatabase } from "../src/repository-db";
-import type { LedgerStore } from "../src/storage";
 import { CountingD1Database, fakeD1Binding } from "./helpers/counting-d1";
 
 const PLAN_ID = "p";
@@ -69,7 +66,7 @@ async function ledgerSqlite(): Promise<Database> {
   return sqlite;
 }
 
-async function harness(makeRepo: (db: CountingD1Database) => LedgerStore) {
+async function harness() {
   const sqlite = await ledgerSqlite();
 
   const counting = new CountingD1Database(fakeD1Binding(sqlite));
@@ -86,10 +83,10 @@ async function harness(makeRepo: (db: CountingD1Database) => LedgerStore) {
   seedLedger(sqlite);
 
   const handler = createHandler({
-    repo: makeRepo(counting),
+    repo: new D1LedgerRepository(counting, PLAN_ID),
     reports: new AsyncReportService(counting),
     auth: new D1AuthStore(counting),
-    config: { dbPath: "", port: 0, apiToken: "api-token", defaultPlanId: PLAN_ID },
+    config: { apiToken: "api-token", defaultPlanId: PLAN_ID },
   });
 
   return { counting, handler, token: session.token };
@@ -122,33 +119,28 @@ function seedLedger(db: Database): void {
   }
 }
 
-async function measure(variant: string, makeRepo: (db: CountingD1Database) => LedgerStore) {
-  const { counting, handler, token } = await harness(makeRepo);
+async function measure() {
+  const { counting, handler, token } = await harness();
   const counts: Record<string, number> = {};
   for (const route of ROUTES) {
     counting.reset();
     const response = await handler(new Request(`https://howmuch.test${route.path}`, {
       headers: { authorization: `Bearer ${token}` },
     }));
-    expect(`${variant} ${route.name} -> ${response.status}`).toBe(`${variant} ${route.name} -> 200`);
-    expect(`${variant} ${route.name} wrote ${counting.mutations().length} statements`)
-      .toBe(`${variant} ${route.name} wrote 0 statements`);
+    expect(`${route.name} -> ${response.status}`).toBe(`${route.name} -> 200`);
+    expect(`${route.name} wrote ${counting.mutations().length} statements`)
+      .toBe(`${route.name} wrote 0 statements`);
     counts[route.name] = counting.count;
   }
   return counts;
 }
 
 test("GET routes issue no writes and stay within their round-trip budget", async () => {
-  const d1Counts = await measure("D1LedgerRepository", (db) => new D1LedgerRepository(db, PLAN_ID));
-  const baseCounts = await measure("LedgerRepository", (db) => new LedgerRepository(db, PLAN_ID));
+  const d1Counts = await measure();
 
-  console.log(JSON.stringify({ event: "read_round_trips", d1: d1Counts, base: baseCounts }));
+  console.log(JSON.stringify({ event: "read_round_trips", d1: d1Counts }));
 
   for (const route of ROUTES) {
-    // Both repositories share their read paths, so a regression on either shows
-    // up here rather than only in the D1 numbers.
-    expect(`${route.name} d1=${d1Counts[route.name]} base=${baseCounts[route.name]}`)
-      .toBe(`${route.name} d1=${baseCounts[route.name]} base=${baseCounts[route.name]}`);
     expect(d1Counts[route.name]).toBeLessThanOrEqual(BUDGET[route.name]!);
   }
 
@@ -159,7 +151,7 @@ test("GET routes issue no writes and stay within their round-trip budget", async
 });
 
 test("the D1 register page reads knowledge, rows and split lines in one batch", async () => {
-  const { counting, handler, token } = await harness((db) => new D1LedgerRepository(db, PLAN_ID));
+  const { counting, handler, token } = await harness();
   counting.reset();
 
   const response = await handler(new Request(`https://howmuch.test/v1/plans/${PLAN_ID}/transactions?limit=10`, {
@@ -172,58 +164,8 @@ test("the D1 register page reads knowledge, rows and split lines in one batch", 
   expect(batches[0]!.sql).toContain("SELECT server_knowledge FROM plans");
   expect(batches[0]!.sql).toContain("FROM transactions t");
   expect(batches[0]!.sql).toContain("FROM subtransactions st");
+  // One batch is one D1 transaction, so the knowledge value labelling the page
+  // shares a snapshot with its rows.
   expect(counting.roundTrips.filter((trip) => trip.kind !== "batch" && /server_knowledge FROM plans/.test(trip.sql)))
     .toBeEmpty();
-});
-  // One batch is one D1 transaction, so these three statements share a
-  // snapshot. That is what replaced reading server_knowledge either side of the
-  // page and retrying when the two disagreed.
-
-test("the SQLite register page comes from one batch, which nests without deadlocking", async () => {
-  const sqlite = await ledgerSqlite();
-  // No knowledge read survives outside the batch, so nothing can observe a
-  // different snapshot from the rows it labels.
-  sqlite.run("INSERT INTO plans (id, name) VALUES (?, 'Plan')", [PLAN_ID]);
-  sqlite.run("INSERT INTO users (id, display_name) VALUES ('user-1', 'reader')");
-  seedLedger(sqlite);
-
-  // A raw Database makes LedgerRepository wrap it in SqliteRepositoryDatabase,
-  // the only path where batchRead's own BEGIN runs. The round-trip test above
-  // only ever sees the D1 implementation.
-  const repo = new LedgerRepository(sqlite, PLAN_ID);
-  const expectedKnowledge = await repo.getServerKnowledge(PLAN_ID);
-  const db = (repo as unknown as { db: RepositoryDatabase }).db;
-
-  const batched: string[][] = [];
-  const singles: string[] = [];
-  const runBatch = db.batchRead.bind(db);
-  const runQuery = db.query.bind(db);
-  db.batchRead = (statements) => {
-    batched.push(statements.map((statement) => statement.sql));
-    return runBatch(statements);
-  };
-  db.query = (sql) => {
-    singles.push(sql);
-    return runQuery(sql);
-  };
-
-  const page = await repo.listTransactionsPage(PLAN_ID, { limit: 10 });
-
-  expect(page.transactions).toHaveLength(1);
-  expect(page.server_knowledge).toBe(expectedKnowledge);
-  expect(batched).toHaveLength(1);
-  expect(batched[0]!.filter((sql) => /server_knowledge FROM plans/.test(sql))).toHaveLength(1);
-  expect(batched[0]!.filter((sql) => /FROM subtransactions st/.test(sql))).toHaveLength(1);
-  expect(batched[0]).toHaveLength(3);
-  expect(singles.filter((sql) => /server_knowledge FROM plans/.test(sql))).toBeEmpty();
-
-  // Inside an open transaction the helper runs its statements inline. Queueing
-  // The page and the knowledge value labelling it came from one batch call, so
-  // no write could have landed between them.
-  // behind transaction()'s serialiser instead would deadlock on the caller.
-  const nested = await db.transaction(() => runBatch([
-    { sql: "SELECT server_knowledge FROM plans WHERE id = ?", values: [PLAN_ID] },
-  ]))();
-  expect(Number(nested[0]![0]!.server_knowledge)).toBe(expectedKnowledge);
-  expect(sqlite.inTransaction).toBeFalse();
 });

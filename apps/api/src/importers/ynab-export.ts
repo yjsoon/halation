@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { PlanNotFoundError, ValidationError } from "../repository";
+import { PlanNotFoundError, ValidationError } from "../errors";
 import type { LedgerStore } from "../storage";
 import type { ClearedState, TransactionInput } from "../types";
 

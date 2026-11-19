@@ -1,4 +1,4 @@
-import { ValidationError } from "../repository";
+import { ValidationError } from "../errors";
 import { rewardsToday } from "../rewards/engine/date-utils";
 import type { LedgerStore } from "../storage";
 import type { TransactionInput } from "../types";

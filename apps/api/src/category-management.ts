@@ -1,10 +1,9 @@
 /**
  * Pure core for HowMuch-native category management.
  *
- * Parsing, validation and the SQL each mutation needs live here; the SQLite
- * repository runs the statements inside one immediate transaction and the D1
- * repository runs them in one guarded batch. Neither backend adds rules of its
- * own, so the two stay identical.
+ * Parsing, validation and the SQL each mutation needs live here; the D1
+ * repository runs the statements in one guarded batch and adds no rules of
+ * its own.
  *
  * A plan is "native" when the importer has not marked it `ynab_sourced`. The owner's
  * production plan is a YNAB mirror; every write here refuses to touch it.
@@ -164,7 +163,7 @@ function audit(auditId: string, planId: string, action: string, resourceType: st
 /**
  * The write every category command shares: its row change, one knowledge
  * bump (clients revalidate cached categories against it), and an audit row
- * whose metadata carries the request hash for SQLite idempotent replay.
+ * whose metadata carries the request hash.
  */
 export type CategoryCommand = Readonly<{
   action: "category_group.create" | "category_group.update" | "category.create" | "category.update" | "category.delete";

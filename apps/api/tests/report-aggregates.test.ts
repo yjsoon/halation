@@ -3,8 +3,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { AsyncReportService } from "../src/async-reports";
 import { D1Database } from "../src/d1";
 import { D1LedgerRepository } from "../src/d1-ledger-repository";
-import { AsyncReportService } from "../src/async-reports";
-import { ReportService } from "../src/reports";
+import { ReferenceReports } from "./helpers/reference-reports";
 import { CountingD1Database, fakeD1Binding } from "./helpers/counting-d1";
 
 const databases: Database[] = [];
@@ -127,7 +126,7 @@ describe("report aggregates", () => {
 
   test("aggregate-backed net worth matches the full-history report on a synthetic ledger", async () => {
     const { db } = await syntheticLedger();
-    const expected = new ReportService(db);
+    const expected = new ReferenceReports(db);
     const actual = new AsyncReportService(new D1Database(fakeD1Binding(db)));
 
     // Guard against a vacuous pass: the fixture must produce a real ledger.
@@ -161,7 +160,7 @@ describe("report aggregates", () => {
 
   test("cached age of money matches the full-history report and survives a ledger change", async () => {
     const { db, repo } = await syntheticLedger();
-    const expected = new ReportService(db);
+    const expected = new ReferenceReports(db);
     const actual = new AsyncReportService(new D1Database(fakeD1Binding(db)));
     const filters = { from: "2026-01-01", to: "2026-05-31", interval: "month" } as const;
 
@@ -227,7 +226,7 @@ describe("report aggregates", () => {
     await repo.createTransaction(PLAN, { id: "spend", account_id: "cash", date: "2026-01-20", amount: -40000 });
 
     const filters = { to: "2026-03-31", interval: "month" } as const;
-    for (const reports of [new ReportService(db), new AsyncReportService(new D1Database(fakeD1Binding(db)))]) {
+    for (const reports of [new ReferenceReports(db), new AsyncReportService(new D1Database(fakeD1Binding(db)))]) {
       const age = await reports.ageOfMoney(PLAN, filters);
       expect(age.periods.length).toBeLessThanOrEqual(3661);
       expect(age.periods.at(-1).period).toBe("2026-03");

@@ -10,7 +10,7 @@ import {
   type Fetch,
 } from "@typesafe-ai/sdk";
 import type { LedgerStore } from "./storage";
-import { NotFoundError, ValidationError } from "./repository";
+import { NotFoundError, ValidationError } from "./errors";
 import type { TransactionInput } from "./types";
 import { nameSimilarity, payeeSearchStem, payeeTokens } from "./payee-names";
 

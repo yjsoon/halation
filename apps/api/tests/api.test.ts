@@ -23,8 +23,6 @@ beforeEach(async () => {
   }
   handler = d1Handler(db, {
     config: {
-      dbPath: ":memory:",
-      port: 0,
       apiToken: "test-token",
       defaultPlanId: "plan-test",
     },
@@ -40,7 +38,7 @@ describe("YNAB-compatible API", () => {
     const repo = d1Repo(db, "plan-test");
     handler = d1Handler(db, {
       repo,
-      config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "plan-test" },
+      config: { apiToken: "test-token", defaultPlanId: "plan-test" },
     });
     await createAccount("cash", { name: "Cash", type: "checking" });
     // Ordinary sequential E2E saves miss the gap between HTTP parsing and
@@ -606,7 +604,7 @@ describe("YNAB-compatible API", () => {
     // database where no plan has ever been created.
     const empty = openD1Sqlite();
     const emptyHandler = d1Handler(empty, {
-      config: { dbPath: ":memory:", port: 0, apiToken: "test-token", defaultPlanId: "plan-test" },
+      config: { apiToken: "test-token", defaultPlanId: "plan-test" },
     });
     const read = (path: string) => emptyHandler(new Request(`http://howmuch.test${path}`, {
       headers: { authorization: "Bearer test-token" },
@@ -2674,8 +2672,6 @@ describe("native reports and imports", () => {
     // never steer the server's outbound fetches (SSRF).
     handler = d1Handler(db, {
       config: {
-        dbPath: ":memory:",
-        port: 0,
         apiToken: "test-token",
         defaultPlanId: "plan-test",
         ynabBaseUrl: "https://ynab.example/v1",
@@ -2831,8 +2827,6 @@ describe("password authentication", () => {
   test("allows tokenless local setup without an Authorization header", async () => {
     const localHandler = d1Handler(db, {
       config: {
-        dbPath: ":memory:",
-        port: 0,
         defaultPlanId: "plan-test",
       },
     });
@@ -2856,8 +2850,6 @@ describe("password authentication", () => {
   test("refuses tokenless setup when the Host is not loopback", async () => {
     const localHandler = d1Handler(db, {
       config: {
-        dbPath: ":memory:",
-        port: 0,
         defaultPlanId: "plan-test",
       },
     });
@@ -2882,8 +2874,6 @@ describe("password authentication", () => {
   test("a server that never allows tokenless setup reports it and refuses", async () => {
     const workerHandler = d1Handler(db, {
       config: {
-        dbPath: ":memory:",
-        port: 0,
         defaultPlanId: "plan-test",
         refuseTokenlessSetup: true,
       },
@@ -3242,8 +3232,6 @@ describe("plans that do not exist", () => {
   // The API token can read the default plan, so authorisation passes and the
   // repository is the thing that has to answer for a missing row.
   const ghostConfig = {
-    dbPath: ":memory:",
-    port: 0,
     apiToken: "test-token",
     defaultPlanId: "plan-ghost",
   };

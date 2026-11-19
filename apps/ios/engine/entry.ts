@@ -110,8 +110,6 @@ async function configure(configJson: string): Promise<void> {
     throw new Error("apiToken, defaultPlanId and timeZone are required");
   }
   const apiConfig: ApiConfig = {
-    dbPath: "",
-    port: 0,
     apiToken: config.apiToken,
     defaultPlanId: config.defaultPlanId,
     timeZone: config.timeZone,

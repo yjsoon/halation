@@ -32,7 +32,7 @@ export async function nativeHarness(
 ): Promise<NativeHarness> {
   const db = openD1Sqlite();
   const writeBatches: number[] = [];
-  const config = { dbPath: ":memory:", port: 0, apiToken: API_TOKEN, defaultPlanId: "p" };
+  const config = { apiToken: API_TOKEN, defaultPlanId: "p" };
   const binding = sqliteD1Binding(db);
   const batch = binding.batch.bind(binding);
   binding.batch = (async (statements: Parameters<typeof batch>[0]) => {
@@ -70,7 +70,7 @@ export function d1Repo(db: Database, planId: string): D1LedgerRepository {
 /** The production handler over `db`; `repo` and `auth` default to the D1 stores. */
 export function d1Handler(
   db: Database,
-  options: Omit<HandlerOptions, "db" | "reports">,
+  options: Omit<HandlerOptions, "reports" | "repo" | "auth"> & Partial<Pick<HandlerOptions, "repo" | "auth">>,
   d1 = new D1Database(sqliteD1Binding(db)),
 ): (request: Request) => Promise<Response> {
   return createHandler({

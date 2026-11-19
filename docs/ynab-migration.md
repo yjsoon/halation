@@ -35,7 +35,7 @@ bun run import:ynab --list-plans
 bun run import:ynab --plan-id <ynab-plan-id> --db data/ynab-import.sqlite
 ```
 
-The file has the D1 schema, and the importer writes it through the same repository code production runs, over a local D1 binding. It refuses a ledger file from the old local SQLite server (`bun run api:dev`).
+The file has the D1 schema, and the importer writes it through the same repository code production runs, over a local D1 binding. It refuses a ledger file from the retired local SQLite server.
 
 The importer:
 

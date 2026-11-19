@@ -1,12 +1,11 @@
-import type { LedgerRepository } from "./repository";
-import type { ReportService } from "./reports";
+import type { AsyncReportService } from "./async-reports";
+import type { D1LedgerRepository } from "./d1-ledger-repository";
 
 type Awaitable<T> = T | Promise<T>;
 
 /**
  * Public storage boundary used by HTTP, import, and scheduled-sync code.
- * SQLite satisfies it synchronously today; asynchronous D1 implementations
- * return promises. Callers must always await it so runtime choice is invisible.
+ * Callers always await it, so a test double may answer synchronously.
  */
 export type AwaitableMethods<T> = {
   [Key in keyof T]: T[Key] extends (...args: infer Args) => infer Result
@@ -14,5 +13,5 @@ export type AwaitableMethods<T> = {
     : T[Key];
 };
 
-export type LedgerStore = AwaitableMethods<LedgerRepository>;
-export type ReportStore = AwaitableMethods<ReportService>;
+export type LedgerStore = AwaitableMethods<D1LedgerRepository>;
+export type ReportStore = AwaitableMethods<AsyncReportService>;

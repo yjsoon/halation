@@ -1,7 +1,7 @@
 import { isStorableMilliunits, sumMilliunits } from "@howmuch/money";
 import { createId } from "./ids";
 import type { TransactionInput } from "./types";
-import { NotFoundError, ValidationError } from "./repository";
+import { NotFoundError, ValidationError } from "./errors";
 import { newLinkedSideCleared } from "./scheduled-transactions";
 import type { D1Database } from "./d1";
 import type { SqlValues } from "./async-sql";
@@ -294,7 +294,7 @@ export class D1TransactionRepository {
     let parentPayeeName = input.payee_name ?? payee?.name ?? null;
     if (input.payee_id && (!transferAccount || !autoLink)) body.push(assertion(stable.commandId, payee?.transfer_account_id ? "transfer_payee" : "payee", input.payee_id, planId));
     // Transfers between two budget accounts carry no category; a transfer to a
-    // tracking account keeps it and counts as spending, as on SQLite.
+    // tracking account keeps it and counts as spending.
     let transferDropsCategory = false;
     if (transferAccount && autoLink) {
       const target = await this.db.get<Record<string, any>>("SELECT * FROM accounts WHERE id=$1 AND plan_id=$2 AND deleted=0", [transferAccount, planId]);
@@ -306,7 +306,7 @@ export class D1TransactionRepository {
       if (!sourcePayee) throw new Error("Source account transfer payee not found");
       if (input.payee_id) body.push(assertion(stable.commandId, "transfer_payee", input.payee_id, planId));
       // A transfer named only by its account (the web schedule editor saves
-      // one so) takes the target's transfer payee, as on SQLite.
+      // one so) takes the target's transfer payee.
       const targetPayee = input.payee_id ? null : await this.transferPayee(target, planId);
       if (targetPayee) {
         parentPayeeId = targetPayee.id; parentPayeeName = targetPayee.name;
@@ -441,7 +441,7 @@ function subInput(row: Record<string, any>) {
 }
 /**
  * Fields a linked side owns. Writing the other side rewrites the mirror row,
- * and must keep its flag, its bank match and its source, as SQLite does. Its
+ * and must keep its flag, its bank match and its source. Its
  * category is kept by the callers, which pass it beside these fields. The
  * claim is kept here too; an ordinary transfer's caller then lays the pair's
  * claim over it, while a split line's linked side keeps its own.

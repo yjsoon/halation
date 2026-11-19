@@ -4,8 +4,7 @@ import { isStorableMilliunits } from "@howmuch/money";
  *
  * Export projects stored rows into the snapshot; import validates a snapshot
  * into database-ready rows and plans the SQL that inserts them. The
- * repositories only read, guard, and run the statements, so SQLite and D1
- * import exactly the same rows.
+ * repository only reads, guards, and runs the statements.
  *
  * Import is one atomic write. D1 bounds each bound value, so every table's
  * rows travel as JSON chunks of at most SNAPSHOT_CHUNK_BYTES, each expanded
@@ -700,9 +699,8 @@ export function chunkRows(rows: readonly Row[], maxBytes = SNAPSHOT_CHUNK_BYTES)
 }
 
 /**
- * Every statement the import writes, for both backends. The caller adds its
- * own guards in front (the D1 in-batch preconditions, or SQLite's reads in
- * the same immediate transaction).
+ * Every statement the import writes. The caller adds its own guards in
+ * front (the D1 in-batch preconditions).
  */
 export function snapshotImportStatements(
   planId: string,

@@ -1,0 +1,281 @@
+import type { Database } from "bun:sqlite";
+import { implicitReportStart, validateReportPeriods } from "../../src/report-periods";
+import type { ReportFilters } from "../../src/types";
+
+type Row = Record<string, any>;
+
+/**
+ * Full-history net worth and age of money, kept from the retired bun:sqlite
+ * report service as the reference that report-aggregates.test.ts compares the
+ * aggregate-backed D1 reports against. Do not optimise it: the parity check is
+ * only meaningful while this scans the whole ledger independently.
+ */
+export class ReferenceReports {
+  constructor(private readonly db: Database) {}
+
+  netWorth(planId: string, filters: ReportFilters = {}): any {
+    const to = filters.to ?? todayIso();
+    const from = filters.from ?? implicitReportStart(earliestDate(this.db, planId) ?? todayIso(), to, filters.interval ?? "month");
+    const periods = buildPeriods(from, to, filters.interval ?? "month");
+    const accounts = this.db
+      .query(
+        `SELECT * FROM accounts
+         WHERE plan_id = ?
+           AND deleted = 0
+           AND include_in_net_worth = 1
+           AND (? = 1 OR closed = 0)
+         ORDER BY name, id`,
+      )
+      .all(planId, filters.includeClosedAccounts === true ? 1 : 0) as Row[];
+
+    let previousNetWorth: number | null = null;
+    const rows = periods.map((period) => {
+      const accountRows = accounts
+        .filter((account) => !filters.accountIds?.length || filters.accountIds.includes(account.id))
+        .map((account) => {
+          const balanceRow = this.db
+            .query(
+              `SELECT ? + COALESCE(SUM(CASE WHEN deleted = 0 THEN amount_milli ELSE 0 END), 0) AS balance
+               FROM transactions
+               WHERE plan_id = ? AND account_id = ? AND date <= ?`,
+            )
+            .get(Number(account.opening_balance_milli ?? 0), planId, account.id, period.end) as Row;
+          return {
+            account_id: account.id,
+            account_name: account.name,
+            closed: account.closed === 1,
+            balance: Number(balanceRow.balance ?? 0),
+          };
+        });
+      const netWorth = accountRows.reduce((sum, account) => sum + account.balance, 0);
+      const delta = previousNetWorth == null ? null : netWorth - previousNetWorth;
+      previousNetWorth = netWorth;
+      return {
+        period: period.label,
+        end_date: period.end,
+        net_worth: netWorth,
+        delta,
+        accounts: accountRows,
+      };
+    });
+
+    return { periods: rows };
+  }
+
+  ageOfMoney(planId: string, filters: ReportFilters = {}): any {
+    const to = filters.to ?? todayIso();
+    const from = filters.from ?? implicitReportStart(earliestDate(this.db, planId) ?? todayIso(), to, filters.interval ?? "month");
+    const { linesSql, where, params } = this.lineFilters(planId, filters, true);
+    const rows = this.db
+      .query(
+        `WITH lines AS (${linesSql})
+         SELECT date, amount_milli
+         FROM lines
+         WHERE ${where}
+         ORDER BY date ASC, ledger_sequence ASC, line_sequence ASC`,
+      )
+      .all(...params) as Row[];
+
+    const lots: Array<{ date: string; amount: number }> = [];
+    const interval = filters.interval ?? "month";
+    const buckets = new Map<string, { weightedAge: number; spent: number; unmatched: number }>(
+      buildPeriods(from, to, interval).map((period) => [period.label, { weightedAge: 0, spent: 0, unmatched: 0 }]),
+    );
+
+    for (const row of rows) {
+      const amount = Number(row.amount_milli);
+      if (amount > 0) {
+        lots.push({ date: row.date, amount });
+        continue;
+      }
+      if (amount >= 0) {
+        continue;
+      }
+
+      let remaining = Math.abs(amount);
+      const period = periodLabel(row.date, interval);
+      const bucket = buckets.get(period) ?? { weightedAge: 0, spent: 0, unmatched: 0 };
+
+      while (remaining > 0 && lots.length > 0) {
+        const lot = lots[0];
+        const used = Math.min(remaining, lot.amount);
+        const age = daysBetween(lot.date, row.date);
+        bucket.weightedAge += age * used;
+        bucket.spent += used;
+        remaining -= used;
+        lot.amount -= used;
+        if (lot.amount === 0) {
+          lots.shift();
+        }
+      }
+
+      if (remaining > 0) {
+        bucket.unmatched += remaining;
+      }
+      buckets.set(period, bucket);
+    }
+
+    return {
+      interval,
+      // Weekly cursors step seven days from `from`, so a year's last short
+      // week (31 December) can be missing until a row creates it at the end.
+      periods: [...buckets.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([period, bucket]) => ({
+        period,
+        age_of_money_days: bucket.spent > 0 ? bucket.weightedAge / bucket.spent : null,
+        spent: bucket.spent,
+        unmatched_spending: bucket.unmatched,
+      })),
+    };
+  }
+
+  private lineFilters(planId: string, filters: ReportFilters, includeTransfers = false): { linesSql: string; where: string; params: any[] } {
+    const inner = ["t.plan_id = ?", "t.deleted = 0"];
+    const params: any[] = [planId];
+
+    if (filters.from) {
+      inner.push("t.date >= ?");
+      params.push(filters.from);
+    }
+    if (filters.to) {
+      inner.push("t.date <= ?");
+      params.push(filters.to);
+    }
+    appendInFilter(inner, params, "t.account_id", filters.accountIds);
+
+    const clauses: string[] = [];
+    if (!includeTransfers && filters.includeTransfers !== true) {
+      // YNAB counts categorised transfers (e.g. paying a tracking-account
+      // loan) as spending; only uncategorised transfer legs stay out.
+      clauses.push(
+        "(lines.category_id IS NOT NULL OR (lines.transfer_transaction_id IS NULL AND lines.transfer_account_id IS NULL))",
+      );
+    }
+    appendCategoryFilter(clauses, params, filters.categoryIds);
+    appendInFilter(clauses, params, "lines.category_group_id", filters.categoryGroupIds);
+    appendInFilter(clauses, params, "lines.payee_id", filters.payeeIds);
+
+    return { linesSql: lineItemsSql(inner.join(" AND ")), where: clauses.length ? clauses.join(" AND ") : "1=1", params };
+  }
+}
+
+function lineItemsSql(innerWhere: string): string {
+  return `
+    SELECT
+      t.id AS transaction_id,
+      t.rowid AS ledger_sequence,
+      COALESCE(st.rowid, 0) AS line_sequence,
+      t.plan_id,
+      t.account_id,
+      t.date,
+      COALESCE(st.amount_milli, t.amount_milli) AS amount_milli,
+      COALESCE(st.payee_id, t.payee_id) AS payee_id,
+      COALESCE(st.payee_name_snapshot, t.payee_name_snapshot) AS payee_name_snapshot,
+      COALESCE(st.category_id, t.category_id) AS category_id,
+      c.category_group_id,
+      COALESCE(st.transfer_transaction_id, t.transfer_transaction_id) AS transfer_transaction_id,
+      COALESCE(st.transfer_account_id, t.transfer_account_id) AS transfer_account_id,
+      t.deleted
+    FROM transactions t
+    LEFT JOIN subtransactions st ON st.transaction_id = t.id AND st.deleted = 0
+    LEFT JOIN categories c ON c.id = COALESCE(st.category_id, t.category_id)
+    WHERE (${innerWhere}) AND (
+      NOT EXISTS (
+        SELECT 1 FROM subtransactions existing
+        WHERE existing.transaction_id = t.id AND existing.deleted = 0
+      )
+      OR st.id IS NOT NULL
+    )
+  `;
+}
+
+/** Spending breakdown surfaces uncategorised lines under this synthetic id. */
+const UNCATEGORISED_ID = "uncategorised";
+
+/** Category filter that treats the synthetic uncategorised id as `category_id IS NULL`. */
+function appendCategoryFilter(clauses: string[], params: any[], values?: string[]): void {
+  if (!values?.length) {
+    return;
+  }
+  const ids = values.filter((value) => value !== UNCATEGORISED_ID);
+  if (ids.length === values.length) {
+    appendInFilter(clauses, params, "lines.category_id", ids);
+  } else if (!ids.length) {
+    clauses.push("lines.category_id IS NULL");
+  } else {
+    clauses.push(`(lines.category_id IN (${ids.map(() => "?").join(", ")}) OR lines.category_id IS NULL)`);
+    params.push(...ids);
+  }
+}
+
+function appendInFilter(clauses: string[], params: any[], column: string, values?: string[]): void {
+  if (!values?.length) {
+    return;
+  }
+  clauses.push(`${column} IN (${values.map(() => "?").join(", ")})`);
+  params.push(...values);
+}
+
+function periodLabel(date: string, interval: string): string {
+  if (interval === "day") {
+    return date;
+  }
+  if (interval === "year") {
+    return date.slice(0, 4);
+  }
+  if (interval === "week") {
+    const d = new Date(`${date}T00:00:00Z`);
+    const start = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    const week = Math.floor((Number(d) - Number(start)) / (7 * 86400000));
+    return `${d.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+  }
+  return date.slice(0, 7);
+}
+
+function earliestDate(db: Database, planId: string): string | null {
+  const row = db.query("SELECT MIN(date) AS date FROM transactions WHERE plan_id = ? AND deleted = 0").get(planId) as Row;
+  return row.date ?? null;
+}
+
+function buildPeriods(from: string, to: string, interval: string): Array<{ label: string; end: string }> {
+  validateReportPeriods(from, to, interval);
+  const periods: Array<{ label: string; end: string }> = [];
+  const cursor = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+
+  while (cursor <= end) {
+    const label = periodLabel(cursor.toISOString().slice(0, 10), interval);
+    const periodEnd = new Date(cursor);
+    if (interval === "year") {
+      periodEnd.setUTCMonth(11, 31);
+    } else if (interval === "week") {
+      periodEnd.setUTCDate(periodEnd.getUTCDate() + 6);
+    } else if (interval === "day") {
+    } else {
+      periodEnd.setUTCMonth(periodEnd.getUTCMonth() + 1, 0);
+    }
+    if (periodEnd > end) {
+      periodEnd.setTime(end.getTime());
+    }
+    periods.push({ label, end: periodEnd.toISOString().slice(0, 10) });
+
+    if (interval === "year") {
+      cursor.setUTCFullYear(cursor.getUTCFullYear() + 1, 0, 1);
+    } else if (interval === "week") {
+      cursor.setUTCDate(cursor.getUTCDate() + 7);
+    } else if (interval === "day") {
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    } else {
+      cursor.setUTCMonth(cursor.getUTCMonth() + 1, 1);
+    }
+  }
+
+  return periods;
+}
+
+function daysBetween(from: string, to: string): number {
+  return Math.max(0, Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000));
+}
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}

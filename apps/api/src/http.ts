@@ -1,11 +1,9 @@
-import type { Database } from "bun:sqlite";
 import { isLoopbackHost, type ApiConfig } from "./config";
-import { AccountPreferencesConflictError, LedgerRepository, NotFoundError, ReconciliationMismatchError, TransactionStateConflictError, ValidationError } from "./repository";
+import { AccountPreferencesConflictError, NotFoundError, ReconciliationMismatchError, TransactionStateConflictError, ValidationError } from "./errors";
 import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
 import { assertTransactionFieldTypes, collectionPostIntent, parseTransactionClearedBulk, parseTransactionCreates, parseTransactionDeleteBulk, parseTransactionUpdates } from "./transaction-batch";
 import { normaliseFollowUpWords } from "./transaction-claim";
-import { ReportService } from "./reports";
 import { type AmountFormat, amountFormatOf, isStorableMilliunits } from "@howmuch/money";
 import { decimalToMilliunits } from "./money";
 import { importCsvRows } from "./importers/csv";
@@ -22,7 +20,7 @@ import {
   stampTransactionFlagName,
 } from "./rewards/write";
 import type { LedgerStore, ReportStore } from "./storage";
-import { SQLiteAuthStore, type AuthStore, type AuthUser } from "./auth-store";
+import type { AuthStore, AuthUser } from "./auth-store";
 import {
   canonicalUsername,
   newPersonalApiToken,
@@ -56,23 +54,16 @@ import { parseSeedCurrencyFormat, parseSeedDateFormat } from "./plan-settings-se
 import { isIsoDate, localDate } from "./card-payments";
 
 export type HandlerOptions = {
-  db?: Database;
-  repo?: LedgerStore;
-  reports?: ReportStore;
-  auth?: AuthStore;
+  repo: LedgerStore;
+  reports: ReportStore;
+  auth: AuthStore;
   config: ApiConfig;
   /** Transport for TypeSafe requests; tests substitute it. */
   typesafeFetch?: Fetch;
 };
 
 export function createHandler(options: HandlerOptions): (request: Request) => Promise<Response> {
-  const { config } = options;
-  const repo = options.repo ?? (options.db ? new LedgerRepository(options.db, config.defaultPlanId) : undefined);
-  const reports = options.reports ?? (options.db ? new ReportService(options.db) : undefined);
-  const auth = options.auth ?? (options.db ? new SQLiteAuthStore(options.db) : undefined);
-  if (!repo || !reports || !auth) {
-    throw new Error("createHandler requires either db or repo, reports, and auth");
-  }
+  const { config, repo, reports, auth } = options;
 
   return async function handle(request: Request): Promise<Response> {
     try {
@@ -272,7 +263,7 @@ async function handleV1(
         return apiError(400, "bad_request", "account requires a name");
       }
       // An object name was stored as "[object Object]", an object type failed
-      // as a 500, and a string flag read as true on D1 but false on SQLite.
+      // as a 500, and a string flag was read inconsistently.
       for (const field of ["id", "name", "type", "icon", "note"]) {
         if (payload[field] != null && typeof payload[field] !== "string") {
           throw new ValidationError(`account.${field} must be a string`);
@@ -1198,7 +1189,7 @@ function scheduledWriteOptions(request: Request): { operationId?: string } {
   return { operationId: `http_${sha256(key)}` };
 }
 
-/** The host's zone, for a Bun server started without HOWMUCH_TIME_ZONE. */
+/** The host's zone, for a handler configured without a time zone, as in tests. */
 function defaultTimeZone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";

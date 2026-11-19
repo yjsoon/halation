@@ -1,8 +1,8 @@
 import { isStorableMilliunits } from "@howmuch/money";
 /**
  * Pure card payment maths: terms validation, cycle dates, statement balance,
- * minimum due and coverage. No database calls, so the Worker, the Bun server
- * and the phone's engine compute the same dates from the same rows.
+ * minimum due and coverage. No database calls, so the Worker and the phone's
+ * engine compute the same dates from the same rows.
  *
  * Dates are ISO calendar dates (`YYYY-MM-DD`) handled in UTC arithmetic; time
  * zones only matter for choosing `asOf`, which the caller does.

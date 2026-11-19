@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { SQLiteAuthStore, type AuthStore } from "../src/auth-store";
+import { D1AuthStore, type AuthStore } from "../src/auth-store";
+import { D1Database } from "../src/d1";
+import { sqliteD1Binding } from "../src/sqlite-d1";
 import { newSession, passwordCredential, sha256 } from "../src/password-auth";
 import { API_TOKEN, sessionFor, nativeHarness, type NativeHarness } from "./helpers/native-harness";
 
@@ -79,7 +81,7 @@ let ownerCredential: ReturnType<typeof passwordCredential> | undefined;
 // immutable credential, never mutable database state or session tokens.
 async function ownerWithSessions(harness: NativeHarness) {
   const credential = await (ownerCredential ??= passwordCredential(PASSWORD));
-  const auth = new SQLiteAuthStore(harness.db);
+  const auth = new D1AuthStore(new D1Database(sqliteD1Binding(harness.db)));
   const cookieSession = newSession();
   expect(await auth.setup({ userId: "owner", username: "owner", credential, session: cookieSession, planId: "p" })).toBe(true);
   const sessionA = newSession();

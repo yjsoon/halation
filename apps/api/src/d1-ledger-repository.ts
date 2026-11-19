@@ -3,7 +3,8 @@ import { createId } from "./ids";
 import { createHash } from "node:crypto";
 import { parseAccountIcon } from "./account-icon";
 import { applyAccountUpdate, type AccountUpdatePatch } from "./account-kind";
-import { LedgerRepository, NotFoundError, cardPaymentTermsDeleteStatements, cardPaymentTermsPutStatements, type CardPaymentTermsWriteOptions, PlanNotFoundError, type PlanFormatsPatch, ReconciliationMismatchError, TransactionStateConflictError, ValidationError, type CategoryWriteOptions, type SnapshotImportResult, type TransactionWriteOptions } from "./repository";
+import { LedgerRepository, cardPaymentTermsDeleteStatements, cardPaymentTermsPutStatements, type CardPaymentTermsWriteOptions, type PlanFormatsPatch, type CategoryWriteOptions, type SnapshotImportResult, type TransactionWriteOptions } from "./repository";
+import { NotFoundError, PlanNotFoundError, ReconciliationMismatchError, TransactionStateConflictError, ValidationError } from "./errors";
 import {
   EntityConflictError,
   categoryCommandStatements,
@@ -20,7 +21,6 @@ import {
 } from "./category-management";
 import { requestHash } from "./canonical-json";
 import { PLAN_NOT_EMPTY_CONDITION, parsePlanSnapshot, planNotEmptyValues, snapshotImportStatements } from "./plan-snapshot";
-import type { LedgerStore } from "./storage";
 import type { CardPaymentTerms } from "./card-payments";
 import type { AccountReconciliationOptions, AccountReconciliationPreview, AccountReconciliationResult, ScheduledTransactionInput, ScheduledWriteOptions, TransactionBatchResult, TransactionBatchUpdate, TransactionInput } from "./types";
 import { D1Database } from "./d1";
@@ -48,19 +48,19 @@ export class D1LedgerRepository extends LedgerRepository {
     return { operationId: operationId ?? this.options.operationId?.(kind, planId, resourceId) ?? createId("op"), ...(lease ? { lease } : {}) };
   }
 
-  override async ensurePlan(planId = this.getDefaultPlanId(), name = "HowMuch"): Promise<void> {
+  async ensurePlan(planId = this.getDefaultPlanId(), name = "HowMuch"): Promise<void> {
     if (await this.d1.get("SELECT 1 FROM plans WHERE id=? AND deleted=0", [planId])) return;
     await this.metadata.ensurePlan(planId, name, this.context("plan.ensure",planId,planId));
   }
-  override async touchPlan(planId: string): Promise<number> { return this.metadata.touchPlan(planId, this.context("plan.touch",planId,planId)); }
-  override async updatePlanFormats(planId: string, formats: PlanFormatsPatch): Promise<void> {
+  async touchPlan(planId: string): Promise<number> { return this.metadata.touchPlan(planId, this.context("plan.touch",planId,planId)); }
+  async updatePlanFormats(planId: string, formats: PlanFormatsPatch): Promise<void> {
     if (!(await this.d1.get("SELECT 1 FROM plans WHERE id=? AND deleted=0", [planId]))) throw new PlanNotFoundError();
     await this.metadata.updatePlanFormats(planId, formats, this.context("plan.formats", planId, planId));
   }
-  override async upsertPlan(planId:string,plan:any,settings?:any):Promise<void>{await this.metadata.upsertPlan(planId,plan,settings,this.context("plan.upsert",planId,planId));}
-  override async ensureAccount(planId:string,accountId:string,name?:string):Promise<void>{await this.metadata.ensureAccount(planId,accountId,name,this.context("account.ensure",planId,accountId));}
-  override async upsertAccount(planId:string,account:any):Promise<void>{await this.metadata.upsertAccount(planId,account,this.context("account.upsert",planId,account.id));}
-  override async updateAccount(planId:string,accountId:string,patch:AccountUpdatePatch):Promise<any>{
+  async upsertPlan(planId:string,plan:any,settings?:any):Promise<void>{await this.metadata.upsertPlan(planId,plan,settings,this.context("plan.upsert",planId,planId));}
+  async ensureAccount(planId:string,accountId:string,name?:string):Promise<void>{await this.metadata.ensureAccount(planId,accountId,name,this.context("account.ensure",planId,accountId));}
+  async upsertAccount(planId:string,account:any):Promise<void>{await this.metadata.upsertAccount(planId,account,this.context("account.upsert",planId,account.id));}
+  async updateAccount(planId:string,accountId:string,patch:AccountUpdatePatch):Promise<any>{
     const parsedIcon = patch.icon === undefined ? undefined : parseAccountIcon(patch.icon);
     if (parsedIcon === null) throw new ValidationError("icon must be a single emoji");
     const parsedName = patch.name === undefined ? undefined : String(patch.name).trim();
@@ -84,10 +84,10 @@ export class D1LedgerRepository extends LedgerRepository {
     }, this.context("account.update", planId, accountId));
     return this.getAccount(planId, accountId);
   }
-  protected override async writeAccountDeletion(planId: string, accountId: string): Promise<void> {
+  protected async writeAccountDeletion(planId: string, accountId: string): Promise<void> {
     await this.metadata.deleteAccount(planId, accountId, this.context("account.delete", planId, accountId));
   }
-  override async createAccount(planId:string,account:any):Promise<any>{
+  async createAccount(planId:string,account:any):Promise<any>{
     const id=account.id??createId("acct"); const opening=account.opening_balance??account.balance??0;
     // Another plan's account id failed the write's plan assertion as a 500.
     if(account.id&&await this.d1.get("SELECT 1 FROM accounts WHERE id=? AND plan_id<>?",[account.id,planId]))throw new ValidationError("Account belongs to another plan");
@@ -95,7 +95,7 @@ export class D1LedgerRepository extends LedgerRepository {
     await this.metadata.upsertAccount(planId,{...account,id,...(!account.id?{opening_balance:opening,balance:account.balance??opening,cleared_balance:account.cleared_balance??account.balance??opening}: {})},this.context("account.create",planId,id));
     return this.getAccount(planId,id);
   }
-  override async getAccountReconciliation(planId: string, accountId: string, statementDate: string): Promise<AccountReconciliationPreview> {
+  async getAccountReconciliation(planId: string, accountId: string, statementDate: string): Promise<AccountReconciliationPreview> {
     const date = normaliseReconciliationDate(statementDate);
     const { account, snapshot } = await this.readAccountReconciliationSnapshot(planId, accountId, date);
     const formattedAccount = await this.findAccount(planId, account.id);
@@ -110,7 +110,7 @@ export class D1LedgerRepository extends LedgerRepository {
       server_knowledge: await this.getServerKnowledge(planId),
     };
   }
-  override async reconcileAccount(
+  async reconcileAccount(
     planId: string,
     accountId: string,
     statementDate: string,
@@ -167,8 +167,8 @@ export class D1LedgerRepository extends LedgerRepository {
       },
     };
   }
-  override async ensureTransferPayee():Promise<{id:string;name:string}|null>{throw new Error("D1LedgerRepository.ensureTransferPayee is unsupported; use ensureAccount/upsertAccount for atomic provisioning");}
-  override async createPayee(planId:string,name:string,id=createId("payee")):Promise<any>{
+  async ensureTransferPayee():Promise<{id:string;name:string}|null>{throw new Error("D1LedgerRepository.ensureTransferPayee is unsupported; use ensureAccount/upsertAccount for atomic provisioning");}
+  async createPayee(planId:string,name:string,id=createId("payee")):Promise<any>{
     const existing=await this.d1.get<Record<string,any>>("SELECT id FROM payees WHERE plan_id=? AND lower(name)=lower(?) AND deleted=0",[planId,name]);
     if(existing) {
       const payee = await this.findPayee(planId, existing.id);
@@ -180,29 +180,29 @@ export class D1LedgerRepository extends LedgerRepository {
     if (!created) throw new NotFoundError("Payee not found");
     return created;
   }
-  override async ensurePayee(planId:string,payeeId:string,name?:string):Promise<void>{await this.metadata.upsertPayee(planId,{id:payeeId,name:name??`Imported payee ${payeeId.slice(0,8)}`},this.context("payee.ensure",planId,payeeId));}
-  override async upsertPayee(planId:string,payee:any):Promise<void>{await this.metadata.upsertPayee(planId,payee,this.context("payee.upsert",planId,payee.id));}
-  override async upsertYnabRawObject(planId:string,objectType:string,objectId:string,payload:unknown,serverKnowledge?:number,ownedLines:readonly unknown[]=[]):Promise<void>{await this.metadata.upsertYnabRawObject(planId,objectType,objectId,payload,serverKnowledge,this.context("ynab-raw.upsert",planId,`${objectType}:${objectId}`),ownedLines);}
-  override async ensureCategory(planId:string,categoryId:string,name?:string,groupId?:string|null):Promise<void>{await this.metadata.ensureCategory(planId,categoryId,name,groupId??"uncategorized-group",this.context("category.ensure",planId,categoryId));}
-  override async upsertCategoryGroup(planId:string,group:any):Promise<void>{await this.metadata.upsertCategoryGroup(planId,group,this.context("category-group.upsert",planId,group.id));}
-  override async upsertCategory(planId:string,category:any,groupId?:string|null):Promise<void>{await this.metadata.upsertCategory(planId,category,groupId,this.context("category.upsert",planId,category.id));}
-  override async createCategoryGroup(planId: string, input: CategoryGroupCreate, options: CategoryWriteOptions = {}): Promise<any> {
+  async ensurePayee(planId:string,payeeId:string,name?:string):Promise<void>{await this.metadata.upsertPayee(planId,{id:payeeId,name:name??`Imported payee ${payeeId.slice(0,8)}`},this.context("payee.ensure",planId,payeeId));}
+  async upsertPayee(planId:string,payee:any):Promise<void>{await this.metadata.upsertPayee(planId,payee,this.context("payee.upsert",planId,payee.id));}
+  async upsertYnabRawObject(planId:string,objectType:string,objectId:string,payload:unknown,serverKnowledge?:number,ownedLines:readonly unknown[]=[]):Promise<void>{await this.metadata.upsertYnabRawObject(planId,objectType,objectId,payload,serverKnowledge,this.context("ynab-raw.upsert",planId,`${objectType}:${objectId}`),ownedLines);}
+  async ensureCategory(planId:string,categoryId:string,name?:string,groupId?:string|null):Promise<void>{await this.metadata.ensureCategory(planId,categoryId,name,groupId??"uncategorized-group",this.context("category.ensure",planId,categoryId));}
+  async upsertCategoryGroup(planId:string,group:any):Promise<void>{await this.metadata.upsertCategoryGroup(planId,group,this.context("category-group.upsert",planId,group.id));}
+  async upsertCategory(planId:string,category:any,groupId?:string|null):Promise<void>{await this.metadata.upsertCategory(planId,category,groupId,this.context("category.upsert",planId,category.id));}
+  async createCategoryGroup(planId: string, input: CategoryGroupCreate, options: CategoryWriteOptions = {}): Promise<any> {
     const id = input.id ?? d1DerivedEntityId("category_group", planId, options.operationId);
     return this.applyD1CategoryCommand(planId, "category_group.create", id, input, options,
       () => this.planCreateCategoryGroup(planId, id, input), () => this.readCategoryGroupResponse(planId, id), () => []);
   }
-  override async updateCategoryGroup(planId: string, groupId: string, patch: CategoryGroupPatch, options: CategoryWriteOptions = {}): Promise<any> {
+  async updateCategoryGroup(planId: string, groupId: string, patch: CategoryGroupPatch, options: CategoryWriteOptions = {}): Promise<any> {
     return this.applyD1CategoryCommand(planId, "category_group.update", groupId, patch, options,
       () => this.planUpdateCategoryGroup(planId, groupId, patch), () => this.readCategoryGroupResponse(planId, groupId),
       (commandId) => [categoryAssertion(commandId, "metadata_category_group_exists", groupId, planId)]);
   }
-  override async createCategory(planId: string, input: CategoryCreate, options: CategoryWriteOptions = {}): Promise<any> {
+  async createCategory(planId: string, input: CategoryCreate, options: CategoryWriteOptions = {}): Promise<any> {
     const id = input.id ?? d1DerivedEntityId("category", planId, options.operationId);
     return this.applyD1CategoryCommand(planId, "category.create", id, input, options,
       () => this.planCreateCategory(planId, id, input), () => this.readCategoryResponse(planId, id),
       (commandId) => [categoryAssertion(commandId, "metadata_category_group_exists", input.category_group_id, planId)]);
   }
-  override async updateCategory(planId: string, categoryId: string, patch: CategoryPatch, options: CategoryWriteOptions = {}): Promise<any> {
+  async updateCategory(planId: string, categoryId: string, patch: CategoryPatch, options: CategoryWriteOptions = {}): Promise<any> {
     return this.applyD1CategoryCommand(planId, "category.update", categoryId, patch, options,
       () => this.planUpdateCategory(planId, categoryId, patch), () => this.readCategoryResponse(planId, categoryId),
       (commandId) => [
@@ -210,7 +210,7 @@ export class D1LedgerRepository extends LedgerRepository {
         ...(patch.category_group_id === undefined ? [] : [categoryAssertion(commandId, "metadata_category_group_exists", patch.category_group_id, planId)]),
       ]);
   }
-  override async deleteCategory(planId: string, categoryId: string, options: CategoryWriteOptions = {}): Promise<any> {
+  async deleteCategory(planId: string, categoryId: string, options: CategoryWriteOptions = {}): Promise<any> {
     return this.applyD1CategoryCommand(planId, "category.delete", categoryId, {}, options,
       () => this.planDeleteCategory(planId, categoryId), () => this.readCategoryResponse(planId, categoryId),
       (commandId) => [categoryAssertion(commandId, "category", categoryId, planId), categoryInUseGuard(commandId, planId, categoryId)]);
@@ -258,7 +258,7 @@ export class D1LedgerRepository extends LedgerRepository {
     return read();
   }
 
-  override async importPlanSnapshot(planId: string, input: unknown, options: { operationId: string }): Promise<SnapshotImportResult> {
+  async importPlanSnapshot(planId: string, input: unknown, options: { operationId: string }): Promise<SnapshotImportResult> {
     const rows = parsePlanSnapshot(input, planId);
     const hash = requestHash({ action: "plan.snapshot.import", planId, snapshot: input });
     const context = this.context("plan.snapshot.import", planId, planId, options.operationId);
@@ -295,7 +295,7 @@ export class D1LedgerRepository extends LedgerRepository {
    * re-asserted live in this plan inside the batch (and by the table's
    * ownership triggers), so a concurrent delete aborts the write.
    */
-  override async putCardPaymentTerms(planId: string, accountId: string, input: unknown, options: CardPaymentTermsWriteOptions = {}): Promise<CardPaymentTerms> {
+  async putCardPaymentTerms(planId: string, accountId: string, input: unknown, options: CardPaymentTermsWriteOptions = {}): Promise<CardPaymentTerms> {
     const hash = requestHash({ action: "card_payment_terms.put", planId, accountId, request: input });
     const context = this.context("card_payment_terms.put", planId, accountId, options.operationId);
     const payload = { request_hash: hash };
@@ -322,7 +322,7 @@ export class D1LedgerRepository extends LedgerRepository {
     return this.getCardPaymentTerms(planId, accountId);
   }
 
-  override async deleteCardPaymentTerms(planId: string, accountId: string, options: CardPaymentTermsWriteOptions = {}): Promise<CardPaymentTerms> {
+  async deleteCardPaymentTerms(planId: string, accountId: string, options: CardPaymentTermsWriteOptions = {}): Promise<CardPaymentTerms> {
     const hash = requestHash({ action: "card_payment_terms.delete", planId, accountId });
     const context = this.context("card_payment_terms.delete", planId, accountId, options.operationId);
     const auditId = `audit_${createHash("sha256").update(context.operationId).digest("hex").slice(0, 24)}`;
@@ -340,7 +340,7 @@ export class D1LedgerRepository extends LedgerRepository {
     return terms;
   }
 
-  override async createScheduledTransaction(planId: string, input: ScheduledTransactionInput, options: ScheduledWriteOptions = {}): Promise<any> {
+  async createScheduledTransaction(planId: string, input: ScheduledTransactionInput, options: ScheduledWriteOptions = {}): Promise<any> {
     await this.ensurePlan(planId);
     const id = input.id ?? (options.operationId ? `scheduled_${scheduleId(`${planId}:${options.operationId}`)}` : createId("scheduled"));
     const context = this.context("scheduled_transaction.create", planId, id, options.operationId);
@@ -355,7 +355,7 @@ export class D1LedgerRepository extends LedgerRepository {
     return this.getScheduledTransaction(planId, id);
   }
 
-  override async updateScheduledTransaction(planId: string, id: string, patch: Partial<ScheduledTransactionInput>, options: ScheduledWriteOptions = {}): Promise<any> {
+  async updateScheduledTransaction(planId: string, id: string, patch: Partial<ScheduledTransactionInput>, options: ScheduledWriteOptions = {}): Promise<any> {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const current = await this.readD1ScheduleForMutation(planId, id);
       assertExpectedD1Schedule(current.payload, options.expected);
@@ -371,7 +371,7 @@ export class D1LedgerRepository extends LedgerRepository {
     throw new Error("Unable to update scheduled transaction");
   }
 
-  override async deleteScheduledTransaction(planId: string, id: string, options: ScheduledWriteOptions = {}): Promise<any> {
+  async deleteScheduledTransaction(planId: string, id: string, options: ScheduledWriteOptions = {}): Promise<any> {
     const context = this.context("scheduled_transaction.delete", planId, id, options.operationId);
     const receipt = options.operationId ? await this.d1.get("SELECT 1 FROM write_commands WHERE id=?", [context.operationId]) : null;
     for (let attempt = 0; attempt < 4; attempt += 1) {
@@ -439,13 +439,13 @@ export class D1LedgerRepository extends LedgerRepository {
     }
   }
 
-  override async createTransaction(planId:string,input:TransactionInput,options:TransactionWriteOptions={}):Promise<any>{
+  async createTransaction(planId:string,input:TransactionInput,options:TransactionWriteOptions={}):Promise<any>{
     const autoLink=options.autoLink??true;
     const id=input.id??(options.operationId?`txn_${scheduleId(`${planId}:${options.operationId}`)}`:createId("txn"));
     const row=await this.transactions.create(planId,{...input,id},this.context("transaction.create",planId,id,options.operationId),{autoLink,upsert:!autoLink});
     return this.getTransaction(planId,row.id,Boolean(input.deleted));
   }
-  protected override async applyTransactionUpdate(planId:string,id:string,patch:Partial<TransactionInput>):Promise<void>{
+  protected async applyTransactionUpdate(planId:string,id:string,patch:Partial<TransactionInput>):Promise<void>{
     try {
       if (patch.approved !== undefined && Object.keys(patch).length === 1) {
         await this.transactions.approve(planId,id,patch.approved ?? false,this.context("transaction.approve",planId,id));
@@ -459,12 +459,12 @@ export class D1LedgerRepository extends LedgerRepository {
       throw error;
     }
   }
-  protected override async applyTransactionCleared(planId:string,id:string,expectedCleared:"uncleared"|"cleared",cleared:"uncleared"|"cleared"):Promise<void>{
+  protected async applyTransactionCleared(planId:string,id:string,expectedCleared:"uncleared"|"cleared",cleared:"uncleared"|"cleared"):Promise<void>{
     try {
       await this.transactions.updateCleared(planId,id,expectedCleared,cleared,this.context("transaction.cleared",planId,id));
     } catch (error) {
       if (error instanceof Error && error.message.includes("cleared state conflict")) throw new TransactionStateConflictError();
-      // Match the SQLite path: a row that is gone is `already_removed`, not an
+      // A row that is gone is `already_removed`, not an
       // infrastructure failure that stops the whole command.
       if (error instanceof Error && error.message === "Transaction not found") {
         throw new NotFoundError("Transaction not found");
@@ -472,7 +472,7 @@ export class D1LedgerRepository extends LedgerRepository {
       throw error;
     }
   }
-  protected override async applyTransactionDelete(planId:string,id:string,expectedApproved?:boolean):Promise<void>{
+  protected async applyTransactionDelete(planId:string,id:string,expectedApproved?:boolean):Promise<void>{
     try {
       await this.transactions.delete(planId,id,this.context("transaction.delete",planId,id),expectedApproved);
     } catch (error) {
@@ -485,7 +485,7 @@ export class D1LedgerRepository extends LedgerRepository {
       throw error;
     }
   }
-  override async updateTransactions(planId: string, edits: TransactionBatchUpdate[]): Promise<TransactionBatchResult> {
+  async updateTransactions(planId: string, edits: TransactionBatchUpdate[]): Promise<TransactionBatchResult> {
     const ids: string[] = [];
     const seen = new Set<string>();
     for (const edit of edits) {
@@ -501,7 +501,7 @@ export class D1LedgerRepository extends LedgerRepository {
     }
     return this.loadTransactionSaveResult(planId, ids, []);
   }
-  override async createTransactions(planId: string, inputs: TransactionInput[]): Promise<TransactionBatchResult> {
+  async createTransactions(planId: string, inputs: TransactionInput[]): Promise<TransactionBatchResult> {
     const explicitIds = inputs.map((input) => input.id).filter((id): id is string => Boolean(id));
     if (new Set(explicitIds).size !== explicitIds.length) {
       throw new ValidationError("Duplicate transaction id in batch");
@@ -530,18 +530,15 @@ export class D1LedgerRepository extends LedgerRepository {
     }
     return this.loadTransactionSaveResult(planId, transactionIds, duplicateImportIds);
   }
-  override async importTransactions(planId:string,inputs:TransactionInput[]):Promise<{transaction_ids:string[];duplicate_import_ids:string[];duplicate_transaction_ids:string[];server_knowledge:number}>{
+  async importTransactions(planId:string,inputs:TransactionInput[]):Promise<{transaction_ids:string[];duplicate_import_ids:string[];duplicate_transaction_ids:string[];server_knowledge:number}>{
     const transaction_ids:string[]=[]; const duplicate_import_ids=new Set<string>(); const duplicate_transaction_ids=new Set<string>();
     for(const input of inputs){const duplicate=await this.findDuplicateTransaction(planId,input);if(duplicate){if(input.import_id)duplicate_import_ids.add(input.import_id);duplicate_transaction_ids.add(duplicate.id);}else transaction_ids.push((await this.createTransaction(planId,input,{autoLink:false})).id);}
     return {transaction_ids,duplicate_import_ids:[...duplicate_import_ids],duplicate_transaction_ids:[...duplicate_transaction_ids],server_knowledge:await this.getServerKnowledge(planId)};
   }
-  override async createImportSession(planId:string|null,source:string):Promise<string>{return this.metadata.createImportSession(planId,source,this.context("import-session.create",planId??undefined,source));}
-  override async finishImportSession(id:string,status:string,summary:unknown):Promise<void>{const row=await this.d1.get<{plan_id:string|null}>("SELECT plan_id FROM import_sessions WHERE id=?",[id]);await this.metadata.finishImportSession(id,status,summary,this.context("import-session.finish",row?.plan_id??undefined,id));}
-  override async recordImportRow(sessionId:string,rowIndex:number,status:string,payload:unknown,error?:string,transactionId?:string):Promise<void>{const row=await this.d1.get<{plan_id:string|null}>("SELECT plan_id FROM import_sessions WHERE id=?",[sessionId]);await this.metadata.recordImportRow(sessionId,rowIndex,status,payload,error,transactionId,this.context("import-row.record",row?.plan_id??undefined,`${sessionId}:${rowIndex}`));}
+  async createImportSession(planId:string|null,source:string):Promise<string>{return this.metadata.createImportSession(planId,source,this.context("import-session.create",planId??undefined,source));}
+  async finishImportSession(id:string,status:string,summary:unknown):Promise<void>{const row=await this.d1.get<{plan_id:string|null}>("SELECT plan_id FROM import_sessions WHERE id=?",[id]);await this.metadata.finishImportSession(id,status,summary,this.context("import-session.finish",row?.plan_id??undefined,id));}
+  async recordImportRow(sessionId:string,rowIndex:number,status:string,payload:unknown,error?:string,transactionId?:string):Promise<void>{const row=await this.d1.get<{plan_id:string|null}>("SELECT plan_id FROM import_sessions WHERE id=?",[sessionId]);await this.metadata.recordImportRow(sessionId,rowIndex,status,payload,error,transactionId,this.context("import-row.record",row?.plan_id??undefined,`${sessionId}:${rowIndex}`));}
 }
-
-const _d1LedgerStoreTypecheck: LedgerStore = null as unknown as D1LedgerRepository;
-void _d1LedgerStoreTypecheck;
 
 function normaliseReconciliationDate(date: string): string {
   if (typeof date !== "string" || !/^\d{4}-(0[1-9]|1[0-2])-([0-2]\d|3[01])$/.test(date)) {

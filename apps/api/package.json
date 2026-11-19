@@ -4,7 +4,6 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "bun --hot src/server.ts",
     "test": "bun test"
   },
   "dependencies": {

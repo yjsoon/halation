@@ -21,8 +21,8 @@ export interface D1Binding {
 
 /**
  * Thin D1 adapter for individual statements and Cloudflare's atomic batch API.
- * D1 cannot hold an interactive transaction across awaits, so transaction()
- * deliberately fails rather than giving callers false atomicity.
+ * D1 cannot hold an interactive transaction across awaits, so writes are
+ * preplanned statement lists sent through atomicBatch().
  */
 export class D1Database implements AsyncSqlDatabase, RepositoryDatabase {
   constructor(readonly binding: D1Binding) {}
@@ -59,10 +59,6 @@ export class D1Database implements AsyncSqlDatabase, RepositoryDatabase {
     if (statements.length === 0) return [];
     const results = await this.sendBatch(statements);
     return results.map((result) => (result.results ?? []) as Record<string, any>[]);
-  }
-
-  transaction<Result>(_callback: ((db: AsyncSqlDatabase) => Promise<Result>) | (() => Promise<Result>)): never {
-    throw new Error("D1 does not support interactive transactions; use D1Database.atomicBatch() with a complete, preplanned statement list");
   }
 
   atomicBatch<Row = Record<string, unknown>>(statements: Array<{ sql: string; values?: SqlValues }>): Promise<D1Result<Row>[]> {

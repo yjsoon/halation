@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { NotFoundError, ValidationError } from "../repository";
+import { NotFoundError, ValidationError } from "../errors";
 import type { LedgerStore } from "../storage";
 import { UNFLAGGED_FLAG, FLAG_COLORS } from "./flags";
 import { parseCreditCardWrite } from "./parse";
