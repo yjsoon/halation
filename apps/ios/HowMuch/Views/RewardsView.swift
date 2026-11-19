@@ -2190,6 +2190,7 @@ struct RewardCategoryBreakdown: View {
 /// range. A range never appears as progress rows.
 struct RewardsReportScreen: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var filter: RewardsReportFilter
   @State private var group: RewardGroupBy = .flag
   @State private var report: RewardsReport?
@@ -2301,26 +2302,46 @@ struct RewardsReportScreen: View {
     if !report.groups.isEmpty {
       Section("By \(group.title) · \(report.groups.count)") {
         ForEach(report.groups) { row in
-          HStack(spacing: 8) {
+          let label = HStack(spacing: 8) {
             Circle()
               .fill(Theme.flagColour(named: row.flagColor) ?? Color.secondary.opacity(0.4))
               .frame(width: 8, height: 8)
               .accessibilityHidden(true)
             Text(row.label)
               .lineLimit(1)
-            Spacer()
-            VStack(alignment: .trailing, spacing: 2) {
-              Text(money(row.spend))
-                .monospacedDigit()
-              Text("\(money(row.rewardDollars)) · \(row.transactionCount) txn")
-                .font(.caption)
-                .monospacedDigit()
-                .foregroundStyle(Theme.inflow)
+          }
+          Group {
+            // At accessibility sizes the figures go under the label, so the
+            // amount has the row's width and stays on one line.
+            if dynamicTypeSize.isAccessibilitySize {
+              VStack(alignment: .leading, spacing: 2) {
+                label
+                groupFigures(row, alignment: .leading)
+              }
+            } else {
+              HStack(spacing: 8) {
+                label
+                Spacer()
+                groupFigures(row, alignment: .trailing)
+              }
             }
           }
           .accessibilityElement(children: .combine)
         }
       }
+    }
+  }
+
+  private func groupFigures(_ row: RewardsGroupRow, alignment: HorizontalAlignment) -> some View {
+    VStack(alignment: alignment, spacing: 2) {
+      Text(money(row.spend))
+        .monospacedDigit()
+        .lineLimit(alignment == .leading ? 1 : nil)
+        .minimumScaleFactor(alignment == .leading ? 0.5 : 1)
+      Text("\(money(row.rewardDollars)) · \(row.transactionCount) txn")
+        .font(.caption)
+        .monospacedDigit()
+        .foregroundStyle(Theme.inflow)
     }
   }
 
