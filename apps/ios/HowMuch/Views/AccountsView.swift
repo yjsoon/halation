@@ -79,6 +79,8 @@ struct AccountsView: View {
   @State private var barPlacementNudge: CGFloat = 0
   @State private var barPlacementNudgeTask: Task<Void, Never>?
   @State private var shortcutsWidth: CGFloat = 0
+  /// Every account row spans its card; a long press lifts a preview this wide.
+  @State private var accountRowWidth: CGFloat = 0
   /// Moved forward when the outbox card's reveal date passes; see
   /// `AppModel.outboxCardRevealDate`.
   @State private var outboxCardClock = Date()
@@ -713,6 +715,7 @@ struct AccountsView: View {
       content
     }
     .buttonStyle(.cardRow)
+    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { accountRowWidth = $0 }
     // UIKit's pre-menu highlight is outside the parent card's clip.
     .contentShape(.contextMenuPreview, UnevenRoundedRectangle(
       topLeadingRadius: isFirst ? Theme.Radius.card : 0,
@@ -754,7 +757,10 @@ struct AccountsView: View {
         presentedSheet = .edit(account)
       }
     } preview: {
+      // The preview is offered no width, so without one it shrinks to its
+      // text and lifts as a pill; it lifts at the row's width instead.
       content
+        .frame(width: accountRowWidth > 0 ? accountRowWidth : nil)
         .fixedSize(horizontal: false, vertical: true)
         .ynabCard()
     }
