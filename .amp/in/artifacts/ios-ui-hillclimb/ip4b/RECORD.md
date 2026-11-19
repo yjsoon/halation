@@ -190,3 +190,98 @@ landscape, iPad or Duo validation in this phone-only round. No change or
 independent runtime confirmation for 2IP-12. No AI model calls. Held large
 sheet titles, Account Type's text wrapping and other workers' files are left
 alone. No new unit tests; existing tests and simulator flows only.
+
+## 2IP-27 follow-up: pressed account row corners (ip5b)
+
+Base: `a52c8dd5`, from the lead's `hc-integrated-r2k.bundle`. This is the
+requested comparison with the fixup absent, not a rebuild of `7fb53016`.
+Implementation: `5ecfc1cb`, a fixup of `6cd47056`. Only AccountsView.swift
+changed. No new tests, remote writes, signing or publication.
+
+### Reproduction and mechanism
+
+On the iPhone 18 Pro and iPad mini (A20 Pro), iOS 27.3, portrait, default
+text size (`large`), the base's 0.25s press on each of the first, middle and
+last Cash rows rounded all four corners. UIKit uses the context-menu preview
+shape for its pre-menu highlight too. Giving only the opened menu a separate
+preview made the middle square, but made the first and last square at the
+card's outer corners as well: the native highlight escapes the parent clip.
+That intermediate attempt was rejected.
+
+The finished fix keeps the live content and layout unchanged, sets the native
+highlight's corner radii from the row's first/last position, and supplies a
+separate opaque rounded card for the opened context menu. The preview reuses
+the row content and preserves the full name with a vertical fixed size.
+
+### Repeated native interaction and evidence
+
+Used the disposable verify stack and synthetic audit ledger only. Never used
+the production servers. On each device, in light and dark, scrolled Accounts
+until the four-row Cash card was visible. Tested Everyday Account (first),
+Joint Household Expenses Account (middle), and Wallet (last).
+
+For every row, on base and corrected builds:
+
+1. Save the AX tree with `~/hc/ui.sh "$U"` and calculate the row centre.
+2. Record at 30fps with `axe record-video --udid "$U" --fps 30 --output ...`.
+3. `axe tap -x 150 -y "$Y" --hold 0.25 --udid "$U" --post-delay 0.6`.
+4. On the phone, return with BackButton. On iPad the register stays alongside.
+5. `axe tap -x 150 -y "$Y" --hold 1 --udid "$U" --post-delay 0.8`.
+6. Save the menu AX tree and screenshot, stop recording, dismiss the menu.
+
+Inspected zoomed frames from all 24 recordings (three rows, two devices, two
+appearances, two builds). Corrected short presses have top-only corners on
+first, no rounded corners on middle, bottom-only corners on last. Middle
+fills the card width. The mini's light press has faint contrast; inspected
+the 2.2 to 2.6s frame sequence rather than relying on a selected-state still.
+Every opened preview remains opaque and rounded with the whole name and amount.
+
+Evidence, not committed: `.amp/in/artifacts/ios-ui-hillclimb/ip5b/` contains
+`{pro,mini}-{light,dark}-press-corners.png` and `-lifted-corners.png` contact
+sheets, baseline on left and corrected on right. Raw 30fps MP4s, screenshots
+and AX trees are below its `ip5b/` directory, named by device, appearance,
+row and stage (`baseline` or final `edge`). `press-frame-index.json` records
+the selected frame timestamps. Earlier iteration stages are not evidence for
+the finished fix. Extraction scripts are in `.amp/in/orb-backup/`.
+
+### Default layout measurements and preview cost
+
+Live row frames are unchanged in width, height, horizontal positions and
+relative vertical layout. The mini's absolute frames also match exactly:
+
+| Device / row | Base frame (x,y,w,h), pt | Corrected frame, pt |
+| --- | --- | --- |
+| Pro first | 16,543.3,370,60 | 16,425.7,370,60 |
+| Pro middle | 16,603.7,370,70.3 | 16,486,370,70.3 |
+| Pro last | 16,734.7,370,60 | 16,617,370,60 |
+| mini first | 16,317,276,70.5 | identical |
+| mini middle | 16,388,276,114.5 | identical |
+| mini last | 16,574,276,60 | identical |
+
+The phone recordings use scroll offsets differing by 117.6 to 117.7pt, not
+a layout change. After normalising that offset, row content frames match
+within AX's 0.1pt rounding. For example, Pro middle name is 140.7 by 42.3pt
+at x72 and y14pt inside the row on both builds; its amount is 81.3 by 20.3pt
+at x288.7 and y25pt inside the row. Mini middle name is 86.5 by 86.5pt at
+x72 and row-relative y14pt; its amount is 81.5 by 20.5pt at x194.5 and y47pt.
+
+The opened preview is not layout-identical: UIKit sizes the separate view
+intrinsically. Pro first/middle/last widths and heights are now 319x60,
+370x51.7 and 183x60pt, versus 370x60, 370x70 and 370x60pt. Mini previews are
+325.5x60, 343x46.5 and 185.5x60pt, versus 302x77.5, 302x125.5 and 302x66pt.
+All names and figures remain whole and the background opaque. These are
+preview-only dimensions, not changes to the tappable live rows.
+
+### Final suite and limits
+
+After committing this record, run the full HowMuchTests target at that final
+head on iPhone 18 Pro, with `large`, app closed, and both accessibility defaults
+true, using the exact protocol under Final suite protocol above. Report the
+actual Executed line and failures in the thread and parent handoff. The
+unsigned Keychain -34018 failure is already established on the base; do not
+describe that outcome as a passing suite.
+
+Not checked in this correction: SE, iPad Pro, landscape, other text sizes,
+physical devices, VoiceOver, menu action side effects or a one-row group.
+The requested first/middle/last interactions and light/dark checks are covered
+on one iPhone and one iPad. No changes outside the requested app file.
