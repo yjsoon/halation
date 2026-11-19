@@ -25,7 +25,10 @@ struct SkillAndMemoryView: View {
     let rules = skill.rules.sorted { $0.createdAt > $1.createdAt }
     List {
       Section {
-        Label("Stored on this \(UIDevice.current.model)", systemImage: "iphone")
+        Label(
+          "Stored on this \(UIDevice.current.model)",
+          systemImage: UIDevice.current.userInterfaceIdiom == .pad ? "ipad" : "iphone"
+        )
           .font(.subheadline)
           .foregroundStyle(.secondary)
           .listRowBackground(Color.clear)
