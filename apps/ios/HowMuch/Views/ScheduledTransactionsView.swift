@@ -129,10 +129,9 @@ struct ScheduledTransactionRow: View {
             .font(.footnote)
             .foregroundStyle(.secondary)
         }
-
-        if !stacks {
-          Spacer(minLength: 8)
-        }
+        // Side by side, the payee takes all the room the amount leaves. A
+        // spacer here took an equal share, so a wrapped payee left a wide gap.
+        .frame(maxWidth: stacks ? nil : .infinity, alignment: .leading)
 
         VStack(alignment: stacks ? .leading : .trailing, spacing: 2) {
           Text(MoneyCodec.signedDisplayString(for: schedule.amount, currencyFormat: model.currencyFormat))
