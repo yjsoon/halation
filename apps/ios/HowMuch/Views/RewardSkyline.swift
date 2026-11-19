@@ -304,7 +304,8 @@ struct RewardCardSlip: View {
       }
       VStack(alignment: .leading, spacing: 2) {
         headerTitle(title)
-        detail.map { headerDetail($0) }
+        // Stacked, a long detail wraps instead of being cut to one line.
+        detail.map { headerDetail($0).fixedSize(horizontal: false, vertical: true) }
       }
     }
   }
@@ -374,6 +375,10 @@ struct RewardCardSlip: View {
         Text("View Transactions")
           .font(CardType.sans(.medium, CardType.size(.body), relativeTo: .body, bold: bold))
           .foregroundStyle(Theme.textPrimary)
+          // At the largest sizes "Transactions" is a little wider than the
+          // line: shrink it slightly rather than break the word.
+          .lineLimit(2)
+          .minimumScaleFactor(0.8)
         Spacer(minLength: 8)
         Image(systemName: "chevron.forward")
           .font(.footnote.weight(.semibold))
