@@ -11,6 +11,7 @@ On a register, **+ Add transaction** opens an inline row. The posting account is
 - `compose-add-another` keeps the row open after **Save and add another**.
 - `compose-transfer` on Everyday Account, opening Payee shows a **Transfers** section with `Rainy Day Saver` and `Travel Card`. Choosing one sets the payee to `Transfer : <account>`, the category cell reads Transfer, and Save posts a transfer.
 - `compose-all-accounts` on Ledger (every account) requires an account in the row before Save.
+- `compose-payee-defaults` typing a payee with history fills its usual category and the flag colour it usually gets on the row's account. Changing the account swaps a suggested colour; a colour or category you picked stays. Seed: `Verify Grab` purple twice and red once on Travel Card, green once on Everyday Account, all `Transport`. Expect Travel Card → `Transport` + purple (labelled by the card, if it names purple), Everyday Account → `Transport` + green, and the same lookup at `GET /v1/plans/local-plan/payee_defaults?payee_name=verify%20grab&account_id=…`. Quick entry fills the category only (it has no flag field).
 
 ## How to get to it (user POV)
 

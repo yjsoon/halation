@@ -1867,9 +1867,20 @@ final class AppModel {
     return first.onBudget && second.onBudget
   }
 
-  /// YNAB-style: picking a payee pre-fills the category it was last used with.
-  func suggestedCategoryID(forPayeeID payeeID: String) -> String? {
-    transactions.first { $0.payeeID == payeeID && $0.categoryID != nil && $0.transferAccountID == nil }?.categoryID
+  /// What a new transaction to this payee usually gets: its category, and its
+  /// flag colour in this account (each card gives its colours its own
+  /// meaning). The ledger answers from the payee's whole history, over the
+  /// network or from the on-device engine in local mode. Offline, the newest
+  /// loaded row stands in. Matched by name: a payee typed by name is saved
+  /// as that name alone, without a payee id.
+  func payeeDefaults(forPayeeName payeeName: String, accountID: String) async -> (categoryID: String?, flag: FlagColour) {
+    if let defaults = try? await apiClient.fetchPayeeDefaults(planID: settings.planID, payeeName: payeeName, accountID: accountID) {
+      return (defaults.categoryId, FlagColour(rawValue: defaults.flagColor ?? "") ?? .none)
+    }
+    let named = { (row: Transaction) in row.payeeName?.caseInsensitiveCompare(payeeName) == .orderedSame }
+    let categoryID = transactions.first { named($0) && $0.categoryID != nil && $0.transferAccountID == nil }?.categoryID
+    let flagColor = transactions.first { named($0) && $0.accountID == accountID }?.flagColor
+    return (categoryID, FlagColour(rawValue: flagColor ?? "") ?? .none)
   }
 
   func applySettings(_ nextSettings: APISettings) async {

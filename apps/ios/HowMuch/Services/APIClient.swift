@@ -298,6 +298,14 @@ struct APIClient {
     return response.data.payees.filter { $0.deleted != true }
   }
 
+  func fetchPayeeDefaults(planID: String, payeeName: String, accountID: String) async throws -> PayeeDefaults {
+    let response: APIEnvelope<PayeeDefaultsPayload> = try await request(
+      path: "/v1/plans/\(planID)/payee_defaults",
+      queryItems: [URLQueryItem(name: "payee_name", value: payeeName), URLQueryItem(name: "account_id", value: accountID)]
+    )
+    return response.data.payeeDefaults
+  }
+
   func fetchTransactions(
     planID: String,
     accountID: String? = nil,

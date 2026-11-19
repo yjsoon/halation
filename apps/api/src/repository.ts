@@ -811,6 +811,28 @@ export class LedgerRepository {
     return (await this.db.query(LIST_PAYEES_SQL).all(planId)).map(formatPayee);
   }
 
+  /**
+   * What a new transaction to this payee usually gets: its category across the
+   * plan, and its flag colour in this account (flags mean different things on
+   * each card). Read from the ledger each time through
+   * `idx_transactions_payee_name_recent`, so every save, edit, move, delete
+   * and import is reflected at once with nothing to keep in step.
+   *
+   * Keyed by the payee name each row carries, case-insensitively: on D1 a
+   * payee typed by name is saved as that name alone, with no payee id.
+   */
+  async getPayeeDefaults(planId: string, payeeName: string, accountId: string | null): Promise<{ category_id: string | null; flag_color: string | null }> {
+    const name = payeeName.trim().replace(/\s+/g, " ");
+    const [categories, flags] = await this.db.batchRead([
+      { sql: PAYEE_RECENT_CATEGORIES_SQL, values: [planId, name, PAYEE_DEFAULTS_WINDOW] },
+      { sql: PAYEE_RECENT_FLAGS_SQL, values: [planId, name, accountId, PAYEE_DEFAULTS_WINDOW] },
+    ]);
+    return {
+      category_id: usualValue((categories ?? []).map((row) => row.category_id as string)),
+      flag_color: accountId ? usualValue((flags ?? []).map((row) => (row.flag_color as string | null) ?? null)) : null,
+    };
+  }
+
   /** Payees and the knowledge value that labels them, in one round trip. */
   async listPayeesWithKnowledge(planId: string): Promise<{ payees: any[]; server_knowledge: number }> {
     const [rows, knowledgeRows] = await this.db.batchRead([
@@ -3837,6 +3859,31 @@ const ACCOUNT_USAGE_SQL = `SELECT account_id, COUNT(*) AS usage_count
      GROUP BY account_id
      ORDER BY account_id`;
 const LIST_PAYEES_SQL = "SELECT id, name, transfer_account_id, deleted FROM payees WHERE plan_id = ? AND deleted = 0 ORDER BY name";
+/** Recent transactions a payee default is voted from: few enough that a change of habit wins after three. */
+const PAYEE_DEFAULTS_WINDOW = 5;
+const PAYEE_RECENT_CATEGORIES_SQL = `SELECT t.category_id FROM transactions t
+  JOIN categories c ON c.id = t.category_id AND c.deleted = 0
+  WHERE t.plan_id = ? AND t.payee_name_snapshot = ? COLLATE NOCASE AND t.deleted = 0 AND t.transfer_account_id IS NULL AND t.category_id IS NOT NULL
+  ORDER BY t.date DESC, t.created_at DESC LIMIT ?`;
+const PAYEE_RECENT_FLAGS_SQL = `SELECT flag_color FROM transactions
+  WHERE plan_id = ? AND payee_name_snapshot = ? COLLATE NOCASE AND account_id = ? AND deleted = 0
+  ORDER BY date DESC, created_at DESC LIMIT ?`;
+
+/** The most frequent value, newest first, so a tie goes to the most recent. Null (unflagged) is a value. */
+function usualValue<T>(newestFirst: readonly T[]): T | null {
+  const counts = new Map<T, number>();
+  for (const value of newestFirst) counts.set(value, (counts.get(value) ?? 0) + 1);
+  let best: T | null = null;
+  let bestCount = 0;
+  // Map keeps first-seen order, which is newest first, so `>` leaves ties with the newer value.
+  for (const [value, count] of counts) {
+    if (count > bestCount) {
+      best = value;
+      bestCount = count;
+    }
+  }
+  return best;
+}
 const LIST_CATEGORY_GROUPS_SQL = "SELECT * FROM category_groups WHERE plan_id = ? AND deleted = 0 ORDER BY name";
 const LIST_CATEGORIES_SQL = "SELECT * FROM categories WHERE plan_id = ? AND deleted = 0 ORDER BY name";
 

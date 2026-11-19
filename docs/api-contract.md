@@ -231,6 +231,12 @@ Create body:
 }
 ```
 
+#### Payee defaults (Halation extension)
+
+`GET /v1/plans/{plan_id}/payee_defaults?payee_name={name}&account_id={account_id}`
+
+What a new transaction to this payee usually gets, for entry forms to pre-fill: `{ "payee_defaults": { "category_id": "…" | null, "flag_color": "purple" | null } }`. The category is the most common one across the payee's five most recent categorised, non-transfer transactions in the plan; the flag colour is the most common one (unflagged counts) across its five most recent transactions in `account_id`, because each card gives its colours its own meaning. Ties go to the newer value. Rows match on the payee name each transaction carries, ignoring case and extra spaces, since a payee typed by name may have no payee record. It is read from the live ledger each time, so every save, edit, move and delete counts at once. Without `account_id`, `flag_color` is null. The flag name is not returned: a save stamps it from the account's rewards card.
+
 ### Categories
 
 `GET /v1/plans/{plan_id}/categories`

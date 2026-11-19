@@ -213,6 +213,9 @@ struct TransactionFormView: View {
   @State private var showCategoryPrompt = false
   @State private var isShowingDate = false
   @State private var rewardCards: [CreditCard] = []
+  /// What the payee's history last filled in. A later payee or account may
+  /// replace it; a category or flag the user chose stays.
+  @State private var suggested: PayeeSuggestion?
   /// Memo (and any later non-amount text field) — not the amount header, which
   /// owns CalculatorKeypad rather than the system keyboard.
   @FocusState private var isTextInputFocused: Bool
@@ -445,6 +448,9 @@ struct TransactionFormView: View {
           rewardCards = snapshot.cards
         }
       }
+      .task(id: PayeeSuggestion.Key(payeeName: draft.payeeName, accountID: draft.accountID)) {
+        await suggestFromPayeeHistory()
+      }
       .onChange(of: draft.accountID) { _, _ in
         if !draft.accountID.isEmpty {
           accountCandidates = []
@@ -475,6 +481,22 @@ struct TransactionFormView: View {
     chrome == .standalone
   }
 
+  /// A new transaction to a known payee takes the category that payee
+  /// usually gets and the flag colour it usually gets on this account.
+  private func suggestFromPayeeHistory() async {
+    let payeeName = draft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !isEditing, !payeeName.isEmpty, draft.transferAccountID == nil, !draft.accountID.isEmpty else { return }
+    let defaults = await model.payeeDefaults(forPayeeName: payeeName, accountID: draft.accountID)
+    guard !Task.isCancelled, draft.transferAccountID == nil else { return }
+    if !draft.isSplit, draft.categoryID == nil || draft.categoryID == suggested?.categoryID {
+      draft.categoryID = defaults.categoryID
+    }
+    if draft.flag == .none || draft.flag == suggested?.flag {
+      draft.flag = defaults.flag
+    }
+    suggested = PayeeSuggestion(categoryID: defaults.categoryID, flag: defaults.flag)
+  }
+
   /// A split parent cannot itself be a transfer, so splits get no Transfers section.
   private var payeePicker: some View {
     PayeePicker(
@@ -496,9 +518,6 @@ struct TransactionFormView: View {
         draft.payeeID = payee.id
         draft.payeeName = payee.name
         draft.transferAccountID = nil
-        if draft.categoryID == nil, let suggestion = model.suggestedCategoryID(forPayeeID: payee.id) {
-          draft.categoryID = suggestion
-        }
       case .transfer(let account):
         let transferPayee = transferPayee(for: account)
         draft.payeeID = transferPayee?.id
@@ -1704,4 +1723,14 @@ private final class PrimedDatePickerView: UIView {
     }
     return view.subviews.lazy.compactMap { calendarView(in: $0) }.first
   }
+}
+
+private struct PayeeSuggestion {
+  struct Key: Hashable {
+    let payeeName: String
+    let accountID: String
+  }
+
+  let categoryID: String?
+  let flag: FlagColour
 }

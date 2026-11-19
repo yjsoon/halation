@@ -1031,6 +1031,28 @@ describe("YNAB-compatible API", () => {
     ]);
   });
 
+  test("recolouring a flag on an account without a rewards card drops the old colour's name", async () => {
+    // YNAB imports carry a name for each flag; without a card to name the new
+    // colour, keeping it labels a green flag "Transport" in the register and reports.
+    await createAccount("cash", { name: "Cash", type: "checking" });
+    const single = await createTransaction({ account_id: "cash", date: "2026-10-01", amount: -1000, flag_color: "purple", flag_name: "Transport" });
+    const bulk = await createTransaction({ account_id: "cash", date: "2026-10-02", amount: -2000, flag_color: "purple", flag_name: "Transport" });
+
+    const patched = await (await request(`/v1/plans/plan-test/transactions/${single}`, {
+      method: "PATCH",
+      body: { transaction: { flag_color: "green" } },
+    })).json();
+    expect(patched.data.transaction).toMatchObject({ flag_color: "green", flag_name: null });
+
+    const batch = await request("/v1/plans/plan-test/transactions", {
+      method: "PATCH",
+      body: { transactions: [{ id: bulk, flag_color: "red" }] },
+    });
+    expect(batch.status).toBe(200);
+    const listed = await (await request("/v1/plans/plan-test/transactions")).json();
+    expect(listed.data.transactions.find((txn: any) => txn.id === bulk)).toMatchObject({ flag_color: "red", flag_name: null });
+  });
+
   test("updates multiple transactions on the collection PATCH used by YNAB", async () => {
     const firstId = await createTransaction({
       account_id: "acct-1",

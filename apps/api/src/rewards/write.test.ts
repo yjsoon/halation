@@ -235,7 +235,7 @@ describe("native rewards card writes", () => {
 
     const other: { flag_color?: string | null; flag_name?: string | null } = { flag_color: "red" };
     await stampTransactionFlagName(repo, "plan-test", "acct-missing", other);
-    expect(other).not.toHaveProperty("flag_name");
+    expect(other.flag_name).toBeNull();
   });
 
   describe("rule history", () => {

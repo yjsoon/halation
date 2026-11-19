@@ -73,6 +73,8 @@ export async function stampTransactionFlagName(
   patch: { flag_color?: string | null; flag_name?: string | null; date?: unknown },
   /** The transaction's date when the patch does not change it; defaults to today. */
   date?: string,
+  /** The colour the transaction has now, when it already exists. */
+  currentFlagColor?: string | null,
 ): Promise<void> {
   if (!Object.prototype.hasOwnProperty.call(patch, "flag_color")) return;
   if (Object.prototype.hasOwnProperty.call(patch, "flag_name")) return;
@@ -80,7 +82,12 @@ export async function stampTransactionFlagName(
   const card = stored.cards.find((entry) => {
     return Boolean(entry && typeof entry === "object" && !Array.isArray(entry) && (entry as { ynabAccountId?: string }).ynabAccountId === accountId);
   }) as CreditCard | undefined;
-  if (!card) return;
+  if (!card) {
+    // No card names the new colour, and the old colour's name (often from a
+    // YNAB import) no longer describes it. Resending the same colour keeps it.
+    if (currentFlagColor === undefined || (patch.flag_color ?? null) !== currentFlagColor) patch.flag_name = null;
+    return;
+  }
   // The name in force on the transaction's date, not a later one.
   const on = typeof patch.date === "string" ? patch.date : date ?? rewardsToday();
   patch.flag_name = flagNameForColour(cardFlagNames(cardOnDate(card, on)), patch.flag_color ?? null);

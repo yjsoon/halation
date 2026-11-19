@@ -14,6 +14,8 @@ import {
 import { payeeListEntries } from "../lib/register-row-edit";
 import { amountPlaceholder } from "../lib/money";
 import { PayeeCombobox } from "./PayeeCombobox";
+import { usePlan } from "../state/plan";
+import { usePayeeDefaults } from "../state/use-payee-defaults";
 
 export function RegisterComposeRow({
   state,
@@ -43,6 +45,7 @@ export function RegisterComposeRow({
   onSave: (keepOpen: boolean) => void;
   flagNames?: Record<string, string>;
 }) {
+  const { planId } = usePlan();
   const dateRef = useRef<HTMLInputElement>(null);
   const orderedGroups = useMemo(() => splitCategoryGroups(categoryGroups), [categoryGroups]);
   const transfer = findTransferPayee(payees, state.draft.payeeName);
@@ -55,6 +58,14 @@ export function RegisterComposeRow({
   useEffect(() => {
     dateRef.current?.focus();
   }, [focusNonce]);
+
+  // The answer arrives after renders this row has already handed to the
+  // parent, so it applies to the latest state rather than the one it started from.
+  const latestState = useRef(state);
+  latestState.current = state;
+  usePayeeDefaults(planId, payees, state.draft.payeeName, state.draft.accountId, (defaults) => {
+    onChange(reduceCompose(latestState.current, { type: "suggest", categoryId: defaults.category_id ?? "", flagColor: defaults.flag_color ?? "" }));
+  });
 
   const patch = (draft: {
     date?: string;

@@ -213,6 +213,17 @@ struct TransactionsPayload: Decodable {
 
 /// The "New" badge without the queue behind it: `{ count, server_knowledge }`.
 /// The shared decoder converts snake_case, so no CodingKeys are needed.
+struct PayeeDefaultsPayload: Decodable {
+  let payeeDefaults: PayeeDefaults
+}
+
+/// What a new transaction to a payee usually gets, read from the ledger's
+/// recent history: its category, and its flag colour in the asked account.
+struct PayeeDefaults: Decodable, Equatable {
+  let categoryId: String?
+  let flagColor: String?
+}
+
 struct UnapprovedCountPayload: Decodable {
   let count: Int
   let serverKnowledge: Int?

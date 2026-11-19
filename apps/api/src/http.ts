@@ -481,6 +481,14 @@ async function handleV1(
     }
   }
 
+  // The category and flag colour (in `account_id`) a new transaction to
+  // `payee_name` usually gets, for entry forms to pre-fill. HowMuch extension.
+  if (resource === "payee_defaults" && segments.length === 4 && method === "GET") {
+    const payeeName = url.searchParams.get("payee_name")?.trim();
+    if (!payeeName) throw new ValidationError("payee_name is required");
+    return json({ data: { payee_defaults: await repo.getPayeeDefaults(planId, payeeName, url.searchParams.get("account_id") || null) } });
+  }
+
   if (resource === "payees") {
     if (segments.length === 4 && method === "GET") {
       return json({ data: await repo.listPayeesWithKnowledge(planId) });
@@ -582,7 +590,7 @@ async function handleV1(
         const current = movesTo && typeof edit.patch.date === "string"
           ? null
           : await repo.getTransaction(planId, await repo.resolveTransactionLookup(planId, edit.lookup));
-        await stampTransactionFlagName(repo, planId, movesTo ?? current!.account_id, edit.patch, current?.date);
+        await stampTransactionFlagName(repo, planId, movesTo ?? current!.account_id, edit.patch, current?.date, current ? current.flag_color ?? null : undefined);
       }
       const result = await repo.updateTransactions(planId, edits);
       return json({ data: result });
@@ -693,7 +701,7 @@ async function handleV1(
         // A move and a flag in one edit take the destination card's names.
         const movesTo = typeof patch.account_id === "string" && patch.account_id ? patch.account_id : null;
         const current = movesTo && typeof patch.date === "string" ? null : await repo.getTransaction(planId, transactionId);
-        await stampTransactionFlagName(repo, planId, movesTo ?? current!.account_id, patch, current?.date);
+        await stampTransactionFlagName(repo, planId, movesTo ?? current!.account_id, patch, current?.date, current ? current.flag_color ?? null : undefined);
       }
       const updated = await repo.updateTransaction(planId, transactionId, patch);
       return json({ data: { transaction: updated, server_knowledge: await repo.getServerKnowledge(planId) } });

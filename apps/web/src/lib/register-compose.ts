@@ -15,6 +15,8 @@ export type RegisterComposeDraft = {
   flagColor: string;
   needsConfirmation: boolean;
   toClaim: boolean;
+  /** What the payee's history last filled in, so a later payee may replace it but never a choice the user made. */
+  suggested?: { categoryId: string; flagColor: string };
 };
 
 export type RegisterComposeState =
@@ -26,6 +28,7 @@ type RegisterComposeAction =
   | { type: "open-draft"; draft: RegisterComposeDraft }
   | { type: "close" }
   | { type: "patch"; draft: Partial<Pick<RegisterComposeDraft, "date" | "accountId" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "toClaim">> }
+  | { type: "suggest"; categoryId: string; flagColor: string }
   | { type: "set-outflow"; value: string }
   | { type: "set-inflow"; value: string }
   | { type: "saving" }
@@ -136,6 +139,22 @@ export function reduceCompose(state: RegisterComposeState, action: RegisterCompo
         return state;
       }
       return { ...state, error: null, draft: { ...state.draft, ...action.draft } };
+    case "suggest": {
+      if (state.status !== "open" || state.saving) {
+        return state;
+      }
+      const { draft } = state;
+      const open = (value: string, suggested: string | undefined) => value === "" || value === suggested;
+      return {
+        ...state,
+        draft: {
+          ...draft,
+          categoryId: open(draft.categoryId, draft.suggested?.categoryId) ? action.categoryId : draft.categoryId,
+          flagColor: open(draft.flagColor, draft.suggested?.flagColor) ? action.flagColor : draft.flagColor,
+          suggested: { categoryId: action.categoryId, flagColor: action.flagColor },
+        },
+      };
+    }
     case "set-outflow":
       if (state.status !== "open" || state.saving) {
         return state;

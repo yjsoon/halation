@@ -9,6 +9,7 @@ import { formatDate, todayIso, yesterdayIso } from "../lib/dates";
 import { amountPlaceholder, amountStep, currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
 import { resolvePostingAccountId, type QuickEntryCopy } from "../lib/register-compose";
 import { usePlan } from "../state/plan";
+import { usePayeeDefaults } from "../state/use-payee-defaults";
 import { StatusPanel } from "../components/StatusPanel";
 
 type Direction = "spend" | "income" | "transfer";
@@ -84,6 +85,15 @@ export function QuickEntryPage() {
     [openAccounts, selectedAccount],
   );
   const selectedTarget = transferTargets.find((account) => account.id === toAccountId) ?? transferTargets[0];
+
+  // The payee's usual category fills an empty field, or replaces one the last
+  // payee filled; a category the user picked stays.
+  const suggestedCategoryRef = useRef("");
+  usePayeeDefaults(planId, isTransfer ? [] : payees.data ?? [], payeeName, selectedAccount, (defaults) => {
+    const next = defaults.category_id ?? "";
+    setCategoryId((current) => (current === "" || current === suggestedCategoryRef.current ? next : current));
+    suggestedCategoryRef.current = next;
+  });
 
   const amountMilliunits = parseMilliunits(amount);
   const entrySign = direction === "income" ? 1 : -1;
@@ -177,6 +187,7 @@ export function QuickEntryPage() {
       setPayeeName("");
       setMemo("");
       setCategoryId("");
+      suggestedCategoryRef.current = "";
       setIsSplit(false);
       setSplitLines([]);
       clientIdRef.current = crypto.randomUUID();

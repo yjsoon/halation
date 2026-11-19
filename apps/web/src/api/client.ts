@@ -528,6 +528,11 @@ export const api = {
     }),
   payees: (planId: string) =>
     request<{ payees: Payee[] }>(planUrl(planId, "payees")).then((d) => d.payees),
+  /** The category and, in this account, flag colour a new transaction to this payee usually gets. */
+  payeeDefaults: (planId: string, payeeName: string, accountId: string) =>
+    request<{ payee_defaults: { category_id: string | null; flag_color: string | null } }>(
+      `${planUrl(planId, "payee_defaults")}?${new URLSearchParams({ payee_name: payeeName, account_id: accountId })}`,
+    ).then((d) => d.payee_defaults),
   scheduledTransactions: (planId: string) =>
     request<{ scheduled_transactions: ScheduledTransaction[] }>(planUrl(planId, "scheduled_transactions")).then(
       (d) => d.scheduled_transactions,
