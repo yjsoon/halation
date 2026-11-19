@@ -630,3 +630,122 @@ It was not brought back. On the closed display in portrait at the largest size t
 - "Search further back to see earlier activity."
 - VoiceOver. The unseen words are hidden views and do not appear in the accessibility tree read by `ui.sh`.
 - A description with a word too wide for the smallest accessibility size: by the code it then breaks as before at that size.
+
+## Sixth round: the Conversation dock on a phone on its side (2IP-28)
+
+The iPhone auditor found that the dock's layout for a short screen, made for the closed iPhone Duo in landscape (2DU-10), does not fit above the keyboard on an iPhone 18 Pro in landscape at the largest text size.
+
+### Revision and setup
+
+- Base: `a52c8dd5` (the lead's bundle `hc-integrated-r2k`). Branch `ios-ui-hillclimb-du6`, local only, not pushed.
+- Code under test: `bb57fdf3`, a `fixup!` of "Stack the Conversation dock's header at accessibility sizes" (`4a6308f6` on the base). It changes the dock in `Views/CaptureConversationViews.swift` and the composer parts of `Views/AddTransactionsView.swift`. The commit that adds this section changes no code.
+- The same disposable stack and seed as before, on a new Mac satellite (`macos-27`, `mac.large`) with fresh simulators on iOS 27.3: iPhone 18 Pro, iPhone Duo and iPad Pro, each signed in to the local stack. Two builds were compared: `a52c8dd5` ("before") and the fixed build ("after").
+- Landscape on the iPhone and the iPad comes from Xcode Device Hub's Device > Orientation menu (Landscape Left); `axe rotate` turns only the Duo. The iPhone's software keyboard is shown by writing `AutomaticMinimizationEnabled` false in `com.apple.keyboard.preferences` and posting `com.apple.keyboard.preferences.changed`. `axe type` hides that keyboard, so the draft ("audit") is typed by tapping the keys.
+- Frames are `[x, y, width, height]` in points. "Largest size" is `accessibility-extra-extra-extra-large`. Captures are in `.amp/in/artifacts/ios-ui-hillclimb/du-fixes6/` (`before/`, `after/`, `pairs/`, `probe/`, `dropped/`), not in git.
+
+### The fault on the base build
+
+iPhone 18 Pro, landscape (874 by 402pt), light, largest size, a new Conversation opened from Insights > More > Assistant > New conversation, keyboard up. The keyboard's top is at y 178: a temporary log of the space between the bars and the keyboard read 100pt from y 78, and the captures agree. The same frames with the field empty and with "Audit" typed:
+
+| Element | Before (`a52c8dd5`) |
+| --- | --- |
+| Account button | `[78, 64, 455, 45]` |
+| Add manually | `[541, 65, 255, 46]` |
+| Message field | `[140, 117, 594, 61]` |
+| Attachment button (+) | `[88, 153, 44, 44]`, ending at y 197 |
+| Send | `[742, 153, 44, 44]`, ending at y 197 |
+
+So the lower 19pt of Send and of the attachment button are behind the keyboard, as the auditor measured. The fault is not only at the largest size: at `accessibility-medium` the base build puts Send at `[742, 136, 44, 44]`, 2pt past the keyboard's top, and at `accessibility-extra-extra-large` at `[742, 149, 44, 44]`, 15pt past it.
+
+### What changed
+
+The Conversation measures the height between the bars and the keyboard and hands it to the dock. The reading is taken from a frame that accepts whatever height it is offered, so it does not depend on the dock's own height (without that, the reading was 149pt, the overflowing dock's height). The dock works out the least its short layout needs at the reader's text size: a 44pt header row, the field at one line, and the short paddings. Where the room is less than that, the dock is "tight":
+
+- the card has no vertical padding and the dock 1pt, so the dock is two 44pt rows;
+- the header row is centred instead of sharing a text baseline;
+- the field keeps 2pt above and below its line instead of 8pt;
+- the dock's text stops growing at `accessibility-large`, the second accessibility size, which is the largest whose line fits a 44pt row.
+
+No keyboard height and no device name is used. Where the short layout fits the room, as on the closed Duo in landscape, the dock is as it was.
+
+### Checks on the iPhone 18 Pro
+
+Landscape, light, largest size, keyboard up, empty and with "Audit" typed (the same frames in both):
+
+| Element | Before | After |
+| --- | --- | --- |
+| Account button | `[78, 64, 455, 45]` | `[78, 87, 552, 44]` |
+| Add manually | `[541, 65, 255, 46]` | `[638, 87, 158, 44]` |
+| Message field | `[140, 117, 594, 61]` | `[140, 133, 594, 44]` |
+| Attachment button (+) | `[88, 153, 44, 44]` | `[88, 133, 44, 44]`, ending at y 177 |
+| Send | `[742, 153, 44, 44]` | `[742, 133, 44, 44]`, ending at y 177 |
+
+The keyboard's top is at y 178 in both, so Send, the attachment button and the field end 1pt above it. The header no longer runs up to the title either: it started at y 64 under a title that ends at y 58, and now starts at y 87.
+
+Other sizes in landscape, after: at `accessibility-large`, `-extra-large` and `-extra-extra-large` the frames are the ones above; at `accessibility-medium` the account button is `[78, 87, 575, 44]`, Add manually `[661, 87, 135, 44]`, and the field, + and Send are as above.
+
+Further probes on the fixed build in landscape at the largest size:
+
+| Probe | Observed |
+| --- | --- |
+| Tap 3pt inside Add manually's lower left corner | Add Transaction opened |
+| Cancel from Add Transaction (keyboard stays down) | the dock is full size: account `[78, 232, 455, 58]`, Add manually `[541, 236, 255, 53]`, field `[140, 296, 594, 80]`, Send `[742, 332, 44, 44]`; the base build gives the same frames in that state |
+| Tap the field | the keyboard returns and the tight frames return |
+| Tap the account button's top right corner | the Account picker opened |
+| Back from the Account picker (the 2DU-09 path) | the keyboard returns and the tight frames return, Send `[742, 133, 44, 44]` |
+| Dark appearance | same frames; the capture reads correctly |
+
+### Frames that must not move
+
+Each state was captured on both builds with the field empty and with a draft typed, and the frames compared by script (`cmp.py`, every element of the front layer).
+
+| State | Differing frames |
+| --- | --- |
+| iPhone 18 Pro, landscape, default size | 0 |
+| iPhone 18 Pro, portrait, largest size | 0 |
+| iPhone 18 Pro, portrait, default size | 0 |
+| Closed Duo, portrait, default size | 0 |
+| Closed Duo, portrait, largest size | 0 |
+| Closed Duo, landscape, default size | 0 |
+| Closed Duo, landscape, largest size, draft typed | 0 |
+| Closed Duo, landscape, largest size, field empty | a third of a point, see below |
+| Open Duo, flat, largest size | 0 |
+| iPad Pro, portrait, largest size and default size | 0 (account `[16, 1128, 1000, 58]`, Add manually `[761, 1187, 255, 53]` on both builds at the largest size) |
+
+The closed Duo in landscape at the largest size with the field empty moved by a third of a point: the account button's y from 100.67 to 100.33, Send's from 186.67 to 186.33, and Add manually's height from 52.33 to 52. Rounded, the account button reads `[100, 101, 299, 44]` before and `[100, 100, 299, 44]` after, and Send `[608, 187, 44, 44]` before and `[608, 186, 44, 44]` after, against a keyboard whose first key row starts at y 285. It repeats and its cause was not traced. With a draft typed the frames are identical. The dock is not tight there: the room is 164pt.
+
+The iPad captures in `after/` have the software keyboard up and those in `before/` do not, so they do not compare; the iPad row above comes from one run that installed each build in turn and read the frames in the same state.
+
+### An observation at the default size, not changed
+
+On the iPhone 18 Pro in landscape at the default size, on both builds, Send is `[742, 137, 44, 44]` and the field `[140, 136, 594, 42]` against the keyboard's top at y 178. Send's frame ends 3pt past it and the card's lower padding is behind the keyboard. The drawn symbol is smaller than its frame and is whole in the capture. The lead asked for the default size to keep its frames, so this was left as it is.
+
+### 2PD-22: left out
+
+On the iPad Pro at the largest size the dock puts the account and Add manually on two lines where both would fit on one. Choosing the header's layout by width with `ViewThatFits` did put the two side by side on the open Duo (account `[16, 230, 572, 59]`), but on the iPad Pro at the largest size the app then hung at full processor use as soon as a Conversation opened. The base build and the final build do not hang there. The cause was not traced; a layout that never settles is a guess. So the same change does not settle 2PD-22, and it stays a low note. The version that hung is kept outside git at `.amp/in/orb-backup/du6/CaptureConversationViews.with-2pd22.swift`, and its captures in `du-fixes6/dropped/`.
+
+Capping the dock's text size on every short screen was also rejected, because it would change the closed Duo's 2DU-10 frames.
+
+### Costs to judge
+
+- On a phone on its side at the three largest sizes, the dock's text is drawn at the second accessibility size, smaller than the reader asked for, and the field shows one line before it scrolls.
+- The third of a point on the closed Duo, above.
+- The composer parts of `AddTransactionsView.swift` are touched: a state value, the `room` argument, the frame and its geometry reading, and the `compact` inset of the field.
+
+### Tests
+
+`SIMULATOR_UDID=<iPhone 18 Pro> scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests` at `bb57fdf3`, simulator in portrait at the default text size, light, the app terminated first, the keyboard preference removed, and both `com.apple.Accessibility` settings written immediately before the run. One run was made:
+
+- `runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-19 06:13:17 +0000)`
+- `Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 188.985 (189.355) seconds`
+
+### Not checked
+
+- iPhone SE, and any phone in Landscape Right.
+- Dark appearance beyond the one landscape capture at the largest size.
+- The iPad in landscape, and the iPad at sizes between the default and the largest.
+- The Duo's book and tabletop poses, and the open Duo in landscape.
+- A draft longer than one line in the tight layout. By the code the field then scrolls inside its one line, which was not seen.
+- Pending attachments and an ingest error in the tight layout: both add rows to the dock, which would then be taller than the room, as they are on the base build.
+- Whether 2IP-28 was present at `7fb53016`.
+- VoiceOver.
