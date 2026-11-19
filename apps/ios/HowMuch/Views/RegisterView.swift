@@ -1474,30 +1474,66 @@ struct RegisterView: View {
               description: Text(message)
             )
           } else if scope == .unapproved {
-            ContentUnavailableView("No new transactions", systemImage: "tray")
+            emptyState("No new transactions")
           } else if hasOlderForThisRegister {
-            ContentUnavailableView(
+            emptyState(
               "No recent transactions",
-              systemImage: "tray",
-              description: Text(
+              description:
                 stalledOlderWalk(snapshot) == nil
                   ? "Looking for older transactions…"
                   : "Search further back to see earlier activity."
-              )
             )
           } else {
-            ContentUnavailableView(
-              "No Transactions",
-              systemImage: "tray",
-              description: Text("Transactions you add will appear here.")
-            )
-            // The title's long word shrinks a little at accessibility sizes
-            // rather than truncate; other sizes keep the system layout.
-            .minimumScaleFactor(mastheadTypeSize.isAccessibilitySize ? 0.7 : 1)
+            emptyState("No Transactions", description: "Transactions you add will appear here.")
           }
         }
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
+      }
+    }
+  }
+
+  /// A register empty state. At accessibility sizes the title takes two
+  /// lines at most and shrinks before it breaks inside a word, and the
+  /// description steps down a text size at a time until its longest word
+  /// fits the width; other sizes keep the system layout.
+  private func emptyState(_ title: String, description: String? = nil) -> some View {
+    let large = mastheadTypeSize.isAccessibilitySize
+    return ContentUnavailableView {
+      Label {
+        Text(title)
+          .lineLimit(large ? 2 : nil)
+          .minimumScaleFactor(large ? 0.5 : 1)
+      } icon: {
+        Image(systemName: "tray")
+      }
+    } description: {
+      if let description {
+        if large {
+          let words = description.split(separator: " ")
+          let sizes = DynamicTypeSize.allCases.filter { $0.isAccessibilitySize && $0 <= mastheadTypeSize }
+          ViewThatFits(in: .horizontal) {
+            ForEach(sizes.reversed(), id: \.self) { size in
+              VStack(spacing: 0) {
+                // Unseen, and as wide as the widest word: the width this
+                // size needs. One line high and pinned to the top, so the
+                // row's text baselines stay the sentence's own.
+                ZStack {
+                  ForEach(words.indices, id: \.self) { index in
+                    Text(words[index])
+                  }
+                }
+                .frame(height: 0, alignment: .top)
+                .hidden()
+                Text(description)
+                  .frame(idealWidth: 0)
+              }
+              .dynamicTypeSize(size)
+            }
+          }
+        } else {
+          Text(description)
+        }
       }
     }
   }
