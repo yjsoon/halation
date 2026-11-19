@@ -454,6 +454,9 @@ struct MonthStepper: View {
         .contentShape(Circle())
     }
     .buttonStyle(.pressable)
+    // The symbols alone read "Back" and "Forward", like the navigation bar's
+    // Back button; PeriodStepper names its arrows the same way.
+    .accessibilityLabel(monthDelta < 0 ? "Previous month" : "Next month")
   }
 }
 
