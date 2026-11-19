@@ -173,3 +173,19 @@ Left to do to finish the round:
 2. Ask Fable 5.2 (thread T-01a1f0a7-94f9-74be-8040-6c3c00d2f9e3) to rescore iPhone groups B, E and H at the new head. Ask GPT-6 Astra (T-01a1f0a7-8ccb-76d7-8b37-7bfac66fe0d9) to recheck the Duo's Conversation dock only if the correction changes it there.
 3. Bring the artifact's Fixes table and hashes up to date after the last fold.
 4. Ask YJ for landing approval and his decisions on the nine held findings. Nothing is pushed.
+
+## Round 2: the last correction and the check of the three corrections
+
+The 2IP-28 correction by Fable 5.2 was merged with `git am -3` and folded into "Stack the Conversation dock's header at accessibility sizes" (`git rebase --autosquash`, no conflicts; `git diff` between the pre-fold branch `hc-r2n-presquash` and the folded head is empty). That changed the hash of every round 2 commit after "Keep the Net Worth report's Assets and Debts figures whole"; the hillclimb artifact's Fixes section lists the round 2 fix commits at the new head. The worker's frames and steps are in `../du-fixes/RECORD.md`, "Sixth round". The lead did not look at this correction in a simulator.
+
+Tests on "Record the Conversation dock check on a phone on its side" (85 commits on `2258ef81`), `scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests`, iPhone 18 Pro, default size, light, both accessibility settings written immediately before the run, first run on a newly started Mac: "runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-19 07:57:11 +0000)" and "Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 192.218 (192.576) seconds".
+
+Fable 5.2 checked the three corrections at that head on the iPhone 18 Pro and iPhone SE, on its own Mac and build, and rescored groups B, E and H only:
+
+- Accepted: the pressed account row (2IP-27), the Scheduled payee, and Send above the keyboard on the iPhone 18 Pro in landscape at the largest size (2IP-28), rotated either way.
+- Scores, P1 to P7: B 8, 8, 8, 8, 10, 8, 8; E 8, 8, 8, 6, 10, 10, 6 (the 6s only from 2IP-12, held for YJ); H 8, 10, 10, 8, 10, 10, 8. The other six groups stand from its review of the earlier head.
+- As seen: lowest 6, groups C, E, F and I under 8, each only from an item held for YJ (2IP-08, 2IP-12, the sun on "Not reconciled"). Leaving those out: lowest 8, no group under 8.
+- New, medium, outside the states the audits covered, not fixed: 2IP-31. iPhone SE, landscape (667 by 375pt), Conversation, keyboard up, keyboard top at y 151. Largest size: Send `[581,120,44,44]`, lower 13pt covered. Default size: Send `[581,124,44,44]`, lower 17pt covered, and the second line of a two-line draft hidden. Not run on an earlier head.
+- New, low, left as notes: 2IP-32 (the lifted account row's preview is as wide as its text) and 2IP-33 (the Scheduled payee column is narrower than its room).
+
+State: with the items held for YJ left out, every device's last scores are 8 or more in the audited states. Not decided: whether 2IP-31 is fixed in this work. Nothing is pushed.
