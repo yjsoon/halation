@@ -2224,13 +2224,13 @@ struct RewardsReportScreen: View {
           Text(scopeDescription)
             .font(.footnote)
             .foregroundStyle(.secondary)
-            // Clear of the section's rounded corner, which clipped the first letter.
-            .padding(.leading, 4)
           RewardGroupMenu(group: $group)
         }
       }
-      // Flush with the cards below, as on the other reports.
-      .listRowInsets(EdgeInsets())
+      // Range Report's filter bar sits flush with the cards below, as on the
+      // other reports; Summary's caption and menu keep the default insets, on
+      // the edge of the section text under them.
+      .listRowInsets(allowsRange ? EdgeInsets() : nil)
       .listRowBackground(Color.clear)
       .listRowSeparator(.hidden)
 
