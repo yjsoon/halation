@@ -163,6 +163,26 @@ struct RewardsView: View {
   /// The one card open in place, if any.
   @State private var openCardID: String?
   @State private var boardWidth: CGFloat = 0
+  @State private var viewport = BoardViewport()
+  /// A card being opened, until its row and its detail have been laid out.
+  @State private var opening: Opening?
+
+  /// The board's scroll view: its height and the band of it the bars leave clear.
+  private struct BoardViewport: Equatable {
+    var height: CGFloat = 0
+    var top: CGFloat = 0
+    var bottom: CGFloat = 0
+  }
+
+  /// Where an opening card and its detail landed, in the scroll view's space. Only the detail's frame
+  /// is taken from the new layout: the card's first frame can predate it, when another card's detail
+  /// above closes in the same tap, so the card gives only its height and whether it sits at the bottom.
+  private struct Opening: Equatable {
+    let cardID: String
+    var cardHeight: CGFloat?
+    var cardBottom: CGFloat?
+    var slip: CGRect?
+  }
   @State private var skyScroll = RewardsSkyScroll()
   @State private var route: RewardsRoute?
   @State private var preferencesByPlan: [String: RewardsBoardPreferences] = [:]
@@ -182,47 +202,77 @@ struct RewardsView: View {
     let board = currentReport.map {
       RewardsBoard(report: $0, preferences: preferences, currencyFormat: model.currencyFormat)
     }
-    List {
-      if let report = currentReport, let board {
-        if !report.cards.isEmpty {
-          summaryRow(board)
+    ScrollViewReader { proxy in
+      List {
+        if let report = currentReport, let board {
+          if !report.cards.isEmpty {
+            summaryRow(board)
+          }
+          if let asOf = filter.asOfISO {
+            pastDateBanner(asOf)
+          }
+          if !filter.scope.accountIDs.isEmpty {
+            accountsBanner
+          }
+          if let message = model.rewardsPhase.errorMessage {
+            errorRow(message)
+          }
+          boardRows(report, board: board)
+        } else {
+          PhasePlaceholder(phase: model.rewardsPhase) {
+            await fetch()
+          }
+          .frame(maxWidth: .infinity, minHeight: 240)
+          .listRowBackground(Color.clear)
+          .listRowSeparator(.hidden)
         }
-        if let asOf = filter.asOfISO {
-          pastDateBanner(asOf)
+      }
+      // Loaded data arrives with the shared motion, as the Reflect overview does.
+      .animation(reduceMotion ? nil : Theme.Motion.arrive, value: model.rewardsPhase)
+      .listStyle(.plain)
+      .scrollContentBackground(.hidden)
+      .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { boardWidth = $0 }
+      .onScrollGeometryChange(for: BoardViewport.self) { geometry in
+        BoardViewport(
+          height: geometry.containerSize.height,
+          top: geometry.contentInsets.top,
+          bottom: geometry.containerSize.height - geometry.contentInsets.bottom)
+      } action: { _, viewport in
+        self.viewport = viewport
+      }
+      .onScrollGeometryChange(for: CGFloat.self) { geometry in
+        geometry.contentOffset.y + geometry.contentInsets.top
+      } action: { _, offset in
+        skyScroll.offset = offset
+      }
+      .background {
+        // Sideways too: the iPhone Duo's outer display keeps its bars in a
+        // column beside the board, and the sky stopped at it in a straight edge.
+        RewardsSky(scroll: skyScroll)
+          .ignoresSafeArea(edges: [.top, .horizontal])
+      }
+      .contentMargins(.bottom, bottomRoom, for: .scrollContent)
+      // A card opened low on the screen scrolls up to show what unfolded under it.
+      .onChange(of: opening) { _, opening in
+        guard let opening, let cardHeight = opening.cardHeight else { return }
+        // A detail starting below the board is never built, so never measured: the card goes up under the bars.
+        let detailOffBoard = (opening.cardBottom ?? 0) + Self.boardRowInset >= viewport.height
+        guard opening.slip != nil || detailOffBoard else { return }
+        self.opening = nil
+        guard let target = revealTarget(cardID: opening.cardID, cardHeight: cardHeight, slip: opening.slip)
+        else { return }
+        withAnimation(reduceMotion ? nil : Theme.Motion.unfold) {
+          proxy.scrollTo(target.id, anchor: target.anchor)
         }
-        if !filter.scope.accountIDs.isEmpty {
-          accountsBanner
-        }
-        if let message = model.rewardsPhase.errorMessage {
-          errorRow(message)
-        }
-        boardRows(report, board: board)
-      } else {
-        PhasePlaceholder(phase: model.rewardsPhase) {
-          await fetch()
-        }
-        .frame(maxWidth: .infinity, minHeight: 240)
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
+      }
+      // Scrolling by hand takes over from a reveal still waiting on its layout.
+      .onScrollPhaseChange { _, phase in
+        if phase == .interacting { opening = nil }
+      }
+      .onChange(of: openCardID) { _, cardID in
+        if opening?.cardID != cardID { opening = nil }
       }
     }
-    // Loaded data arrives with the shared motion, as the Reflect overview does.
-    .animation(reduceMotion ? nil : Theme.Motion.arrive, value: model.rewardsPhase)
-    .listStyle(.plain)
-    .scrollContentBackground(.hidden)
-    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { boardWidth = $0 }
-    .onScrollGeometryChange(for: CGFloat.self) { geometry in
-      geometry.contentOffset.y + geometry.contentInsets.top
-    } action: { _, offset in
-      skyScroll.offset = offset
-    }
-    .background {
-      // Sideways too: the iPhone Duo's outer display keeps its bars in a
-      // column beside the board, and the sky stopped at it in a straight edge.
-      RewardsSky(scroll: skyScroll)
-        .ignoresSafeArea(edges: [.top, .horizontal])
-    }
-    .contentMargins(.bottom, bottomRoom, for: .scrollContent)
     .background(Theme.canvas)
     .navigationTitle("Rewards")
     .navigationBarTitleDisplayMode(.large)
@@ -428,87 +478,122 @@ struct RewardsView: View {
 
   private func toggle(_ cardID: String) {
     let next = openCardID == cardID ? nil : cardID
+    opening = next.map { Opening(cardID: $0) }
     // Reduce Motion: the card opens and closes in place, with nothing sliding.
     withAnimation(reduceMotion ? nil : Theme.Motion.unfold) {
       openCardID = next
     }
   }
 
+  /// The card's row and, while it is open, its detail as a row of its own under it. A List row snaps to a
+  /// new height and slides its contents up from the middle, so the detail arrives and leaves as a row
+  /// insertion, which the List animates: the card stays put and the rows below slide.
+  @ViewBuilder
   private func boardRow(_ projection: RewardRowProjection, index: Int) -> some View {
-    let text = RewardRowText(projection, currencyFormat: model.currencyFormat)
     let isOpen = openCardID == projection.cardID
-    let row = isOpen ? currentReport?.cards.first(where: { $0.id == projection.cardID }) : nil
-    return VStack(spacing: 0) {
-      Button {
-        toggle(projection.cardID)
-      } label: {
-        RewardFilledRow(
-          projection: projection, icon: icon(for: projection.accountID), currencyFormat: model.currencyFormat,
-          index: index, sizing: .urgency, isOpen: isOpen, windowWidth: windowWidth)
-      }
-      .buttonStyle(.plain)
-      .accessibilityLabel(projection.title)
-      .accessibilityValue("\(text.accessibilityValue). \(isOpen ? "Expanded" : "Collapsed")")
-      .accessibilityHint(isOpen ? "Collapses the details." : "Expands to show the period, targets and categories.")
-      .accessibilityAction(named: "Show Details") {
-        sheet = .detail(projection.cardID)
-      }
-      .accessibilityAction(named: "Edit Rewards") {
-        sheet = .editor(.edit(projection.cardID))
-      }
-      .accessibilityAction(named: "Hide") {
-        hide(projection.cardID)
-      }
-      if let row {
-        RewardCardSlip(
-          row: row, projection: projection, asOf: currentReport?.asOf, currencyFormat: model.currencyFormat,
-          arrangement: slipArrangement,
-          onOpenAccount: chrome == nil ? nil : { chrome?.showAccount(row.accountId) }
-        )
-        .transition(.opacity)
-        HStack {
-          Spacer()
-          Button {
-            sheet = .editor(.edit(projection.cardID))
-          } label: {
-            Text("Edit Rewards")
-              .frame(minHeight: 44)
-              .contentShape(Rectangle())
-          }
-          .font(.footnote)
-          .foregroundStyle(Theme.accent)
-          .buttonStyle(.plain)
-          .accessibilityLabel("Edit rewards for \(projection.title)")
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 4)
-      }
+    cardRow(projection, index: index, isOpen: isOpen)
+    if isOpen, let row = currentReport?.cards.first(where: { $0.id == projection.cardID }) {
+      slipRow(row, projection: projection)
     }
+  }
+
+  /// On iPad the strip has no readable-width limit, and a 700pt strip turns into a thin ribbon; the
+  /// window rows use the whole width, with the figures in columns beside the window.
+  private var boardRowMaxWidth: CGFloat {
+    guard windowWidth == nil else { return .infinity }
+    return dynamicTypeSize.isAccessibilitySize ? accessibilityRowMaxWidth : Self.rowMaxWidth
+  }
+
+  /// The open card's lift, cut at the seam between the card's row and its detail row so each row
+  /// casts only its own side of one shadow. `overlap` runs the shape past the seam, out of sight, so
+  /// the shadow along the sides carries straight across it.
+  private func openCardLift(seam: Edge, gap: CGFloat = 0) -> some View {
+    let overlap: CGFloat = 48
+    let spill: CGFloat = 40
+    let seamSide: Edge.Set = seam == .bottom ? .bottom : .top
+    let openSides: Edge.Set = seam == .bottom ? [.top, .horizontal] : [.bottom, .horizontal]
+    return RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
+      .fill(Theme.openCard)
+      .padding(seamSide, -(overlap + gap))
+      .shadow(color: Theme.openCardShadow, radius: 14, x: 0, y: 10)
+      .mask {
+        Rectangle()
+          .padding(seamSide, -gap)
+          .padding(openSides, -spill)
+      }
+  }
+
+  private static let boardRowInset: CGFloat = 5
+
+  /// The card row's own scroll target. The ForEach already uses the card ID for the card and its
+  /// detail together, so scrolling to that ID can line up the detail instead of the card.
+  private static func scrollID(_ cardID: String) -> String { "card:\(cardID)" }
+  private static func slipScrollID(_ cardID: String) -> String { "slip:\(cardID)" }
+  private static let slipBottomInset: CGFloat = 16
+
+  /// Where to scroll an opened card so the detail under it shows whole: the detail up to the bottom
+  /// when the whole card fits under the bars, otherwise the card up to the top. Nil when the detail is
+  /// already in view. A List honours only its edge anchors reliably: an anchor in between can leave a
+  /// short scroll undone.
+  private func revealTarget(cardID: String, cardHeight: CGFloat, slip: CGRect?) -> (id: String, anchor: UnitPoint)? {
+    let card = (id: Self.scrollID(cardID), anchor: UnitPoint.top)
+    guard let slip else { return card }
+    guard slip.maxY > viewport.bottom - 8 else { return nil }
+    let wholeCard = cardHeight + Self.boardRowInset + slip.height + Self.slipBottomInset
+    return wholeCard <= viewport.bottom - viewport.top ? (Self.slipScrollID(cardID), .bottom) : card
+  }
+
+  private func cardRow(_ projection: RewardRowProjection, index: Int, isOpen: Bool) -> some View {
+    let text = RewardRowText(projection, currencyFormat: model.currencyFormat)
+    let card = Button {
+      toggle(projection.cardID)
+    } label: {
+      RewardFilledRow(
+        projection: projection, icon: icon(for: projection.accountID), currencyFormat: model.currencyFormat,
+        index: index, sizing: .urgency, isOpen: isOpen, windowWidth: windowWidth)
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(projection.title)
+    .accessibilityValue("\(text.accessibilityValue). \(isOpen ? "Expanded" : "Collapsed")")
+    .accessibilityHint(isOpen ? "Collapses the details." : "Expands to show the period, targets and categories.")
+    .accessibilityAction(named: "Show Details") {
+      sheet = .detail(projection.cardID)
+    }
+    .accessibilityAction(named: "Edit Rewards") {
+      sheet = .editor(.edit(projection.cardID))
+    }
+    .accessibilityAction(named: "Hide") {
+      hide(projection.cardID)
+    }
+    return card
     .background {
       if isOpen {
-        RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
-          .fill(Theme.openCard)
-          .shadow(color: Theme.openCardShadow, radius: 14, x: 0, y: 10)
+        openCardLift(seam: .bottom)
           .transition(.opacity)
       }
     }
-    // On iPad the strip has no readable-width limit, and a 700pt strip turns into a thin ribbon; the
-    // window rows use the whole width, with the figures in columns beside the window.
-    .frame(maxWidth: windowWidth == nil
-      ? (dynamicTypeSize.isAccessibilitySize ? accessibilityRowMaxWidth : Self.rowMaxWidth)
-      : .infinity)
+    .onGeometryChange(for: CGRect?.self) { isOpen ? $0.frame(in: .scrollView) : nil } action: { frame in
+      guard let frame, opening?.cardID == projection.cardID, opening?.cardHeight == nil else { return }
+      opening?.cardHeight = frame.height
+      opening?.cardBottom = frame.maxY
+    }
+    .frame(maxWidth: boardRowMaxWidth)
     .frame(maxWidth: .infinity)
-    // The open card is lifted: the margin below gives its shadow room.
-    .listRowInsets(EdgeInsets(top: isOpen ? 8 : 5, leading: rowGutter, bottom: isOpen ? 16 : 5, trailing: rowGutter))
+    // The same insets open or closed: a change of insets makes the List snap the row's height.
+    .listRowInsets(EdgeInsets(
+      top: Self.boardRowInset, leading: rowGutter, bottom: Self.boardRowInset, trailing: rowGutter))
     .listRowBackground(Color.clear)
     .listRowSeparator(.hidden)
+    // An open card's row is only its top half, so it doesn't swipe; Hide stays in its menu.
     .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-      Button {
-        hide(projection.cardID)
-      } label: {
-        Label("Hide", systemImage: "eye.slash")
+      if !isOpen {
+        Button {
+          hide(projection.cardID)
+        } label: {
+          Label("Hide", systemImage: "eye.slash")
+        }
+        .tint(.gray)
       }
-      .tint(.gray)
     }
     .contextMenu {
       Button {
@@ -534,6 +619,49 @@ struct RewardsView: View {
         Label("Hide on This Device", systemImage: "eye.slash")
       }
     }
+    .id(Self.scrollID(projection.cardID))
+  }
+
+  /// What unfolds under an open card. Its lift reaches up over the card row's bottom inset, so the
+  /// two rows read as one card.
+  private func slipRow(_ row: RewardsCardRow, projection: RewardRowProjection) -> some View {
+    VStack(spacing: 0) {
+      RewardCardSlip(
+        row: row, projection: projection, asOf: currentReport?.asOf, currencyFormat: model.currencyFormat,
+        arrangement: slipArrangement,
+        onOpenAccount: chrome == nil ? nil : { chrome?.showAccount(row.accountId) }
+      )
+      HStack {
+        Spacer()
+        Button {
+          sheet = .editor(.edit(projection.cardID))
+        } label: {
+          Text("Edit Rewards")
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .font(.footnote)
+        .foregroundStyle(Theme.accent)
+        .buttonStyle(.plain)
+        .accessibilityLabel("Edit rewards for \(projection.title)")
+      }
+      .padding(.horizontal, 16)
+      .padding(.bottom, 4)
+    }
+    .background {
+      openCardLift(seam: .top, gap: Self.boardRowInset)
+    }
+    .onGeometryChange(for: CGRect.self) { $0.frame(in: .scrollView) } action: { frame in
+      guard opening?.cardID == projection.cardID, opening?.slip == nil else { return }
+      opening?.slip = frame
+    }
+    .frame(maxWidth: boardRowMaxWidth)
+    .frame(maxWidth: .infinity)
+    // The margin below gives the lifted card's shadow room.
+    .listRowInsets(EdgeInsets(top: 0, leading: rowGutter, bottom: Self.slipBottomInset, trailing: rowGutter))
+    .listRowBackground(Color.clear)
+    .listRowSeparator(.hidden)
+    .id(Self.slipScrollID(projection.cardID))
   }
 
   private func summaryRow(_ board: RewardsBoard) -> some View {
