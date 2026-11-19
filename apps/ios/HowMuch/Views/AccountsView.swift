@@ -1133,19 +1133,36 @@ private struct ManageAccountGroupsSheet: View {
 private struct ChooseFavouritesSheet: View {
   @Environment(AppModel.self) private var model
   @Environment(\.dismiss) private var dismiss
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   var body: some View {
     NavigationStack {
       List {
         Section {
           ForEach(model.openAccounts.sorted(by: accountNameOrder)) { account in
-            Toggle(isOn: favouriteBinding(account.id)) {
-              Label {
-                Text(account.name)
-              } icon: {
-                Text(account.displayIcon)
-                  .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                  .frame(width: 28, alignment: .center)
+            if dynamicTypeSize.isAccessibilitySize {
+              VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top, spacing: 12) {
+                  Text(account.displayIcon)
+                    .font(.body)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .frame(width: 28, alignment: .center)
+                  Text(account.name)
+                    .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityHidden(true)
+                Toggle(account.name, isOn: favouriteBinding(account.id))
+                  .labelsHidden()
+              }
+            } else {
+              Toggle(isOn: favouriteBinding(account.id)) {
+                Label {
+                  Text(account.name)
+                } icon: {
+                  Text(account.displayIcon)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .frame(width: 28, alignment: .center)
+                }
               }
             }
           }
