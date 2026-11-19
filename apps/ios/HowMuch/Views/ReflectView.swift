@@ -367,7 +367,10 @@ struct ReflectView: View {
           )
         }
 
-        HStack(spacing: 16) {
+        let legendLayout = dynamicTypeSize.isAccessibilitySize
+          ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+          : AnyLayout(HStackLayout(spacing: 16))
+        legendLayout {
           legendDot(colour: Theme.inflow, label: "Income")
           legendDot(colour: Theme.outflow, label: "Spending")
         }
@@ -716,7 +719,11 @@ struct MonthToDateSummary: View {
   /// and rolls when it changes.
   @ViewBuilder
   private func line(_ symbol: String, _ label: String, _ value: String?, rolling: Int? = nil) -> some View {
-    let labelText = HStack(alignment: .firstTextBaseline, spacing: 8) {
+    let stacksIcon = dynamicTypeSize.isAccessibilitySize
+    let labelLayout = stacksIcon
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+      : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
+    let labelText = labelLayout {
       Image(systemName: symbol)
         // One icon size down the column, even beside the larger total.
         .font(.subheadline)
@@ -752,7 +759,7 @@ struct MonthToDateSummary: View {
           labelText
           // Under the label text, not the icon.
           valueView
-            .padding(.leading, iconWidth + 8)
+            .padding(.leading, stacksIcon ? 0 : iconWidth + 8)
         }
       } else {
         HStack(alignment: .firstTextBaseline) {

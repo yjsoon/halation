@@ -1272,6 +1272,7 @@ struct IncomeVsSpendingDetailView: View {
   }
 
   @Environment(AppModel.self) private var model
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var range = ReportRange(mode: .preset, preset: .yearToDate)
   @State private var scope = ReportScope()
   @State private var interval: ReportInterval = .month
@@ -1416,7 +1417,10 @@ struct IncomeVsSpendingDetailView: View {
         voice: .money("Income and spending", periodNames: names, currencyFormat: model.currencyFormat),
         height: 120
       )
-      HStack(spacing: 16) {
+      let legendLayout = dynamicTypeSize.isAccessibilitySize
+        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+        : AnyLayout(HStackLayout(spacing: 16))
+      legendLayout {
         legendDot(colour: Theme.inflow, label: "Income")
         legendDot(colour: Theme.outflow, label: "Spending")
       }
@@ -1486,15 +1490,20 @@ struct IncomeVsSpendingDetailView: View {
 
   private func emptyPeriodRow(_ row: IncomeVsSpendingMaths.PeriodRow, interval: ReportInterval) -> some View {
     let title = IncomeVsSpendingMaths.periodTitle(row, interval: interval, today: Date.now.isoDateString)
-    return HStack {
+    let stacks = dynamicTypeSize.isAccessibilitySize
+    let layout = stacks
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+      : AnyLayout(HStackLayout())
+    return layout {
       Text(title.display)
         .font(.subheadline.weight(.semibold))
         .foregroundStyle(.secondary)
-      Spacer()
+      if !stacks { Spacer() }
       Text("No activity")
         .font(.footnote)
         .foregroundStyle(.secondary)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.horizontal, 16)
     .padding(.vertical, 10)
     .accessibilityElement(children: .ignore)
@@ -1558,6 +1567,7 @@ struct IncomeVsSpendingDetailView: View {
 
 struct AgeOfMoneyDetailView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   @State private var scope = ReportScope()
   @State private var interval: ReportInterval = .month
   @State private var report: AgeOfMoneyReport?
@@ -1656,12 +1666,16 @@ struct AgeOfMoneyDetailView: View {
   }
 
   private func periodRow(_ period: AgeOfMoneyPeriod) -> some View {
-    VStack(alignment: .leading, spacing: 4) {
-      HStack {
+    let stacks = dynamicTypeSize.isAccessibilitySize
+    let layout = stacks
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+      : AnyLayout(HStackLayout())
+    return VStack(alignment: .leading, spacing: 4) {
+      layout {
         Text(LedgerDate.periodLabel(period.period))
           .font(.subheadline)
           .foregroundStyle(Theme.textPrimary)
-        Spacer()
+        if !stacks { Spacer() }
         if let age = period.ageOfMoneyDays {
           Text(ReflectMaths.daysLabel(Int(age.rounded())))
             .font(.subheadline.weight(.medium))
@@ -1682,6 +1696,7 @@ struct AgeOfMoneyDetailView: View {
       .monospacedDigit()
       .foregroundStyle(.secondary)
     }
+    .frame(maxWidth: .infinity, alignment: .leading)
     .padding(.horizontal, 16)
     .padding(.vertical, 11)
   }
