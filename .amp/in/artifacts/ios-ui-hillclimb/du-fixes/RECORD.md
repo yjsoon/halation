@@ -416,3 +416,147 @@ The first run's failures did not recur and their cause was not found. The suite 
 - The iPhone 18 Pro with the software keyboard up (2DU-03).
 - 2DU-04 on `7fb53016`.
 - The five commits were not built one at a time; only the head with all five was built and tested.
+
+## Fourth round: 2DU-09, 2DU-10, 2DU-11 and 2PD-18
+
+Three faults from GPT-6 Astra's review of the round 2 Duo fixes, and one from Opus 5.5's iPad review that sits in the register row changed for 2DU-05.
+
+### Revision and setup
+
+- Base: `f1a52c11` (the lead's bundle `hc-integrated-r2c`). Branch `ios-ui-hillclimb-du4`, local only, not pushed.
+- Code under test: `4baf7122`. The commit that adds this section changes no code.
+- The same disposable stack and seed on the orb, on a new Mac satellite (`macos-27`, `mac.large`) with the API port forwarded. iPhone Duo, iPhone 18 Pro and iPhone SE (3rd generation) simulators on iOS 27.3, each signed in afresh.
+- Two builds were compared: `f1a52c11` ("before") and the fixed build ("after"). The fixed build was made from the uncommitted edits, which were then committed unchanged.
+- Data added to the disposable ledger for this round, through the API: an account "Spare Pot" with no transactions (Brokerage has one on this stack), an account "Dusty Pot" with one transaction from March 2025, and the two unapproved transactions were approved so that the New register is empty.
+- Frames are `[x, y, width, height]` in points from `ui.sh`. "Largest size" is `accessibility-extra-extra-extra-large`. Captures are in `.amp/in/artifacts/ios-ui-hillclimb/du-fixes4/f5/` (`before/`, `after/`, `probe/`, `pairs/`), not in git.
+
+| Finding | Commit | Files |
+| --- | --- | --- |
+| 2DU-10 | `fd94c49c` (a `fixup!` of "Stack the Conversation dock's header at accessibility sizes") | `Views/CaptureConversationViews.swift`, `Views/AddTransactionsView.swift` (the field's `sizeThatFits`) |
+| 2DU-09 | `06977276` | `Views/AddTransactionsView.swift` |
+| 2DU-11 | `5ff1afc4` | `Views/RegisterView.swift` (the empty states) |
+| 2PD-18 | `4baf7122` | `Views/RegisterView.swift` (`TransactionRow`) |
+
+### 2DU-10: the dock did not fit the closed display in landscape
+
+Fix: on a short screen (compact height) at accessibility sizes the account and Add manually stay side by side, the account shrinking to fit on one line, and the dock gives up most of its vertical padding. The field now takes the height it is offered, down to one line, and a longer draft scrolls inside it. The dock's own layout cannot cap the field, because the UIKit field reported its full height whatever it was offered; that is why `sizeThatFits` in `AddTransactionsView.swift` changed.
+
+Steps: close the phone, rotate to landscape, set the text size, launch, Assistant, New conversation (the keyboard comes up), type "Audit draft, do not send".
+
+Expected: the header, the field and Send sit between the title (bottom at y 60) and the keyboard (top at y 236); the closed display in portrait is as it was.
+
+| State | Before (`f1a52c11`) | After |
+| --- | --- | --- |
+| Closed, landscape, light, largest size, empty | Account `[16, 65, 562, 44]`, Add manually `[323, 109, 255, 44]`, Send `[524, 207, 44, 44]`, 15pt behind the keyboard | Add manually `[323, 92, 255, 52]`, account `[16, 101, 299, 44]` with its text at 244 x 35, field `[78, 151, 438, 80]`, Send `[524, 187, 44, 44]` |
+| The same with the draft typed | Account `[16, 45, 562, 44]`, its text `[16, 38, 407, 59]` over the title `[20, 35, 127, 25]`; Send `[524, 227, 44, 44]`, 35pt behind the keyboard | the same frames as empty; the field shows the draft's last line |
+| The other landscape rotation (column leading) | not captured | the same frames 84pt to the right: Send `[608, 187, 44, 44]` |
+| Closed, landscape, dark, largest size | not captured | the same frames as light |
+| Closed, portrait, light, largest size, empty and typed | Account `[16, 161, 350, 44]`, field `[78, 276, 226, 80]`; typed `[16, 121, 350, 44]`, `[78, 236, 226, 120]` | no frame differs |
+| Open, book and tabletop, landscape, largest size | not captured | stacked as before: account `[16, 178, 835, 59]`, Add manually `[596, 236, 255, 53]`, field `[78, 307, 711, 80]`, Send `[797, 343, 44, 44]`, first key row at y 454 |
+
+Taps, closed landscape, largest size: a tap 6pt inside the left edge of Add manually opened Add Transaction, and a tap 8pt inside the right end of the account button opened the Account picker.
+
+Default size: closed landscape, empty and with the short draft, no frame differs. With a draft long enough to reach the field's cap, the closed display in landscape at the default size had Send at `[608, 201, 44, 44]`, 9pt behind the keyboard, at `f1a52c11`; after the fix the field is 57pt high and Send is at `[608, 174, 44, 44]`. The same long draft in portrait has the same frames before and after (field `[78, 236, 226, 120]`).
+
+Costs: in closed landscape at the largest size the field shows one line, so a longer draft shows its last line and the bottom edge of the line above it. The account's label is drawn at about 0.6 of its size there.
+
+### 2DU-09: back from a pushed screen, the dock stayed behind the keyboard
+
+Cause, read from a temporary log of the keyboard notifications and the Conversation's bottom safe area (the logging was removed before the commit): with the keyboard up the safe area is 446.8pt on the closed display (the dock's 176.8pt plus the keyboard). Going to the picker hides the keyboard and the safe area returns to 176.8pt. On Back, UIKit gives the field its focus again, `keyboardWillShow` arrives with the keyboard at `{0, 374, 466, 304}`, and the safe area stays at 176.8pt. SwiftUI never adds the keyboard again, so the dock is not lifted. It is not a Duo fault: the iPhone 18 Pro does the same.
+
+Fix: the field gives up its focus before any screen is pushed from the Conversation, so nothing is restored during the pop. After the Account picker the field takes the keyboard back once the picker has gone, which SwiftUI tracks correctly. No keyboard height is used.
+
+Steps: launch, Assistant, New conversation, tap the account button, then Back, or choose Wallet.
+
+Expected: the dock is above the keyboard, as it was before the picker.
+
+| State | Before (`f1a52c11`) | After |
+| --- | --- | --- |
+| Closed, portrait, light, default, draft typed, Back | Account `[16, 517, 260, 44]`, field `[78, 580, 226, 46]`, Send `[312, 582, 44, 44]`, first key row at y 425 | `[16, 247, 260, 44]`, `[78, 310, 226, 46]`, `[312, 312, 44, 44]`, the same as before the picker; the draft is kept |
+| The same, choosing Wallet | not captured | the same frames, the account reading Wallet |
+| Closed, portrait, light, largest size, draft typed, Back | every dock frame 270pt lower than after | Account `[16, 121, 350, 44]`, field `[78, 236, 226, 120]`, Send `[312, 312, 44, 44]` |
+| Closed, landscape, light, default, draft typed, Back | Account `[16, 305, 472, 44]`, behind the keyboard | `[16, 109, 472, 44]` |
+| Closed landscape, open, book and tabletop, largest size, Back | not captured | the same frames as before the picker in each |
+| iPhone 18 Pro, light, default, software keyboard up, Back | Account `[16, 713, 280, 44]`, Send `[332, 778, 44, 44]`, first key row at y 597 | `[16, 419, 280, 44]`, `[332, 484, 44, 44]`, the same as before the picker |
+| iPhone 18 Pro, the same, choosing Wallet | not captured | the same frames |
+
+With the keyboard already down (after Cancel in Add Transaction), going to the picker and back leaves the keyboard down and the dock at the bottom of the screen, in view.
+
+The other screens pushed from a Conversation (a draft's editor, a query card's source list, and a draft's account and category pickers) go through the same change, and after them the keyboard stays down. They need a model's reply to exist, so they were not opened.
+
+iPhone software keyboard: the simulator hides it because input sent by `axe type` counts as a hardware keyboard. `xcrun simctl spawn <udid> defaults write com.apple.keyboard.preferences AutomaticMinimizationEnabled -bool NO`, then `notifyutil -p com.apple.keyboard.preferences.changed` and a relaunch, shows it. Typing with `axe type` hides it again and the system writes the setting back, so the iPhone checks were made without typing.
+
+Seen in the same log and not changed: in a fresh Conversation the field reports that it has focus from inside the view update that asked for it, and the write to `isComposerFocused` is lost, so `claimComposerFocus` is never released (at the tap on the account button the log read `focused 0 claim 1`).
+
+### 2DU-11: the register's empty-state titles broke inside the word
+
+Fix: the three tray empty states ("No Transactions", "No new transactions", "No recent transactions") share one helper. At accessibility sizes the title takes two lines at most and shrinks to fit them. The earlier 0.7 scale floor is replaced.
+
+Steps: set the pose and the text size, launch, Accounts, Spare Pot; for the New register, Accounts, New.
+
+Expected: no title breaks inside a word; the system's symbol and the wording are kept.
+
+| State | Before (`f1a52c11`) | After |
+| --- | --- | --- |
+| Book pose, landscape, light, largest size, empty register | title `[558, 309, 226, 303]`, "No / Transac- / tions" | `[529, 309, 285, 221]`, "No / Transactions" |
+| The same, New register | `[512, 82, 319, 376]`, "No new / transac- / tions" | `[512, 82, 319, 298]`, "No new / transactions" |
+| Tabletop pose, landscape, light, largest size | the same frames and breaks as the book pose | the same frames as the book pose |
+| Closed, portrait, light, largest size, empty register | `[80, 258, 226, 303]`, "No / Transac- / tions" | `[36, 249, 314, 125]`, "No / Transactions"; the tray symbol is not shown |
+| The same, New register | `[16, 82, 350, 376]`, "No new / transac- / tions" | `[16, 82, 350, 310]`, whole, with the symbol |
+| iPhone SE, light, largest size | empty `[32, 282, 310, 230]`, whole; New `[16, 70, 343, 376]`, "transac- / tions" | empty `[40, 248, 295, 224]`; New `[16, 70, 343, 308]`, whole |
+| iPhone 18 Pro, light, largest size | empty `[51, 297, 299, 226]`, New `[16, 116, 370, 311]`, both whole | identical frames |
+| Open, landscape, light, largest size | not captured | "No Transactions" on one line, `[399, 258, 409, 173]` |
+| Closed, portrait, `accessibility-large` and `accessibility-extra-large` | `[54, 228, 278, 126]`, `[36, 260, 313, 138]` | identical frames |
+| Closed, portrait, `accessibility-extra-extra-large` | `[58, 247, 270, 205]` | `[57, 247, 272, 206]` |
+| Closed Duo and iPhone 18 Pro, default, both registers | | no frame differs |
+
+Not fixed: the description under the title still reads "Transac- / tions you / add will / appear / here." in the book and tabletop poses at the largest size (`[561, 532, 221, 326]`). The word is about 300pt wide at that size and the column offers about 287pt. The text only shrinks when it has a line limit, and a limit that works is particular to each sentence, so no small general fix was found. On the closed display the description has whole words.
+
+Cost to judge: on the closed display in portrait at the largest size the empty register no longer shows its tray symbol. The title and the whole description now fit without scrolling, where before the description ran off the screen. The symbol is there at the three smaller accessibility sizes, in the New register, and on every other device and pose captured. That the system leaves the symbol out when the rest fits without it is an inference from these captures, not something confirmed.
+
+"No recent transactions" was not reached: the register of an account whose only transaction is old shows that transaction and "No older transactions".
+
+### 2PD-18: register payees were cut at the largest ordinary sizes
+
+Fix: from `extra-extra-large` up, in the side-by-side row, the payee may take a second line. The amount is as 2DU-05 left it.
+
+Steps: set the text size, launch, Accounts, All; and Accounts, Travel Card.
+
+Expected: a payee that does not fit beside its amount wraps between words; a row whose payee fitted keeps its frames.
+
+| Row | Before (`f1a52c11`) | After |
+| --- | --- | --- |
+| iPhone SE, `extra-extra-extra-large`, FairPrice Finest | payee `[32, 176, 144, 28]`, "FairPrice Fin...", row 80 high | `[32, 176, 96, 56]`, "FairPrice / Finest", row 108 high |
+| iPhone SE, `extra-extra-extra-large`, Bus and MRT top-up | 154 x 28, "Bus and MRT...", row 54 high | 142 x 56, "Bus and MRT / top-up", row 82 high |
+| iPhone SE, `extra-extra-extra-large`, Singapore Airlines | `[32, 376, 124, 28]`, row 104 high | `[32, 376, 112, 56]`, row 132 high |
+| iPhone SE, `extra-extra-large`, Bus and MRT top-up | 167 x 26, "Bus and MRT to...", row 49 high | 131 x 52, row 75 high |
+| iPhone SE, `extra-extra-large`, Singapore Airlines | 138 x 26, row 94 high | 102 x 52, row 120 high |
+| Book pose, landscape, `extra-extra-extra-large`, Singapore Airlines | `[528, 444, 103, 28]`, "Singapo...", row `[528, 444, 247, 104]` | `[528, 444, 108, 57]`, "Singapore / Airlines", row 133 high; the amount is on one line at the same x and width |
+| Closed Duo, portrait, `extra-extra-extra-large`, Singapore Airlines | `[32, 388, 123, 28]` | `[32, 388, 112, 57]` |
+
+No other row changed its x, width or height in any of these captures: Uniqlo and MUJI in the book pose, and every row of All and Travel Card whose payee fitted. On the iPhone SE at `extra-extra-large`, FairPrice Finest fits and is unchanged.
+
+Default size, `f1a52c11` against the fixed build, three screens of All and two of Travel Card on each of the closed Duo, the iPhone 18 Pro and the iPhone SE: no element differs in x, width or height. Where y differs it is by one offset for the whole capture (a scroll position up to 17pt apart).
+
+Unevenness: a wrapped payee makes its row 26 to 29pt taller. Rows already differ by that much when they have a memo (54, 80 and 104pt at `extra-extra-extra-large`), so the list does not look more ragged than it did.
+
+Not fixed: the detail line under the payee still truncates ("Groceries · Join...").
+
+### Tests
+
+`SIMULATOR_UDID=<iPhone 18 Pro> scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests` at `4baf7122`, simulator at the default text size, light, the app terminated first, and both `com.apple.Accessibility` settings written immediately before the run. One run was made:
+
+- `runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-19 02:37:46 +0000)`
+- `Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 185.293 (185.648) seconds`
+
+### Not checked
+
+- The iPhone simulators in landscape (`axe rotate` does not turn them), so 2DU-10 on an iPhone on its side.
+- iPad, including the iPad mini's narrow window where 2PD-18 was found.
+- The inner display in portrait (669 x 951), in any pose.
+- Dark, except the closed display in landscape at the largest size (2DU-10).
+- 2DU-10 and 2DU-11 at `2258ef81`.
+- The four other screens pushed from a Conversation (2DU-09), and "No recent transactions" (2DU-11).
+- The four commits were not built one at a time; only the head with all four was built and tested.
+
+Seen and not explained: the back button's accessibility label is "Back" in some captures and "Accounts" in others, with the same frame on each device whichever it reads (`[16, 62, 44, 44]` on the iPhone 18 Pro). On the iPhone SE it is "Back" in every capture of both builds. On the iPhone 18 Pro at the default size it is "Back" in one `f1a52c11` capture (New) and in six of the eight captures of the fixed build, and "Accounts" in three fresh launches of the head build afterwards (All twice, Spare Pot once). It varies on both builds, and none of the four commits touches a navigation title.
