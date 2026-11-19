@@ -118,3 +118,61 @@ Thread: https://ampcode.com/threads/T-01a1ef35-4a13-7399-9187-757afdd8e608, lead
 
 - The plain header's "Working −$1,089.51 including posted scheduled" line (`RegisterView.swift` about L1000) still breaks after the minus on the SE at ax5. It is outside the assigned lines.
 - The Home Loan empty state's "No Transactions" title truncates on the SE at ax5. Not an assigned finding.
+
+# Round 2: iPhone fixes (Opus 5.5)
+
+- Base: `hc-integrated-r2e.bundle` head `8e173f31`; local branch `ios-ui-hillclimb-ip4`, not pushed.
+- Commits: `d94d8683` (2IP-01), `d8f96e7f` (2IP-07), `4c2e0f36` (2IP-03), `66d6c938` (2IP-16), `b29d2584` (2IP-20), `00248341` (2IP-04). 2IP-08 has no commit.
+- Setup: Mac satellite `macos-27`, `mac.large`, Xcode 27.3, iOS 27.3. The disposable verify stack runs on the orb, with port 36651 forwarded to the Mac. Synthetic ledger from `seed-audit.ts`, plus two synthetic transactions dated 2026-11-19 so the Assistant card shows Today's spending and the Inspect link. iPhone 18 Pro and iPhone SE (3rd generation) simulators with the base build, and a second pair with the head build, all signed in. Frames are axe accessibility frames in points (x, y, width, height). "ax5" is `accessibility-extra-extra-extra-large`; "default" is `large`.
+- Default-size comparison: for every screen below, the frame lists of the base and head builds at the default size were compared on both phones (New, the selection bar with no pick and with one pick, Summary, Range Report, Customise Board, Assistant, Inspect). They are identical except: the Inspect dates (2IP-04), the SE's Customise list scroll offset in one capture (row frames identical), the SE's Range Report tab bar (minimised on scroll in the head capture; content frames identical), and tab bar image names that vary between runs.
+
+### 2IP-01: register totals card
+
+- Steps: SE, light, ax5. Accounts, New.
+- Before: three columns. Money Out [137, 142, 102, 154], Money In [37, 167, 86, 102], -$59.30 [248, 220, 95, 157], $0.00 [32, 272, 95, 105], $59.30 [140, 297, 95, 105]. Labels and figures break inside words ("Mon / ey In", "$59. / 30").
+- After: one under another, each figure on one line. Money In [32, 142, 168, 52], $0.00 [32, 195, 124, 53], Money Out [32, 256, 202, 52], $59.30 [32, 310, 152, 53], Net [32, 370, 66, 52], -$59.30 [32, 424, 171, 53]. 18 Pro ax5 the same at x 32. Dark SE ax5 checked.
+
+### 2IP-07: selection bar
+
+- Steps: SE, ax5. New, Select from the menu; then pick one row.
+- Before: the hint [16, 394, 343, 248] (four lines). After a pick, "1 selected" [36, 417, 136, 174] reads "1 / se- / lected", Edit [182, 432, 116, 188] reads "E / di / t".
+- After: the hint [16, 530, 343, 112] (two lines). "1 selected" [36, 434, 222, 58] on one line, the total under it, then Edit [36, 562, 162, 72] on one line and Clear selection [200, 572, 55, 55]. 18 Pro ax5: Edit [36, 755, 161, 73]. Dark SE ax5 checked.
+
+### 2IP-08: New register title beside Approve all (not fixed)
+
+- Before and after (unchanged): SE default, "New" [72, 28, 26, 21] drawn as "…" beside Approve all (2) [114, 20, 128, 36]. 18 Pro xxxl, "New" [72, 71, 19, 25] beside [107, 66, 151, 36]. SE xxxl, no title, button [80, 20, 151, 36]. 18 Pro default fits: "New" [72, 74, 36, 21], button [142, 66, 128, 36].
+- Tried: a `ViewThatFits` label with "Approve all (2)" then "Approve all". The bar never offers the item less than its full width, so the first choice always fitted and nothing changed. Reverted.
+- Why no fix: the bar squeezes the title, not the item. The only way to keep the count where the title fits is to compute the title's room in code: room = bar width − about 88pt leading − about 132pt (default) to 144pt (xxxl) trailing − the button label. That depends on iOS bar metrics, a fixed offset of the kind this round avoids. On the SE at xxxl even "Approve all" leaves the title about 22pt for about 45pt.
+
+### 2IP-03: By Flag figures on Range Report and Summary
+
+- Steps: SE, ax5. Rewards, Summary (and Range Report), scroll to By Flag.
+- Before: Blue's amount [198, -65, 142, 126] breaks "$1,28 / 4.50"; labels cut to "Pur…", "Gre…".
+- After: label on its own line, figures under it. Summary: $1,284.50 [36, -46, 250, 64], $57.80 · 1 txn [36, 20, 262, 52]; Purple, Green and Red whole. Range Report: Blue [52, 154, 100, 64], $1,284.50 [36, 220, 250, 64]. 18 Pro ax5: $1,284.50 [36, 123, 250, 63]. Dark SE ax5 checked.
+
+### 2IP-16: Customise Board card names
+
+- Steps: SE, ax5. Rewards, menu, Customise Board, scroll to Cards. The seed's first card is "Exposure Below".
+- Before: name [99, 489, 108, 312] reads "Ex- / po- / sure / Below" beside the switch [218, 660, 63, 28] and reorder [288, 623, 52, 44].
+- After: name [36, 546, 220, 188] reads "💳 / Exposure / Below", the switch under it [36, 334, 61, 28] after a scroll, reorder [288, 636, 52, 44]. A first version kept the icon in its own column and still broke "Expo- / sure"; the icon now runs inline in the name's text. Dragging the handle of Exposure Below below Exposure Urgent reordered the rows and the board; dragged back. Dark SE ax5 checked. Default size: Customise Board frames identical on both phones.
+
+### 2IP-20: Summary caption
+
+- Steps: SE, light, default. Rewards, Summary.
+- Before: the "C" of "Current card periods…" is clipped by the section's rounded corner.
+- After: the caption sits 4pt further in and the "C" is whole. The accessibility frame [16, 105, 343, 52] is the same because it includes the padding. This is a deliberate default-size change on both phones.
+
+### 2IP-04: Inspect list
+
+- Steps: SE, default and ax5. More, Assistant, Inspect on Today's spending card.
+- Before (default): header "Recorded spending · 2026-11-19 to 2026-11-19", row "2026-11-19 · Joint Household Expenses Account · Groceries" [36, 306, 184, 34].
+- After (default): header "Recorded spending · Today", row "Today · Joint Household Expenses Account · Groceries" [36, 306, 211, 34]. Text only; other frames unchanged.
+- Before (ax5): details [36, 420, 160, 573] beside the amount [204, 524, 134, 174] ("$128. / 64").
+- After (ax5): details [36, 268, 244, 261], amount under them on one line [36, 532, 218, 58]. 18 Pro ax5: amount [36, 422, 217, 59]. Dark SE ax5 checked.
+
+## Checks (round 2)
+
+- Fresh iPhone 18 Pro simulator, never opened by hand, `content_size large`; both accessibility settings written with `defaults write` immediately before the run. `scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests` at `00248341`:
+  - `runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-19 02:40:49 +0000)`
+  - `Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 186.472 (186.819) seconds`
+  - First run; no rerun needed.
