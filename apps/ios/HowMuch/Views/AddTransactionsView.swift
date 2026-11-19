@@ -25,6 +25,7 @@ struct AddTransactionsView: View {
   @State private var isComposerFocused = false
   @State private var composerRoom = CGFloat.infinity
   @State private var claimComposerFocus = false
+  @State private var refocusComposerOnReturn = false
   @State private var didConsumeEntryFocus = false
   @State private var isShowingPlus = false
   @State private var creatingManual = false
@@ -172,6 +173,13 @@ struct AddTransactionsView: View {
         AccountPickerView(selectedAccountID: session.selectedAccountID ?? "") { account in
           session.selectAccount(account.id, accounts: model.openAccounts)
         }
+        // Once the picker has gone, the field takes the keyboard back.
+        .onDisappear {
+          if refocusComposerOnReturn, !showingAccountPicker {
+            refocusComposerOnReturn = false
+            claimComposerFocus = true
+          }
+        }
       }
       .navigationDestination(isPresented: Binding(
         get: { resolvingAccountDraftID != nil },
@@ -259,6 +267,16 @@ struct AddTransactionsView: View {
         claimComposerFocus = false
       }
     }
+    // A pushed screen takes the keyboard with it. If the field kept its
+    // focus, UIKit would hand it back on the way back and the keyboard would
+    // return without SwiftUI's keyboard inset, leaving the dock behind it.
+    .onChange(of: showsPushedScreen) { _, shown in
+      if shown {
+        refocusComposerOnReturn = showingAccountPicker && (isComposerFocused || claimComposerFocus)
+        isComposerFocused = false
+        claimComposerFocus = false
+      }
+    }
     .onChange(of: session.composerText) { _, _ in
       workspace.requestPersistCurrent()
     }
@@ -276,6 +294,11 @@ struct AddTransactionsView: View {
         }
       }
     }
+  }
+
+  private var showsPushedScreen: Bool {
+    showingAccountPicker || editingDraftID != nil || inspectQueryCard != nil
+      || resolvingAccountDraftID != nil || resolvingCategoryDraftID != nil
   }
 
   @ViewBuilder
