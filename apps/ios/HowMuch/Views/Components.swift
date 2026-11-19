@@ -1322,6 +1322,7 @@ private struct ChartAxisLabels: View {
 
   var body: some View {
     let layout = plan
+    let cell = labels.isEmpty ? 0 : (rowWidth - spacing * CGFloat(labels.count - 1)) / CGFloat(labels.count)
     HStack(alignment: .top, spacing: spacing) {
       ForEach(labels.indices, id: \.self) { index in
         let label = layout.labels[index]
@@ -1337,12 +1338,28 @@ private struct ChartAxisLabels: View {
               .foregroundStyle(.secondary)
               .lineLimit(1)
               .fixedSize()
+              .alignmentGuide(HorizontalAlignment.center) { centre(of: $0.width, at: index, cell: cell) }
           }
           .accessibilityHidden(label == nil)
       }
     }
     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { rowWidth = $0 }
   }
+
+  /// A label centres on its column but hangs at most `edgeOverhang` past the
+  /// row's ends: at large text sizes "Jan 26" and "Nov" are much wider than
+  /// a month's column and ran past the card's edges, out of sight.
+  private func centre(of width: CGFloat, at index: Int, cell: CGFloat) -> CGFloat {
+    guard cell > 0 else { return width / 2 }
+    let column = CGFloat(index) * (cell + spacing) + cell / 2
+    let mostLeft = column + Self.edgeOverhang
+    let mostRight = column + width - rowWidth - Self.edgeOverhang
+    return min(max(width / 2, mostRight), mostLeft)
+  }
+
+  /// Charts sit inside cards padded by more than this, so a label hanging
+  /// this far past the row is still whole.
+  private static let edgeOverhang: CGFloat = 8
 
   /// Which labels to draw: as many as fit the row at the current text
   /// size, up to about twelve, never two within a stride of each other.
