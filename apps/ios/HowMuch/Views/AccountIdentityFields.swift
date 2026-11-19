@@ -185,6 +185,7 @@ private struct AccountKindPicker: View {
               HStack(spacing: 12) {
                 Text(kind.defaultIcon.rawValue)
                   .font(.title3)
+                  .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                   .frame(width: 32)
                   .accessibilityHidden(true)
                 Text(kind.title)

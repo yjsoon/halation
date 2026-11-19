@@ -677,6 +677,7 @@ struct AccountsView: View {
     let content = HStack(alignment: .center, spacing: 8) {
       Text(account.displayIcon)
         .font(.title3)
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .frame(width: 32)
         .accessibilityHidden(true)
 
@@ -1143,6 +1144,7 @@ private struct ChooseFavouritesSheet: View {
                 Text(account.name)
               } icon: {
                 Text(account.displayIcon)
+                  .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                   .frame(width: 28, alignment: .center)
               }
             }
