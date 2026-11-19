@@ -6,6 +6,7 @@ import SwiftUI
 /// changes a saved transaction.
 struct SkillAndMemoryView: View {
   @Environment(AppModel.self) private var model
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
   @State private var editingSkill = false
   @State private var editingAccount: AccountRef?
@@ -35,10 +36,14 @@ struct SkillAndMemoryView: View {
         Button {
           editingSkill = true
         } label: {
-          HStack(spacing: 12) {
+          let stacks = dynamicTypeSize.isAccessibilitySize
+          let layout = stacks
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
+            : AnyLayout(HStackLayout(spacing: 12))
+          layout {
             Image(systemName: "book.closed")
               .foregroundStyle(Theme.accent)
-              .frame(width: 24)
+              .frame(width: stacks ? nil : 24)
               .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
               Text("How to read my documents")
@@ -47,7 +52,9 @@ struct SkillAndMemoryView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
             }
-            Spacer(minLength: 8)
+            if !stacks {
+              Spacer(minLength: 8)
+            }
             chevron
           }
           .frame(minHeight: 44)
