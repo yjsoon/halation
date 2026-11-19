@@ -39,15 +39,24 @@ struct SkillAndMemoryView: View {
         Button {
           editingSkill = true
         } label: {
+          // Accessibility sizes put the symbol above the text, and the chevron
+          // at the trailing end of the symbol's line, so the text keeps the
+          // row's width and the chevron stays at the trailing edge.
           let stacks = dynamicTypeSize.isAccessibilitySize
           let layout = stacks
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 4))
             : AnyLayout(HStackLayout(spacing: 12))
           layout {
-            Image(systemName: "book.closed")
-              .foregroundStyle(Theme.accent)
-              .frame(width: stacks ? nil : 24)
-              .accessibilityHidden(true)
+            HStack(spacing: 12) {
+              Image(systemName: "book.closed")
+                .foregroundStyle(Theme.accent)
+                .frame(width: stacks ? nil : 24)
+                .accessibilityHidden(true)
+              if stacks {
+                Spacer(minLength: 8)
+                chevron
+              }
+            }
             VStack(alignment: .leading, spacing: 2) {
               Text("How to read my documents")
                 .foregroundStyle(Theme.textPrimary)
@@ -57,8 +66,8 @@ struct SkillAndMemoryView: View {
             }
             if !stacks {
               Spacer(minLength: 8)
+              chevron
             }
-            chevron
           }
           .frame(minHeight: 44)
           .contentShape(Rectangle())
