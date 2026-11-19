@@ -121,3 +121,55 @@ Second reviews of the combined head "Record round 2 phone layout verification" (
 The correction for 2DU-11, by Fable 5.2, merged with `git am -3` and folded into "Keep the register's empty-state titles whole at accessibility sizes" (`git rebase --autosquash`; the tree was identical before and after the fold). It changed the hash of every commit after "Keep the Conversation dock above the keyboard after a pushed screen". The worker's frames and steps are in `../du-fixes/RECORD.md`, "Fifth round". The lead did not look at this correction in a simulator; GPT-6 Astra is asked to recheck it on the Duo.
 
 Tests on the head with the correction ("Record the empty-state description check on the iPhone Duo", 80 commits on `2258ef81`), same command, iPhone 18 Pro, default size, light, both accessibility settings written immediately before the run, first run on a newly started Mac: "runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-19 04:56:44 +0000)" and "Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 184.463 (184.812) seconds".
+
+## Round 2: the iPhone review, three corrections, and the state at the pause
+
+Fable 5.2 reviewed the combined head "Record round 2 phone layout verification" (reviewed as `e0c3a660`) on the iPhone 18 Pro and iPhone SE: lowest score 6. Under 8 as seen: B, C, E, F, H, I. Leaving out the items held for YJ (2IP-08, 2IP-12, the sun on "Not reconciled"): B, E and H, each from one finding. It accepts eighteen fixes and the two-line register payee.
+
+- 2IP-27 (B, P6): since "Give lifted account rows an opaque card preview" a pressed account row's wash had the card's rounded corners. Corrected by GPT-6 Astra as a `fixup!`, merged with `git am -3` and folded in with `git rebase --autosquash`. The fold conflicted twice in `accountRow` in `AccountsView.swift` (the later commit "Keep decorative account icons out of the account names" adds a line to the block the correction moves). Resolved by hand both times with `.amp/in/orb-backup/resolve-ip5b.py`; `git diff` between the pre-fold branch `hc-r2l-presquash` and the folded head is empty.
+- Scheduled rows (E, P4 and P7), the other half of 2IP-19: fixed by the lead in "Let a scheduled row's payee wrap at the largest ordinary sizes". Steps: Accounts, Scheduled, light, portrait. Frames before and after, `[x, y, w, h]` in points, "Transfer to Rainy Day Saver": iPhone SE `extra-extra-large` `[32,272,138,26]` to `[32,272,108,78]`, row 91 to 143pt; iPhone SE `extra-extra-extra-large` `[32,286,129,28]` to `[32,286,117,86]`, row 122 to 180pt; iPhone 18 Pro rows 91 to 143pt and 122 to 180pt. At `large` the before and after frame files have 0 differing lines on both phones. A two-line limit was tried first and still cut "Transfer to Rainy Day…" on the iPhone SE. Frame files: `r2k/keep8/`.
+- 2IP-28 (H): Send partly behind the keyboard on the iPhone 18 Pro in landscape at the largest size. With Fable 5.2 (thread T-01a1ef35-634a-764f-918d-22a8c9323652) as a `fixup!` of "Stack the Conversation dock's header at accessibility sizes"; not delivered when this was written. Expected file: `.amp/in/orb-backup/patches-du6.tgz` in that thread.
+
+The lead's check of the 2IP-27 correction, iPhone SE (3rd generation), iOS 27.3, light, `large`. Steps: Accounts, scroll the Cash card into view, touch down on a row's centre with `axe touch --down`, screenshot 0.12s later, touch up. Observed: Everyday Account (first row) has the wash with the card's top corners rounded and a square bottom edge; Joint Household Expenses Account (middle) has a square wash across the card's width; Wallet (last) has a square top edge and the card's bottom corners. Held until the menu opened: each lifted preview is opaque and rounded with its name and balance whole; Wallet's preview is about 183pt wide and Joint Household Expenses Account's 343pt.
+
+Tests on "Record pressed account row corner verification" (83 commits on `2258ef81`), `scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests`, iPhone 18 Pro, default size, light, both accessibility settings written immediately before the run, first run on a newly started Mac: "runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-19 06:14:05 +0000)" and "Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 183.207 (183.556) seconds".
+
+The fold changed these hashes. The hillclimb artifact's text still uses the left-hand ones for these commits:
+
+```
+6cd47056 -> f15f4538  Give lifted account rows an opaque card preview
+041b5388 -> f4927d89  Keep decorative form icons inside their shared column
+91c1c5c2 -> 9dda5cd6  Use the ledger date format in transaction forms
+d13e3eaf -> feffa65e  Record round 2 iPad verification and remaining limits
+43b8f64a -> 67a928a3  Record Payments due width-based heading verification
+6758b4ed -> bc43f98c  Record the round 2 integration checks and the test failure's cause
+ae005984 -> c709cfc3  Stack the register totals card at accessibility sizes
+6edb91c8 -> fcabaa4a  Give the selection bar's actions their own line at accessibility sizes
+5ee4d2ea -> 1368ae0a  Put the Rewards report's group figures under the label at accessibility sizes
+8084636a -> 478f03c8  Put the switch under the card name in Customise Board at accessibility sizes
+48dfaae6 -> a88e5da6  Keep the Rewards Summary caption clear of the card's corner
+f0e39989 -> ee9c25b3  Show friendly dates in the Inspect list and stack its rows at accessibility sizes
+eee7159c -> 20e75c93  Record the round 2 iPhone fixes
+ff42253b -> 4d56b2e0  Keep the Conversation dock above the keyboard after a pushed screen
+92a5c4b2 -> ef9b55ee  Keep the register's empty-state titles whole at accessibility sizes
+7a8a8724 -> d3738053  Let a register payee take two lines at the largest ordinary sizes
+257c5e1b -> f7cf3b50  Record the review corrections on the iPhone Duo
+ab32b1bc -> 76ce9ea8  Keep Net Worth account figures whole at accessibility sizes
+2fc9d3d1 -> 8f245e9e  Keep icon category symbols inside their tap targets
+1e1781d2 -> 851f8edd  Stack the Skill file symbol above its title at accessibility sizes
+ca01b710 -> ee840883  Keep decorative account icons out of the account names
+6c2a12bf -> 0e56be54  Put favourite switches below account names at accessibility sizes
+c188b548 -> d41aff9f  Give report period labels and legends their own line at accessibility sizes
+57a2ea83 -> f45c4631  Record round 2 phone layout verification
+2761a20c -> 62c91bc3  Record the combined round 2 fixes and their test run
+d876af3b -> 579c3d58  Record the empty-state description check on the iPhone Duo
+a52c8dd5 -> 89ae5704  Record the second reviews and the empty-state correction's test run
+4252ff13 -> 2caf282c  Let a scheduled row's payee wrap at the largest ordinary sizes
+```
+
+Left to do to finish the round:
+
+1. Merge the 2IP-28 correction (`git am -3`, autosquash, check the tree diff is empty), build, run the suite once with both accessibility settings written first.
+2. Ask Fable 5.2 (thread T-01a1f0a7-94f9-74be-8040-6c3c00d2f9e3) to rescore iPhone groups B, E and H at the new head. Ask GPT-6 Astra (T-01a1f0a7-8ccb-76d7-8b37-7bfac66fe0d9) to recheck the Duo's Conversation dock only if the correction changes it there.
+3. Bring the artifact's Fixes table and hashes up to date after the last fold.
+4. Ask YJ for landing approval and his decisions on the nine held findings. Nothing is pushed.
