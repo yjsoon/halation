@@ -95,3 +95,17 @@ The cause of the 9 first-run failures:
 - Reproduced on purpose at `8e173f31`, `CaptureSnapshotTests` alone: with `defaults write com.apple.Accessibility ApplicationAccessibilityEnabled -bool false` first, "Executed 30 tests, with 9 failures (0 unexpected) in 88.626 (88.643) seconds", the same four cases, and the setting read 1 afterwards. With it set to true first: "Executed 30 tests, with 0 failures (0 unexpected) in 99.772 (99.788) seconds".
 - Not established: which hand action makes `testmanagerd` switch the setting off. Opening the app by hand, `simctl install`, `axe describe-ui`, `axe tap`, and `simctl ui` appearance and text size changes each left it on when tried one at a time. Not run: `2258ef81` with the setting off.
 - To keep a run clear of it, write both settings from `apps/ios/AGENTS.md` immediately before the run, not once per simulator. GPT-6 Astra did this before each of its runs and never saw the failure.
+
+## Round 2: the three fix sets combined
+
+Merged with `git am -3`, in this order, on "Record the round 2 integration checks and the test failure's cause": Opus 5.5's six iPhone fixes and record (2IP-01, 2IP-07, 2IP-03, 2IP-16, 2IP-20, 2IP-04), Fable 5.2's four Duo fixes and record (2DU-10, 2DU-09, 2DU-11, 2PD-18), GPT-6 Astra's six iPhone fixes and record (2IP-02, 2IP-11, 2IP-15, 2IP-10, 2IP-17, 2IP-14). No conflicts. The 2DU-10 correction was a `fixup!` and is folded into "Stack the Conversation dock's header at accessibility sizes" (`git rebase --autosquash`), which changed the hash of every commit after "Keep the Net Worth report's Assets and Debts figures whole". The tree was identical before and after the fold (`git diff` empty). Combined head: "Record round 2 phone layout verification", 78 commits on `2258ef81`, 25 round 2 fixes.
+
+Not fixed by their authors, with reasons in the workers' records: 2IP-08 (the navigation bar gives "Approve all (2)" its full width and squeezes the title, so a `ViewThatFits` label changed nothing) and 2IP-12 (the values belong to system menu pickers).
+
+Checks by the lead on the combined head, iPhone SE (3rd generation), iOS 27.3, light:
+
+- 2IP-01, `accessibility-extra-extra-extra-large`. Steps: Accounts, New. Observed: "Money In" [32, 142, 168, 52], "$0.00" [32, 195, 124, 53], "Money Out" [32, 256, 202, 52], "$59.30" [32, 310, 152, 53], "Net" [32, 370, 66, 52], "-$59.30" [32, 424, 171, 53], each on one line. The bar shows Back, "Approve all (2)" [80, 20, 151, 36], Search and More, and no title (2IP-08, not fixed).
+- 2PD-18, `extra-extra-extra-large`. Steps: Accounts, All. Observed: "FairPrice Finest" [32, 176, 96, 56] on two lines beside "-$128.64" [210, 218, 93, 26]; "Bus and MRT top-up" [32, 516, 142, 56] on two lines beside "-$12.00" [223, 544, 80, 26]; Toast Box, Shopee and Guardian on one line with rows 54, 80 and 54pt high.
+- Seen in passing at `accessibility-extra-extra-extra-large` with payment reminders on for two cards: the Payments due band is about 2,000pt tall, so the New tile starts at y 2240. No auditor has reported it.
+
+Tests, same command, iPhone 18 Pro, default size, light, both accessibility settings written immediately before the run, first run on a newly started Mac: "runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-19 02:58:20 +0000)" and "Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 187.434 (187.801) seconds".
