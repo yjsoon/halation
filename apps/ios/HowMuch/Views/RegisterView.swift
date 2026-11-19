@@ -3036,7 +3036,9 @@ struct TransactionRow: View {
               Text(payeeDisplay)
                 .font(.body.weight(.semibold))
                 .foregroundStyle(Theme.textPrimary)
-                .lineLimit(stacks ? nil : 1)
+                // From extra-extra-large up a payee that does not fit beside
+                // its amount goes onto a second line instead of being cut.
+                .lineLimit(stacks ? nil : (dynamicTypeSize >= .xxLarge ? 2 : 1))
               Text(detailLine)
                 .font(.footnote)
                 .foregroundStyle(transaction.isUncategorised ? AnyShapeStyle(Theme.uncategorised) : AnyShapeStyle(.secondary))
