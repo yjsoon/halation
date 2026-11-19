@@ -92,6 +92,7 @@ struct AccountIconPicker: View {
           } label: {
             Image(systemName: category.symbolIconName)
               .font(.body.weight(.semibold))
+              .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
               .foregroundStyle(isVisible ? Theme.accent : Color.secondary)
               .frame(width: 38, height: 34)
               .background(
