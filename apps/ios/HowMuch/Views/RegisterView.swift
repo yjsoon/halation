@@ -760,9 +760,28 @@ struct RegisterView: View {
     let inflow = amounts.filter { $0 > 0 }.reduce(0, +)
     let outflow = -amounts.filter { $0 < 0 }.reduce(0, +)
     let count = selection.count
+    // At accessibility sizes Edit and Clear selection take their own line, so
+    // the count keeps the bar's width, and the hint stops at two lines rather
+    // than cover a third of the rows.
+    let stacksActions = mastheadTypeSize.isAccessibilitySize
     let countText = Text(count == 0 ? "Tap transactions to add them up" : "\(count) selected")
       .font(.subheadline.weight(.semibold))
       .foregroundStyle(Theme.textPrimary)
+      .lineLimit(stacksActions && count == 0 ? 2 : nil)
+      .minimumScaleFactor(stacksActions && count == 0 ? 0.5 : 1)
+    let actions = Group {
+      bulkEditMenu(Array(selection.values))
+      Button {
+        withAnimation(Theme.Motion.standard) { self.selection = [:] }
+      } label: {
+        Image(systemName: "xmark.circle.fill")
+          .font(.title3)
+          .foregroundStyle(.tertiary)
+          .frame(width: 44, height: 44)
+      }
+      .buttonStyle(.plain)
+      .accessibilityLabel("Clear selection")
+    }
     let totalText = Text(MoneyCodec.signedDisplayString(for: total, currencyFormat: model.currencyFormat))
       .font(.title3.weight(.bold))
       .monospacedDigit()
@@ -791,18 +810,13 @@ struct RegisterView: View {
         }
         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
         .accessibilityElement(children: .combine)
-        if count > 0 {
-          bulkEditMenu(Array(selection.values))
-          Button {
-            withAnimation(Theme.Motion.standard) { self.selection = [:] }
-          } label: {
-            Image(systemName: "xmark.circle.fill")
-              .font(.title3)
-              .foregroundStyle(.tertiary)
-              .frame(width: 44, height: 44)
-          }
-          .buttonStyle(.plain)
-          .accessibilityLabel("Clear selection")
+        if count > 0, !stacksActions {
+          actions
+        }
+      }
+      if count > 0, stacksActions {
+        HStack(spacing: 8) {
+          actions
         }
       }
       // Its own line: beside the total there is no room for both amounts.
@@ -885,6 +899,7 @@ struct RegisterView: View {
     } label: {
       Text("Edit")
         .font(.subheadline.weight(.semibold))
+        .lineLimit(1)
         .padding(.horizontal, 16)
         .frame(minHeight: 36)
     }
