@@ -514,7 +514,7 @@ final class CaptureSnapshotTests: XCTestCase {
       "blank Add Transaction must show CalculatorKeypad: \(surface.accessibilityLabels())"
     )
 
-    let revealed = await revealControl(on: surface, label: "Enter a memo…", requireTimelineVisible: true)
+    let revealed = await revealControl(on: surface, label: "Memo", requireTimelineVisible: true)
     XCTAssertNotNil(revealed, "memo must be visible above the calculator before focusing")
     await surface.settleVisible()
     let memo = try XCTUnwrap(

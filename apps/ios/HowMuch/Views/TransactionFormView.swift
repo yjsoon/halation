@@ -1171,6 +1171,9 @@ struct TransactionFormView: View {
         .lineLimit(1 ... 3)
         .foregroundStyle(Theme.textPrimary)
         .focused($isTextInputFocused)
+        // The prompt is spoken only while the field is empty; once a memo
+        // is typed, VoiceOver would read it with nothing to say what it is.
+        .accessibilityLabel("Memo")
     }
   }
 
