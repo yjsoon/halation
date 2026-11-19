@@ -119,3 +119,22 @@ The remaining failure is `CaptureAITests.testKeychainCanReplaceAndDeleteOnlyItsO
 - No physical device, VoiceOver traversal, production writes, saved transaction mutations or notification delivery test. No unit tests added. No changes to held/proposal findings, concurrent Fable files, or the register's TransactionRow.
 - The recipe's exact 791pt-high narrow window was not reproduced; width was 375pt. 2PD-07 remains unconfirmed, not fixed.
 - Patch archive: `.amp/in/orb-backup/patches-pd3.tgz`, containing one patch per delivered commit from `7fb53016..HEAD`. Media stay outside Git.
+
+## 2PD-17 follow-up: choose the Payments due heading by available width
+
+Baseline: `27374ba1`. Fix: `7711c97c`, a fixup for `ddd72a13`. Only PaymentsDueBand.swift changes. The horizontal candidate measures the full name and amount; ViewThatFits selects the stacked candidate when they cannot fit together. No wording or font changes.
+
+Reproduction and verification used the disposable seeded ledger, iOS 27.3, iPad Pro 13-inch (M5), iPad mini (A20 Pro) and iPhone 18 Pro, portrait. Open Accounts at the top, with the tab sidebar hidden on iPads. Use `xcrun simctl ui <device> content_size <size>` and `appearance <light|dark>`. Capture with `axe describe-ui --udid <device>` and `xcrun simctl io <device> screenshot <path>`. Build before and after with `HOWMUCH_SIM_SIGNING=unsigned SIMULATOR_UDID=<device> scripts/ios-xcodebuild.sh build`; both succeeded. Screenshot/AX pairs are in `.amp/in/artifacts/ios-ui-hillclimb/pd4/pd4/`, named `<device>-portrait-<appearance>-<size>-<before|after>`. Screenshots remain outside Git.
+
+Measured frames are [x, y, width, height] in points:
+
+- Mini, default: Platinum name `[32,180.5,151,18]` truncated before, `[32,180.5,175.5,18]` whole after. Amount `[199,180.5,77,18]` becomes `[32,202.5,77,18]`. Content height 71 becomes 93. Travel's name remains x32, width81.5, height18; its amount remains x189.5, width86.5, height18. The whole Travel row moves down 22pt because Platinum grows 22pt, not because Travel changes layout.
+- Pro, default: all payment-card accessibility frames match exactly. Platinum name `[32,180.5,175.5,18]` and amount `[231,180.5,77,18]` remain side by side. Travel name `[32,312,81.5,18]` and amount `[221.5,312,86.5,18]` remain unchanged.
+- Phone, default: Platinum also truncated before (name width150.7); now width175.7 at x32, y208.3. Amount moves from `[190.7,208.3,76.7,18]` to `[32,230.3,76.7,18]`. Schedule stays `[279.3,208.3,90.7,44]`. Travel's name/amount retain their widths, height and relative positions; y299.3 becomes321.3 because Platinum grows22pt.
+- Pro, extra-large: truncated Platinum name `[32,183,168,20.5]` becomes whole `[32,183,195.5,20.5]`; amount `[222.5,183,85.5,20.5]` becomes `[32,207.5,85.5,20.5]`. Mini extra-large likewise shows the whole name and amount below. Travel still fits side by side on both, shifting down24.5pt from the preceding correction.
+
+Light/dark before-and-after captures cover default and extra-large on all three devices. Additional after captures cover extra-extra-extra-large and accessibility-extra-extra-extra-large on all three. Inspected the default mini and phone, extra-large iPad comparisons in both appearances, Pro XXXL and mini AX5: names and amounts are whole without new overlap. At AX5 the mini name wraps across three full words and the amount remains one line.
+
+Full HowMuchTests is run after this record commit, on the iPhone 18 Pro restored to default `large`, light, with Halation closed and both AccessibilityEnabled and ApplicationAccessibilityEnabled enabled. Command: `HOWMUCH_SIM_SIGNING=unsigned SIMULATOR_UDID=<phone> scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests`. The final-head result and its Executed line are delivered in the thread with `pd4-final-head-tests.log`, separate from the earlier round's test result above.
+
+Not repeated for this correction: landscape, narrow windows, sidebar shown, physical devices, VoiceOver or payment writes. Larger-size after checks are supplementary, not before/after comparisons. No changes to 2PD-07, 2PD-08 or other workers' files. Delivery is two unpushed commits packaged in `.amp/in/orb-backup/patches-pd4.tgz`.
