@@ -109,3 +109,15 @@ Checks by the lead on the combined head, iPhone SE (3rd generation), iOS 27.3, l
 - Seen in passing at `accessibility-extra-extra-extra-large` with payment reminders on for two cards: the Payments due band is about 2,000pt tall, so the New tile starts at y 2240. No auditor has reported it.
 
 Tests, same command, iPhone 18 Pro, default size, light, both accessibility settings written immediately before the run, first run on a newly started Mac: "runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-19 02:58:20 +0000)" and "Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 187.434 (187.801) seconds".
+
+## Round 2: second reviews and the empty-state correction
+
+Second reviews of the combined head "Record round 2 phone layout verification" (reviewed as `e0c3a660`), each on the reviewer's own Mac and build. Scores are 0 to 10 per screen group and principle; the bar is 8.
+
+- iPhone Duo, GPT-6 Astra: lowest 4 as seen (group B). Leaving out the items held for YJ (2DU-04, 2DU-07, 2DU-08): lowest 6, group C only, from the sentence under the empty register's title, which still broke as "Transac- / tions" in the book and tabletop poses at `accessibility-extra-extra-extra-large`. Accepted: the Conversation dock on a short screen (2DU-10), the dock after the Account picker (2DU-09), the two-line payee (2PD-18). One new low finding, 2DU-12.
+- iPad, Opus 5.5: lowest 6 as seen (groups C, F, H). Leaving out the items held for YJ: lowest 8, no group under 8. Accepted: the Payments due heading chosen by width (2PD-17) and the two-line payee (2PD-18). Five new low findings, 2PD-19 to 2PD-23.
+- iPhone and iPhone SE, Fable 5.2: not reported when this was written.
+
+The correction for 2DU-11, by Fable 5.2, merged with `git am -3` and folded into "Keep the register's empty-state titles whole at accessibility sizes" (`git rebase --autosquash`; the tree was identical before and after the fold). It changed the hash of every commit after "Keep the Conversation dock above the keyboard after a pushed screen". The worker's frames and steps are in `../du-fixes/RECORD.md`, "Fifth round". The lead did not look at this correction in a simulator; GPT-6 Astra is asked to recheck it on the Duo.
+
+Tests on the head with the correction ("Record the empty-state description check on the iPhone Duo", 80 commits on `2258ef81`), same command, iPhone 18 Pro, default size, light, both accessibility settings written immediately before the run, first run on a newly started Mac: "runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-19 04:56:44 +0000)" and "Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 184.463 (184.812) seconds".
