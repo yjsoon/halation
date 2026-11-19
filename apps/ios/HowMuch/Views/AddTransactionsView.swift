@@ -1629,6 +1629,7 @@ struct CaptureComposerField: UIViewRepresentable {
 }
 
 struct QuerySourceListView: View {
+  @Environment(\.dynamicTypeSize) private var dynamicTypeSize
   let card: LedgerQueryResult
   let currencyFormat: CurrencyFormat?
 
@@ -1643,7 +1644,14 @@ struct QuerySourceListView: View {
 
   private func sourceRowFootnote(_ row: LedgerQuerySourceRow) -> String {
     let split = row.isSplitPortion ? " · Split portion" : ""
-    return "\(row.date) · \(row.accountName) · \(row.categoryName)\(split)"
+    return "\(LedgerDate.friendlyString(fromISO: row.date)) · \(row.accountName) · \(row.categoryName)\(split)"
+  }
+
+  /// The register's date format, as on the card this list came from.
+  private var rangeText: String {
+    let from = LedgerDate.friendlyString(fromISO: card.from)
+    let to = LedgerDate.friendlyString(fromISO: card.to)
+    return from == to ? from : "\(from) to \(to)"
   }
 
   var body: some View {
@@ -1653,26 +1661,39 @@ struct QuerySourceListView: View {
           .font(.footnote)
           .foregroundStyle(.secondary)
         if card.isRecordedSpending {
-          Text("Recorded spending · \(card.from) to \(card.to)")
+          Text("Recorded spending · \(rangeText)")
             .font(.caption)
             .foregroundStyle(Theme.uncategorised)
         }
       }
       Section(sourceSectionTitle) {
         ForEach(card.sourceRows) { row in
-          HStack {
+          let amount = Text(MoneyCodec.signedDisplayString(for: row.amount, currencyFormat: currencyFormat))
+            .font(.subheadline.weight(.medium))
+            .monospacedDigit()
+            .foregroundStyle(Theme.registerAmountColour(row.amount))
+          let details = VStack(alignment: .leading, spacing: 3) {
+            Text(row.payee)
+              .font(.body.weight(.semibold))
+            Text(sourceRowFootnote(row))
+              .font(.footnote)
+              .foregroundStyle(.secondary)
+          }
+          // At accessibility sizes the amount goes under the payee, as in the
+          // register, so neither breaks inside a word or a number.
+          if dynamicTypeSize.isAccessibilitySize {
             VStack(alignment: .leading, spacing: 3) {
-              Text(row.payee)
-                .font(.body.weight(.semibold))
-              Text(sourceRowFootnote(row))
-                .font(.footnote)
-                .foregroundStyle(.secondary)
+              details
+              amount
+                .lineLimit(1)
+                .minimumScaleFactor(0.5)
             }
-            Spacer()
-            Text(MoneyCodec.signedDisplayString(for: row.amount, currencyFormat: currencyFormat))
-              .font(.subheadline.weight(.medium))
-              .monospacedDigit()
-              .foregroundStyle(Theme.registerAmountColour(row.amount))
+          } else {
+            HStack {
+              details
+              Spacer()
+              amount
+            }
           }
         }
       }
