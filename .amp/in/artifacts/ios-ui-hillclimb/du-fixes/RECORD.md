@@ -560,3 +560,73 @@ Not fixed: the detail line under the payee still truncates ("Groceries · Join..
 - The four commits were not built one at a time; only the head with all four was built and tested.
 
 Seen and not explained: the back button's accessibility label is "Back" in some captures and "Accounts" in others, with the same frame on each device whichever it reads (`[16, 62, 44, 44]` on the iPhone 18 Pro). On the iPhone SE it is "Back" in every capture of both builds. On the iPhone 18 Pro at the default size it is "Back" in one `f1a52c11` capture (New) and in six of the eight captures of the fixed build, and "Accounts" in three fresh launches of the head build afterwards (All twice, Spare Pot once). It varies on both builds, and none of the four commits touches a navigation title.
+
+## Fifth round: the empty register's description (2DU-11)
+
+The fourth round kept the titles whole and left the description under them open: "Transac- / tions you add..." in the book and tabletop poses at the largest size.
+
+### Revision and setup
+
+- Base: `e0c3a660` (the lead's bundle `hc-integrated-r2i`). Branch `ios-ui-hillclimb-du5`, local only, not pushed.
+- Code under test: `98a50cb2`, a `fixup!` of "Keep the register's empty-state titles whole at accessibility sizes" (`dd545aee` on the base). It changes only the `emptyState` helper in `Views/RegisterView.swift`. The commit that adds this section changes no code.
+- The same disposable stack, seed, Mac satellite and simulators as the fourth round. Two builds were compared: `e0c3a660` ("before") and the fixed build ("after").
+- Frames are `[x, y, width, height]` in points. "Largest size" is `accessibility-extra-extra-extra-large`. Captures are in `.amp/in/artifacts/ios-ui-hillclimb/du-fixes5/` (`before/`, `after/`, `pairs/`, `probe/`), not in git.
+
+### What changed
+
+At accessibility sizes the description steps down one text size at a time until its longest word fits the width it is given. An unseen stack of the sentence's words gives each size the width it needs, so the rule does not depend on the sentence. Where every word already fits, and at every other size, the description is the plain text it was.
+
+Two versions were thrown away on the way, both for one cause. With the unseen words in a tall column above the sentence, the closed display at `accessibility-extra-large` lost its tray symbol and wrapped a title that had fitted on one line (`[36, 260, 313, 138]` became `[64, 228, 257, 102]`). A temporary log of every size the description was asked for showed the same answers as the plain text in every case; the only difference was one vertical alignment guide of the description, which reads as its first text baseline (41pt for the plain text, -112pt with the column). The words are now stacked on one line and pinned to the top, so the baselines are the sentence's own, and that state is back to its frames.
+
+### Checks
+
+Steps: set the pose and text size, launch, Accounts, Spare Pot (an account with no transactions); Accounts, New.
+
+Expected: no word of the description breaks inside itself; nothing changes where the words already fitted, or at the default size.
+
+| State | Before (`e0c3a660`) | After |
+| --- | --- | --- |
+| Book pose, landscape, light, largest size, empty register | description `[561, 532, 221, 326]`, "Transac- / tions you / add will / appear / here."; title `[529, 309, 285, 221]` | description `[534, 526, 274, 175]`, "Transactions / you add will / appear here."; title `[544, 315, 254, 208]`, "No / Transactions"; tray symbol shown |
+| Tabletop pose, landscape, light, largest size, empty register | the same frames and breaks as the book pose | the same frames as the book pose |
+| Book and tabletop, landscape, largest size, New register (no description) | `[512, 82, 319, 298]` | no frame differs |
+| Closed, portrait, light, largest size, empty register | title `[36, 249, 314, 125]`, description `[40, 378, 306, 196]`, whole words, no tray symbol | no frame differs |
+| Closed, portrait, largest size, New register | `[16, 82, 350, 310]` | no frame differs |
+| Closed, portrait, `accessibility-medium`, `-large`, `-extra-large` and `-extra-extra-large`, both registers | | no frame differs at any of the four |
+| Book pose, landscape, `accessibility-extra-extra-large`, both registers | description `[534, 454, 274, 175]`, whole | no frame differs in x, width or height |
+| Closed Duo, portrait, default size, three registers | | no frame differs |
+| iPhone 18 Pro, default size, three registers | | no frame differs |
+
+In the book and tabletop poses the description is drawn one text size down (its frame is the one it has at `accessibility-extra-extra-large`).
+
+Side effect to judge: where the description steps down, the title above it is also drawn smaller, though whole: 254pt wide against 285pt in the book pose. The cause was not traced. The title's own modifiers are unchanged.
+
+### "No recent transactions"
+
+This state shows only while a register with nothing listed looks for older rows, which takes a moment on a local stack. To hold it: 60 rows were added to a temporary "Bulk Pot" account through the API, so the first ledger page (100 rows) no longer held Dusty Pot's 2025 transaction, and the local API process was paused and let run in 30ms slices while the register opened. The rows and the account were removed afterwards and the ledger is back to 56 rows.
+
+| State | Before (`e0c3a660`) | After |
+| --- | --- | --- |
+| Closed, portrait, light, largest size | title `[36, 258, 314, 237]`; description "Looking for older transactions…" `[50, 497, 286, 261]`, four lines, the last below the screen edge | title `[60, 268, 266, 217]`; description `[51, 487, 285, 175]`, "Looking for / older / transactions…", all on screen |
+| Book pose, landscape, light, largest size | title `[528, 309, 286, 225]`; description `[528, 536, 286, 261]`, four lines | title `[545, 316, 252, 211]`; description `[529, 529, 285, 175]`, three lines |
+
+The tray symbol is shown in all four. In the before captures the third line reads "transactions" and the frame is one line taller than three lines need, so the ellipsis is on a line of its own; that fourth line is below the screen in both and was not seen. The other description, "Search further back to see earlier activity.", needs ten older pages that list nothing and was not reached.
+
+### The tray symbol on the closed display
+
+It was not brought back. On the closed display in portrait at the largest size the empty register shows the title and the description without the symbol, on the base and after this change alike (the frames are identical). The symbol is there one text size down (`[57, 247, 272, 206]` for the title with its symbol, the description ending at y 631 of 678) and in the "No recent transactions" state above, where the description is a size smaller. At the largest size the title and description end at y 574; the symbol and its spacing would add about 96pt, which reaches about y 670 before the bottom inset. The system makes this choice and this change does not alter the sizes it is given there, so bringing the symbol back would mean drawing text smaller that already fits whole. That the system drops the symbol for want of height is an inference from these frames.
+
+### Tests
+
+`SIMULATOR_UDID=<iPhone 18 Pro> scripts/ios-xcodebuild.sh test -- -only-testing:HowMuchTests` at `98a50cb2`, simulator at the default text size, light, the app terminated first, and both `com.apple.Accessibility` settings written immediately before the run. One run was made:
+
+- `runner: build-for-testing succeeded; products match this worktree (HowMuchTests last linked 2026-11-19 04:35:03 +0000)`
+- `Executed 822 tests, with 1 test skipped and 0 failures (0 unexpected) in 184.390 (184.752) seconds`
+
+### Not checked
+
+- iPhone SE and iPad, and the iPhone 18 Pro at accessibility sizes.
+- Dark appearance.
+- The closed display in landscape, the open display flat, and the inner display in portrait.
+- "Search further back to see earlier activity."
+- VoiceOver. The unseen words are hidden views and do not appear in the accessibility tree read by `ui.sh`.
+- A description with a word too wide for the smallest accessibility size: by the code it then breaks as before at that size.
