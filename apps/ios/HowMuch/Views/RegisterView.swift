@@ -2108,12 +2108,27 @@ struct RegisterView: View {
       Text("\(snapshot.transactionCount) transaction\(snapshot.transactionCount == 1 ? "" : "s")")
         .font(.caption)
         .foregroundStyle(.secondary)
-      HStack {
-        summaryColumn("Money In", amount: inflow, MoneyCodec.displayString(for: inflow, currencyFormat: model.currencyFormat), colour: Theme.inflow)
-        Spacer()
-        summaryColumn("Money Out", amount: outflow, MoneyCodec.displayString(for: outflow, currencyFormat: model.currencyFormat), colour: Theme.outflow)
-        Spacer()
-        summaryColumn("Net", amount: net, MoneyCodec.signedDisplayString(for: net, currencyFormat: model.currencyFormat), colour: Theme.amountColour(net))
+      let stacked = mastheadTypeSize.isAccessibilitySize
+      let inColumn = summaryColumn("Money In", amount: inflow, MoneyCodec.displayString(for: inflow, currencyFormat: model.currencyFormat), colour: Theme.inflow, stacked: stacked)
+      let outColumn = summaryColumn("Money Out", amount: outflow, MoneyCodec.displayString(for: outflow, currencyFormat: model.currencyFormat), colour: Theme.outflow, stacked: stacked)
+      let netColumn = summaryColumn("Net", amount: net, MoneyCodec.signedDisplayString(for: net, currencyFormat: model.currencyFormat), colour: Theme.amountColour(net), stacked: stacked)
+      // At accessibility sizes one under another: three abreast broke the
+      // labels and figures inside their words.
+      if stacked {
+        VStack(alignment: .leading, spacing: 8) {
+          inColumn
+          outColumn
+          netColumn
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+      } else {
+        HStack {
+          inColumn
+          Spacer()
+          outColumn
+          Spacer()
+          netColumn
+        }
       }
     }
     .padding(.horizontal, 16)
@@ -2122,8 +2137,8 @@ struct RegisterView: View {
     .ynabCard()
   }
 
-  private func summaryColumn(_ label: String, amount: Int, _ value: String, colour: Color) -> some View {
-    VStack(spacing: 2) {
+  private func summaryColumn(_ label: String, amount: Int, _ value: String, colour: Color, stacked: Bool) -> some View {
+    VStack(alignment: stacked ? .leading : .center, spacing: 2) {
       Text(label)
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -2131,6 +2146,8 @@ struct RegisterView: View {
         .font(.footnote.weight(.semibold))
         .monospacedDigit()
         .foregroundStyle(colour)
+        .lineLimit(stacked ? 1 : nil)
+        .minimumScaleFactor(stacked ? 0.5 : 1)
         .rollingNumber(amount)
     }
   }
