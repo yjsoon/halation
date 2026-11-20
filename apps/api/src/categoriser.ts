@@ -266,6 +266,42 @@ export async function suggestCategories(
 }
 
 /**
+ * Gives a new transaction that leaves out `category_id` or `flag_color` what
+ * its payee usually gets (`getPayeeDefaults`), as the entry forms suggest.
+ * Only a missing key counts: an explicit null is not filled from history. A
+ * `flag_name` without `flag_color` keeps the flag unfilled, since the name
+ * belongs to the caller's colour. Runs before Jev, so a payee with history is
+ * categorised from the plan's own ledger without a model call; Jev is still
+ * asked about every row left without a category. Mutates the inputs.
+ */
+export async function fillPayeeDefaults<T extends TransactionInput>(repo: LedgerStore, planId: string, inputs: T[]): Promise<void> {
+  const missing = (input: T, key: "category_id" | "flag_color") => !Object.prototype.hasOwnProperty.call(input, key);
+  const wanting = inputs.filter((input) => !input.transfer_account_id
+    && (missing(input, "category_id") || missing(input, "flag_color"))
+    && Boolean(input.payee_name?.trim() || input.payee_id));
+  if (wanting.length === 0) return;
+
+  let payeesById: Map<string, any> | null = null;
+  const cache = new Map<string, { category_id: string | null; flag_color: string | null }>();
+  for (const input of wanting) {
+    let name = input.payee_name?.trim() || null;
+    if (input.payee_id) {
+      payeesById ??= new Map((await repo.listPayees(planId)).map((payee: any) => [payee.id, payee]));
+      const payee = payeesById.get(input.payee_id);
+      if (payee?.transfer_account_id) continue;
+      // The record's name carries the history; a typed name may be a raw bank string.
+      name = payee?.name?.trim() || name;
+    }
+    if (!name) continue;
+    const key = `${name.toLowerCase()}\u0000${input.account_id}`;
+    let defaults = cache.get(key);
+    if (!defaults) cache.set(key, defaults = await repo.getPayeeDefaults(planId, name, input.account_id));
+    if (missing(input, "category_id") && !input.subtransactions?.length && defaults.category_id) input.category_id = defaults.category_id;
+    if (missing(input, "flag_color") && !Object.prototype.hasOwnProperty.call(input, "flag_name") && defaults.flag_color) input.flag_color = defaults.flag_color;
+  }
+}
+
+/**
  * Fills `category_id` on new transactions that name a payee but no category,
  * when Jev is confident. Mutates and returns the inputs.
  *

@@ -1053,6 +1053,61 @@ describe("YNAB-compatible API", () => {
     expect(listed.data.transactions.find((txn: any) => txn.id === bulk)).toMatchObject({ flag_color: "red", flag_name: null });
   });
 
+  test("a create that leaves out category or flag takes the payee's usual ones; an explicit null stays", async () => {
+    // Failure modes: an explicit "uncategorised" or "no flag" overwritten by
+    // history; quick entry reading a missing key as null; a flag carried over
+    // from another account, where the colour means something else; a CSV
+    // import (approved by default) categorised without review; the fill running
+    // after the flag name is stamped; a typed bank string hiding a known payee.
+    await createAccount("card", { name: "Card", type: "creditCard" });
+    const card = await request("/api/rewards/cards?plan_id=plan-test", {
+      method: "POST",
+      body: { card: { name: "Verify card", issuer: "UOB", type: "cashback", ynabAccountId: "card", earningRate: 1, flagNames: { purple: "Coffee" } } },
+    });
+    expect(card.status).toBe(201);
+    for (const [date, category_id] of [["2026-09-01", "cat-food"], ["2026-09-02", "cat-food"], ["2026-09-03", "cat-home"]]) {
+      await createTransaction({ account_id: "acct-1", date, amount: -1000, payee_name: "Corner Cafe", category_id, flag_color: "green" });
+    }
+    await createTransaction({ account_id: "card", date: "2026-09-04", amount: -1000, payee_name: "Corner Cafe", category_id: "cat-food", flag_color: "purple" });
+
+    const created = async (path: string, body: unknown) => {
+      const response = await request(path, { method: "POST", body });
+      expect(response.status).toBe(201);
+      return (await response.json()).data.transaction;
+    };
+    const omitted = await created("/v1/plans/plan-test/transactions", {
+      transaction: { account_id: "acct-1", date: "2026-10-01", amount: -500, payee_name: "corner cafe" },
+    });
+    expect(omitted).toMatchObject({ category_id: "cat-food", flag_color: "green" });
+
+    const onCard = await created("/api/mobile/quick-entry", { account_id: "card", date: "2026-10-01", amount_milli: -500, payee_name: "Corner Cafe" });
+    expect(onCard).toMatchObject({ category_id: "cat-food", flag_color: "purple", flag_name: "Coffee" });
+
+    const payeeId = await createPayee("Corner Cafe");
+    const byRecord = await created("/v1/plans/plan-test/transactions", {
+      transaction: { account_id: "acct-1", date: "2026-10-01", amount: -500, payee_id: payeeId, payee_name: "CORNER CAFE PTE LTD 0042" },
+    });
+    expect(byRecord).toMatchObject({ category_id: "cat-food", flag_color: "green" });
+
+    const explicit = await created("/v1/plans/plan-test/transactions", {
+      transaction: { account_id: "acct-1", date: "2026-10-02", amount: -500, payee_name: "Corner Cafe", category_id: null, flag_color: null },
+    });
+    expect(explicit).toMatchObject({ category_id: null, flag_color: null });
+    const explicitQuick = await created("/api/mobile/quick-entry", {
+      account_id: "acct-1", date: "2026-10-02", amount_milli: -500, payee_name: "Corner Cafe", category_id: null, flag_color: null,
+    });
+    expect(explicitQuick).toMatchObject({ category_id: null, flag_color: null });
+
+    const csv = await request("/api/import/csv?plan_id=plan-test", {
+      method: "POST",
+      body: { account_id: "acct-1", rows: [{ date: "2026-10-03", payee: "Corner Cafe", outflow: "5.00" }] },
+    });
+    expect(csv.status).toBe(201);
+    const listed = await (await request("/v1/plans/plan-test/transactions?since_date=2026-10-03")).json();
+    expect(listed.data.transactions).toHaveLength(1);
+    expect(listed.data.transactions[0]).toMatchObject({ category_id: null, flag_color: null });
+  });
+
   test("updates multiple transactions on the collection PATCH used by YNAB", async () => {
     const firstId = await createTransaction({
       account_id: "acct-1",

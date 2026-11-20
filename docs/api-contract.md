@@ -237,6 +237,8 @@ Create body:
 
 What a new transaction to this payee usually gets, for entry forms to pre-fill: `{ "payee_defaults": { "category_id": "…" | null, "flag_color": "purple" | null } }`. The category is the most common one across the payee's five most recent categorised, non-transfer transactions in the plan; the flag colour is the most common one (unflagged counts) across its five most recent transactions in `account_id`, because each card gives its colours its own meaning. Ties go to the newer value. Rows match on the payee name each transaction carries, ignoring case and extra spaces, since a payee typed by name may have no payee record. It is read from the live ledger each time, so every save, edit, move and delete counts at once. Without `account_id`, `flag_color` is null. The flag name is not returned: a save stamps it from the account's rewards card.
 
+The same defaults fill new transactions created through the API. `POST /v1/plans/{plan_id}/transactions` (single and batch) and `POST /api/mobile/quick-entry` give a transaction that names a payee (`payee_name`, or a `payee_id` that is not a transfer payee) but leaves out the `category_id` key the payee's usual category, and one that leaves out the `flag_color` key the payee's usual flag colour in that account, with the flag name the account's rewards card gives it. Only a missing key is filled: `"category_id": null` or `"flag_color": null` is not filled from history, and a `flag_name` sent without `flag_color` leaves the flag unfilled. With a `payee_id`, the payee record's name is looked up rather than a differing `payee_name`. Splits get no parent category. This runs before [automatic categorisation](#category-suggestions-jev), so a payee with categorised history needs no model call; Jev is then asked about every transaction still without a category, including an explicit `null`. Imports (`/transactions/import`, CSV, YNAB, snapshots) and scheduled materialisation are not filled: CSV rows are approved by default, so a guessed category would reach the budget without review, and a payee's habits today say little about an old statement.
+
 ### Categories
 
 `GET /v1/plans/{plan_id}/categories`
@@ -1135,7 +1137,8 @@ category names and those past examples to TypeSafe. Errors: `503 categoriser_not
 **Automatic categorisation on create.** When `TYPESAFE_API_KEY` is set,
 `POST /v1/plans/{plan_id}/transactions` (single and batch) and
 `POST /api/mobile/quick-entry` ask Jev for a category for each new transaction
-that names a payee (`payee_name` or `payee_id`) but no `category_id`. Jev's pick is
+that names a payee (`payee_name` or `payee_id`) but no `category_id`, after the
+[payee's usual category](#payees) has been tried for a missing key. Jev's pick is
 stored only when it is not "none of these" and its confidence is at least 0.6,
 or at least 0.85 when there is no past evidence (no history for the payee and no
 similarly named transactions); otherwise the transaction is created uncategorised. Transfers, splits and rows with

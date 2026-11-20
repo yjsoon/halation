@@ -1,6 +1,11 @@
 import Foundation
 import Observation
 
+struct CapturePayeeSuggestion: Equatable, Codable, Sendable {
+  var categoryID: String?
+  var flag: FlagColour
+}
+
 struct CaptureDraftItem: Identifiable, Equatable, Codable, Sendable {
   var id: String
   var draft: TransactionDraft
@@ -13,6 +18,8 @@ struct CaptureDraftItem: Identifiable, Equatable, Codable, Sendable {
   var committed: Bool
   var unrecognizedAccount: String?
   var unrecognizedCategory: String?
+  /// The payee's usual category and flag last filled in (`applyPayeeDefaults`).
+  var payeeSuggestion: CapturePayeeSuggestion?
 
   init(draft: TransactionDraft, included: Bool = true) {
     var draft = draft
@@ -567,6 +574,37 @@ final class CaptureSession: Identifiable {
     drafts[index].categoryCandidates = []
     drafts[index].unrecognizedCategory = nil
     touch()
+  }
+
+  /// Fills a draft's empty category and flag with what its payee usually
+  /// gets (`AppModel.payeeDefaults`), as the Add Transaction form does. A
+  /// category or flag the capture read, or the user chose, is kept; one an
+  /// earlier suggestion filled is replaced, so a changed payee or account
+  /// suggests again. Ignored when the draft moved on since the lookup began,
+  /// and while a turn is in flight, which owns the drafts until it ends.
+  func applyPayeeDefaults(_ suggestion: CapturePayeeSuggestion, forDraft id: String, payeeName: String, accountID: String) {
+    guard !isBusy, let index = drafts.firstIndex(where: { $0.id == id && !$0.committed }) else {
+      return
+    }
+    var item = drafts[index]
+    guard !item.hasManualEdits, item.draft.payeeName == payeeName, item.draft.accountID == accountID,
+          item.draft.transferAccountID == nil else {
+      return
+    }
+    let previous = item.payeeSuggestion
+    if !item.draft.isSplit, !item.categoryWasExplicit,
+       item.draft.categoryID == nil || item.draft.categoryID == previous?.categoryID {
+      item.draft.categoryID = suggestion.categoryID
+    }
+    if item.draft.flag == .none || item.draft.flag == previous?.flag {
+      item.draft.flag = suggestion.flag
+    }
+    item.payeeSuggestion = suggestion
+    let changed = item.draft != drafts[index].draft
+    drafts[index] = item
+    if changed {
+      touch()
+    }
   }
 
   func addAttachment(_ attachment: CaptureAttachment) {

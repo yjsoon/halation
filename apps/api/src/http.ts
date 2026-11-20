@@ -38,7 +38,7 @@ import { randomBytes } from "node:crypto";
 import { ScheduledTransactionValidationError } from "./scheduled-transactions";
 import { ACCOUNT_KINDS, onBudgetForKind, parseAccountKind, type AccountUpdatePatch } from "./account-kind";
 import { handleRewardTool } from "./reward-tools";
-import { autoCategorise, CategoriserUnavailableError, parseCategoriseExclusions, parseCategoriseItems, suggestCategories, type CategoriserConfig } from "./categoriser";
+import { autoCategorise, CategoriserUnavailableError, fillPayeeDefaults, parseCategoriseExclusions, parseCategoriseItems, suggestCategories, type CategoriserConfig } from "./categoriser";
 import type { Fetch } from "@typesafe-ai/sdk";
 import {
   CategoryInUseError,
@@ -600,6 +600,7 @@ async function handleV1(
       if (collectionPostIntent(body) === "many") {
         const inputs = parseTransactionCreates(body.transactions);
         for (const input of inputs) normaliseFollowUpWords(input);
+        await fillPayeeDefaults(repo, planId, inputs);
         for (const input of inputs) await stampTransactionFlagName(repo, planId, input.account_id, input);
         await autoCategorise(repo, planId, inputs, categoriser);
         const result = await repo.createTransactions(planId, inputs);
@@ -625,6 +626,7 @@ async function handleV1(
         });
       }
       try {
+        await fillPayeeDefaults(repo, planId, [input]);
         await stampTransactionFlagName(repo, planId, input.account_id, input);
         await autoCategorise(repo, planId, [input], categoriser);
         const created = await repo.createTransaction(planId, input);
@@ -910,9 +912,10 @@ async function handleNative(
       amount,
       payee_id: body.payee_id ?? null,
       payee_name: body.payee_name ?? body.payee ?? null,
-      category_id: body.category_id ?? null,
+      // A missing key asks for the payee's usual one (`fillPayeeDefaults`); null means none.
+      ...(Object.prototype.hasOwnProperty.call(body, "category_id") ? { category_id: body.category_id } : {}),
       memo: body.memo ?? null,
-      flag_color: body.flag_color ?? null,
+      ...(Object.prototype.hasOwnProperty.call(body, "flag_color") ? { flag_color: body.flag_color } : {}),
       ...(body.needs_confirmation === undefined ? {} : { needs_confirmation: body.needs_confirmation }),
       ...(body.claim_status === undefined ? {} : { claim_status: body.claim_status }),
       approved: true,
@@ -922,6 +925,7 @@ async function handleNative(
     };
     assertTransactionFieldTypes(input);
     normaliseFollowUpWords(input);
+    await fillPayeeDefaults(repo, targetPlanId, [input]);
     await stampTransactionFlagName(repo, targetPlanId, input.account_id, input);
     await autoCategorise(repo, targetPlanId, [input], categoriser);
     const transaction = await repo.createTransaction(targetPlanId, input);

@@ -148,10 +148,10 @@ test("a create that names only a payee is categorised on the server when Jev is 
   const sent: any[] = [];
   const handler = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev(sent, 0.9) });
   try {
-    const response = await createOne(handler, { payee_name: "grab", memo: "ride" });
+    const response = await createOne(handler, { payee_name: "Corner Shop", memo: "ride" });
     expect(response.status).toBe(201);
     expect((await response.json()).data.transaction).toMatchObject({ category_id: "transport", category_name: "Transport" });
-    expect(sent[0].state.transactions[0].payee_history).toEqual([{ category: "Living: Transport", times: 2 }, { category: "Living: Food", times: 1 }]);
+    expect(sent[0].state.transactions[0].payee_history).toEqual([]);
 
     const quick = await handler(new Request("https://howmuch.test/api/mobile/quick-entry", {
       method: "POST",
@@ -165,15 +165,19 @@ test("a create that names only a payee is categorised on the server when Jev is 
       method: "POST",
       headers: { authorization: "Bearer test-token", "content-type": "application/json" },
       body: JSON.stringify({ transactions: [
-        { id: "b1", account_id: "card", date: "2026-09-25", amount: -1_000, payee_name: "Grab" },
+        { id: "b0", account_id: "card", date: "2026-09-25", amount: -1_000, payee_name: "Grab" },
+        { id: "b1", account_id: "card", date: "2026-09-25", amount: -1_000, payee_name: "Night Market" },
         { id: "b2", account_id: "card", date: "2026-09-25", amount: -1_000, payee_name: "Grab", category_id: "food" },
       ] }),
     }));
     expect(batch.status).toBe(201);
     const repo = d1Repo(db, "test-plan");
+    // Grab's own history answers first (`fillPayeeDefaults`); only the payee without one goes to Jev.
+    expect((await repo.getTransaction("test-plan", "b0")).category_id).toBe("transport");
     expect((await repo.getTransaction("test-plan", "b1")).category_id).toBe("transport");
     expect((await repo.getTransaction("test-plan", "b2")).category_id).toBe("food");
     expect(Object.keys(sent.at(-1).questions)).toEqual(["t0"]);
+    expect(sent.at(-1).state.transactions[0].payee_cleaned).toBe("night market");
   } finally { db.close(); }
 });
 
@@ -181,21 +185,21 @@ test("creates stay uncategorised when Jev is unsure, failing or not configured",
   const db = await seeded();
   try {
     const unsure = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev([], 0.3) });
-    const low = await createOne(unsure, { payee_name: "Grab" });
+    const low = await createOne(unsure, { payee_name: "Corner Shop" });
     expect(low.status).toBe(201);
     expect((await low.json()).data.transaction.category_id).toBeNull();
 
     const none = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: scriptedJev([], 0.95, "None of these") });
-    expect((await (await createOne(none, { payee_name: "Grab" })).json()).data.transaction.category_id).toBeNull();
+    expect((await (await createOne(none, { payee_name: "Corner Shop" })).json()).data.transaction.category_id).toBeNull();
 
     const down = d1Handler(db, { config: { ...config, typesafeApiKey: "ts-key" }, typesafeFetch: async () => new Response("busy", { status: 503 }) });
-    const failed = await createOne(down, { payee_name: "Grab" });
+    const failed = await createOne(down, { payee_name: "Corner Shop" });
     expect(failed.status).toBe(201);
     expect((await failed.json()).data.transaction.category_id).toBeNull();
 
     const sent: any[] = [];
     const off = d1Handler(db, { config, typesafeFetch: scriptedJev(sent, 0.9) });
-    expect((await (await createOne(off, { payee_name: "Grab" })).json()).data.transaction.category_id).toBeNull();
+    expect((await (await createOne(off, { payee_name: "Corner Shop" })).json()).data.transaction.category_id).toBeNull();
     expect(sent).toHaveLength(0);
   } finally { db.close(); }
 });
@@ -211,11 +215,11 @@ test("transfers are skipped and a retried create does not ask Jev again", async 
     expect((await createOne(handler, { payee_name: transferPayee.name })).status).toBe(201);
     expect(sent).toHaveLength(0);
 
-    const first = await createOne(handler, { id: "offline-1", payee_name: "Grab" });
+    const first = await createOne(handler, { id: "offline-1", payee_name: "Corner Shop" });
     expect((await first.json()).data.transaction.category_id).toBe("transport");
     // A retry with the same id is refused, so Jev is not asked again; the app
     // looks an attempted create up by id instead of resending it.
-    const retry = await createOne(handler, { id: "offline-1", payee_name: "Grab" });
+    const retry = await createOne(handler, { id: "offline-1", payee_name: "Corner Shop" });
     expect(retry.status).toBe(400);
     expect((await repo.getTransaction("test-plan", "offline-1")).category_id).toBe("transport");
     expect(sent).toHaveLength(1);

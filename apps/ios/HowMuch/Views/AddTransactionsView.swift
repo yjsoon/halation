@@ -212,6 +212,9 @@ struct AddTransactionsView: View {
       .onChange(of: photoItems) { _, items in
         beginIngest(pickerItems: items)
       }
+      .task(id: payeeDefaultsLookups) {
+        await suggestPayeeDefaults(payeeDefaultsLookups)
+      }
       .fullScreenCover(isPresented: $isShowingCamera) {
         CameraPicker { image in
           beginIngest(images: [image], filenamePrefix: "camera")
@@ -1095,6 +1098,40 @@ struct AddTransactionsView: View {
     }
   }
 
+  /// One lookup per unsaved draft with a payee and an account, so a draft's
+  /// category and flag follow its payee and account until the user edits it.
+  /// None while a turn is in flight, so the lookups run again when it ends.
+  private var payeeDefaultsLookups: [PayeeDefaultsLookup] {
+    guard !session.isBusy else {
+      return []
+    }
+    return session.currentDrafts.compactMap { item in
+      guard !item.hasManualEdits, item.draft.transferAccountID == nil, !item.draft.accountID.isEmpty,
+            !item.draft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        return nil
+      }
+      return PayeeDefaultsLookup(draftID: item.id, payeeName: item.draft.payeeName, accountID: item.draft.accountID)
+    }
+  }
+
+  private func suggestPayeeDefaults(_ lookups: [PayeeDefaultsLookup]) async {
+    for lookup in lookups {
+      let defaults = await model.payeeDefaults(
+        forPayeeName: lookup.payeeName.trimmingCharacters(in: .whitespacesAndNewlines),
+        accountID: lookup.accountID
+      )
+      guard !Task.isCancelled else {
+        return
+      }
+      session.applyPayeeDefaults(
+        CapturePayeeSuggestion(categoryID: defaults.categoryID, flag: defaults.flag),
+        forDraft: lookup.draftID,
+        payeeName: lookup.payeeName,
+        accountID: lookup.accountID
+      )
+    }
+  }
+
   private func saveGroup(_ ids: [String], owner: UUID) {
     let scope = capturedTurnScope()
     guard isCurrent(scope) else {
@@ -1858,4 +1895,10 @@ struct CameraPicker: UIViewControllerRepresentable {
       dismiss()
     }
   }
+}
+
+private struct PayeeDefaultsLookup: Hashable {
+  let draftID: String
+  let payeeName: String
+  let accountID: String
 }
