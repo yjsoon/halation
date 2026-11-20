@@ -818,11 +818,11 @@ export class LedgerRepository {
    * `idx_transactions_payee_name_recent`, so every save, edit, move, delete
    * and import is reflected at once with nothing to keep in step.
    *
-   * Keyed by the payee name each row carries, case-insensitively: on D1 a
+   * Keyed by the payee name each row carries, ignoring ASCII case: on D1 a
    * payee typed by name is saved as that name alone, with no payee id.
    */
   async getPayeeDefaults(planId: string, payeeName: string, accountId: string | null): Promise<{ category_id: string | null; flag_color: string | null }> {
-    const name = payeeName.trim().replace(/\s+/g, " ");
+    const name = payeeName.trim();
     const [categories, flags] = await this.db.batchRead([
       { sql: PAYEE_RECENT_CATEGORIES_SQL, values: [planId, name, PAYEE_DEFAULTS_WINDOW] },
       { sql: PAYEE_RECENT_FLAGS_SQL, values: [planId, name, accountId, PAYEE_DEFAULTS_WINDOW] },
@@ -3861,7 +3861,10 @@ const ACCOUNT_USAGE_SQL = `SELECT account_id, COUNT(*) AS usage_count
 const LIST_PAYEES_SQL = "SELECT id, name, transfer_account_id, deleted FROM payees WHERE plan_id = ? AND deleted = 0 ORDER BY name";
 /** Recent transactions a payee default is voted from: few enough that a change of habit wins after three. */
 const PAYEE_DEFAULTS_WINDOW = 5;
-const PAYEE_RECENT_CATEGORIES_SQL = `SELECT t.category_id FROM transactions t
+// INDEXED BY: the index's account_id column sits before date, so without
+// statistics the planner would walk the whole plan register newest first
+// instead of sorting one payee's rows.
+const PAYEE_RECENT_CATEGORIES_SQL = `SELECT t.category_id FROM transactions t INDEXED BY idx_transactions_payee_name_recent
   JOIN categories c ON c.id = t.category_id AND c.deleted = 0
   WHERE t.plan_id = ? AND t.payee_name_snapshot = ? COLLATE NOCASE AND t.deleted = 0 AND t.transfer_account_id IS NULL AND t.category_id IS NOT NULL
   ORDER BY t.date DESC, t.created_at DESC LIMIT ?`;

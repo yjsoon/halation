@@ -587,10 +587,10 @@ async function handleV1(
       for (const edit of edits) {
         if (!Object.prototype.hasOwnProperty.call(edit.patch, "flag_color") || Object.prototype.hasOwnProperty.call(edit.patch, "flag_name")) continue;
         const movesTo = typeof edit.patch.account_id === "string" && edit.patch.account_id ? edit.patch.account_id : null;
-        const current = movesTo && typeof edit.patch.date === "string"
-          ? null
-          : await repo.getTransaction(planId, await repo.resolveTransactionLookup(planId, edit.lookup));
-        await stampTransactionFlagName(repo, planId, movesTo ?? current!.account_id, edit.patch, current?.date, current ? current.flag_color ?? null : undefined);
+        // Always read the row: a full-body edit resends an unchanged colour,
+        // which must keep its name.
+        const current = await repo.getTransaction(planId, await repo.resolveTransactionLookup(planId, edit.lookup));
+        await stampTransactionFlagName(repo, planId, movesTo ?? current.account_id, edit.patch, current.date, current.flag_color ?? null);
       }
       const result = await repo.updateTransactions(planId, edits);
       return json({ data: result });
@@ -702,8 +702,8 @@ async function handleV1(
       if (Object.prototype.hasOwnProperty.call(patch, "flag_color") && !Object.prototype.hasOwnProperty.call(patch, "flag_name")) {
         // A move and a flag in one edit take the destination card's names.
         const movesTo = typeof patch.account_id === "string" && patch.account_id ? patch.account_id : null;
-        const current = movesTo && typeof patch.date === "string" ? null : await repo.getTransaction(planId, transactionId);
-        await stampTransactionFlagName(repo, planId, movesTo ?? current!.account_id, patch, current?.date, current ? current.flag_color ?? null : undefined);
+        const current = await repo.getTransaction(planId, transactionId);
+        await stampTransactionFlagName(repo, planId, movesTo ?? current.account_id, patch, current.date, current.flag_color ?? null);
       }
       const updated = await repo.updateTransaction(planId, transactionId, patch);
       return json({ data: { transaction: updated, server_knowledge: await repo.getServerKnowledge(planId) } });

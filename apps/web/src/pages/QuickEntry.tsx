@@ -86,13 +86,11 @@ export function QuickEntryPage() {
   );
   const selectedTarget = transferTargets.find((account) => account.id === toAccountId) ?? transferTargets[0];
 
-  // The payee's usual category fills an empty field, or replaces one the last
-  // payee filled; a category the user picked stays.
-  const suggestedCategoryRef = useRef("");
-  usePayeeDefaults(planId, isTransfer ? [] : payees.data ?? [], payeeName, selectedAccount, (defaults) => {
-    const next = defaults.category_id ?? "";
-    setCategoryId((current) => (current === "" || current === suggestedCategoryRef.current ? next : current));
-    suggestedCategoryRef.current = next;
+  // The payee's usual category fills the field until the user sets or
+  // clears it themselves.
+  const categoryChosenRef = useRef(Boolean(copy));
+  usePayeeDefaults(planId, payees.data ?? [], isTransfer ? "" : payeeName, selectedAccount, (defaults) => {
+    if (!categoryChosenRef.current) setCategoryId(defaults.category_id ?? "");
   });
 
   const amountMilliunits = parseMilliunits(amount);
@@ -187,7 +185,7 @@ export function QuickEntryPage() {
       setPayeeName("");
       setMemo("");
       setCategoryId("");
-      suggestedCategoryRef.current = "";
+      categoryChosenRef.current = false;
       setIsSplit(false);
       setSplitLines([]);
       clientIdRef.current = crypto.randomUUID();
@@ -353,6 +351,7 @@ export function QuickEntryPage() {
                 value={categoryId}
                 onChange={(value) => {
                   clearStatus();
+                  categoryChosenRef.current = true;
                   setCategoryId(value);
                 }}
                 groups={orderedGroups}

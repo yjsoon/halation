@@ -213,9 +213,10 @@ struct TransactionFormView: View {
   @State private var showCategoryPrompt = false
   @State private var isShowingDate = false
   @State private var rewardCards: [CreditCard] = []
-  /// What the payee's history last filled in. A later payee or account may
-  /// replace it; a category or flag the user chose stays.
-  @State private var suggested: PayeeSuggestion?
+  /// Set once the user picks (or clears) the category or flag; the payee's
+  /// history fills only fields the user has not chosen.
+  @State private var chosenCategory: Bool
+  @State private var chosenFlag: Bool
   /// Memo (and any later non-amount text field) — not the amount header, which
   /// owns CalculatorKeypad rather than the system keyboard.
   @FocusState private var isTextInputFocused: Bool
@@ -243,6 +244,8 @@ struct TransactionFormView: View {
     var engine = AmountKeypadEngine()
     engine.setValue(draft.amountMagnitudeMilli)
     self.draft = draft
+    self.chosenCategory = draft.isCopy == true
+    self.chosenFlag = draft.isCopy == true
     self.keypad = engine
     // A duplicate arrives with its amount prefilled; opening the keypad over
     // it would just cost taps on the way to Save.
@@ -448,7 +451,7 @@ struct TransactionFormView: View {
           rewardCards = snapshot.cards
         }
       }
-      .task(id: PayeeSuggestion.Key(payeeName: draft.payeeName, accountID: draft.accountID)) {
+      .task(id: PayeeSuggestionKey(payeeName: draft.payeeName, accountID: draft.accountID)) {
         await suggestFromPayeeHistory()
       }
       .onChange(of: draft.accountID) { _, _ in
@@ -488,13 +491,17 @@ struct TransactionFormView: View {
     guard !isEditing, !payeeName.isEmpty, draft.transferAccountID == nil, !draft.accountID.isEmpty else { return }
     let defaults = await model.payeeDefaults(forPayeeName: payeeName, accountID: draft.accountID)
     guard !Task.isCancelled, draft.transferAccountID == nil else { return }
-    if !draft.isSplit, draft.categoryID == nil || draft.categoryID == suggested?.categoryID {
+    if !draft.isSplit, !chosenCategory {
       draft.categoryID = defaults.categoryID
     }
-    if draft.flag == .none || draft.flag == suggested?.flag {
+    if !chosenFlag {
       draft.flag = defaults.flag
     }
-    suggested = PayeeSuggestion(categoryID: defaults.categoryID, flag: defaults.flag)
+  }
+
+  /// The flag pickers' binding: a pick is the user's choice.
+  private var chosenFlagSelection: Binding<FlagColour> {
+    Binding(get: { draft.flag }, set: { draft.flag = $0; chosenFlag = true })
   }
 
   /// A split parent cannot itself be a transfer, so splits get no Transfers section.
@@ -789,7 +796,7 @@ struct TransactionFormView: View {
       )
     } else {
       NavigationLink {
-        CategoryPicker(selectedCategoryID: draft.categoryID) { draft.categoryID = $0?.id }
+        CategoryPicker(selectedCategoryID: draft.categoryID) { draft.categoryID = $0?.id; chosenCategory = true }
       } label: {
         DisclosureValueRow(
           icon: "tray.full",
@@ -807,6 +814,7 @@ struct TransactionFormView: View {
           candidates: categoryCandidates
         ) { candidate in
           draft.categoryID = candidate.id
+          chosenCategory = true
           categoryCandidates = []
           showCategoryPrompt = false
         }
@@ -1115,13 +1123,13 @@ struct TransactionFormView: View {
       let menu = RewardCardDraft.flagMenu(for: rewardCard)
       // An inline picker flattens sections and dividers, so each group is its
       // own picker on the same binding; the menu separates them natively.
-      Picker("Flag", selection: $draft.flag) {
+      Picker("Flag", selection: chosenFlagSelection) {
         ForEach(menu.named) { flag in
           Text(flagNames[RewardFlagColour(ledgerColour: flag)] ?? flag.title).tag(flag)
         }
       }
       .pickerStyle(.inline)
-      Picker("Flag", selection: $draft.flag) {
+      Picker("Flag", selection: chosenFlagSelection) {
         ForEach(menu.colourOnly) { flag in
           Text(flag.title).tag(flag)
         }
@@ -1728,12 +1736,7 @@ private final class PrimedDatePickerView: UIView {
   }
 }
 
-private struct PayeeSuggestion {
-  struct Key: Hashable {
-    let payeeName: String
-    let accountID: String
-  }
-
-  let categoryID: String?
-  let flag: FlagColour
+private struct PayeeSuggestionKey: Hashable {
+  let payeeName: String
+  let accountID: String
 }

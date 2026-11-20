@@ -88,10 +88,10 @@ environment `tk` in `wrangler.jsonc`:
   applies D1 migrations. If a release includes a migration, apply it manually
   (`wrangler d1 migrations apply DB --env tk --remote --profile tinkertanker`)
   before tagging, following the verification order in this document.
-- Migration `0024_payee_history_index.sql` only adds an index, which the
-  payee defaults route reads. It is additive and safe on the running Worker;
+- Migration `0024_payee_history_index.sql` only adds an index, which both
+  payee defaults lookups read. It is additive and safe on the running Worker;
   apply it (after `scripts/backup-d1.sh`) before tagging the release that
-  serves the route, or that route scans a payee's history without it.
+  serves the route: the category lookup names the index and fails without it.
 - Migration `0023_transaction_claim_status.sql` adds
   `transactions.claim_status` and `transactions.claimed_on` (both null by
   default) and a partial index over rows to claim. It is additive and the

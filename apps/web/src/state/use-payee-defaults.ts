@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { api } from "../api/client";
 import type { Payee } from "../api/types";
-import { findTransferPayee } from "../lib/register-compose";
+import { canonicalPayeeName, findTransferPayee } from "../lib/register-compose";
 
 export type PayeeDefaults = { category_id: string | null; flag_color: string | null };
 
@@ -22,7 +22,9 @@ export function usePayeeDefaults(
   accountId: string,
   onDefaults: (defaults: PayeeDefaults) => void,
 ): void {
-  const name = findTransferPayee(payees, payeeName) ? "" : payeeName.trim().replace(/\s+/g, " ").toLowerCase();
+  // Sent as typed (snapped to a known payee's spelling): the ledger folds
+  // ASCII case only, so lowercasing here would miss "CAFÉ" for "café".
+  const name = findTransferPayee(payees, payeeName) ? "" : canonicalPayeeName(payees, payeeName);
   const latest = useRef(onDefaults);
   latest.current = onDefaults;
 

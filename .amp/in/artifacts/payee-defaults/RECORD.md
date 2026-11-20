@@ -36,3 +36,14 @@ Temporary tests in `LocalModeTests` (not committed) drove `APIClient` → `Local
 
 - `bun test`: 814 pass, 0 fail (includes the new HTTP regression test for the stale flag name, which failed before the fix).
 - `scripts/ios-xcodebuild.sh test`: fresh build-for-testing exit 0; 823 tests. 10 Capture snapshot tests failed first with empty accessibility labels (simulator accessibility not yet enabled), then passed after enabling it: CaptureSnapshotTests and RegisterSnapshotTests, 33 tests, 0 failures.
+
+## Review fixes (Fable review of 5bdf46dd)
+
+Base: origin/main c388435a plus this round. Same stack and seed as above.
+
+1. Full-body edit: `PUT` with account, date, amount, unchanged `flag_color purple` and a new memo on a no-card row named "Transport" returns `flag_name Transport` (was null). Bulk PATCH of the same shape keeps it too; both are in `api.test.ts` and failed before the fix.
+2. Names: a row stored as `Grab  Food` (two spaces) is found by the same name; `VERIFY GRAB` on Travel Card gives `cat-transport`/`purple`. Web now sends the name as typed (snapped to a known payee's spelling), not lowercased. Matching ignores ASCII case only, so `café` does not find `CAFÉ`.
+3. Category query uses `INDEXED BY idx_transactions_payee_name_recent`: `SEARCH ... (plan_id=? AND payee_name_snapshot=?)` plus a temp sort over that payee's rows, with no statistics. A new index (tried as 0025) was dropped: it made the plan-wide unapproved count switch off the register index.
+4. Choices: web compose, Ledger, Travel Card. Blue picked before typing `Verify Grab` stays Blue (category fills Transport). Untouched row fills Transport + purple ("Transport"). Clearing the flag to None and switching to Everyday Account keeps None. Reducer probe: a hand-picked value survives a later empty answer; a Duplicate for today copy keeps its empty category and flag.
+
+Checks: `bun test` 769 pass, 0 fail; web and worker typechecks; iOS lints; engine freshness; `HowMuchTests` 822 tests, 0 failures (Mac satellite).

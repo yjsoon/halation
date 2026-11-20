@@ -15,8 +15,8 @@ export type RegisterComposeDraft = {
   flagColor: string;
   needsConfirmation: boolean;
   toClaim: boolean;
-  /** What the payee's history last filled in, so a later payee may replace it but never a choice the user made. */
-  suggested?: { categoryId: string; flagColor: string };
+  /** Fields the user set (or cleared) themselves; the payee's history never fills these. */
+  chosen?: { categoryId?: boolean; flagColor?: boolean };
 };
 
 export type RegisterComposeState =
@@ -73,6 +73,8 @@ export function duplicateComposeDraft(txn: Transaction): RegisterComposeDraft {
     inflow: txn.amount < 0 ? "" : amount,
     flagColor: txn.flag_color ?? "",
     toClaim: (txn.claim_status ?? legacy.claim) === "to_claim",
+    // A copy stays a copy: the payee's history does not fill what the original left empty.
+    chosen: { categoryId: true, flagColor: true },
   };
 }
 
@@ -138,20 +140,29 @@ export function reduceCompose(state: RegisterComposeState, action: RegisterCompo
       if (state.status !== "open" || state.saving) {
         return state;
       }
-      return { ...state, error: null, draft: { ...state.draft, ...action.draft } };
+      return {
+        ...state,
+        error: null,
+        draft: {
+          ...state.draft,
+          ...action.draft,
+          chosen: {
+            categoryId: state.draft.chosen?.categoryId || "categoryId" in action.draft,
+            flagColor: state.draft.chosen?.flagColor || "flagColor" in action.draft,
+          },
+        },
+      };
     case "suggest": {
       if (state.status !== "open" || state.saving) {
         return state;
       }
       const { draft } = state;
-      const open = (value: string, suggested: string | undefined) => value === "" || value === suggested;
       return {
         ...state,
         draft: {
           ...draft,
-          categoryId: open(draft.categoryId, draft.suggested?.categoryId) ? action.categoryId : draft.categoryId,
-          flagColor: open(draft.flagColor, draft.suggested?.flagColor) ? action.flagColor : draft.flagColor,
-          suggested: { categoryId: action.categoryId, flagColor: action.flagColor },
+          categoryId: draft.chosen?.categoryId ? draft.categoryId : action.categoryId,
+          flagColor: draft.chosen?.flagColor ? draft.flagColor : action.flagColor,
         },
       };
     }

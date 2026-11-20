@@ -40,7 +40,8 @@ export function RegisterComposeRow({
   categoryGroups: CategoryGroup[];
   disabled: boolean;
   focusNonce: number;
-  onChange: (next: RegisterComposeState) => void;
+  /** Takes an updater too, so a late answer applies to state queued since the last render. */
+  onChange: (next: RegisterComposeState | ((current: RegisterComposeState) => RegisterComposeState)) => void;
   onCancel: () => void;
   onSave: (keepOpen: boolean) => void;
   flagNames?: Record<string, string>;
@@ -59,12 +60,8 @@ export function RegisterComposeRow({
     dateRef.current?.focus();
   }, [focusNonce]);
 
-  // The answer arrives after renders this row has already handed to the
-  // parent, so it applies to the latest state rather than the one it started from.
-  const latestState = useRef(state);
-  latestState.current = state;
   usePayeeDefaults(planId, payees, state.draft.payeeName, state.draft.accountId, (defaults) => {
-    onChange(reduceCompose(latestState.current, { type: "suggest", categoryId: defaults.category_id ?? "", flagColor: defaults.flag_color ?? "" }));
+    onChange((current) => reduceCompose(current, { type: "suggest", categoryId: defaults.category_id ?? "", flagColor: defaults.flag_color ?? "" }));
   });
 
   const patch = (draft: {

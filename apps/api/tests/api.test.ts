@@ -1108,6 +1108,28 @@ describe("YNAB-compatible API", () => {
     expect(listed.data.transactions[0]).toMatchObject({ category_id: null, flag_color: null });
   });
 
+  test("a full-body edit that resends the same flag colour keeps its name", async () => {
+    // iOS saves every edit as a PUT carrying account, date and flag colour, so
+    // a memo edit must not read as a recolour.
+    await createAccount("cash", { name: "Cash", type: "checking" });
+    const single = await createTransaction({ account_id: "cash", date: "2026-10-01", amount: -1000, flag_color: "purple", flag_name: "Transport" });
+    const bulk = await createTransaction({ account_id: "cash", date: "2026-10-02", amount: -2000, flag_color: "purple", flag_name: "Transport" });
+
+    const put = await (await request(`/v1/plans/plan-test/transactions/${single}`, {
+      method: "PUT",
+      body: { transaction: { account_id: "cash", date: "2026-10-01", amount: -1000, flag_color: "purple", memo: "edited" } },
+    })).json();
+    expect(put.data.transaction).toMatchObject({ memo: "edited", flag_color: "purple", flag_name: "Transport" });
+
+    const batch = await request("/v1/plans/plan-test/transactions", {
+      method: "PATCH",
+      body: { transactions: [{ id: bulk, account_id: "cash", date: "2026-10-02", flag_color: "purple", memo: "edited" }] },
+    });
+    expect(batch.status).toBe(200);
+    const listed = await (await request("/v1/plans/plan-test/transactions")).json();
+    expect(listed.data.transactions.find((txn: any) => txn.id === bulk)).toMatchObject({ flag_color: "purple", flag_name: "Transport" });
+  });
+
   test("updates multiple transactions on the collection PATCH used by YNAB", async () => {
     const firstId = await createTransaction({
       account_id: "acct-1",

@@ -467,6 +467,9 @@ struct TransactionDraft: Equatable, Codable {
   var loadedTransferLineSignatures: [String] = []
   var linkedTransferIDs: [String] = []
   var flag: FlagColour = .none
+  /// True on a Duplicate for today copy, which keeps the original's category
+  /// and flag (even when empty) instead of taking the payee's usual ones.
+  var isCopy: Bool?
   var memo = ""
   /// Nil keeps the editor's behaviour: saving approves the row. A caller that
   /// must not change approval (a share-intake Fix) sets the row's own value.
@@ -601,6 +604,7 @@ struct TransactionDraft: Equatable, Codable {
       claimStatus = MemoClaim.toClaim.rawValue
     }
     importID = UUID().uuidString.lowercased()
+    isCopy = true
   }
 
   var isTransfer: Bool {
