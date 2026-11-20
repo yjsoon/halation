@@ -544,8 +544,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
             </label>
           </div>
 
-          {/* A stored card names its colours in each flag's row below, and in Account settings on its register. */}
-          {!card && (
+          {/* All seven colours, as on iOS: a colour with no flag row below can be named here. */}
           <fieldset className="transaction-editor-splits rewards-editor-block">
             <legend>Colour names</legend>
             <p className="field-note">Names apply only to this account.</p>
@@ -573,7 +572,6 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
               })}
             </div>
           </fieldset>
-          )}
 
           <fieldset className="transaction-editor-splits rewards-editor-block">
             <legend>Flag subcategories</legend>
@@ -583,11 +581,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
               Enable flag subcategories
             </label>
             <p className="field-note">Disabling keeps every rule and tier override for later use.</p>
-            <p className="field-note">
-              These are the same colour tags as the ledger. None is Unflagged spend.
-              {/* Only Add card has the Colour names fields above. */}
-              {!card && " Name the colour above and it appears on this account."}
-            </p>
+            <p className="field-note">These are the same colour tags as the ledger. None is Unflagged spend. Name the colour above and it appears on this account.</p>
             <div className="field-row">
               <label className="field">
                 <span className="field-label">Import category</span>
