@@ -483,7 +483,7 @@ struct ReflectCard<Destination: View, Content: View>: View {
       .padding(16)
       // Fill the row's height in the iPad grid, content pinned to the top.
       .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-      .ynabCard()
+      .cardSurface()
       .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
     }
     .buttonStyle(.pressable)
@@ -537,7 +537,7 @@ extension ChartVoice {
     }
   }
 
-  /// A chart of age of money in days, one per report period key.
+  /// A chart of money age in days, one per report period key.
   static func days(_ name: String, periods: [String]) -> ChartVoice {
     ChartVoice(name: name, unit: "Days", periodNames: periods.map(LedgerDate.spokenPeriodLabel)) {
       ReflectMaths.daysLabel(Int($0.rounded()))

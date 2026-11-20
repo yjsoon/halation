@@ -290,7 +290,7 @@ export function DottedLine({
 
   return (
     <>
-    <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="group" aria-label="Age of money in days">
+    <svg ref={ref} viewBox={`0 0 ${width} ${HEIGHT}`} className="chart" role="group" aria-label="Money age in days">
       <g className="chart-grid">
         {ticks.map((tick) => (
           <g key={tick}>

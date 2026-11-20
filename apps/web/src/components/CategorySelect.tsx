@@ -102,7 +102,7 @@ function NewCategoryDialog({ onClose, onCreated }: { onClose: () => void; onCrea
     } catch (cause) {
       setSaving(false);
       setError(cause instanceof ApiError && cause.code === "ynab_mirror_plan"
-        ? "This plan mirrors YNAB, so its categories can only be changed in YNAB."
+        ? "This plan was imported from YNAB and is read-only here, so its categories can't be changed."
         : `Could not create the category. ${cause instanceof Error ? cause.message : String(cause)}`);
     }
   };

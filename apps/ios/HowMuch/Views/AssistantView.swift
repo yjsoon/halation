@@ -171,7 +171,7 @@ struct AssistantView: View {
     }
     .frame(maxWidth: .infinity, alignment: .leading)
     .padding(16)
-    .ynabCard()
+    .cardSurface()
   }
 
   private func recentRow(_ snapshot: CaptureSessionSnapshot) -> some View {
@@ -204,7 +204,7 @@ struct AssistantView: View {
     .padding(.leading, 16)
     .padding(.trailing, 4)
     .padding(.vertical, 8)
-    .ynabCard()
+    .cardSurface()
   }
 
   private func startNewConversation() {

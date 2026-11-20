@@ -47,7 +47,7 @@ struct ScheduledTransactionsView: View {
                   }
                 }
               }
-              .ynabCard()
+              .cardSurface()
             }
           }
         }

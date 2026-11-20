@@ -464,7 +464,7 @@ struct IncomeVsSpendingPeriodDetailView: View {
       }
     }
     .padding(16)
-    .ynabCard()
+    .cardSurface()
   }
 
   @ViewBuilder
@@ -496,7 +496,7 @@ struct IncomeVsSpendingPeriodDetailView: View {
             }
           }
         }
-        .ynabCard()
+        .cardSurface()
       }
     }
   }
@@ -530,7 +530,7 @@ struct IncomeVsSpendingPeriodDetailView: View {
             }
           }
         }
-        .ynabCard()
+        .cardSurface()
       }
     }
   }

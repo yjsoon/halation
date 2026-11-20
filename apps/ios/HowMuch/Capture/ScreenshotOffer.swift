@@ -282,7 +282,7 @@ struct ScreenshotOfferToast: View {
     .padding(.leading, 16)
     .padding(.vertical, 10)
     .padding(.trailing, 6)
-    .ynabCard()
+    .cardSurface()
     // Lifted off the list it floats over, like the save toast.
     .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
     .offset(x: dragOffset.width, y: max(0, dragOffset.height))

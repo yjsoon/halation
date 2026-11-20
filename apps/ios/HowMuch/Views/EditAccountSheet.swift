@@ -120,7 +120,7 @@ struct EditAccountSheet: View {
         .accessibilityIdentifier("edit-account-delete")
       }
       .buttonStyle(.plain)
-      .ynabCard()
+      .cardSurface()
       .disabled(isSaving)
       Text(account.closed
         ? "Closed: kept under Closed with all its transactions. Reopen it to record new ones."
@@ -198,7 +198,7 @@ struct EditAccountSheet: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .ynabCard()
+    .cardSurface()
     .disabled(isSaving)
   }
 

@@ -67,7 +67,7 @@ struct PaymentsDueBand: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
         }
-        .ynabCard()
+        .cardSurface()
       }
       .accessibilityIdentifier("payments-due-band")
       .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { bandWidth = $0 }

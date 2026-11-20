@@ -88,7 +88,7 @@ struct NewAccountSheet: View {
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 13)
-    .ynabCard()
+    .cardSurface()
   }
 
   private var balanceField: some View {

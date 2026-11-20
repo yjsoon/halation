@@ -10,7 +10,7 @@ import { useFilters } from "../state/filters";
 import { StatusPanel } from "../components/StatusPanel";
 import { HeadlineFigure, signTone } from "../components/HeadlineFigure";
 
-// Age of money replays income lots from the start of the range, so a clipped
+// Money age replays income lots from the start of the range, so a clipped
 // window distorts the figure — default to the full history.
 const ALL_TIME =() => ({});
 const INTERVALS: Interval[] = ["week", "month"];
@@ -68,7 +68,7 @@ export function AgeOfMoneyPage() {
         </StatusPanel>
       )}
       {report.loading && !report.data && (
-        <StatusPanel title="Loading age of money…" />
+        <StatusPanel title="Loading money age…" />
       )}
 
       {report.data && (
@@ -104,7 +104,7 @@ export function AgeOfMoneyPage() {
                     <thead>
                       <tr>
                         <th>Period</th>
-                        <th className="num">Age of money</th>
+                        <th className="num">Money age</th>
                         <th className="num">Spending matched</th>
                         <th className="num">Unmatched spending</th>
                       </tr>
@@ -129,7 +129,7 @@ export function AgeOfMoneyPage() {
             </>
           ) : (
             <StatusPanel title="No spending in this range.">
-              Need both income and spending before age of money can be calculated.
+              Need both income and spending before money age can be calculated.
             </StatusPanel>
           )}
         </>

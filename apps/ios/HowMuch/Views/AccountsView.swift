@@ -646,7 +646,7 @@ struct AccountsView: View {
           }
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(16)
-          .ynabCard()
+          .cardSurface()
           .transition(Self.groupCardTransition)
         } else {
           VStack(spacing: 0) {
@@ -663,7 +663,7 @@ struct AccountsView: View {
               }
             }
           }
-          .ynabCard()
+          .cardSurface()
           .transition(Self.groupCardTransition)
         }
       }
@@ -762,7 +762,7 @@ struct AccountsView: View {
       content
         .frame(width: accountRowWidth > 0 ? accountRowWidth : nil)
         .fixedSize(horizontal: false, vertical: true)
-        .ynabCard()
+        .cardSurface()
     }
   }
 
@@ -860,7 +860,7 @@ struct AccountsView: View {
         .padding(.horizontal, horizontalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .contentShape(RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous))
-        .ynabCard()
+        .cardSurface()
         .overlay {
           RoundedRectangle(cornerRadius: Theme.Radius.card, style: .continuous)
             .strokeBorder(isSelected ? Theme.accent : Color.clear, lineWidth: 2)
@@ -926,7 +926,7 @@ struct AccountsView: View {
           itemRow(item)
         }
       }
-      .ynabCard()
+      .cardSurface()
       .binaryConfirm(
         "Discard this change? It hasn’t reached the server.",
         presenting: $pendingDiscard,

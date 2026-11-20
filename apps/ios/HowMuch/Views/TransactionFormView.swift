@@ -272,7 +272,7 @@ struct TransactionFormView: View {
                   .contentShape(Rectangle())
               }
               .buttonStyle(.cardRow)
-              .ynabCard()
+              .cardSurface()
             }
 
             if let errorMessage {
@@ -762,7 +762,7 @@ struct TransactionFormView: View {
       CardDivider()
       memoRow
     }
-    .ynabCard()
+    .cardSurface()
   }
 
   @ViewBuilder
@@ -878,7 +878,7 @@ struct TransactionFormView: View {
       CardDivider()
       followUpRow
     }
-    .ynabCard()
+    .cardSurface()
     .onChange(of: draft.isCleared) { wasCleared, isCleared in
       // Clearing means the amount was checked against the statement. Turning
       // Cleared back off before saving puts the marker back. A row that was
@@ -1570,7 +1570,7 @@ struct DateFieldView: View {
     VStack {
       PrimedInlineDatePicker(date: $date)
         .padding(.horizontal, 8)
-        .ynabCard()
+        .cardSurface()
         .padding(16)
         .onChange(of: date) {
           dismiss()

@@ -61,7 +61,7 @@ struct IntakeInboxBand: View {
             .buttonStyle(.plain)
           }
         }
-        .ynabCard()
+        .cardSurface()
       }
     }
   }

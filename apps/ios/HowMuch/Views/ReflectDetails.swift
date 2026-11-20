@@ -555,7 +555,7 @@ struct SpendingBreakdownDetailView: View {
     }
     .frame(maxWidth: .infinity)
     .padding(16)
-    .ynabCard()
+    .cardSurface()
   }
 
   private func quietToggleNote(excluded: Int) -> some View {
@@ -623,7 +623,7 @@ struct SpendingBreakdownDetailView: View {
           }
         }
       }
-      .ynabCard()
+      .cardSurface()
     }
   }
 
@@ -1015,7 +1015,7 @@ struct NetWorthDetailView: View {
     }
     .frame(maxWidth: .infinity)
     .padding(16)
-    .ynabCard()
+    .cardSurface()
   }
 
   private func accountsCard(latest: NetWorthPeriod) -> some View {
@@ -1033,7 +1033,7 @@ struct NetWorthDetailView: View {
         }
       }
     }
-    .ynabCard()
+    .cardSurface()
   }
 
   private func accountGroupHeader(_ group: NetWorthMaths.AccountGroup) -> some View {
@@ -1156,7 +1156,7 @@ struct NetWorthDetailView: View {
         }
       }
     }
-    .ynabCard()
+    .cardSurface()
   }
 
   /// Period over a meter of its change against the window's largest, so
@@ -1426,7 +1426,7 @@ struct IncomeVsSpendingDetailView: View {
       }
     }
     .padding(16)
-    .ynabCard()
+    .cardSurface()
   }
 
   private func yearHeader(_ section: IncomeVsSpendingMaths.YearSection, stale: Bool) -> some View {
@@ -1463,7 +1463,7 @@ struct IncomeVsSpendingDetailView: View {
         }
       }
     }
-    .ynabCard()
+    .cardSurface()
   }
 
   @ViewBuilder
@@ -1630,7 +1630,7 @@ struct AgeOfMoneyDetailView: View {
           }
           .frame(maxWidth: .infinity)
           .padding(16)
-          .ynabCard()
+          .cardSurface()
 
           if unmatchedTotal > 0 {
             Text("\(MoneyCodec.displayString(for: unmatchedTotal, currencyFormat: model.currencyFormat)) of spending predates the earliest recorded income and is excluded from the weighted age.")
@@ -1647,7 +1647,7 @@ struct AgeOfMoneyDetailView: View {
               }
             }
           }
-          .ynabCard()
+          .cardSurface()
         } else {
           PhasePlaceholder(phase: phase) {
             await fetch()

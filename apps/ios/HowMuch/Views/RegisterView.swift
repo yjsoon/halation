@@ -1555,7 +1555,7 @@ struct RegisterView: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .ynabCard()
+        .cardSurface()
         .accessibilityElement(children: .combine)
         .listRowInsets(EdgeInsets())
         .listRowBackground(Color.clear)
@@ -2185,7 +2185,7 @@ struct RegisterView: View {
     .padding(.horizontal, 16)
     .padding(.vertical, 12)
     .frame(maxWidth: .infinity)
-    .ynabCard()
+    .cardSurface()
   }
 
   private func summaryColumn(_ label: String, amount: Int, _ value: String, colour: Color, stacked: Bool) -> some View {

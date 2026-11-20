@@ -27,7 +27,7 @@ enum APIClientError: LocalizedError {
   /// 409 `plan_not_empty` from `import_snapshot`: the plan already holds a
   /// ledger, so a snapshot cannot be imported into it.
   case planNotEmpty(String)
-  /// 409 `ynab_mirror_plan` from `import_snapshot`: the plan mirrors YNAB.
+  /// 409 `ynab_mirror_plan` from `import_snapshot`: the plan was imported from YNAB.
   case ynabMirrorPlan(String)
   /// 403 from `import_snapshot`: only the plan's owner may import.
   case ownerRequired(String)

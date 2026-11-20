@@ -3,7 +3,7 @@ import SwiftUI
 import UIKit
 
 extension View {
-  func ynabCard() -> some View {
+  func cardSurface() -> some View {
     // A shape view, not `background(_:in:)`: that also makes the card the
     // container shape, so a row's `.background(colour)` inside rounds its
     // own corners instead of filling the row.
@@ -305,7 +305,7 @@ extension ButtonStyle where Self == PressableButtonStyle {
   static var pressable: PressableButtonStyle { PressableButtonStyle() }
 }
 
-/// Rows stacked inside a `ynabCard()` highlight in place, like a List row,
+/// Rows stacked inside a `cardSurface()` highlight in place, like a List row,
 /// instead of shrinking away from their neighbours.
 struct CardRowButtonStyle: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {

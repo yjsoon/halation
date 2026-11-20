@@ -73,7 +73,7 @@ struct AccountIdentityFields: View {
     }
     .padding(.horizontal, 16)
     .padding(.vertical, 13)
-    .ynabCard()
+    .cardSurface()
   }
 
   /// A label with its value and chevron beside it, or under it at accessibility
@@ -131,7 +131,7 @@ struct AccountIdentityFields: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .ynabCard()
+    .cardSurface()
     .accessibilityLabel("Type")
     .accessibilityValue(classification.title)
     .accessibilityHint("Opens the account type list")
@@ -155,7 +155,7 @@ struct AccountIdentityFields: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
-    .ynabCard()
+    .cardSurface()
     .accessibilityLabel("Icon")
     .accessibilityValue(shownIcon.rawValue)
     .accessibilityHint("Opens the icon picker")
