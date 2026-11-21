@@ -6,7 +6,7 @@ import { CategorySelect } from "../components/CategorySelect";
 import { DirectionToggle } from "../components/DirectionToggle";
 import { splitCategoryGroups } from "../lib/categories";
 import { formatDate, todayIso, yesterdayIso } from "../lib/dates";
-import { amountPlaceholder, amountStep, currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
+import { amountPlaceholder, currentCurrencyFormat, formatMoney, parseMilliunits } from "../lib/money";
 import { resolvePostingAccountId, type QuickEntryCopy } from "../lib/register-compose";
 import { usePlan } from "../state/plan";
 import { usePayeeDefaults } from "../state/use-payee-defaults";
@@ -257,11 +257,9 @@ export function QuickEntryPage() {
           <label className="field amount-field">
             <span className="field-label">Amount <span className="quick-entry-currency">{currentCurrencyFormat()?.iso_code}</span></span>
             <input
-              type="number"
+              type="text"
               name="amount"
               inputMode="decimal"
-              step={amountStep()}
-              min="0"
               placeholder={amountPlaceholder()}
               value={amount}
               onChange={(event) => {
@@ -384,10 +382,8 @@ export function QuickEntryPage() {
                   <label className="split-line-amount">
                     <span>Amount</span>
                     <input
-                      type="number"
+                      type="text"
                       inputMode="decimal"
-                      min={amountStep()}
-                      step={amountStep()}
                       required
                       placeholder={amountPlaceholder()}
                       aria-label={`Split line ${index + 1} amount`}
