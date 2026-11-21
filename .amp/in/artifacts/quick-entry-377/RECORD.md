@@ -138,3 +138,43 @@ Verified source SHA-256:
 Issues #376 (docs fragments) and #378 (intermittent view-transition rejection)
 are separate and were not changed in this round. This fix does not rewrite any
 previously stored, inflated amount.
+
+## Direct-main landing revalidation (2026-11-21)
+
+YJ authorised landing through the repository's direct-main procedure, without a
+new PR or independent review. Fetched `origin/main` at
+`1ee099dd4a59964f8805bd4fcca07ffcae0a6093`; the published fix
+`fa6f32c5d69852058650b6fb93709f35b468c2c0` is already its direct child, so no
+published history was rewritten. Only this text record is added for landing.
+The source hashes above remain unchanged. No iOS files changed.
+
+Restarted the same disposable local Worker/Vite services using the commands
+above, without `prepare`, seeding or any migrations. Reran
+`CHROME="$HEADLESS_SHELL" HOWMUCH_WEB_URL=http://127.0.0.1:5173 bun scripts/verify-quick-entry-amounts.ts`
+using chrome-headless-shell 158.0.8127.36. Exit 0:
+
+- `1,50`: -1500, transaction `b3005a15-7e1b-4f00-875a-9e962cab4856`.
+- `0,50`: -500, transaction `2d36f126-05f9-4fe2-a321-54667b82effa`.
+- `6.80`: -6800, transaction `de08068f-bf6d-4a18-8b13-b0466ea41b98`.
+- Split `2,75` into `1,50` and `1,25`: -2750 with [-1500, -1250], transaction
+  `547211f7-cc8f-41e9-8ca5-08692b97b8a7`.
+- All six invalid-entry controls kept Save disabled.
+
+Repeated the Quick entry spend recipe in a separate local browser session:
+sign in as the synthetic verifier; open `/add?account=acct-everyday`; confirm
+Quick entry title and heading, Everyday Account and disabled Save; type `6.80`,
+payee `Toast Box Verify`, memo `verify quick entry landing`; choose Today and
+Save spend. Confirmation and Saved this session show -$6.80. Follow Ledger,
+wait for its search field, search Toast Box Verify, and confirm the new row.
+Fresh authenticated GET `/v1/plans/local-plan/transactions` returns exactly one
+transaction with this memo: `362fa0ff-6361-4953-940c-9647dcc6ec82`, amount -6800,
+account `acct-everyday`, date `2026-11-21`. Accessibility reports the full account,
+payee, memo and $6.80 outflow. Inspected `landing-saved.png` and
+`landing-register.png` at DPR 2; media remains untracked. Some ledger text is
+visually truncated by its existing column widths, but the full values are in
+the accessibility tree and API readback.
+
+Final candidate guard: `CHROME_PATH="$HEADLESS_SHELL" scripts/check.sh` after
+committing this record and the no-op rebase onto the fetched `origin/main`.
+No tags, deployments, Xcode Cloud, native publication or remote data writes are
+part of this landing.
