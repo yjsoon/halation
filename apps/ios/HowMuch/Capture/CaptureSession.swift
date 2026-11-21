@@ -581,9 +581,10 @@ final class CaptureSession: Identifiable {
   /// category or flag the capture read, or the user chose, is kept; one an
   /// earlier suggestion filled is replaced, so a changed payee or account
   /// suggests again. Ignored when the draft moved on since the lookup began,
-  /// and while a turn is in flight, which owns the drafts until it ends.
+  /// while a turn is in flight, which owns the drafts until it ends, and once
+  /// the workspace no longer owns this session.
   func applyPayeeDefaults(_ suggestion: CapturePayeeSuggestion, forDraft id: String, payeeName: String, accountID: String) {
-    guard !isBusy, let index = drafts.firstIndex(where: { $0.id == id && !$0.committed }) else {
+    guard admitted, !isBusy, let index = drafts.firstIndex(where: { $0.id == id && !$0.committed }) else {
       return
     }
     var item = drafts[index]

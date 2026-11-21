@@ -41,6 +41,9 @@ struct AddTransactionsView: View {
   @State private var inspectQueryCard: LedgerQueryResult?
   @State private var groupSaveErrors: [UUID: String] = [:]
   @State private var isWaitingToSend = false
+  /// Payee defaults already looked up, by payee and account, so many drafts for
+  /// one payee, and the lookups that run again after each turn, ask once.
+  @State private var payeeDefaultsCache: [String: CapturePayeeSuggestion] = [:]
   private let workspace: CaptureWorkspace
 
   init(
@@ -1116,19 +1119,20 @@ struct AddTransactionsView: View {
 
   private func suggestPayeeDefaults(_ lookups: [PayeeDefaultsLookup]) async {
     for lookup in lookups {
-      let defaults = await model.payeeDefaults(
-        forPayeeName: lookup.payeeName.trimmingCharacters(in: .whitespacesAndNewlines),
-        accountID: lookup.accountID
-      )
-      guard !Task.isCancelled else {
-        return
+      let payeeName = lookup.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
+      let key = payeeName.lowercased() + "\u{0}" + lookup.accountID
+      let suggestion: CapturePayeeSuggestion
+      if let cached = payeeDefaultsCache[key] {
+        suggestion = cached
+      } else {
+        let defaults = await model.payeeDefaults(forPayeeName: payeeName, accountID: lookup.accountID)
+        guard !Task.isCancelled else {
+          return
+        }
+        suggestion = CapturePayeeSuggestion(categoryID: defaults.categoryID, flag: defaults.flag)
+        payeeDefaultsCache[key] = suggestion
       }
-      session.applyPayeeDefaults(
-        CapturePayeeSuggestion(categoryID: defaults.categoryID, flag: defaults.flag),
-        forDraft: lookup.draftID,
-        payeeName: lookup.payeeName,
-        accountID: lookup.accountID
-      )
+      session.applyPayeeDefaults(suggestion, forDraft: lookup.draftID, payeeName: lookup.payeeName, accountID: lookup.accountID)
     }
   }
 

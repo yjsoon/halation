@@ -725,6 +725,7 @@ final class IntakeCoordinator {
     IntakeRuleEngine.applyLearned(
       skill.rules, to: &proposals, reads: extracted, context: IntakeRuleContext.make(model: model)
     )
+    await Self.fillPayeeDefaults(&proposals, reads: extracted, model: model)
     for index in proposals.indices {
       if index < sourceIndexes.count {
         proposals[index].sourceFileIndex = sourceIndexes[index]
@@ -742,6 +743,69 @@ final class IntakeCoordinator {
       }
     }
     return (proposals, !set.isComplete)
+  }
+
+  /// Gives a new row an empty category and flag from what its payee usually
+  /// gets (`AppModel.payeeDefaults`), as the Add Transaction form does. A
+  /// category the document named, or a learned rule set, is kept. The proposed
+  /// draft takes the same values, so the row still counts as untouched and the
+  /// review screen shows them as the suggestion.
+  private static func fillPayeeDefaults(
+    _ proposals: inout [IntakeProposal],
+    reads: [SlipMappedDraft],
+    model: AppModel,
+    fillCategory: Bool = true,
+    fillFlag: Bool = true
+  ) async {
+    var cache: [String: (categoryID: String?, flag: FlagColour)] = [:]
+    for index in proposals.indices where index < reads.count {
+      let proposal = proposals[index]
+      guard proposal.kind == .add || proposal.kind == .possibleDuplicate else {
+        continue
+      }
+      var draft = proposal.draft
+      let payeeName = draft.payeeName.trimmingCharacters(in: .whitespacesAndNewlines)
+      guard !payeeName.isEmpty, !draft.accountID.isEmpty, draft.transferAccountID == nil else {
+        continue
+      }
+      let key = payeeName.lowercased() + "\u{0}" + draft.accountID
+      let defaults: (categoryID: String?, flag: FlagColour)
+      if let cached = cache[key] {
+        defaults = cached
+      } else {
+        defaults = await model.payeeDefaults(forPayeeName: payeeName, accountID: draft.accountID)
+        cache[key] = defaults
+      }
+      if fillCategory, draft.categoryID == nil, !draft.isSplit, !reads[index].parsedCategory {
+        draft.categoryID = defaults.categoryID
+      }
+      if fillFlag, draft.flag == .none {
+        draft.flag = defaults.flag
+      }
+      guard draft != proposal.draft else {
+        continue
+      }
+      proposals[index].draft = draft
+      proposals[index].proposedDraft = draft
+    }
+  }
+
+  /// Whether a Fix should write this row's category onto the saved transaction:
+  /// one the document named, a learned rule set, or the owner chose. A category
+  /// filled from the payee's history (`fillPayeeDefaults`) is for new rows only.
+  private static func categoryIsWanted(_ proposal: IntakeProposal, draft: TransactionDraft, job: IntakeJob) -> Bool {
+    guard let category = draft.categoryID else {
+      return false
+    }
+    if category != proposal.proposedDraft.categoryID
+      || proposal.ruleApplications.contains(where: { $0.effects.contains(.category) }) {
+      return true
+    }
+    guard job.extractions.count == job.proposals.count,
+          let index = job.proposals.firstIndex(where: { $0.id == proposal.id }) else {
+      return true
+    }
+    return job.extractions[index].parsedCategory
   }
 
   /// A job matched while offline is matched again once the register can be
@@ -1148,7 +1212,7 @@ final class IntakeCoordinator {
         let changed = IntakeMatcher.editedDifferences(
           draft: draft,
           proposed: current.proposedDraft,
-          parsedCategory: draft.categoryID != nil,
+          parsedCategory: Self.categoryIsWanted(current, draft: draft, job: job),
           live: snapshot,
           allowContainment: job.hint != .fix
         )
@@ -1255,7 +1319,7 @@ final class IntakeCoordinator {
       proposal.changedFields = IntakeMatcher.editedDifferences(
         draft: proposal.draft,
         proposed: proposal.proposedDraft,
-        parsedCategory: proposal.draft.categoryID != nil,
+        parsedCategory: Self.categoryIsWanted(proposal, draft: proposal.draft, job: current),
         live: live,
         allowContainment: allowContainment
       )
@@ -1333,6 +1397,9 @@ final class IntakeCoordinator {
     let editedCategory = current.draft.categoryID != current.proposedDraft.categoryID
     let editedPayee = current.draft.payeeName != current.proposedDraft.payeeName
     let editedTransfer = current.draft.transferAccountID != current.proposedDraft.transferAccountID
+    // Readers and rules never set a flag, so one the owner left alone came from
+    // the payee's history on the row's account, which may just have changed.
+    let editedFlag = current.draft.flag != current.proposedDraft.flag
     var skipping = Set<IntakeRuleEffect>()
     if editedCategory { skipping.insert(.category) }
     if editedPayee { skipping.insert(.payee) }
@@ -1346,6 +1413,9 @@ final class IntakeCoordinator {
        let position = latest.proposals.firstIndex(where: { $0.id == proposalID }) {
       read = latest.extractions[position]
       read.draft = current.draft
+      if !editedFlag {
+        read.draft.flag = .none
+      }
       let asRead = latest.extractions[position].draft
       if !current.ruleApplications.isEmpty {
         if !editedTransfer, !editedPayee {
@@ -1394,6 +1464,13 @@ final class IntakeCoordinator {
         skipping: skipping
       )
     }
+    if rulesApply {
+      await Self.fillPayeeDefaults(&result, reads: [read], model: model, fillCategory: !editedCategory, fillFlag: !editedFlag)
+      guard self.job(id)?.proposals.first(where: { $0.id == proposalID })?.draft == current.draft else {
+        // Edited again while the defaults were read: that edit matches the row itself.
+        return
+      }
+    }
     guard let match = result.first else {
       return
     }
@@ -1435,6 +1512,7 @@ final class IntakeCoordinator {
           proposed.payeeID = match.draft.payeeID
         }
         if !editedTransfer { proposed.transferAccountID = match.draft.transferAccountID }
+        if !editedFlag { proposed.flag = match.draft.flag }
         proposal.proposedDraft = proposed
       } else if !keepMatch {
         proposal.reasons = proposal.reasons.filter { $0.hasPrefix(IntakeRuleEngine.reasonPrefix) } + match.reasons
