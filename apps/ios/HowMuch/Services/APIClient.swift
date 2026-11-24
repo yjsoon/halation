@@ -412,6 +412,17 @@ struct APIClient {
     return response.data.scheduledTransaction
   }
 
+  func createPayee(planID: String, name: String) async throws -> Payee {
+    struct Body: Encodable { let payee: [String: String] }
+    struct Payload: Decodable { let payee: Payee }
+    let response: APIEnvelope<Payload> = try await request(
+      path: "/v1/plans/\(planID)/payees",
+      method: "POST",
+      body: Body(payee: ["name": name])
+    )
+    return response.data.payee
+  }
+
   func updateScheduledTransaction(planID: String, scheduleID: String, idempotencyKey: String, request scheduledTransaction: ScheduledTransactionWriteRequest) async throws -> ScheduledTransaction {
     let response: APIEnvelope<ScheduledTransactionPayload> = try await request(
       path: "/v1/plans/\(planID)/scheduled_transactions/\(scheduleID)",

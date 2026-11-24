@@ -212,6 +212,9 @@ struct TransactionFormView: View {
   @State private var showAccountPrompt = false
   @State private var showCategoryPrompt = false
   @State private var isShowingDate = false
+  /// Set on Date & Schedule: saving also schedules the transaction to repeat.
+  @State private var repeatFrequency: ScheduleFrequency = .never
+  @State private var isSavingSchedule = false
   @State private var rewardCards: [CreditCard] = []
   /// Set once the user picks (or clears) the category or flag; the payee's
   /// history fills only fields the user has not chosen.
@@ -337,7 +340,11 @@ struct TransactionFormView: View {
         payeePicker
       }
       .navigationDestination(isPresented: $isShowingDate) {
-        DateFieldView(date: $draft.date)
+        if canSchedule {
+          DateScheduleView(date: $draft.date, frequency: $repeatFrequency)
+        } else {
+          DateFieldView(date: $draft.date)
+        }
       }
       .navigationTitle(formTitle)
       .navigationBarTitleDisplayMode(.inline)
@@ -749,14 +756,18 @@ struct TransactionFormView: View {
         collapseKeypad()
         isShowingDate = true
       } label: {
-        DisclosureValueRow(
-          icon: "calendar",
-          caption: "Date",
-          value: LedgerDate.friendlyString(fromISO: draft.date.isoDateString),
-          placeholder: "Date",
-          rowIdentifier: TransactionFormRowID.date,
-          valueColor: Theme.rowSecondary
-        )
+        if canSchedule {
+          scheduleDateRow
+        } else {
+          DisclosureValueRow(
+            icon: "calendar",
+            caption: "Date",
+            value: LedgerDate.friendlyString(fromISO: draft.date.isoDateString),
+            placeholder: "Date",
+            rowIdentifier: TransactionFormRowID.date,
+            valueColor: Theme.rowSecondary
+          )
+        }
       }
       .buttonStyle(.plain)
       CardDivider()
@@ -814,6 +825,55 @@ struct TransactionFormView: View {
           categoryCandidates = []
           showCategoryPrompt = false
         }
+      }
+    }
+  }
+
+  /// An existing transaction opened on its own can be repeated from Date &
+  /// Schedule. New captures and drafts inside a capture session cannot.
+  private var canSchedule: Bool {
+    draft.id != nil && chrome == .standalone && onPersist == nil
+  }
+
+  /// The longer caption leaves less room than Date had, so on a narrow phone
+  /// the weekday goes before the date is cut off, and the repeat sits on a
+  /// line of its own.
+  private var scheduleDateRow: some View {
+    let isoDay = draft.date.isoDateString
+    let layout = dynamicTypeSize.isAccessibilitySize
+      ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+      : AnyLayout(HStackLayout(spacing: 8))
+    return FormCardRow(
+      icon: repeatFrequency == .never ? "calendar" : "calendar.badge.clock",
+      rowIdentifier: TransactionFormRowID.date
+    ) {
+      HStack(spacing: 8) {
+        layout {
+          Text("Date & Schedule")
+            .foregroundStyle(Theme.textPrimary)
+            .layoutPriority(1)
+          if !dynamicTypeSize.isAccessibilitySize {
+            Spacer(minLength: 8)
+          }
+          VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 2) {
+            ViewThatFits(in: .horizontal) {
+              Text(LedgerDate.friendlyString(fromISO: isoDay)).fixedSize()
+              Text(LedgerDate.shortDateString(fromISO: isoDay)).fixedSize()
+              Text(LedgerDate.shortDateString(fromISO: isoDay))
+            }
+            .foregroundStyle(Theme.rowSecondary)
+            if repeatFrequency != .never {
+              Text(repeatFrequency.title)
+                .font(.footnote)
+                .foregroundStyle(Theme.accent)
+            }
+          }
+          .multilineTextAlignment(dynamicTypeSize.isAccessibilitySize ? .leading : .trailing)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        Image(systemName: "chevron.right")
+          .font(.footnote.weight(.semibold))
+          .foregroundStyle(.tertiary)
       }
     }
   }
@@ -1252,7 +1312,7 @@ struct TransactionFormView: View {
     }
     .buttonStyle(.glassProminent)
     .tint(Theme.accent)
-    .disabled(!canSave || hasCommitted)
+    .disabled(!canSave || hasCommitted || isSavingSchedule)
   }
 
   private func save() {
@@ -1286,11 +1346,51 @@ struct TransactionFormView: View {
         dismiss()
         return
       }
+      if canSchedule, repeatFrequency != .never {
+        saveWithSchedule()
+        return
+      }
       try model.commit(draft)
       hasCommitted = true
       dismiss()
     } catch {
       errorMessage = error.localizedDescription
+    }
+  }
+
+  /// The schedule is written first: it needs the server and can be refused,
+  /// and the form stays open with the reason. The transaction edit then goes
+  /// through the outbox as any other save does.
+  private func saveWithSchedule() {
+    guard !isSavingSchedule,
+          let schedule = ScheduledTransactionDraft(repeating: draft, frequency: repeatFrequency) else {
+      return
+    }
+    let frequency = repeatFrequency
+    isSavingSchedule = true
+    Task {
+      defer { isSavingSchedule = false }
+      do {
+        var schedule = schedule
+        schedule.decimalDigits = model.currencyFormat?.decimalDigits
+        // Schedules name their payee by ID. A payee typed by name has no
+        // record yet; the server finds or creates one, so occurrences keep it.
+        if schedule.payeeID == nil, schedule.transferAccountID == nil, !schedule.isSplit,
+           let name = draft.payeeName.trimmedNil {
+          let payee = try await model.apiClient.createPayee(planID: model.settings.planID, name: name)
+          schedule.payeeID = payee.id
+          if model.payee(withID: payee.id) == nil {
+            model.payees.append(payee)
+          }
+        }
+        try await model.saveScheduledTransaction(schedule)
+        try model.commit(draft)
+        hasCommitted = true
+        model.showSaveMessage("Saved. Repeats \(frequency.title.lowercased()) from \(LedgerDate.shortDateString(fromISO: schedule.dateNext.isoDateString))")
+        dismiss()
+      } catch {
+        errorMessage = error.localizedDescription
+      }
     }
   }
 
@@ -1583,6 +1683,69 @@ struct DateFieldView: View {
     .background(Theme.canvas)
     .navigationTitle("Date")
     .navigationBarTitleDisplayMode(.inline)
+  }
+}
+
+/// Date & Schedule for an existing transaction: the date, and under it how
+/// the transaction repeats. Picking a date stays here so Repeat is reachable.
+struct DateScheduleView: View {
+  @Binding var date: Date
+  @Binding var frequency: ScheduleFrequency
+
+  var body: some View {
+    ScrollView {
+      VStack(alignment: .leading, spacing: 14) {
+        PrimedInlineDatePicker(date: $date)
+          .padding(.horizontal, 8)
+          .cardSurface()
+
+        Menu {
+          Picker("Repeat", selection: $frequency) {
+            ForEach(ScheduleFrequency.allCases) { option in
+              Text(option.title).tag(option)
+            }
+          }
+          .pickerStyle(.inline)
+        } label: {
+          FormCardRow(icon: "repeat", rowIdentifier: "transaction-form.row.repeat") {
+            HStack(spacing: 8) {
+              Text("Repeat")
+                .foregroundStyle(Theme.textPrimary)
+                .fixedSize()
+              Spacer(minLength: 8)
+              Text(frequency.title)
+                .foregroundStyle(Theme.rowSecondary)
+                .multilineTextAlignment(.trailing)
+              Image(systemName: "chevron.up.chevron.down")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityHidden(true)
+            }
+          }
+        }
+        .buttonStyle(.plain)
+        .cardSurface()
+
+        if let summary {
+          Text(summary)
+            .font(.footnote)
+            .foregroundStyle(Theme.rowSecondary)
+            .padding(.horizontal, 4)
+        }
+      }
+      .padding(16)
+    }
+    .background(Theme.canvas)
+    .navigationTitle("Date & Schedule")
+    .navigationBarTitleDisplayMode(.inline)
+  }
+
+  private var summary: String? {
+    guard let next = ScheduledTransactionDraft.nextDate(repeating: date, frequency: frequency) else {
+      return nil
+    }
+    let nextDay = LedgerDate.shortDateString(fromISO: next.isoDateString)
+    return "This transaction stays as it is. Saving adds a scheduled transaction from \(nextDay), listed in Scheduled."
   }
 }
 

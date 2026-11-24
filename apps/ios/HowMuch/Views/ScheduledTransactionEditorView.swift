@@ -34,6 +34,54 @@ enum ScheduleFrequency: String, CaseIterable, Identifiable {
     case .everyOtherYear: "Every other year"
     }
   }
+
+  /// The first date on the grid that starts at `first` and falls after
+  /// `floor`. Months are counted from `first` each time, so the day of the
+  /// month holds as the server's `nextScheduledOccurrence` holds it. Nil when
+  /// nothing repeats.
+  func firstOccurrence(from first: Date, after floor: Date, calendar: Calendar = LedgerDate.gregorian) -> Date? {
+    let floorISO = floor.isoDateString
+    let start = calendar.startOfDay(for: first)
+    let days: Int?
+    switch self {
+    case .daily: days = 1
+    case .weekly: days = 7
+    case .everyOtherWeek: days = 14
+    case .every4Weeks: days = 28
+    default: days = nil
+    }
+    if let days {
+      let elapsed = calendar.dateComponents([.day], from: start, to: calendar.startOfDay(for: floor)).day ?? 0
+      var step = max(0, elapsed / days)
+      while true {
+        guard let candidate = calendar.date(byAdding: .day, value: step * days, to: start) else { return nil }
+        if candidate.isoDateString > floorISO { return candidate }
+        step += 1
+      }
+    }
+    let months: Int
+    switch self {
+    case .never, .daily, .weekly, .everyOtherWeek, .every4Weeks: return nil
+    case .twiceAMonth: months = 1
+    case .monthly: months = 1
+    case .everyOtherMonth: months = 2
+    case .every3Months: months = 3
+    case .every4Months: months = 4
+    case .twiceAYear: months = 6
+    case .yearly: months = 12
+    case .everyOtherYear: months = 24
+    }
+    var step = 0
+    while true {
+      guard let anchor = calendar.date(byAdding: .month, value: step * months, to: start) else { return nil }
+      // Twice a month adds a second date 15 days after each month's anchor.
+      let candidates = self == .twiceAMonth
+        ? [anchor, calendar.date(byAdding: .day, value: 15, to: anchor) ?? anchor]
+        : [anchor]
+      if let next = candidates.first(where: { $0.isoDateString > floorISO }) { return next }
+      step += 1
+    }
+  }
 }
 
 struct ScheduledSubtransactionDraft {
@@ -146,6 +194,48 @@ struct ScheduledTransactionDraft {
     memo = schedule.memo ?? ""
     flag = FlagColour(rawValue: schedule.flagColor ?? "") ?? .none
     subtransactions = schedule.activeSubtransactions.map(ScheduledSubtransactionDraft.init)
+  }
+
+  /// A schedule that repeats an existing transaction. The transaction stays
+  /// the first occurrence; the schedule's next date is the first one after
+  /// it that is not already past, so saving never back-fills missed dates.
+  init?(repeating transaction: TransactionDraft, frequency: ScheduleFrequency, today: Date = .now) {
+    guard let next = Self.nextDate(repeating: transaction.date, frequency: frequency, today: today) else {
+      return nil
+    }
+    saveOperationSeed = UUID().uuidString
+    accountID = transaction.accountID
+    dateFirst = transaction.date
+    dateNext = next
+    self.frequency = frequency
+    direction = transaction.direction
+    payeeID = transaction.payeeID
+    transferAccountID = transaction.isSplit ? nil : transaction.transferAccountID
+    categoryID = transaction.isSplit ? nil : transaction.categoryID
+    memo = transaction.memo
+    flag = transaction.flag
+    if transaction.isSplit {
+      subtransactions = transaction.subtransactions.map { line in
+        ScheduledSubtransactionDraft(
+          amountText: line.amount.map(MoneyCodec.editableString(for:)) ?? line.amountText,
+          payeeID: line.transferAccountID == nil ? line.payeeID : nil,
+          categoryID: line.categoryID,
+          transferAccountID: line.transferAccountID,
+          memo: line.memo
+        )
+      }
+    } else {
+      loadedMagnitude = transaction.amountMagnitudeMilli
+      amountText = MoneyCodec.editableString(for: transaction.amountMagnitudeMilli)
+    }
+  }
+
+  /// The first occurrence after `date` that is today or later.
+  static func nextDate(repeating date: Date, frequency: ScheduleFrequency, today: Date = .now) -> Date? {
+    let calendar = LedgerDate.gregorian
+    let yesterday = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: today)) ?? today
+    let floor = max(calendar.startOfDay(for: date), yesterday)
+    return frequency.firstOccurrence(from: date, after: floor, calendar: calendar)
   }
 
   var isSplit: Bool { !subtransactions.isEmpty }
