@@ -294,11 +294,6 @@ struct TransactionFormView: View {
           .padding(16)
         }
         .scrollDismissesKeyboard(.immediately)
-        .overlay(alignment: .bottom) {
-          LinearGradient(colors: [Theme.canvas.opacity(0), Theme.canvas], startPoint: .top, endPoint: .bottom)
-            .frame(height: 16)
-            .allowsHitTesting(false)
-        }
         // In landscape the keypad leaves a short form, so keep the typed
         // amount in view whenever the keypad is up and the form resizes.
         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { _ in
@@ -377,6 +372,8 @@ struct TransactionFormView: View {
           }
         }
       }
+      // Save floats over the form with no bar behind it. The inset still
+      // lets the last row scroll clear of the button.
       .safeAreaInset(edge: .bottom, spacing: 0) {
         if showsStandaloneChrome, !isKeypadVisible {
           HStack {
@@ -386,7 +383,6 @@ struct TransactionFormView: View {
           .padding(.horizontal, 20)
           .padding(.top, 8)
           .padding(.bottom, 12)
-          .background(Theme.canvas)
         }
       }
       .binaryConfirm(
@@ -1257,7 +1253,6 @@ struct TransactionFormView: View {
     .buttonStyle(.glassProminent)
     .tint(Theme.accent)
     .disabled(!canSave || hasCommitted)
-    .opacity(canSave ? 1 : 0.5)
   }
 
   private func save() {
