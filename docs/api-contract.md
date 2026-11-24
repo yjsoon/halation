@@ -1004,6 +1004,8 @@ Returns a normal YNAB-compatible transaction envelope.
 
 Starts a YNAB migration using a supplied token and plan id. The importer should fetch full history explicitly. The YNAB API base URL is operator configuration (`HOWMUCH_YNAB_BASE_URL`, default `https://api.ynab.com/v1`); a `base_url` in the request body is ignored so callers cannot make the server fetch arbitrary URLs.
 
+The body must include `"accept_ynab_notice": true`, the caller's acknowledgement that the importer is not officially supported by YNAB (YNAB's Terms of Service require it before a program uses YNAB's API). Without it the request is refused with 400 `ynab_notice_required` before anything is fetched; the error detail carries the notice to show the user.
+
 `POST /api/import/rewards-tracker`
 
 Accepts a Rewards Tracker for YNAB settings export (`cards` required). Official Settings exports are the Cloud Sync portable payload: cards, rules, tag mappings, theme groups, hidden cards, and budget selection. Older localStorage dumps may also include `cachedData` with YNAB-shaped accounts, flag names, and dashboard transactions. Those objects are upserted through the same ledger IDs the tracker already syncs over `/v1`. Secrets (`pat`, `howmuchToken`, Cloud Sync phrases, formatter API keys) are stripped. Replaying the same file updates existing cards and transactions instead of duplicating them.

@@ -54,3 +54,15 @@ test("the YNAB CLI refuses secret-valued token arguments", () => {
   expect(result.exitCode).not.toBe(0);
   expect(result.stderr.toString()).toContain("Unknown option");
 });
+
+test("the YNAB CLI will not contact YNAB until the user accepts YNAB's notice", () => {
+  const result = Bun.spawnSync(["bun", "scripts/import-ynab.ts", "--list-plans", "--base-url", "http://127.0.0.1:9/v1"], {
+    env: { ...process.env, YNAB_TOKEN: "synthetic-token" },
+    stdin: "ignore",
+  });
+  expect(result.exitCode).not.toBe(0);
+  const output = result.stdout.toString() + result.stderr.toString();
+  expect(output).toContain("not officially supported by YNAB");
+  expect(output).toContain("--accept-ynab-notice");
+  expect(output).not.toContain("fetch failed");
+});

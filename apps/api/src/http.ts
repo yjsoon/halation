@@ -8,7 +8,7 @@ import { type AmountFormat, amountFormatOf, isStorableMilliunits } from "@howmuc
 import { decimalToMilliunits } from "./money";
 import { importCsvRows } from "./importers/csv";
 import { importRewardsTrackerExport } from "./importers/rewards-tracker";
-import { importYnabFromApi } from "./importers/ynab";
+import { importYnabFromApi, YNAB_UNSUPPORTED_NOTICE } from "./importers/ynab";
 import { parseRewardGroupBy } from "./rewards/parse";
 import { exportRewardsAccountConfig, importRewardsAccountConfig } from "./rewards/account-config";
 import {
@@ -938,6 +938,9 @@ async function handleNative(
     const targetPlanId = body.plan_id ?? planId;
     const denied = authorizePlan(principal, targetPlanId, defaultPlanId, method);
     if (denied) return denied;
+    if (body.accept_ynab_notice !== true) {
+      return apiError(400, "ynab_notice_required", `${YNAB_UNSUPPORTED_NOTICE} Send "accept_ynab_notice": true to accept.`);
+    }
     await repo.ensurePlan(targetPlanId);
     const result = await importYnabFromApi(repo, {
       token: body.token,

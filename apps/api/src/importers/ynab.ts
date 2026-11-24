@@ -39,6 +39,14 @@ export type YnabPlanSummary = {
 
 const DEFAULT_YNAB_BASE_URL = "https://api.ynab.com/v1";
 
+/**
+ * YNAB's Terms of Service require any program that uses its API to show this
+ * message and have the user acknowledge it before the program works. The CLI
+ * and `POST /api/import/ynab` both refuse to contact YNAB until it is accepted.
+ */
+export const YNAB_UNSUPPORTED_NOTICE =
+  "This YNAB importer is not officially supported by YNAB in any way. Use of it could introduce problems that YNAB, through its official support channels, will not be able to troubleshoot or fix. Please use at your own risk!";
+
 export async function importYnabFromApi(
   repo: LedgerStore,
   options: YnabImportOptions,

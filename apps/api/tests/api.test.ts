@@ -2679,10 +2679,23 @@ describe("native reports and imports", () => {
     });
 
     try {
+      // YNAB's terms require the user to acknowledge that this importer is not
+      // supported by YNAB before it runs, so no fetch happens without it.
+      const unacknowledged = await request("/api/import/ynab?plan_id=plan-test", {
+        method: "POST",
+        body: { token: "ynab-token" },
+      });
+      expect(unacknowledged.status).toBe(400);
+      const refusal = await unacknowledged.json();
+      expect(refusal.error.name).toBe("ynab_notice_required");
+      expect(refusal.error.detail).toContain("not officially supported by YNAB");
+      expect(calls).toEqual([]);
+
       const importResponse = await request("/api/import/ynab?plan_id=plan-test", {
         method: "POST",
         body: {
           token: "ynab-token",
+          accept_ynab_notice: true,
           base_url: "https://evil.example/v1",
         },
       });

@@ -2,7 +2,7 @@ import { parseArgs as parseCliArgs } from "node:util";
 import type { Database } from "bun:sqlite";
 import { D1Database } from "../apps/api/src/d1";
 import { D1LedgerRepository } from "../apps/api/src/d1-ledger-repository";
-import { importYnabFromApi, listYnabPlans, type YnabPlanSummary } from "../apps/api/src/importers/ynab";
+import { importYnabFromApi, listYnabPlans, YNAB_UNSUPPORTED_NOTICE, type YnabPlanSummary } from "../apps/api/src/importers/ynab";
 import { openD1Sqlite, sqliteD1Binding } from "../apps/api/src/sqlite-d1";
 import { ledgerSummary, singleNumber } from "./lib/import-summary";
 import { backupSqliteDatabase } from "./lib/sqlite-backup";
@@ -15,6 +15,7 @@ type CliOptions = {
   sinceDate?: string;
   listPlans: boolean;
   noBackup: boolean;
+  acceptYnabNotice: boolean;
   help: boolean;
 };
 
@@ -30,6 +31,15 @@ const token = Bun.env.YNAB_TOKEN;
 if (!token) {
   console.error("YNAB token missing. Set YNAB_TOKEN in your shell.");
   process.exit(1);
+}
+
+console.error(YNAB_UNSUPPORTED_NOTICE);
+if (!options.acceptYnabNotice) {
+  const answer = process.stdin.isTTY ? prompt("Type yes to accept and continue:") : null;
+  if (answer?.trim().toLowerCase() !== "yes") {
+    console.error("Not accepted. Answer yes, or pass --accept-ynab-notice, to run the import.");
+    process.exit(1);
+  }
 }
 
 const plans = await listYnabPlans({
@@ -96,6 +106,7 @@ function parseArgs(args: string[]): CliOptions {
       "since-date": { type: "string" },
       "list-plans": { type: "boolean" },
       "no-backup": { type: "boolean" },
+      "accept-ynab-notice": { type: "boolean" },
       help: { type: "boolean", short: "h" },
     },
   });
@@ -107,6 +118,7 @@ function parseArgs(args: string[]): CliOptions {
     sinceDate: values["since-date"],
     listPlans: values["list-plans"] ?? false,
     noBackup: values["no-backup"] ?? false,
+    acceptYnabNotice: values["accept-ynab-notice"] ?? false,
     help: values.help ?? false,
   };
 }
@@ -183,6 +195,9 @@ function printHelp(): void {
 Authentication:
   Set YNAB_TOKEN in your shell. Tokens are not accepted as command-line arguments.
 
+This importer is not officially supported by YNAB. Before it contacts YNAB it
+asks you to accept that; pass --accept-ynab-notice to accept without the prompt.
+
 Options:
   --list-plans           List YNAB plans available to the token, then exit
   --plan-id <id>         Import a specific YNAB plan
@@ -191,6 +206,7 @@ Options:
   --since-date <date>    Override the default full-history fetch start date
   --base-url <url>       Override the YNAB API base URL
   --no-backup            Skip the automatic SQLite backup
+  --accept-ynab-notice   Accept that YNAB does not support this importer
   --help                 Show this help
 `);
 }

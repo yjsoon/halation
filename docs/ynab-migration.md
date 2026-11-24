@@ -2,7 +2,7 @@
 
 > We are not affiliated, associated, or in any way officially connected with YNAB or any of its subsidiaries or affiliates. The official YNAB website can be found at [ynab.com](https://www.ynab.com). The names YNAB and You Need A Budget, as well as related names, tradenames, marks, trademarks, emblems, and images are registered trademarks of YNAB.
 >
-> The YNAB API importer (`bun run import:ynab` and `POST /api/import/ynab`) is not officially supported by YNAB in any way. YNAB, through its official support channels, will not be able to troubleshoot or fix problems it causes. Use it at your own risk.
+> The YNAB API importer (`bun run import:ynab` and `POST /api/import/ynab`) is not officially supported by YNAB in any way. YNAB, through its official support channels, will not be able to troubleshoot or fix problems it causes. Use it at your own risk. The importer shows this notice and asks you to accept it before it contacts YNAB.
 
 Preferred migration source: the YNAB API with a personal access token.
 
@@ -28,6 +28,8 @@ export YNAB_TOKEN
 ```sh
 bun run import:ynab --list-plans
 ```
+
+Both commands print the notice above and ask you to type `yes`. In a non-interactive shell, pass `--accept-ynab-notice` instead.
 
 3. Import the chosen plan into a dedicated local database:
 
