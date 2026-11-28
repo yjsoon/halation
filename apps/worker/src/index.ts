@@ -78,10 +78,9 @@ export default {
 
 function workerConfig(env: Env): ApiConfig & { timeZone: string } {
   return {
-    // Optional so a Worker deployed without the secret can still say so on
-    // its setup page. Setup without it is always refused here.
+    // Optional. When set, first-owner setup needs it and it authorises
+    // default-plan integrations; without it, the first visitor sets up.
     apiToken: optional(env.HOWMUCH_API_TOKEN),
-    refuseTokenlessSetup: true,
     defaultPlanId: required(env.HOWMUCH_DEFAULT_PLAN_ID, "HOWMUCH_DEFAULT_PLAN_ID"),
     ynabBaseUrl: optional(env.HOWMUCH_YNAB_BASE_URL),
     typesafeApiKey: optional(env.TYPESAFE_API_KEY),

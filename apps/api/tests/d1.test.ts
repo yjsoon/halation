@@ -239,10 +239,10 @@ describe("D1 foundation", () => {
     });
   });
 
-  // Failure mode: a Worker deployed without HOWMUCH_API_TOKEN. Its Host is never
-  // proof of "this machine" (wrangler dev and service bindings can send
-  // localhost), so it must refuse tokenless setup and say why in its status.
-  test("Worker without a setup token refuses setup on any host and reports it", async () => {
+  // Failure mode: a self-hoster deploys without HOWMUCH_API_TOKEN (the setup
+  // token is optional) and opens the Worker's public address. Setup must work
+  // there without a token, once, and only from the same origin.
+  test("Worker without a setup token lets its first visitor create the owner", async () => {
     const db = await ledgerSqlite();
     const env = {
       ASSETS: { fetch: async () => new Response("asset") },
@@ -250,16 +250,20 @@ describe("D1 foundation", () => {
       HOWMUCH_DEFAULT_PLAN_ID: "p",
       HOWMUCH_TIME_ZONE: "Asia/Singapore",
     };
-    const status = await worker.fetch(new Request("http://localhost/api/auth/status"), env as any);
-    expect(status.status).toBe(200);
-    expect((await status.json() as { data: unknown }).data).toMatchObject({ setup_required: true, setup_blocked: true });
-    const setup = await worker.fetch(new Request("http://localhost/api/auth/setup", {
+    const origin = "https://halation.someone.workers.dev";
+    const setupRequest = (headers: Record<string, string>, username: string) => worker.fetch(new Request(`${origin}/api/auth/setup`, {
       method: "POST",
-      headers: { "content-type": "application/json", origin: "http://localhost" },
-      body: JSON.stringify({ username: "owner", password: "worker-setup-passphrase" }),
+      headers: { "content-type": "application/json", ...headers },
+      body: JSON.stringify({ username, password: "worker-setup-passphrase" }),
     }), env as any);
-    expect(setup.status).toBe(403);
-    expect(db.query("SELECT COUNT(*) AS count FROM users").get()).toEqual({ count: 0 });
+    const status = await worker.fetch(new Request(`${origin}/api/auth/status`), env as any);
+    expect(status.status).toBe(200);
+    expect((await status.json() as { data: unknown }).data).toMatchObject({ setup_required: true, bootstrap_required: false });
+    expect((await setupRequest({ origin: "https://evil.example" }, "intruder")).status).toBe(403);
+    expect((await setupRequest({ origin, authorization: "Bearer guessed" }, "intruder")).status).toBe(401);
+    expect((await setupRequest({ origin }, "owner")).status).toBe(200);
+    expect((await setupRequest({ origin }, "second")).status).toBe(409);
+    expect(db.query("SELECT display_name FROM users").all()).toEqual([{ display_name: "owner" }]);
   });
 
   // Failure modes guarded here, for self-hosted crons that differ from production's `5 16 * * *`:

@@ -2805,7 +2805,6 @@ describe("password authentication", () => {
     expect((await before.json()).data).toEqual({
       setup_required: true,
       bootstrap_required: true,
-      setup_blocked: false,
       user: null,
       // No session, so nothing for a client to gate a cached paint on.
       session_expires_at: null,
@@ -2846,60 +2845,12 @@ describe("password authentication", () => {
     const status = await localHandler(new Request("http://localhost:8787/api/auth/status"));
     const statusData = (await status.json()).data;
     expect(statusData.bootstrap_required).toBeFalse();
-    expect(statusData.setup_blocked).toBeFalse();
     const setup = await localHandler(new Request("http://localhost:8787/api/auth/setup", {
       method: "POST",
       headers: { "content-type": "application/json", origin: "http://localhost:8787" },
       body: JSON.stringify({ username: "owner", password }),
     }));
     expect(setup.status).toBe(200);
-  });
-
-  // Failure modes: (1) DNS rebinding, where a hostile page resolves its own
-  // name to 127.0.0.1 so the browser sends Host/Origin of the attacker's name;
-  // (2) a tunnel or reverse proxy forwarding a public Host to the loopback
-  // server. Bun derives url.origin from the client-controlled Host header, so
-  // the same-origin check alone cannot tell these from a genuine local request.
-  test("refuses tokenless setup when the Host is not loopback", async () => {
-    const localHandler = d1Handler(db, {
-      config: {
-        defaultPlanId: "plan-test",
-      },
-    });
-    for (const origin of ["http://rebind.attacker.example:8787", "https://howmuch-tunnel.example"]) {
-      const setup = await localHandler(new Request(`${origin}/api/auth/setup`, {
-        method: "POST",
-        headers: { "content-type": "application/json", origin },
-        body: JSON.stringify({ username: "owner", password }),
-      }));
-      expect(setup.status).toBe(403);
-      // The status check says so up front, so the web app can show the
-      // missing-secret step instead of a form that can only fail.
-      const status = await localHandler(new Request(`${origin}/api/auth/status`));
-      expect((await status.json()).data.setup_blocked).toBeTrue();
-    }
-    expect(db.query("SELECT COUNT(*) AS count FROM users").get()).toEqual({ count: 0 });
-  });
-
-  // Failure mode: a Worker deployed without the HOWMUCH_API_TOKEN secret. It
-  // must still refuse setup (its Host is never trusted as "this machine"),
-  // and its status must say why, rather than every request failing.
-  test("a server that never allows tokenless setup reports it and refuses", async () => {
-    const workerHandler = d1Handler(db, {
-      config: {
-        defaultPlanId: "plan-test",
-        refuseTokenlessSetup: true,
-      },
-    });
-    const status = await workerHandler(new Request("http://localhost:8787/api/auth/status"));
-    expect((await status.json()).data).toMatchObject({ setup_required: true, bootstrap_required: false, setup_blocked: true });
-    const setup = await workerHandler(new Request("http://localhost:8787/api/auth/setup", {
-      method: "POST",
-      headers: { "content-type": "application/json", origin: "http://localhost:8787" },
-      body: JSON.stringify({ username: "owner", password }),
-    }));
-    expect(setup.status).toBe(403);
-    expect(db.query("SELECT COUNT(*) AS count FROM users").get()).toEqual({ count: 0 });
   });
 
   test("logs in with browser cookie and native token, then revokes logout", async () => {

@@ -169,7 +169,7 @@ function AccountBand({ account, hasRewards, firstFieldRef, onSaved, onDeleted, o
         <p className="card-settings-note">
           {kindChanged && toGroup && fromGroup?.label !== toGroup.label
             ? `Moves this account from ${fromGroup?.label ?? "its imported type"} to ${toGroup.label}. Balances do not change.`
-            : toGroup?.note ?? "Imported type. Choose a type to list it under Budget or Tracking."}
+            : toGroup?.note ?? "Imported type. Choose a type to list it under Spending or Tracking."}
         </p>
         {!account.closed && (
           <label className="account-settings-check">

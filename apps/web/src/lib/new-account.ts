@@ -8,8 +8,8 @@ import { parseMilliunits } from "./money";
  */
 export const ACCOUNT_KIND_GROUPS = [
   {
-    label: "Budget",
-    note: "Budget account: cash, savings and cards you spend from.",
+    label: "Spending",
+    note: "Cash, savings and cards you spend from.",
     kinds: [
       { kind: "checking", title: "Current account" },
       { kind: "savings", title: "Savings" },
@@ -20,7 +20,7 @@ export const ACCOUNT_KIND_GROUPS = [
   },
   {
     label: "Tracking",
-    note: "Tracking account: loans and assets you keep an eye on but don’t spend from. Listed under Tracking.",
+    note: "Loans and assets you keep an eye on but don’t spend from. Listed under Tracking.",
     kinds: [
       { kind: "mortgage", title: "Mortgage" },
       { kind: "autoLoan", title: "Car loan" },

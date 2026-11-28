@@ -4,10 +4,11 @@ A brand-new HowMuch database has no user. The first visitor creates the owner ac
 
 ## Sub-features
 
-- `setup-form` shows **Set up Halation** with Username, Password, and Setup token.
-- `setup-token-note` explains the Setup token as the `HOWMUCH_API_TOKEN` secret, with a **How to set it** link to the self-hosting guide.
+- `setup-form` shows **Set up Halation** with Username, Password, Currency and Date format, plus Setup token only when the server sets the optional `HOWMUCH_API_TOKEN`.
+- `setup-tokenless` on a Worker with no `HOWMUCH_API_TOKEN` shows the same form with no Setup token field, and creating the owner works (`/api/auth/status` has `bootstrap_required: false`).
+- `setup-token-note` with a token set, the note under Setup token says the server asks for it because `HOWMUCH_API_TOKEN` is set, with an **About the setup token** link to the self-hosting guide.
 - `setup-wrong-token` with a wrong token shows "That setup token does not match…" and stays on the form.
-- `setup-blocked` on a Worker with no `HOWMUCH_API_TOKEN` shows the steps to add the secret instead of the form (`/api/auth/status` has `setup_blocked: true`).
+- `setup-currency-names` currency options read as code and name, such as `SGD · Singapore Dollar`.
 - `signin-private-note` shows "This is a private Halation instance…" with a link to the repository.
 - `setup-create` accepts `verifier` / `howmuch-verify-15` / `howmuch-verify-bootstrap` and lands on Ledger.
 - `setup-reject-short-password` keeps **Create account** disabled while the password is under 15 characters (spaces at either end do not count), and the note under Password says how many more are needed.
@@ -34,7 +35,7 @@ Preconditions:
 
 - **Open setup.** Go to `{web_url}`. The heading is `Set up Halation` and the submit button is `Create account`.
 - **Short password.** Fill Username `verifier` and Password `short`. `Create account` stays disabled. The page does not navigate.
-- **Token note.** Under Setup token the note reads `The HOWMUCH_API_TOKEN secret you set when deploying this server. How to set it`, and **How to set it** links to `self-hosting.md#4-create-the-setup-token`.
+- **Token note.** Under Setup token the note reads `This server asks for one because HOWMUCH_API_TOKEN is set on it. Enter the same value. About the setup token`, and **About the setup token** links to `self-hosting.md#optional-setup-token`. No line below the button mentions the token.
 - **Wrong token.** Fill Username `verifier`, Password `howmuch-verify-15`, Setup token `wrong-token`. Choose `Create account`. The alert reads `That setup token does not match. Use the HOWMUCH_API_TOKEN value you set when deploying this server.` The form stays up.
 - **Create owner.** Fill Username `verifier`, Password `howmuch-verify-15`, Setup token `howmuch-verify-bootstrap`. Choose `Create account`. The button reads `Please wait…`, then the shell appears with brand `Halation` and heading `Ledger`. Title is `Ledger · Halation`.
 - **Home IA.** `Primary navigation` has no link named `Plan`, `API tokens`, or `Rewards import & export`. `Settings` is in the sidebar footer. Open `{web_url}/plan`. Lands on Ledger. Open `{web_url}/no-such-route`. Lands on Ledger. Page text has no `Ready to assign`.
@@ -50,5 +51,5 @@ Preconditions:
 - scrypt is slow. Wait for Ledger, not a fixed 200ms sleep.
 - Opening any app route without a session still renders the setup/sign-in form. That is not a routing bug.
 - Do not POST `/api/auth/setup` from `control-howmuch http` and call the feature verified.
-- This stack always sets the token, so it cannot reach `setup-blocked`. For that, with no `apps/worker/.dev.vars`, run `scripts/local-worker.sh prepare <tmp>`, then `scripts/local-worker.sh start <tmp> <port> --inspector-port <free port>` without a token, and point Vite's `HOWMUCH_API_URL` at it. Never deploy.
+- This stack always sets the token, so it cannot reach `setup-tokenless`. For that, start a second Worker before `apps/worker/.dev.vars` exists (or with it moved aside): `scripts/local-worker.sh prepare <tmp>`, then `scripts/local-worker.sh start <tmp> <port> --inspector-port <free port>`, and point a second Vite's `HOWMUCH_API_URL` at it. Create the owner there with no token. Never deploy.
 - iOS Connection cannot create the owner. Finish this recipe on `{web_url}` before any `ios-*` recipe.

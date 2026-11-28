@@ -12,11 +12,10 @@ interface BootstrapSessionStatus {
   user: { id: string } | null;
   setup_required: boolean;
   bootstrap_required: boolean;
-  setup_blocked?: boolean;
 }
 
 /** Which signed-out screen to show. */
-export type SignedOutMode = "setup" | "setup-blocked" | "login";
+export type SignedOutMode = "setup" | "login";
 
 interface PlanRef {
   id: string;
@@ -105,10 +104,7 @@ export function decideSession(status: BootstrapSessionStatus): SessionDecision {
 }
 
 function signedOutMode(status: BootstrapSessionStatus): SignedOutMode {
-  if (!status.setup_required) {
-    return "login";
-  }
-  return status.setup_blocked ? "setup-blocked" : "setup";
+  return status.setup_required ? "setup" : "login";
 }
 
 /**

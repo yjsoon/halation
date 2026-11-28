@@ -5,6 +5,7 @@ import type { PlanSettings } from "../api/types";
 import {
   buildPlanSeed,
   CURRENCY_CHOICES,
+  currencyLabel,
   DATE_FORMAT_CHOICES,
   DATE_FORMAT_LABELS,
   type DateFormatChoice,
@@ -311,7 +312,7 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
         <label className="field">
           <span className="field-label">Currency</span>
           <select value={currency} onChange={(event) => { setCurrency(event.target.value); setDone(false); }}>
-            {currencies.map((code) => <option key={code} value={code}>{code}</option>)}
+            {currencies.map((code) => <option key={code} value={code}>{currencyLabel(code)}</option>)}
           </select>
         </label>
         <label className="field">

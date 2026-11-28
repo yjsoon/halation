@@ -34,9 +34,6 @@
   },
   "cloudflare": {
     "bindings": {
-      "HOWMUCH_API_TOKEN": {
-        "description": "Setup token for creating the first owner. Use a long random value, such as the output of `openssl rand -hex 32`, and keep a copy in a password manager."
-      },
       "DB": {
         "description": "Your Halation ledger. It lives only in your Cloudflare account."
       }

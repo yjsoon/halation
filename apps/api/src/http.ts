@@ -1,4 +1,4 @@
-import { isLoopbackHost, type ApiConfig } from "./config";
+import type { ApiConfig } from "./config";
 import { AccountPreferencesConflictError, NotFoundError, ReconciliationMismatchError, TransactionStateConflictError, ValidationError } from "./errors";
 import { MAX_REGISTER_QUERY_LENGTH } from "@howmuch/register-query";
 import { DEFAULT_TRANSACTION_PAGE_SIZE, MAX_TRANSACTION_PAGE_SIZE, type AccountPreferences, type TransactionFilters } from "./types";
@@ -1221,10 +1221,6 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
       data: {
         setup_required: setupRequired,
         bootstrap_required: !!config.apiToken,
-        // Setup would be refused from this host because no setup token is
-        // configured. Lets the web app show the missing-secret step instead
-        // of a form that can only fail.
-        setup_blocked: setupRequired && !config.apiToken && !tokenlessSetupAllowed(config, url),
         user,
         // Unix seconds. The web client stores this and refuses to paint cached
         // ledger data once it has passed, so an expired cookie cannot show the
@@ -1300,13 +1296,8 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
     if (!sameOrigin(request, url)) {
       return authError(403, "forbidden", "Origin validation failed");
     }
-    if (!config.apiToken && !tokenlessSetupAllowed(config, url)) {
-      return authError(
-        403,
-        "forbidden",
-        "This server has no setup token. Set HOWMUCH_API_TOKEN on this server, then reload this page.",
-      );
-    }
+    // The setup token is optional. Without one, whoever opens a new server
+    // first creates its owner; with one, setup also needs it as the bearer.
     const authorization = request.headers.get("authorization");
     const bootstrapToken = bearerToken(authorization);
     const validBootstrap = config.apiToken
@@ -1465,11 +1456,6 @@ async function pruneAuthRows(store: AuthStore): Promise<void> {
   } catch (error) {
     console.error("Could not prune expired auth rows", error);
   }
-}
-
-/** Setup without a token is only for a local server reached on loopback. */
-function tokenlessSetupAllowed(config: ApiConfig, url: URL): boolean {
-  return !config.refuseTokenlessSetup && isLoopbackHost(url.hostname);
 }
 
 async function authenticate(request: Request, store: AuthStore, apiToken?: string): Promise<Principal | null> {

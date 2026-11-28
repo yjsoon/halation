@@ -21,10 +21,9 @@ The button sets up the same Worker and D1 database as the manual steps below, wi
 1. You need a Cloudflare account on the Workers Paid plan (see [Costs](#costs)) and a GitHub or GitLab account.
 2. Click the button. Cloudflare copies this repository into your GitHub or GitLab account, so updates you make later come from your copy.
 3. On the setup page, name the repository, the Worker and the database, or keep the defaults.
-4. For `HOWMUCH_API_TOKEN`, enter a long random value, for example the output of `openssl rand -hex 32`, and keep a copy in a password manager. It is your setup token (see [step 4](#4-create-the-setup-token)).
-5. Deploy. Cloudflare creates the database, builds the web app, applies the database migrations and deploys the Worker, then shows its `workers.dev` address.
+4. Deploy. Cloudflare creates the database, builds the web app, applies the database migrations and deploys the Worker, then shows its `workers.dev` address.
+5. Open that address straight away and create your account, as described in [first-owner setup](#4-first-owner-setup).
 6. In your copy of the repository, edit `wrangler.jsonc` and set `HOWMUCH_TIME_ZONE` to your IANA time zone, such as `Europe/London`, then commit and push. It starts as `UTC`, and the push redeploys with the new value. Do not change it only in the Cloudflare dashboard: every deploy sets it from `wrangler.jsonc`, so the next push would reset it.
-7. Carry on from [first-owner setup](#5-first-owner-setup).
 
 Scheduled transactions are entered daily at 00:05 UTC. To run them at your local midnight instead, change `triggers.crons` in `wrangler.jsonc` in your copy of the repository, as described in [step 2](#2-create-your-config).
 
@@ -43,7 +42,7 @@ The rest of this guide is the manual route, which gives you a local clone and fu
 
 - A Cloudflare account with the Workers Paid plan (US$5 a month). See [Costs](#costs) for why the free Workers plan is not enough.
 - [Bun](https://bun.sh) installed.
-- Git and `openssl` (or any way to produce a long random string).
+- Git.
 
 ## 1. Get the code
 
@@ -77,7 +76,6 @@ Then edit `wrangler.self-host.jsonc`:
 
 - `name`: the Worker name (it becomes `<name>.<your-subdomain>.workers.dev`).
 - `d1_databases[0].database_name` and `database_id`: from the `d1 create` output.
-- `HOWMUCH_DEFAULT_PLAN_ID`: a new UUID, for example `bun -e "console.log(crypto.randomUUID())"`. Never change it after setup.
 - `HOWMUCH_TIME_ZONE`: your IANA time zone, such as `Europe/London`.
 - `triggers.crons`: the daily materialisation of due scheduled transactions. Cron uses UTC, so convert your local 00:05 (the example explains how).
 - Optional: uncomment `routes` for a custom domain on a zone in your account. Without it, the `workers.dev` address works.
@@ -89,24 +87,15 @@ bunx wrangler d1 migrations apply <db-name> --remote --config wrangler.self-host
 bun run deploy:self-host
 ```
 
-The deploy builds the web app and runs `wrangler deploy` with your config. Wrangler prints the address of your Worker. Deploy before creating the secret below, so the Worker already exists when the secret is added.
+The deploy builds the web app and runs `wrangler deploy` with your config. Wrangler prints the address of your Worker.
 
-## 4. Create the setup token
+## 4. First-owner setup
 
-```sh
-openssl rand -hex 32
-bunx wrangler secret put HOWMUCH_API_TOKEN --config wrangler.self-host.jsonc
-```
-
-Paste the random string when prompted. Keep a copy in a password manager: it is the setup token, and it also authorises default-plan integrations, so treat it like a password. Until this secret exists, setup fails closed: the setup page says the token is missing and shows these steps instead of the form. You can also add the secret in the Cloudflare dashboard, under the Worker's **Settings**, then **Variables and Secrets**.
-
-## 5. First-owner setup
-
-Open your Worker's address in a browser. The app shows the setup form. Enter a username, a password of at least 15 characters, and the setup token from step 4.
+Open your Worker's address in a browser straight after deploying. The app shows the setup form. Choose a username and a password of at least 15 characters. Whoever completes this form first becomes the owner, so do it before you share the address. If the page asks you to sign in instead of offering setup, someone else got there first: delete the D1 database, create a new one, update `database_id` in your config, apply the migrations and deploy again. To close that gap entirely, set an [optional setup token](#optional-setup-token) before your first visit.
 
 The form also asks for a currency and a date format, prefilled from your browser's language. That guess is only a guess: browsers often report US English whatever the person's country, so check both before you continue. You can change them later in Settings.
 
-The setup token is the `HOWMUCH_API_TOKEN` value from step 4, or the one you entered on the Deploy to Cloudflare setup page. If the form says the token does not match, check for a missing character or a stray space, or set a new value with `wrangler secret put` and try again. If it reports that the server could not complete the request, open the Worker's live logs (**Logs**, then **Live**, in the Cloudflare dashboard, or `bunx wrangler tail`) and try again while watching; the stored logs keep only about one request in ten. Cloudflare error 1102 (exceeded resource limits) means the Worker is on the Workers Free plan; see [Costs](#costs). Any other error means the Worker failed, and the logs say why.
+If the form reports that the server could not complete the request, open the Worker's live logs (**Logs**, then **Live**, in the Cloudflare dashboard, or `bunx wrangler tail`) and try again while watching; the stored logs keep only about one request in ten. Cloudflare error 1102 (exceeded resource limits) means the Worker is on the Workers Free plan; see [Costs](#costs). Any other error means the Worker failed, and the logs say why.
 
 Setup works once. A second attempt returns "Setup has already completed".
 
@@ -122,9 +111,20 @@ Changing the currency only changes the symbol and decimal places shown. Nothing 
 
 Open **Settings** and use **Change password**. Enter the current password and the new one (at least 15 characters). Every other browser and device signed in as you is signed out; the one you used stays signed in (it is given a fresh session behind the scenes). Personal API tokens keep working, so revoke any you no longer trust on the **API tokens** page.
 
-## 6. Connect the iOS app
+### Optional setup token
 
-The iOS app is not on the App Store. Build it from source with Xcode, as described in [Getting the iPhone app](../README.md#getting-the-iphone-app). Then open **More, then Settings** on the Accounts, Rewards, Insights or Assistant screen, and set the server URL to your Worker's `https://` address. Then sign in with the username and password you chose. The app never asks for the setup token, which is why first-owner setup happens in the browser.
+A setup token makes first-owner setup also ask for a value only you know, so nobody else can create the owner even if they find the address first. It also authorises default-plan integrations, so treat it like a password. Set it before your first visit:
+
+```sh
+openssl rand -hex 32
+bunx wrangler secret put HOWMUCH_API_TOKEN --config wrangler.self-host.jsonc
+```
+
+Paste the random string when prompted and keep a copy in a password manager. You can also add the secret in the Cloudflare dashboard, under the Worker's **Settings**, then **Variables and Secrets**. The setup form then shows a **Setup token** field; enter the same value there. If it says the token does not match, check for a missing character or a stray space, or set a new value and try again.
+
+## 5. Connect the iOS app
+
+The iOS app is not on the App Store. Build it from source with Xcode, as described in [Getting the iPhone app](../README.md#getting-the-iphone-app). Then open **More, then Settings** on the Accounts, Rewards, Insights or Assistant screen, and set the server URL to your Worker's `https://` address. Then sign in with the username and password you chose. The app only signs in, so create the owner in the browser first.
 
 ## Optional: automatic categories
 

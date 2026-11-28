@@ -24,7 +24,7 @@ fi
 # otherwise proxies to :8787, which is the very port found busy above.
 # The API is the real Worker under `wrangler dev`, over a local D1 database in
 # data/local-d1. HOWMUCH_API_TOKEN comes from apps/worker/.dev.vars (copy
-# .dev.vars.example); without it the Worker refuses first-owner setup.
+# .dev.vars.example); with it, first-owner setup asks for that token.
 STATE_DIR="${HOWMUCH_LOCAL_D1:-$ROOT_DIR/data/local-d1}"
 "$ROOT_DIR/scripts/local-worker.sh" prepare "$STATE_DIR"
 tmux new-session -d -s "$SESSION_NAME" -c "$ROOT_DIR" "scripts/local-worker.sh start '$STATE_DIR' '$API_PORT'"

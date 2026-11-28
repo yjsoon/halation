@@ -19,6 +19,7 @@ import type {
 import {
   buildPlanSeed,
   CURRENCY_CHOICES,
+  currencyLabel,
   DATE_FORMAT_CHOICES,
   DATE_FORMAT_LABELS,
   DEFAULT_CURRENCY,
@@ -632,10 +633,6 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     accountPreferencesControllerRef.current = null;
   }, []);
 
-  if (authMode === "setup-blocked") {
-    return <SetupBlocked />;
-  }
-
   if (authMode === "setup" || authMode === "login") {
     const form = (
       <AuthForm
@@ -684,34 +681,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
 
 const REPOSITORY_URL = "https://github.com/yjsoon/halation";
 const SELF_HOSTING_DOCS_URL = `${REPOSITORY_URL}/blob/main/docs/self-hosting.md`;
-const SETUP_TOKEN_DOCS_URL = `${SELF_HOSTING_DOCS_URL}#4-create-the-setup-token`;
-
-/** A server with no owner and no setup token: setup can only fail, so say how to fix it. */
-function SetupBlocked() {
-  return (
-    <div className="boot-message auth-form">
-      <HalationMark size="hero" />
-      <h1>Set up Halation</h1>
-      <p>This server needs a setup token before you can create your account.</p>
-      <ol className="setup-steps">
-        <li>
-          Generate a long random value, for example with <code>openssl rand -hex 32</code>, and keep a copy in a
-          password manager.
-        </li>
-        <li>
-          Set it on this server as <code>HOWMUCH_API_TOKEN</code>. On Cloudflare, add it as a secret under the
-          Worker's <strong>Settings</strong>, <strong>Variables and Secrets</strong>, or run{" "}
-          <code>bunx wrangler secret put HOWMUCH_API_TOKEN</code> with your Wrangler config.
-        </li>
-        <li>Reload this page and enter the value as the setup token.</li>
-      </ol>
-      <button type="button" onClick={() => window.location.reload()}>Reload</button>
-      <p className="boot-hint">
-        <a href={SETUP_TOKEN_DOCS_URL}>Setup token in the self-hosting guide</a>
-      </p>
-    </div>
-  );
-}
+const SETUP_TOKEN_DOCS_URL = `${SELF_HOSTING_DOCS_URL}#optional-setup-token`;
 
 function AuthForm({
   mode,
@@ -846,8 +816,8 @@ function AuthForm({
       )}
       {setup && bootstrapRequired && (
         <span id="auth-token-note" className="field-note auth-field-note">
-          The <code>HOWMUCH_API_TOKEN</code> secret you set when deploying this server.{" "}
-          <a href={SETUP_TOKEN_DOCS_URL} target="_blank" rel="noreferrer">How to set it</a>
+          This server asks for one because <code>HOWMUCH_API_TOKEN</code> is set on it. Enter the same value.{" "}
+          <a href={SETUP_TOKEN_DOCS_URL} target="_blank" rel="noreferrer">About the setup token</a>
         </span>
       )}
       {setup && (
@@ -855,7 +825,7 @@ function AuthForm({
           <label>
             <span>Currency</span>
             <select value={currency} onChange={(event) => setCurrency(event.target.value)}>
-              {CURRENCY_CHOICES.map((code) => <option key={code} value={code}>{code}</option>)}
+              {CURRENCY_CHOICES.map((code) => <option key={code} value={code}>{currencyLabel(code)}</option>)}
             </select>
           </label>
           <label>
@@ -874,9 +844,6 @@ function AuthForm({
       >
         {submitting ? "Please wait…" : setup ? "Create account" : "Sign in"}
       </button>
-      {setup && bootstrapRequired && (
-        <p className="boot-hint">This setup token is used once and is not stored in this browser.</p>
-      )}
       {error && <p className="boot-detail" role="alert">{error}</p>}
       {!setup && (
         <p className="boot-hint">

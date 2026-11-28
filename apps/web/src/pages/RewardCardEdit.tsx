@@ -350,7 +350,7 @@ function CardEditor({ card, takenAccountIds }: { card: CreditCard | null; takenA
         <div className="section-heading">
           <div>
             <span className="section-title" id="card-editor-heading">{card ? "Card details" : "Existing Halation account"}</span>
-            <span className="section-meta">Pick an existing open Budget account, including a current or savings account. This does not create a new ledger account.</span>
+            <span className="section-meta">Pick an existing open spending account, such as a current or savings account. This does not create a new ledger account.</span>
           </div>
         </div>
         <form

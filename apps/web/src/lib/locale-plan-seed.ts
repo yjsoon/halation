@@ -37,6 +37,16 @@ export const CURRENCY_CHOICES: readonly string[] = [
   "IDR", "THB", "PHP", "VND", "KRW", "TWD", "CHF", "SEK", "NOK", "DKK",
 ];
 
+/** "SGD · Singapore Dollar": the code alone means nothing to most people. */
+export function currencyLabel(code: string): string {
+  try {
+    const name = new Intl.DisplayNames(undefined, { type: "currency" }).of(code);
+    return name && name !== code ? `${code} · ${name}` : code;
+  } catch {
+    return code;
+  }
+}
+
 export const DEFAULT_CURRENCY = "SGD";
 const DEFAULT_DATE_FORMAT: DateFormatChoice = "DD/MM/YYYY";
 

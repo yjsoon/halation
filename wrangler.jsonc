@@ -36,7 +36,7 @@
     "HOWMUCH_TIME_ZONE": "UTC"
     // Deliberately absent: YNAB variables, HOWMUCH_REDIRECT_TARGET and
     // HOWMUCH_APPLE_APP_IDS (see apps/worker/wrangler.self-host.example.jsonc).
-    // HOWMUCH_API_TOKEN is a secret, prompted for from .dev.vars.example.
+    // HOWMUCH_API_TOKEN is an optional secret (see .dev.vars.example).
   },
 
   // Daily materialisation of due scheduled transactions at 00:05 UTC.

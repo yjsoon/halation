@@ -1,4 +1,7 @@
 # Secrets for the Deploy to Cloudflare button (see docs/self-hosting.md).
-# The setup token for first-owner setup. Generate a long random value, for
-# example with `openssl rand -hex 32`, and keep a copy in a password manager.
-HOWMUCH_API_TOKEN=
+# None are needed: the first person to open a new instance creates its owner.
+#
+# Optional setup token. When set, first-owner setup also asks for this value,
+# and it authorises default-plan integrations. Add it later as a Worker secret
+# if you want it; it is commented out so the deploy page does not ask for it.
+# HOWMUCH_API_TOKEN=

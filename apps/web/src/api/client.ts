@@ -385,8 +385,6 @@ interface AuthUser {
 interface AuthStatus {
   setup_required: boolean;
   bootstrap_required: boolean;
-  /** Setup would be refused because the server has no setup token. */
-  setup_blocked?: boolean;
   user: AuthUser | null;
   /** Unix seconds; null when nothing here holds a browser session. */
   session_expires_at?: number | null;

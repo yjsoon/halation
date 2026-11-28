@@ -19,9 +19,9 @@
   },
 
   "vars": {
-    // Generate your own UUID (for example `uuidgen` or `bun -e "console.log(crypto.randomUUID())"`)
-    // and never change it afterwards: it is the id of your plan.
-    "HOWMUCH_DEFAULT_PLAN_ID": "REPLACE-WITH-A-NEW-UUID",
+    // The id of your plan. Every deployment has its own database, so sharing
+    // this value with other instances is harmless. Never change it after setup.
+    "HOWMUCH_DEFAULT_PLAN_ID": "0d4f2c1e-6b8a-4e57-9a3c-5f1b7e2d9c40",
     // IANA time zone that decides what "today" means for scheduled transactions.
     "HOWMUCH_TIME_ZONE": "Europe/London"
     // Deliberately absent:
@@ -30,7 +30,7 @@
     //  - No HOWMUCH_APPLE_APP_IDS: that claims the iOS app's associated domain
     //    for the owner's signing team, which your domain must not do. Without
     //    it the association file returns 404, which is correct for you.
-    // HOWMUCH_API_TOKEN is a secret, not a var: `wrangler secret put HOWMUCH_API_TOKEN`.
+    // HOWMUCH_API_TOKEN is an optional secret, not a var: see "Optional setup token" in docs/self-hosting.md.
   },
 
   // Optional custom domain on a zone in your Cloudflare account. Delete this
