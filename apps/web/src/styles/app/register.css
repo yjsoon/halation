@@ -1225,6 +1225,12 @@ a.page-eyebrow:hover {
   appearance: none;
 }
 
+/* How the row repeats, under its date. */
+.register-compose-row select.register-row-repeat {
+  display: block;
+  margin-top: 4px;
+}
+
 .register-compose-row input::placeholder {
   color: var(--ink-faint);
   opacity: 1;

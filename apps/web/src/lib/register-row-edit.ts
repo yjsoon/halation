@@ -21,6 +21,11 @@ export type RegisterRowDraft = {
    * category, a list is a split. Left out, the row keeps what it has.
    */
   readonly splitLines?: readonly RowSplitLine[] | null;
+  /**
+   * How a posted row repeats once saved: a schedule frequency, or "never".
+   * Saving adds a scheduled transaction; the row itself does not change.
+   */
+  readonly repeat?: string;
 };
 
 export type RowSplitLine = {
@@ -105,7 +110,7 @@ export type RegisterRowEditSession =
 
 export type RegisterRowEditAction =
   | { readonly type: "begin"; readonly row: RegisterRowRef; readonly draft: RegisterRowDraft; readonly focus: RegisterRowFocus }
-  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "accountId" | "splitLines" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "claimStatus">> }
+  | { readonly type: "patch"; readonly draft: Partial<Pick<RegisterRowDraft, "date" | "accountId" | "splitLines" | "payeeName" | "categoryId" | "memo" | "flagColor" | "needsConfirmation" | "claimStatus" | "repeat">> }
   | { readonly type: "set-outflow"; readonly value: string }
   | { readonly type: "set-inflow"; readonly value: string }
   | { readonly type: "invalid"; readonly message: string; readonly focus?: RegisterRowFocus }
@@ -432,6 +437,7 @@ function postedDraft(txn: Transaction): RegisterRowDraft {
     claimStatus: txn.claim_status ?? legacy.claim,
     ...amountDraft(txn.amount),
     splitLines: txn.subtransactions?.length ? txn.subtransactions.map(rowSplitLine) : null,
+    repeat: "never",
   };
 }
 

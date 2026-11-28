@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, type ReactElement, type ReactNode } from "r
 import type { Account, Payee, Subtransaction, Transaction } from "../api/types";
 import type { splitCategoryGroups } from "../lib/categories";
 import { formatDate } from "../lib/dates";
+import { SCHEDULE_FREQUENCIES } from "../lib/schedules";
 import { amountPlaceholder, formatAmount, formatMoney } from "../lib/money";
 import { canonicalPayeeName, findTransferPayee, formatComposeAmount } from "../lib/register-compose";
 import {
@@ -268,6 +269,23 @@ export function RegisterEditableRow(props: {
             ) : (
               formatDate(displayTransaction(row).date)
             )}
+            {row.kind === "posted" && draft.repeat !== undefined ? (
+              <>
+                <label className="sr-only" htmlFor={`${fieldId}-repeat`}>Repeat</label>
+                <select
+                  id={`${fieldId}-repeat`}
+                  className="register-row-repeat"
+                  value={draft.repeat}
+                  disabled={busy}
+                  title="Saving adds a scheduled transaction from the next date on or after today. This row stays as it is."
+                  onChange={(event) => surface.dispatch({ type: "patch", draft: { repeat: event.target.value } })}
+                >
+                  {SCHEDULE_FREQUENCIES.map(([value, label]) => (
+                    <option key={value} value={value}>{value === "never" ? "Does not repeat" : label}</option>
+                  ))}
+                </select>
+              </>
+            ) : null}
           </td>
         )}
         <td className="muted" title={typeof account === "string" ? account : undefined}>

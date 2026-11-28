@@ -526,6 +526,10 @@ export const api = {
     }),
   payees: (planId: string) =>
     request<{ payees: Payee[] }>(planUrl(planId, "payees")).then((d) => d.payees),
+  /** Returns the existing payee when one already has this name. */
+  createPayee: (planId: string, name: string) =>
+    request<{ payee: Payee }>(planUrl(planId, "payees"), { method: "POST", body: JSON.stringify({ payee: { name } }) })
+      .then((d) => d.payee),
   /** The category and, in this account, flag colour a new transaction to this payee usually gets. */
   payeeDefaults: (planId: string, payeeName: string, accountId: string) =>
     request<{ payee_defaults: { category_id: string | null; flag_color: string | null } }>(

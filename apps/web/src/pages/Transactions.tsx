@@ -9,6 +9,7 @@ import type {
   ReconciliationMismatchDetail,
   RewardsReport,
   ScheduledTransaction,
+  ScheduledTransactionInput,
   Subtransaction,
   Transaction,
 } from "../api/types";
@@ -91,7 +92,7 @@ import {
   selectedIds,
   type RegisterSelectionIntent,
 } from "../lib/register-selection";
-import { activeSchedulesForScope } from "../lib/schedules";
+import { activeSchedulesForScope, repeatScheduleInput, scheduleRecurrence, unresolvedRepeatPayees } from "../lib/schedules";
 import { useFilters } from "../state/filters";
 import { useConfirmationFocus } from "../lib/use-confirmation-focus";
 import { usePlan } from "../state/plan";
@@ -557,9 +558,12 @@ export function TransactionsPage() {
     if (toastFollowsScopeRef.current) toastFollowsScopeRef.current = false;
     else setMutationSuccess(null);
   }, [composeScope]);
+  // Bumped after a row's Repeat adds a schedule: settled rows survive a local
+  // write, so the Scheduled disclosure refetches only when its key moves.
+  const [scheduleGeneration, setScheduleGeneration] = useState(0);
   const schedules = useCachedApi<ScheduledTransaction[]>({
     slot: "scheduled",
-    key: `${planId}:scheduled-transactions`,
+    key: `${planId}:scheduled-transactions:${scheduleGeneration}`,
     identity: cacheIdentity,
     serverKnowledge: validatedKnowledge,
     guard: isCachedScheduled,
@@ -1083,7 +1087,8 @@ export function TransactionsPage() {
       return;
     }
     const plan = planRowCommit(session.row, session.draft, payees.data ?? [], options);
-    if (plan.kind === "unchanged") {
+    const repeat = session.row.kind === "posted" ? session.draft.repeat ?? "never" : "never";
+    if (plan.kind === "unchanged" && repeat === "never") {
       dispatchRowEdit({ type: "cancel" });
       return;
     }
@@ -1096,7 +1101,7 @@ export function TransactionsPage() {
       return;
     }
     const saved = session.row.kind === "posted" ? session.row.transaction : session.row.parent;
-    if (!options.reconciledConfirmed && changesReconciliationGraph(saved, plan.input, payees.data ?? [])) {
+    if (plan.kind === "patch" && !options.reconciledConfirmed && changesReconciliationGraph(saved, plan.input, payees.data ?? [])) {
       const linked = linkedTransferIds(saved);
       let reconciled = saved.cleared === "reconciled";
       for (const id of linked) {
@@ -1122,7 +1127,7 @@ export function TransactionsPage() {
     setMutationSuccess(null);
     dispatchRowEdit({ type: "committing" });
     try {
-      const updated = await api.updateTransaction(planId, plan.transactionId, plan.input);
+      const updated = plan.kind === "patch" ? await api.updateTransaction(planId, plan.transactionId, plan.input) : saved;
       setReplacements((current) => new Map(current).set(updated.id, updated));
       setDeepLinkedTransaction((current) => applyDeepLinkedTransactionMutation(current, updated.id, updated));
       const prior = session.row.kind === "posted" ? session.row.transaction : session.row.parent;
@@ -1141,6 +1146,28 @@ export function TransactionsPage() {
       reload();
       refreshFirstPage();
       setReconciliationPreviewGeneration((generation) => generation + 1);
+      // The schedule is built from the row as the server saved it, so payee
+      // IDs and split lines are settled. A refusal keeps the row open with the
+      // reason; saving again retries only the schedule.
+      let repeats = "";
+      if (repeat !== "never") {
+        let input: ScheduledTransactionInput | null;
+        try {
+          const named = await Promise.all(unresolvedRepeatPayees(updated).map((name) => api.createPayee(planId, name)));
+          input = repeatScheduleInput(updated, repeat, today, new Map(named.map((payee) => [payee.name.trim(), payee.id])));
+          if (input) await api.createScheduledTransaction(planId, input, `repeat-${crypto.randomUUID()}`);
+          setScheduleGeneration((generation) => generation + 1);
+          reload();
+        } catch (cause) {
+          const reason = cause instanceof Error ? cause.message : String(cause);
+          dispatchRowEdit({
+            type: "failed",
+            message: plan.kind === "patch" ? `Saved, but the repeat was not added: ${reason}` : `The repeat was not added: ${reason}`,
+          });
+          return;
+        }
+        if (input?.date_next) repeats = ` Repeats ${scheduleRecurrence(repeat).toLowerCase()} from ${formatDate(input.date_next)}.`;
+      }
       const savedName = (updated.payee_name ?? session.draft.payeeName).trim() || "Entry";
       // A moved row may leave this list, so the message says where it went.
       const movedTo = updated.account_id !== prior.account_id
@@ -1148,8 +1175,8 @@ export function TransactionsPage() {
         : "";
       setMutationSuccess(
         dateInRegisterWindow(updated.date, filters.from, filters.to, today)
-          ? `${savedName} saved${movedTo}.`
-          : `${savedName} saved${movedTo}. It is outside this date range.`,
+          ? `${savedName} saved${movedTo}.${repeats}`
+          : `${savedName} saved${movedTo}. It is outside this date range.${repeats}`,
       );
       refocusRowIdRef.current = registerRowDomId(session.row);
       setBloomIds([registerRowDomId(session.row)]);
