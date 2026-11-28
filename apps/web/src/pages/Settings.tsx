@@ -37,7 +37,7 @@ const TOOLS = [
   {
     to: "/api-tokens",
     name: "API tokens",
-    detail: "Mint and revoke personal tokens for the /v1 API.",
+    detail: "Let scripts and other apps read and change your ledger, and cut them off again.",
   },
   {
     to: "/import/rewards",

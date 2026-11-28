@@ -73,7 +73,8 @@
   padding: 8px 10px;
   background: var(--paper-raised);
   color: var(--ink);
-  font: 16px var(--font-figures);
+  /* The interface face, as on the sign-in form; 16px keeps iOS from zooming on focus. */
+  font: 16px var(--font-ui);
 }
 
 .auth-form button:disabled {

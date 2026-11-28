@@ -44,3 +44,9 @@ Same stack, owner with no accounts, 1280 and 390 px.
 - Before (round 1): `$0.00` balance with cleared/uncleared line, Filters, Search, a `+ Add your first account` button, an "Add your first account" panel with a `Create one` link, a `0 transactions · $0.00 in…` footer and keyboard hints.
 - After: `main` text is `Ledger / Start with an account / Transactions live in accounts. Add the one you spend from most, with today’s balance. / + Add your first account`; the accessibility tree has only the heading and that link in `main`.
 - Choosing it opened `/accounts/new`; creating `Everyday` with 500 led to its register with `+ Add transaction`, `Reconcile` and Search, and `/` then showed the full Ledger again.
+
+## Round 2: small fixes
+
+- Setup form fields computed `font-family: "IBM Plex Sans", …` at 16px (was the monospace figures face). Fresh no-token Worker `/tmp/d1-final`, `TZ=Asia/Singapore`: Currency `SGD · Singapore Dollar`, Date format `Day first (24 May 2026)`.
+- Settings, Tools: the API tokens row reads "Let scripts and other apps read and change your ledger, and cut them off again." (was "Mint and revoke personal tokens for the /v1 API.").
+- iOS: account type group and Edit Account move note say Spending instead of Budget (HowMuchTests run in the landing check).
