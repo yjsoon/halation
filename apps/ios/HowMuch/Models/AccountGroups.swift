@@ -43,7 +43,7 @@ enum AccountKind: String, CaseIterable, Identifiable, Hashable {
 
     var title: String {
       switch self {
-      case .budget: "Budget"
+      case .budget: "Spending"
       case .tracking: "Tracking"
       }
     }

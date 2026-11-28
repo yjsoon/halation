@@ -246,8 +246,8 @@ struct EditAccountSheet: View {
         notes.append("Replaces the imported type “\(account.type)”. Balances do not change.")
       }
       if kind.onBudget != account.onBudget {
-        let origin = account.onBudget ? "Budget" : "Tracking"
-        let destination = kind.onBudget ? "Budget" : "Tracking"
+        let origin = account.onBudget ? "Spending" : "Tracking"
+        let destination = kind.onBudget ? "Spending" : "Tracking"
         notes.append("Moves the account from \(origin) to \(destination). Balances do not change.")
       }
       return notes
