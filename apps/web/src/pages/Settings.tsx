@@ -263,6 +263,8 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
   const savedDate = settings.date_format?.format ?? "";
   const [currency, setCurrency] = useState(savedCurrency);
   const [dateFormat, setDateFormat] = useState(savedDate);
+  const savedZone = settings.time_zone ?? "";
+  const [timeZone, setTimeZone] = useState(savedZone);
   const [busy, setBusy] = useState(false);
   const submitRef = useRef<HTMLButtonElement>(null);
   useSettledFocus(busy, submitRef, "settings-formats-heading");
@@ -274,7 +276,8 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
   const dateFormats: readonly string[] = DATE_FORMAT_CHOICES.includes(savedDate as DateFormatChoice) || !savedDate
     ? DATE_FORMAT_CHOICES
     : [savedDate, ...DATE_FORMAT_CHOICES];
-  const changed = currency !== savedCurrency || dateFormat !== savedDate;
+  const zones = timeZoneChoices(savedZone);
+  const changed = currency !== savedCurrency || dateFormat !== savedDate || timeZone !== savedZone;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -287,6 +290,7 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
       const updated = await api.updatePlanFormats(planId, {
         ...(currency !== savedCurrency ? { currency_format: seed.currency_format } : {}),
         ...(dateFormat !== savedDate ? { date_format: seed.date_format } : {}),
+        ...(timeZone !== savedZone ? { time_zone: timeZone } : {}),
       } as Parameters<typeof api.updatePlanFormats>[1]);
       setDone(true);
       onSaved(updated);
@@ -321,6 +325,14 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
             {dateFormats.map((format) => <option key={format} value={format}>{DATE_FORMAT_LABELS[format as DateFormatChoice] ?? format}</option>)}
           </select>
         </label>
+        <label className="field">
+          <span className="field-label">Time zone</span>
+          <select value={timeZone} onChange={(event) => { setTimeZone(event.target.value); setDone(false); }} aria-describedby="settings-time-zone-note">
+            {!savedZone && <option value="">Server default</option>}
+            {zones.map((zone) => <option key={zone} value={zone}>{zone.replaceAll("_", " ")}</option>)}
+          </select>
+          <span id="settings-time-zone-note" className="field-note">Decides the day scheduled transactions are entered.</span>
+        </label>
         <button type="submit" ref={submitRef} className="save-button settings-form-button" disabled={busy || !changed}>
           {busy ? "Saving…" : "Save formats"}
         </button>
@@ -329,6 +341,18 @@ function PlanFormatsSection({ settings, onSaved }: { settings: PlanSettings; onS
       {done && <StatusPanel className="status-panel-success" role="status">Formats saved. The iOS app updates its currency on its next refresh and always shows dates as 24 May 2026.</StatusPanel>}
     </section>
   );
+}
+
+/** Every zone this browser knows, with the saved one kept even if it does not. */
+function timeZoneChoices(saved: string): string[] {
+  let zones: string[] = [];
+  try {
+    zones = Intl.supportedValuesOf("timeZone");
+  } catch {
+    // Older browsers: offer only what is saved and where this browser is.
+  }
+  const here = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return [...new Set([...(saved ? [saved] : []), ...(zones.length ? zones : [here])])].sort();
 }
 
 /** Says whether this server sends transactions to TypeSafe, and what it sends. */

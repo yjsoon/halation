@@ -9,6 +9,7 @@ A brand-new HowMuch database has no user. The first visitor creates the owner ac
 - `setup-token-note` with a token set, the note under Setup token says the server asks for it because `HOWMUCH_API_TOKEN` is set, with an **About the setup token** link to the self-hosting guide.
 - `setup-wrong-token` with a wrong token shows "That setup token does not match…" and stays on the form.
 - `setup-currency-names` currency options read as code and name, such as `SGD · Singapore Dollar`.
+- `setup-zone-guess` in a browser whose time zone is `Asia/Singapore` but whose language is `en-US` (start agent-browser with `TZ=Asia/Singapore`), Currency is `SGD · Singapore Dollar` and Date format `Day first (24 May 2026)`; after setup `GET /v1/plans/{plan}/settings` has `time_zone: "Asia/Singapore"`.
 - `signin-private-note` shows "This is a private Halation instance…" with a link to the repository.
 - `setup-create` accepts `verifier` / `howmuch-verify-15` / `howmuch-verify-bootstrap` and lands on Ledger.
 - `setup-reject-short-password` keeps **Create account** disabled while the password is under 15 characters (spaces at either end do not count), and the note under Password says how many more are needed.

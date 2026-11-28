@@ -50,7 +50,7 @@ import {
 } from "./category-management";
 import { MAX_SNAPSHOT_BYTES, PlanNotEmptyError, SnapshotValidationError } from "./plan-snapshot";
 import { buildPlanExport, transactionsCsv } from "./plan-export";
-import { parseSeedCurrencyFormat, parseSeedDateFormat } from "./plan-settings-seed";
+import { parseSeedCurrencyFormat, parseSeedDateFormat, parseTimeZone } from "./plan-settings-seed";
 import { isIsoDate, localDate } from "./card-payments";
 
 export type HandlerOptions = {
@@ -386,7 +386,7 @@ async function handleV1(
   if (resource === "card_payments" && segments.length === 4 && method === "GET") {
     const requested = url.searchParams.get("as_of");
     if (requested !== null && !isIsoDate(requested)) throw new ValidationError("as_of must be an ISO date (YYYY-MM-DD)");
-    const zone = timeZone ?? defaultTimeZone();
+    const zone = (await repo.getSettings(planId)).time_zone ?? timeZone ?? defaultTimeZone();
     const asOf = requested ?? localDate(new Date(), zone);
     return json({ data: await repo.getCardPaymentsView(planId, asOf, { timeZone: zone }) });
   }
@@ -820,15 +820,17 @@ async function handleNative(
     }
     const currencyFormat = body.currency_format === undefined ? undefined : parseSeedCurrencyFormat(body.currency_format);
     const dateFormat = body.date_format === undefined ? undefined : parseSeedDateFormat(body.date_format);
-    if (currencyFormat === null || dateFormat === null) {
-      throw new ValidationError("currency_format or date_format is not valid");
+    const timeZone = body.time_zone === undefined ? undefined : parseTimeZone(body.time_zone);
+    if (currencyFormat === null || dateFormat === null || timeZone === null) {
+      throw new ValidationError("currency_format, date_format or time_zone is not valid");
     }
-    if (currencyFormat === undefined && dateFormat === undefined) {
-      throw new ValidationError("Provide currency_format, date_format or both");
+    if (currencyFormat === undefined && dateFormat === undefined && timeZone === undefined) {
+      throw new ValidationError("Provide currency_format, date_format or time_zone");
     }
     await repo.updatePlanFormats(targetPlanId, {
       ...(currencyFormat ? { currency_format: currencyFormat } : {}),
       ...(dateFormat ? { date_format: dateFormat } : {}),
+      ...(timeZone ? { time_zone: timeZone } : {}),
     });
     return json({ data: { settings: await repo.getSettings(targetPlanId) } });
   }
@@ -1319,8 +1321,9 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
 
     const currencyFormat = body.currency_format === undefined ? undefined : parseSeedCurrencyFormat(body.currency_format);
     const dateFormat = body.date_format === undefined ? undefined : parseSeedDateFormat(body.date_format);
-    if (currencyFormat === null || dateFormat === null) {
-      return authError(400, "bad_request", "currency_format or date_format is not valid");
+    const timeZone = body.time_zone === undefined ? undefined : parseTimeZone(body.time_zone);
+    if (currencyFormat === null || dateFormat === null || timeZone === null) {
+      return authError(400, "bad_request", "currency_format, date_format or time_zone is not valid");
     }
 
     const userId = randomBytes(16).toString("hex");
@@ -1334,6 +1337,7 @@ async function handleAuth(request: Request, url: URL, store: AuthStore, config: 
       planId: config.defaultPlanId,
       currencyFormat,
       dateFormat,
+      timeZone,
     });
     if (!created) {
       return authError(409, "setup_complete", "Setup has already completed");

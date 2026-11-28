@@ -87,7 +87,7 @@ type Row = Record<string, any>;
 
 export type CardPaymentTermsWriteOptions = { operationId?: string };
 
-export type PlanFormatsPatch = { currency_format?: SeedCurrencyFormat; date_format?: SeedDateFormat };
+export type PlanFormatsPatch = { currency_format?: SeedCurrencyFormat; date_format?: SeedDateFormat; time_zone?: string };
 export type SnapshotImportResult = { imported: SnapshotCounts; replayed: boolean; server_knowledge: number };
 
 export type CategoryWriteOptions = { operationId?: string };
@@ -196,6 +196,8 @@ export abstract class LedgerRepository {
     return {
       date_format: JSON.parse(row.date_format_json),
       currency_format: JSON.parse(row.currency_format_json),
+      // Null: the server's HOWMUCH_TIME_ZONE, then UTC, decides "today".
+      time_zone: row.time_zone ?? null,
       display: {
         flag_names: JSON.parse(row.flag_names_json),
       },

@@ -21,9 +21,9 @@
   "vars": {
     // The id of your plan. Every deployment has its own database, so sharing
     // this value with other instances is harmless. Never change it after setup.
-    "HOWMUCH_DEFAULT_PLAN_ID": "0d4f2c1e-6b8a-4e57-9a3c-5f1b7e2d9c40",
-    // IANA time zone that decides what "today" means for scheduled transactions.
-    "HOWMUCH_TIME_ZONE": "Europe/London"
+    "HOWMUCH_DEFAULT_PLAN_ID": "0d4f2c1e-6b8a-4e57-9a3c-5f1b7e2d9c40"
+    // No HOWMUCH_TIME_ZONE: setup takes the owner's time zone from the browser,
+    // and Settings changes it.
     // Deliberately absent:
     //  - No YNAB variables: the one-off YNAB import takes its token per request.
     //  - No HOWMUCH_REDIRECT_TARGET: it would redirect every request elsewhere.
@@ -37,11 +37,9 @@
   // block to use only the workers.dev address.
   // "routes": [{ "pattern": "halation.example.com", "custom_domain": true }],
 
-  // Daily materialisation of due scheduled transactions. Cron runs in UTC, so
-  // convert your local 00:05: Singapore (UTC+8) is "5 16 * * *"; London in
-  // winter (UTC+0) is "5 0 * * *" and in summer (UTC+1) "5 23 * * *". Pick the
-  // one that suits you; an hour either side is harmless.
-  "triggers": { "crons": ["5 0 * * *"] },
+  // Materialisation of due scheduled transactions. Hourly, so each run uses
+  // the plan's own time zone: the first run after its midnight enters the day.
+  "triggers": { "crons": ["5 * * * *"] },
 
   "d1_databases": [{
     "binding": "DB",

@@ -27,3 +27,12 @@ Two local Workers (`scripts/local-worker.sh`, env `local`, fresh D1 in `/tmp`), 
 ## API contract
 
 `bun test apps/api/tests/d1.test.ts -t "first visitor"` failed on the base code (a tokenless setup was refused with 403) and passes after the change: with no token, the Worker on a public origin refuses a cross-origin setup (403), refuses a guessed bearer (401), accepts the first same-origin setup (200) and refuses a second (409).
+
+## Round 2: time zone and locale guess
+
+Fresh no-token Worker (`/tmp/d1-tz`, migrations through 0025) behind Vite on 5174. Browser started with `TZ=Asia/Singapore`; `Intl` reported `Asia/Singapore` and `navigator.language` `en-US`.
+
+- Before (round 1 screenshots, same language): setup guessed `USD · US Dollar` and `Month first`.
+- After: setup preselected `SGD · Singapore Dollar | Day first (24 May 2026)`. Created `owner`; `GET /v1/plans/local-plan/settings` returned `{"tz":"Asia/Singapore","cur":"SGD","date":"DD/MM/YYYY"}`.
+- Settings: Time zone select (418 options) showed `Asia/Singapore`; chose `Europe/London`, Save formats showed "Formats saved…", and settings then returned `time_zone: "Europe/London"`.
+- API: `d1.test.ts` "Worker materialises on the plan's own time zone, set at setup" (written first, failed with `HOWMUCH_TIME_ZONE is required`) now passes: a bad zone is a 400, an Auckland plan's schedule due 21 Aug is not entered at 11:05 UTC on 20 Aug and is entered at 12:05 UTC.

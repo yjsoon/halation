@@ -12,7 +12,7 @@ interface Env {
   DB: D1Binding;
   HOWMUCH_API_TOKEN?: string;
   HOWMUCH_DEFAULT_PLAN_ID: string;
-  HOWMUCH_TIME_ZONE: string;
+  HOWMUCH_TIME_ZONE?: string;
   HOWMUCH_YNAB_BASE_URL?: string;
   HOWMUCH_APPLE_APP_IDS?: string;
   HOWMUCH_REDIRECT_TARGET?: string;
@@ -65,10 +65,13 @@ export default {
     if (!controller.cron) throw new Error("Unknown scheduled cron: missing");
     const config = workerConfig(env);
     const database = new HowMuchD1Database(requiredBinding(env.DB, "DB"));
+    const repo = new D1LedgerRepository(database, config.defaultPlanId);
+    // The plan's own zone wins; before setup there is no plan, so fall back.
+    const planZone: string | null = await repo.getSettings(config.defaultPlanId).then((settings) => settings.time_zone, () => null);
     const result = await runDailyScheduledMaterialization({
-      repo: new D1LedgerRepository(database, config.defaultPlanId),
+      repo,
       planId: config.defaultPlanId,
-      timeZone: config.timeZone,
+      timeZone: planZone ?? config.timeZone ?? "UTC",
       scheduledTime: controller.scheduledTime,
     });
     console.log(JSON.stringify({ event: "scheduled_materialization", ...result }));
@@ -76,7 +79,7 @@ export default {
   },
 };
 
-function workerConfig(env: Env): ApiConfig & { timeZone: string } {
+function workerConfig(env: Env): ApiConfig {
   return {
     // Optional. When set, first-owner setup needs it and it authorises
     // default-plan integrations; without it, the first visitor sets up.
@@ -85,7 +88,8 @@ function workerConfig(env: Env): ApiConfig & { timeZone: string } {
     ynabBaseUrl: optional(env.HOWMUCH_YNAB_BASE_URL),
     typesafeApiKey: optional(env.TYPESAFE_API_KEY),
     typesafeModel: optional(env.TYPESAFE_MODEL),
-    timeZone: required(env.HOWMUCH_TIME_ZONE, "HOWMUCH_TIME_ZONE"),
+    // Fallback for a plan with no time zone of its own (set at setup).
+    timeZone: optional(env.HOWMUCH_TIME_ZONE),
   };
 }
 

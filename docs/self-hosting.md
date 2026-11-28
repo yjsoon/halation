@@ -23,9 +23,8 @@ The button sets up the same Worker and D1 database as the manual steps below, wi
 3. On the setup page, name the repository, the Worker and the database, or keep the defaults.
 4. Deploy. Cloudflare creates the database, builds the web app, applies the database migrations and deploys the Worker, then shows its `workers.dev` address.
 5. Open that address straight away and create your account, as described in [first-owner setup](#4-first-owner-setup).
-6. In your copy of the repository, edit `wrangler.jsonc` and set `HOWMUCH_TIME_ZONE` to your IANA time zone, such as `Europe/London`, then commit and push. It starts as `UTC`, and the push redeploys with the new value. Do not change it only in the Cloudflare dashboard: every deploy sets it from `wrangler.jsonc`, so the next push would reset it.
 
-Scheduled transactions are entered daily at 00:05 UTC. To run them at your local midnight instead, change `triggers.crons` in `wrangler.jsonc` in your copy of the repository, as described in [step 2](#2-create-your-config).
+Setup takes your time zone from your browser, and due scheduled transactions are entered within an hour of your midnight. Change the time zone in **Settings** if you need to.
 
 Each push to your copy's main branch rebuilds and redeploys, applying any new migrations first. To update, bring the latest release tag from `yjsoon/halation` into your copy and push it. Your copy's `wrangler.jsonc` holds your database ID, so keep yours when the two differ. For backups, clone your copy and run this from its root, so the export lands in the gitignored `data/` folder:
 
@@ -76,8 +75,6 @@ Then edit `wrangler.self-host.jsonc`:
 
 - `name`: the Worker name (it becomes `<name>.<your-subdomain>.workers.dev`).
 - `d1_databases[0].database_name` and `database_id`: from the `d1 create` output.
-- `HOWMUCH_TIME_ZONE`: your IANA time zone, such as `Europe/London`.
-- `triggers.crons`: the daily materialisation of due scheduled transactions. Cron uses UTC, so convert your local 00:05 (the example explains how).
 - Optional: uncomment `routes` for a custom domain on a zone in your account. Without it, the `workers.dev` address works.
 
 ## 3. Create the schema and deploy
@@ -93,7 +90,7 @@ The deploy builds the web app and runs `wrangler deploy` with your config. Wrang
 
 Open your Worker's address in a browser straight after deploying. The app shows the setup form. Choose a username and a password of at least 15 characters. Whoever completes this form first becomes the owner, so do it before you share the address. If the page asks you to sign in instead of offering setup, someone else got there first: delete the D1 database, create a new one, update `database_id` in your config, apply the migrations and deploy again. To close that gap entirely, set an [optional setup token](#optional-setup-token) before your first visit.
 
-The form also asks for a currency and a date format, prefilled from your browser's language. That guess is only a guess: browsers often report US English whatever the person's country, so check both before you continue. You can change them later in Settings.
+The form also asks for a currency and a date format, guessed from your browser's time zone (or its language when the zone does not point at one country), so check both before you continue. Your time zone is saved too. You can change all three later in Settings.
 
 If the form reports that the server could not complete the request, open the Worker's live logs (**Logs**, then **Live**, in the Cloudflare dashboard, or `bunx wrangler tail`) and try again while watching; the stored logs keep only about one request in ten. Cloudflare error 1102 (exceeded resource limits) means the Worker is on the Workers Free plan; see [Costs](#costs). Any other error means the Worker failed, and the logs say why.
 
@@ -103,7 +100,7 @@ The ledger starts empty. Choose **Add your first account** (or **+ New** beside 
 
 ### Changing the currency or date format afterwards
 
-Sign in as the plan owner, open **Settings**, and use **Currency and date format**. Choose the new values and save; amounts and dates in the web app update straight away. Only owners see this section.
+Sign in as the plan owner, open **Settings**, and use **Currency and date format**, which also holds the time zone. Choose the new values and save; amounts and dates in the web app update straight away. Only owners see this section.
 
 Changing the currency only changes the symbol and decimal places shown. Nothing is converted: $100 becomes £100. For a currency such as JPY the cents are hidden, not lost. The date options are orderings: day first (24 May 2026), month first (May 24, 2026) and year first (2026-05-24). The iOS app shows the new currency after its next refresh and always shows dates as 24 May 2026.
 
@@ -155,6 +152,8 @@ bun run deploy:self-host
 ```
 
 Apply migrations before deploying so the new code never meets an old schema. Update the Worker before installing an iOS build from the same or a newer tag: an older Worker ignores fields the newer app sends, such as the To claim flag, and the app may drop the memo word that used to carry it. Read the tag's commit log (`git log --oneline <previous-tag>..<new-tag>`) for anything that needs more than this.
+
+Instances set up before the time zone was saved with the plan still use `HOWMUCH_TIME_ZONE`, so keep it in your config until you have chosen a time zone in **Settings**. The config now runs the scheduled job hourly (`5 * * * *`); a daily cron also still works.
 
 ## Backups
 

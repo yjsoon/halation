@@ -79,6 +79,8 @@ export interface CurrencyFormat {
 export interface PlanSettings {
   date_format?: { format?: string };
   currency_format?: CurrencyFormat;
+  /** IANA zone; null when the server's own setting decides. */
+  time_zone?: string | null;
   display?: { flag_names?: Record<string, string> };
 }
 

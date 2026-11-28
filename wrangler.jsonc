@@ -29,18 +29,17 @@
   "vars": {
     // Every deployment gets its own database, so sharing this plan id between
     // separate instances is harmless. Never change it after setup.
-    "HOWMUCH_DEFAULT_PLAN_ID": "0d4f2c1e-6b8a-4e57-9a3c-5f1b7e2d9c40",
-    // IANA time zone that decides what "today" means for scheduled
-    // transactions. Change it here in your copy and push: every deploy sets
-    // it from this file, so a value changed only in the dashboard is reset.
-    "HOWMUCH_TIME_ZONE": "UTC"
+    "HOWMUCH_DEFAULT_PLAN_ID": "0d4f2c1e-6b8a-4e57-9a3c-5f1b7e2d9c40"
+    // No HOWMUCH_TIME_ZONE: setup takes the owner's time zone from the browser,
+    // and Settings changes it.
     // Deliberately absent: YNAB variables, HOWMUCH_REDIRECT_TARGET and
     // HOWMUCH_APPLE_APP_IDS (see apps/worker/wrangler.self-host.example.jsonc).
     // HOWMUCH_API_TOKEN is an optional secret (see .dev.vars.example).
   },
 
-  // Daily materialisation of due scheduled transactions at 00:05 UTC.
-  "triggers": { "crons": ["5 0 * * *"] },
+  // Materialisation of due scheduled transactions. Hourly, so each run uses
+  // the plan's own time zone: the first run after its midnight enters the day.
+  "triggers": { "crons": ["5 * * * *"] },
 
   "d1_databases": [{
     "binding": "DB",

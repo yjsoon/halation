@@ -21,6 +21,8 @@ export type LocalePlanSeed = {
     display_symbol: boolean;
   };
   date_format: { format: DateFormatChoice };
+  /** IANA zone that decides "today" for scheduled transactions. */
+  time_zone?: string;
 };
 
 export const DATE_FORMAT_CHOICES: readonly DateFormatChoice[] = ["DD/MM/YYYY", "MM/DD/YYYY", "YYYY-MM-DD"];
@@ -59,8 +61,49 @@ const REGION_CURRENCY: Record<string, string> = {
   ...Object.fromEntries(EURO_REGIONS.map((region) => [region, "EUR"])),
 };
 
+// Where the browser's clock is set says more about the country than its
+// language does: browsers often report US English wherever they are.
+const ZONE_REGION: Record<string, string> = {
+  "Asia/Singapore": "SG", "Asia/Tokyo": "JP", "Asia/Seoul": "KR", "Asia/Shanghai": "CN", "Asia/Taipei": "TW",
+  "Asia/Hong_Kong": "HK", "Asia/Kuala_Lumpur": "MY", "Asia/Kuching": "MY", "Asia/Jakarta": "ID", "Asia/Makassar": "ID",
+  "Asia/Jayapura": "ID", "Asia/Bangkok": "TH", "Asia/Manila": "PH", "Asia/Ho_Chi_Minh": "VN", "Asia/Saigon": "VN",
+  "Asia/Kolkata": "IN", "Asia/Calcutta": "IN", "Pacific/Auckland": "NZ", "Europe/London": "GB", "Europe/Zurich": "CH",
+  "Europe/Stockholm": "SE", "Europe/Oslo": "NO", "Europe/Copenhagen": "DK", "Europe/Dublin": "IE", "Europe/Berlin": "DE",
+  "Europe/Paris": "FR", "Europe/Madrid": "ES", "Europe/Rome": "IT", "Europe/Amsterdam": "NL", "Europe/Brussels": "BE",
+  "Europe/Vienna": "AT", "Europe/Lisbon": "PT", "Europe/Helsinki": "FI", "Europe/Athens": "GR",
+};
+
+function browserTimeZone(): string | undefined {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function regionOfZone(zone: string | undefined): string | undefined {
+  if (!zone) return undefined;
+  if (ZONE_REGION[zone]) return ZONE_REGION[zone];
+  if (zone.startsWith("Australia/")) return "AU";
+  if (/^America\/(Toronto|Vancouver|Edmonton|Winnipeg|Halifax|St_Johns|Regina|Montreal)$/.test(zone)) return "CA";
+  if (/^(America\/(New_York|Chicago|Denver|Los_Angeles|Phoenix|Anchorage|Detroit|Boise)|Pacific\/Honolulu)$/.test(zone)) return "US";
+  return undefined;
+}
+
+/**
+ * The browser's language with the region its clock points at, such as "ko-KR"
+ * for Seoul, so the currency and date order fit the country. Without a known
+ * zone, the browser's own language tag.
+ */
 function browserLanguage(): string | undefined {
-  return typeof navigator === "undefined" ? undefined : navigator.language;
+  if (typeof navigator === "undefined") return undefined;
+  const region = regionOfZone(browserTimeZone());
+  if (!region) return navigator.language;
+  try {
+    return `${new Intl.Locale(`und-${region}`).maximize().language}-${region}`;
+  } catch {
+    return navigator.language;
+  }
 }
 
 /** Region of a tag, recovering a likely one for region-less tags such as "de" or "en". */
@@ -133,5 +176,6 @@ export function buildPlanSeed(
       display_symbol: true,
     },
     date_format: { format: dateFormat },
+    time_zone: browserTimeZone(),
   };
 }

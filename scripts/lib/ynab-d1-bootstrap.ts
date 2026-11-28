@@ -215,6 +215,7 @@ function validateStatementGroups(statementGroups: string[][], expected: Map<stri
     db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0020_drop_budgeting_tables.sql", import.meta.url), "utf8"));
     db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0022_transaction_needs_confirmation.sql", import.meta.url), "utf8"));
     db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0023_transaction_claim_status.sql", import.meta.url), "utf8"));
+    db.exec(readFileSync(new URL("../../apps/api/d1-migrations/0025_plan_time_zone.sql", import.meta.url), "utf8"));
     for (const statements of statementGroups) db.exec(statements.join("\n"));
     if ((db.query("PRAGMA foreign_key_check").all() as any[]).length) throw new Error("Generated database has foreign-key violations");
     for (const table of COPY_TABLES) {

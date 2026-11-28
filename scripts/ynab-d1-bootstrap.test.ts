@@ -78,6 +78,7 @@ function migratedTarget(): Database {
   target.exec(readFileSync(new URL("../apps/api/d1-migrations/0020_drop_budgeting_tables.sql", import.meta.url), "utf8"));
   target.exec(readFileSync(new URL("../apps/api/d1-migrations/0022_transaction_needs_confirmation.sql", import.meta.url), "utf8"));
   target.exec(readFileSync(new URL("../apps/api/d1-migrations/0023_transaction_claim_status.sql", import.meta.url), "utf8"));
+  target.exec(readFileSync(new URL("../apps/api/d1-migrations/0025_plan_time_zone.sql", import.meta.url), "utf8"));
   return target;
 }
 

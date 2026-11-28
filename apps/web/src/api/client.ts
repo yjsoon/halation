@@ -466,7 +466,7 @@ export const api = {
       : downloadFile(planUrl(planId, "export", "transactions.csv"), "halation-transactions.csv"),
   settings: (planId: string, options?: ApiRequestOptions) =>
     request<{ settings: PlanSettings }>(planUrl(planId, "settings"), undefined, options).then((d) => d.settings),
-  updatePlanFormats: (planId: string, formats: Pick<LocalePlanSeed, "currency_format" | "date_format">) =>
+  updatePlanFormats: (planId: string, formats: Partial<Pick<LocalePlanSeed, "currency_format" | "date_format" | "time_zone">>) =>
     request<{ settings: PlanSettings }>(`/api/plans/${encodeURIComponent(planId)}/settings`, {
       method: "PATCH",
       body: JSON.stringify(formats),

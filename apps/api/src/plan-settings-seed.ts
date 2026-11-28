@@ -53,6 +53,16 @@ export function parseSeedCurrencyFormat(value: unknown): SeedCurrencyFormat | nu
   };
 }
 
+/** Returns the IANA zone name, or null when this runtime does not know it. */
+export function parseTimeZone(value: unknown): string | null {
+  if (typeof value !== "string" || value.length < 1 || value.length > 64) return null;
+  try {
+    return new Intl.DateTimeFormat("en", { timeZone: value }).resolvedOptions().timeZone === value ? value : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Returns the validated date format, or null when the value is malformed. */
 export function parseSeedDateFormat(value: unknown): SeedDateFormat | null {
   if (!isPlainObject(value) || Object.keys(value).length !== 1) return null;

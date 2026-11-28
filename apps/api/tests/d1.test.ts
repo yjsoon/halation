@@ -307,6 +307,53 @@ describe("D1 foundation", () => {
     }
   });
 
+  // Failure modes: (1) a self-hoster who never edits HOWMUCH_TIME_ZONE gets
+  // schedules entered on UTC's day, not their own; (2) the hourly cron
+  // materialises on the wrong local day; (3) a bad zone is accepted at setup.
+  test("Worker materialises on the plan's own time zone, set at setup", async () => {
+    const db = await ledgerSqlite();
+    db.run("DELETE FROM accounts");
+    db.run("DELETE FROM plans");
+    const env = { ASSETS: { fetch: async () => new Response("asset") }, DB: fakeD1(db), HOWMUCH_DEFAULT_PLAN_ID: "p" };
+    const origin = "https://halation.someone.workers.dev";
+    const setup = (time_zone: unknown) => worker.fetch(new Request(`${origin}/api/auth/setup`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin },
+      body: JSON.stringify({ username: "owner", password: "worker-setup-passphrase", time_zone }),
+    }), env as any);
+    expect((await setup("Not/A_Zone")).status).toBe(400);
+    const created = await setup("Pacific/Auckland");
+    expect(created.status).toBe(200);
+    const cookie = created.headers.get("set-cookie")!.split(";", 1)[0];
+    const settings = await worker.fetch(new Request(`${origin}/v1/plans/p/settings`, { headers: { cookie } }), env as any);
+    expect((await settings.json() as any).data.settings.time_zone).toBe("Pacific/Auckland");
+
+    const repo = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");
+    db.run("INSERT INTO accounts (id, plan_id, name) VALUES ('a', 'p', 'Everyday')");
+    await repo.createScheduledTransaction("p", { id: "nz-schedule", account_id: "a", date_first: "2026-08-21", frequency: "never", amount: -200 });
+    const count = () => db.query("SELECT COUNT(*) count FROM transactions WHERE source_kind='scheduled-transaction'").get();
+    const originalLog = console.log;
+    console.log = () => {};
+    try {
+      // 11:05 UTC on 20 Aug is 23:05 on 20 Aug in Auckland (NZST, +12): not due yet.
+      await worker.scheduled({ cron: "5 * * * *", scheduledTime: Date.UTC(2026, 7, 20, 11, 5) } as any, env as any);
+      expect(count()).toEqual({ count: 0 });
+      // 12:05 UTC is 00:05 on 21 Aug in Auckland, still 20 Aug in UTC.
+      await worker.scheduled({ cron: "5 * * * *", scheduledTime: Date.UTC(2026, 7, 20, 12, 5) } as any, env as any);
+      expect(count()).toEqual({ count: 1 });
+    } finally {
+      console.log = originalLog;
+    }
+
+    const patched = await worker.fetch(new Request(`${origin}/api/plans/p/settings`, {
+      method: "PATCH",
+      headers: { cookie, origin, "content-type": "application/json" },
+      body: JSON.stringify({ time_zone: "Europe/London" }),
+    }), env as any);
+    expect(patched.status).toBe(200);
+    expect((await patched.json() as any).data.settings.time_zone).toBe("Europe/London");
+  });
+
   test("Worker cron logs a count-only failure summary after materialising valid schedules", async () => {
     const db = await ledgerSqlite();
     const setup = new D1LedgerRepository(new D1Database(fakeD1(db)), "p");

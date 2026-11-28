@@ -26,6 +26,8 @@ export type SetupInput = {
   /** Applied only when the plan row is created here; absent keeps the schema default (SGD). */
   currencyFormat?: SeedCurrencyFormat;
   dateFormat?: SeedDateFormat;
+  /** IANA zone from the owner's browser; absent leaves the server's zone in charge. */
+  timeZone?: string;
 };
 
 export interface AuthStore {
@@ -112,6 +114,7 @@ function planInsert(input: SetupInput, placeholder: (n: number) => string): { sq
   const values = [input.planId, "My Plan"];
   if (input.currencyFormat) { columns.push("currency_format_json"); values.push(JSON.stringify(input.currencyFormat)); }
   if (input.dateFormat) { columns.push("date_format_json"); values.push(JSON.stringify(input.dateFormat)); }
+  if (input.timeZone) { columns.push("time_zone"); values.push(input.timeZone); }
   return {
     sql: `INSERT OR IGNORE INTO plans(${columns.join(",")}) VALUES(${values.map((_, i) => placeholder(i + 1)).join(",")})`,
     values,
