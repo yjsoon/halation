@@ -36,3 +36,11 @@ Fresh no-token Worker (`/tmp/d1-tz`, migrations through 0025) behind Vite on 517
 - After: setup preselected `SGD · Singapore Dollar | Day first (24 May 2026)`. Created `owner`; `GET /v1/plans/local-plan/settings` returned `{"tz":"Asia/Singapore","cur":"SGD","date":"DD/MM/YYYY"}`.
 - Settings: Time zone select (418 options) showed `Asia/Singapore`; chose `Europe/London`, Save formats showed "Formats saved…", and settings then returned `time_zone: "Europe/London"`.
 - API: `d1.test.ts` "Worker materialises on the plan's own time zone, set at setup" (written first, failed with `HOWMUCH_TIME_ZONE is required`) now passes: a bad zone is a 400, an Auckland plan's schedule due 21 Aug is not entered at 11:05 UTC on 20 Aug and is entered at 12:05 UTC.
+
+## Round 2: empty Ledger
+
+Same stack, owner with no accounts, 1280 and 390 px.
+
+- Before (round 1): `$0.00` balance with cleared/uncleared line, Filters, Search, a `+ Add your first account` button, an "Add your first account" panel with a `Create one` link, a `0 transactions · $0.00 in…` footer and keyboard hints.
+- After: `main` text is `Ledger / Start with an account / Transactions live in accounts. Add the one you spend from most, with today’s balance. / + Add your first account`; the accessibility tree has only the heading and that link in `main`.
+- Choosing it opened `/accounts/new`; creating `Everyday` with 500 led to its register with `+ Add transaction`, `Reconcile` and Search, and `/` then showed the full Ledger again.

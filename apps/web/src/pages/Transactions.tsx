@@ -1922,18 +1922,14 @@ export function TransactionsPage() {
   const noAccounts = accounts.length === 0;
   const noOpenAccounts = !accounts.some((account) => !account.closed);
   const emptyLedger = page.loaded && page.transactions.length === 0 && !filters.from && !filters.to;
-  const emptyMessage = noAccounts
-    ? "Add your first account"
-    : noOpenAccounts && emptyLedger
+  const emptyMessage = noOpenAccounts && emptyLedger
       ? "All your accounts are closed"
       : page.loaded && page.transactions.length === 0
       ? filters.from || filters.to ? "No transactions in this date range." : "No transactions yet."
       : deferredSearch.trim()
         ? "No transactions match this search."
         : "No transactions match these filters.";
-  const emptyDetail = noAccounts
-    ? <>Transactions belong to an account. <Link to="/accounts/new">Create one</Link> with its current balance, then add transactions to it.</>
-    : noOpenAccounts && emptyLedger
+  const emptyDetail = noOpenAccounts && emptyLedger
       ? <>New transactions need an open account. <Link to="/accounts/new">Create one</Link> to keep recording.</>
       : emptyLedger && !deferredSearch.trim() && canCompose
         ? "Choose + Add transaction to record the first one."
@@ -1959,6 +1955,24 @@ export function TransactionsPage() {
       && !reconciliationPreview.error
       && reconciliationDifference === 0,
   );
+
+  // A new ledger has nothing to filter, search, total or reconcile, so it
+  // shows only the one step that leads anywhere.
+  if (noAccounts) {
+    return (
+      <>
+        <div className="report-header register-header">
+          <div><h1 ref={setHeading} tabIndex={-1}>{registerLabel}</h1></div>
+        </div>
+        <StatusPanel title="Start with an account">
+          Transactions live in accounts. Add the one you spend from most, with today’s balance.
+        </StatusPanel>
+        <div className="register-toolbar-actions register-first-account">
+          <Link to="/accounts/new" className="register-add-link">+ Add your first account</Link>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -2003,9 +2017,6 @@ export function TransactionsPage() {
       />
       <div className="register-toolbar">
         <div className="register-toolbar-actions">
-          {noAccounts ? (
-            <Link to="/accounts/new" className="register-add-link">+ Add your first account</Link>
-          ) : (
           <button
             type="button"
             ref={addTransactionRef}
@@ -2014,24 +2025,20 @@ export function TransactionsPage() {
             disabled={!canCompose || mutationBusy}
             title={!canCompose
               ? selectedAccount?.closed ? "This account is closed"
-                : noAccounts ? "Add an account first"
                 : noOpenAccounts ? "All accounts are closed. Add an open account first."
                 : undefined
               : undefined}
           >
             + Add transaction
           </button>
-          )}
-          {!noAccounts && (
-            <button
-              type="button"
-              className="register-add-link register-secondary-action"
-              onClick={openReconcile}
-              disabled={Boolean(mutatingId)}
-            >
-              Reconcile
-            </button>
-          )}
+          <button
+            type="button"
+            className="register-add-link register-secondary-action"
+            onClick={openReconcile}
+            disabled={Boolean(mutatingId)}
+          >
+            Reconcile
+          </button>
           {selectedAccount && (
             <button
               type="button"
